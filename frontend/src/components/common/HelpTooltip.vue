@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useTemplateRef, nextTick } from 'vue'
+import { onBeforeUnmount, onMounted, ref, nextTick } from 'vue'
 
 const props = withDefaults(defineProps<{
   content?: string
@@ -11,8 +11,8 @@ const props = withDefaults(defineProps<{
 })
 
 const show = ref(false)
-const triggerRef = useTemplateRef<HTMLElement>('trigger')
-const tooltipRef = useTemplateRef<HTMLElement>('tooltip')
+const triggerRef = ref<HTMLElement | null>(null)
+const tooltipRef = ref<HTMLElement | null>(null)
 const tooltipStyle = ref({ top: '0px', left: '0px' })
 
 function openTooltip() {

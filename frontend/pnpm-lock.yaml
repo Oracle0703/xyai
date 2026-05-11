@@ -120,9 +120,6 @@ importers:
       vite:
         specifier: ^5.0.10
         version: 5.4.21(@types/node@20.19.27)
-      vite-plugin-checker:
-        specifier: ^0.9.1
-        version: 0.9.3(eslint@8.57.1)(optionator@0.9.4)(typescript@5.6.3)(vite@5.4.21(@types/node@20.19.27))(vue-tsc@2.2.12(typescript@5.6.3))
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@20.19.27)(jsdom@24.1.3)
@@ -4229,40 +4226,6 @@ packages:
     resolution: {integrity: sha512-AM9aQ/IPrW/6ENLQg3AGY4K1N2TGZdR5e4gu/MmmR2xR3Ll1+dib+nook92g4TV3PXVyeyxdWwtaCAiUL0hMxA==}
     engines: {node: ^18.0.0 || >=20.0.0}
     hasBin: true
-
-  vite-plugin-checker@0.9.3:
-    resolution: {integrity: sha512-Tf7QBjeBtG7q11zG0lvoF38/2AVUzzhMNu+Wk+mcsJ00Rk/FpJ4rmUviVJpzWkagbU13cGXvKpt7CMiqtxVTbQ==}
-    engines: {node: '>=14.16'}
-    peerDependencies:
-      '@biomejs/biome': '>=1.7'
-      eslint: '>=7'
-      meow: ^13.2.0
-      optionator: ^0.9.4
-      stylelint: '>=16'
-      typescript: '*'
-      vite: '>=2.0.0'
-      vls: '*'
-      vti: '*'
-      vue-tsc: ~2.2.10
-    peerDependenciesMeta:
-      '@biomejs/biome':
-        optional: true
-      eslint:
-        optional: true
-      meow:
-        optional: true
-      optionator:
-        optional: true
-      stylelint:
-        optional: true
-      typescript:
-        optional: true
-      vls:
-        optional: true
-      vti:
-        optional: true
-      vue-tsc:
-        optional: true
 
   vite@5.4.21:
     resolution: {integrity: sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw==}
@@ -9429,24 +9392,6 @@ snapshots:
       - sugarss
       - supports-color
       - terser
-
-  vite-plugin-checker@0.9.3(eslint@8.57.1)(optionator@0.9.4)(typescript@5.6.3)(vite@5.4.21(@types/node@20.19.27))(vue-tsc@2.2.12(typescript@5.6.3)):
-    dependencies:
-      '@babel/code-frame': 7.27.1
-      chokidar: 4.0.3
-      npm-run-path: 6.0.0
-      picocolors: 1.1.1
-      picomatch: 4.0.3
-      strip-ansi: 7.1.2
-      tiny-invariant: 1.3.3
-      tinyglobby: 0.2.15
-      vite: 5.4.21(@types/node@20.19.27)
-      vscode-uri: 3.1.0
-    optionalDependencies:
-      eslint: 8.57.1
-      optionator: 0.9.4
-      typescript: 5.6.3
-      vue-tsc: 2.2.12(typescript@5.6.3)
 
   vite@5.4.21(@types/node@20.19.27):
     dependencies:

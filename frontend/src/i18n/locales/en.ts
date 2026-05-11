@@ -3130,6 +3130,9 @@ export default {
       openai: {
         baseUrlHint: 'Leave default for official OpenAI API',
         apiKeyHint: 'Your OpenAI API Key',
+        compatibleProvider: 'OpenAI-compatible provider',
+        compatibleProviderHint:
+          'Volcengine, Qwen, and similar providers use the OpenAI-compatible protocol and are still scheduled as OpenAI accounts.',
         oauthPassthrough: 'Auto passthrough (auth only)',
         oauthPassthroughDesc:
           'When enabled, this OpenAI account uses automatic passthrough: the gateway forwards request/response as-is and only swaps auth, while keeping billing/concurrency/audit and necessary safety filtering.',

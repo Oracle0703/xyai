@@ -1010,6 +1010,19 @@
 
       <!-- API Key input (only for apikey type, excluding Antigravity which has its own fields) -->
       <div v-if="form.type === 'apikey' && form.platform !== 'antigravity'" class="space-y-4">
+        <div v-if="form.platform === 'openai'">
+          <label class="input-label">{{ t('admin.accounts.openai.compatibleProvider') }}</label>
+          <select v-model="openAICompatibleProvider" class="input">
+            <option
+              v-for="preset in OPENAI_COMPATIBLE_PROVIDER_PRESETS"
+              :key="preset.id"
+              :value="preset.id"
+            >
+              {{ preset.label }}
+            </option>
+          </select>
+          <p class="input-hint">{{ t('admin.accounts.openai.compatibleProviderHint') }}</p>
+        </div>
         <div>
           <label class="input-label">{{ t('admin.accounts.baseUrl') }}</label>
           <input
@@ -1033,13 +1046,7 @@
             type="password"
             required
             class="input font-mono"
-            :placeholder="
-              form.platform === 'openai'
-                ? 'sk-proj-...'
-                : form.platform === 'gemini'
-                  ? 'AIza...'
-                  : 'sk-ant-...'
-            "
+            :placeholder="apiKeyPlaceholder"
           />
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
@@ -3133,6 +3140,12 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import { applyInterceptWarmup } from '@/components/account/credentialsBuilder'
+import {
+  OPENAI_COMPATIBLE_PROVIDER_PRESETS,
+  applyOpenAICompatibleProviderPreset,
+  getOpenAICompatibleProviderPreset,
+  type OpenAICompatibleProviderId
+} from '@/components/account/openaiCompatibleProviderPresets'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
@@ -3181,6 +3194,14 @@ const apiKeyHint = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.openai.apiKeyHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.apiKeyHint')
   return t('admin.accounts.apiKeyHint')
+})
+
+const apiKeyPlaceholder = computed(() => {
+  if (form.platform === 'openai') {
+    return getOpenAICompatibleProviderPreset(openAICompatibleProvider.value).apiKeyPlaceholder
+  }
+  if (form.platform === 'gemini') return 'AIza...'
+  return 'sk-ant-...'
 })
 
 interface Props {
@@ -3255,6 +3276,7 @@ const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_acco
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
+const openAICompatibleProvider = ref<OpenAICompatibleProviderId>('openai')
 const editQuotaLimit = ref<number | null>(null)
 const editQuotaDailyLimit = ref<number | null>(null)
 const editQuotaWeeklyLimit = ref<number | null>(null)
@@ -3447,7 +3469,7 @@ const geminiQuotaDocs = {
 const geminiHelpLinks = {
   apiKey: 'https://aistudio.google.com/app/apikey',
   aiStudioPricing: 'https://ai.google.dev/pricing',
-  gcpProject: 'https://console.cloud.google.com/welcome/new',
+  gcpProject: 'https://console.cloud.google.com/projectcreate',
   geminiWebActivation: 'https://gemini.google.com/gems/create?hl=en-US&pli=1',
   countryCheck: 'https://policies.google.com/terms',
   countryChange: 'https://policies.google.com/country-association-form'
@@ -3648,6 +3670,7 @@ watch(
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
+      openAICompatibleProvider.value = 'openai'
     }
     if (newPlatform !== 'anthropic') {
       anthropicPassthroughEnabled.value = false
@@ -3659,6 +3682,17 @@ watch(
 
     geminiOAuth.resetState()
     antigravityOAuth.resetState()
+  }
+)
+
+watch(
+  openAICompatibleProvider,
+  (provider) => {
+    if (form.platform !== 'openai' || accountCategory.value !== 'apikey') {
+      return
+    }
+    const preset = getOpenAICompatibleProviderPreset(provider)
+    apiKeyBaseUrl.value = preset.defaultBaseUrl
   }
 )
 
@@ -4014,6 +4048,7 @@ const resetForm = () => {
   addMethod.value = 'oauth'
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
+  openAICompatibleProvider.value = 'openai'
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -4410,6 +4445,10 @@ const handleSubmit = async () => {
     }
   }
   if (form.platform === 'openai') {
+    Object.assign(
+      credentials,
+      applyOpenAICompatibleProviderPreset(credentials, openAICompatibleProvider.value)
+    )
     const compactModelMapping = buildOpenAICompactModelMapping()
     if (compactModelMapping) {
       credentials.compact_model_mapping = compactModelMapping
