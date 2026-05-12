@@ -8,6 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func mustJSONString(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var out string
+	require.NoError(t, json.Unmarshal(raw, &out))
+	return out
+}
+
 // ---------------------------------------------------------------------------
 // ChatCompletionsToResponses tests
 // ---------------------------------------------------------------------------
@@ -556,6 +563,61 @@ func TestResponsesToChatCompletions_CachedTokens(t *testing.T) {
 	require.NotNil(t, chat.Usage)
 	require.NotNil(t, chat.Usage.PromptTokensDetails)
 	assert.Equal(t, 80, chat.Usage.PromptTokensDetails.CachedTokens)
+}
+
+func TestResponsesToChatCompletionsRequest_BasicText(t *testing.T) {
+	req := &ResponsesRequest{
+		Model:        "glm-5.1",
+		Instructions: "be precise",
+		Stream:       true,
+		Input:        json.RawMessage(`[{"role":"user","content":"hello"}]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Equal(t, "glm-5.1", chatReq.Model)
+	require.True(t, chatReq.Stream)
+	require.Len(t, chatReq.Messages, 2)
+	require.Equal(t, "system", chatReq.Messages[0].Role)
+	require.Equal(t, "be precise", mustJSONString(t, chatReq.Messages[0].Content))
+	require.Equal(t, "user", chatReq.Messages[1].Role)
+	require.Equal(t, "hello", mustJSONString(t, chatReq.Messages[1].Content))
+	require.NotNil(t, chatReq.StreamOptions)
+	require.True(t, chatReq.StreamOptions.IncludeUsage)
+}
+
+func TestResponsesToChatCompletionsRequest_NonStreamDoesNotSetStreamOptions(t *testing.T) {
+	req := &ResponsesRequest{
+		Model:  "glm-5.1",
+		Stream: false,
+		Input:  json.RawMessage(`[{"role":"user","content":"hello"}]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Nil(t, chatReq.StreamOptions)
+}
+
+func TestResponsesToChatCompletionsRequest_FunctionCallAndToolOutput(t *testing.T) {
+	req := &ResponsesRequest{
+		Model: "glm-5.1",
+		Input: json.RawMessage(`[
+			{"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{\"q\":\"hi\"}"},
+			{"type":"function_call_output","call_id":"call_1","output":"{\"result\":\"ok\"}"}
+		]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+	require.Equal(t, "assistant", chatReq.Messages[0].Role)
+	require.Len(t, chatReq.Messages[0].ToolCalls, 1)
+	require.Equal(t, "call_1", chatReq.Messages[0].ToolCalls[0].ID)
+	require.Equal(t, "lookup", chatReq.Messages[0].ToolCalls[0].Function.Name)
+	require.Equal(t, `{"q":"hi"}`, chatReq.Messages[0].ToolCalls[0].Function.Arguments)
+	require.Equal(t, "tool", chatReq.Messages[1].Role)
+	require.Equal(t, "call_1", chatReq.Messages[1].ToolCallID)
+	require.Equal(t, `{"result":"ok"}`, mustJSONString(t, chatReq.Messages[1].Content))
 }
 
 func TestResponsesToChatCompletions_WebSearch(t *testing.T) {
