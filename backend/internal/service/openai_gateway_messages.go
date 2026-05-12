@@ -598,7 +598,9 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 
 			if isOpenAICompatResponsesTerminalEvent(event.Type) && event.Response != nil {
 				if event.Response.Usage != nil {
+					applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Response.Usage, "response.usage")
 					usage = copyOpenAIUsageFromResponsesUsage(event.Response.Usage)
+					applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, "response.usage")
 				}
 				return event.Response, usage, acc, nil
 			}

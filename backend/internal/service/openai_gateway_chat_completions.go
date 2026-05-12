@@ -483,7 +483,9 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 		// 仅按兼容转换器支持的终止事件提取 usage，避免无意扩大事件语义。
 		isTerminalEvent := isOpenAICompatResponsesTerminalEvent(event.Type)
 		if isTerminalEvent && event.Response != nil && event.Response.Usage != nil {
+			applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Response.Usage, "response.usage")
 			usage = copyOpenAIUsageFromResponsesUsage(event.Response.Usage)
+			applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, "response.usage")
 		}
 
 		chunks := apicompat.ResponsesEventToChatChunks(&event, state)

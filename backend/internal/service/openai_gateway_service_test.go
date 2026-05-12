@@ -2176,6 +2176,32 @@ func TestParseSSEUsage_SelectiveParsing(t *testing.T) {
 	require.Equal(t, 4, usage.CacheReadInputTokens)
 }
 
+func TestParseSSEUsage_CompatibleCacheFieldsFallback(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	usage := &OpenAIUsage{}
+
+	svc.parseSSEUsage(`{"type":"response.completed","response":{"usage":{"input_tokens":12,"output_tokens":3,"cache_read_input_tokens":5,"cache_creation_input_tokens":7,"cached_tokens":9}}}`, usage)
+	require.Equal(t, 12, usage.InputTokens)
+	require.Equal(t, 3, usage.OutputTokens)
+	require.Equal(t, 5, usage.CacheReadInputTokens)
+	require.Equal(t, 7, usage.CacheCreationInputTokens)
+
+	svc.parseSSEUsage(`{"type":"response.done","response":{"usage":{"input_tokens":4,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cached_tokens":6}}}`, usage)
+	require.Equal(t, 4, usage.InputTokens)
+	require.Equal(t, 1, usage.OutputTokens)
+	require.Equal(t, 6, usage.CacheReadInputTokens)
+	require.Zero(t, usage.CacheCreationInputTokens)
+}
+
+func TestExtractOpenAIUsageFromJSONBytes_CompatibleCacheFieldsFallback(t *testing.T) {
+	usage, ok := extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":8,"output_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":4,"cached_tokens":99}}`))
+	require.True(t, ok)
+	require.Equal(t, 8, usage.InputTokens)
+	require.Equal(t, 2, usage.OutputTokens)
+	require.Equal(t, 3, usage.CacheReadInputTokens)
+	require.Equal(t, 4, usage.CacheCreationInputTokens)
+}
+
 func TestExtractCodexFinalResponse_SampleReplay(t *testing.T) {
 	body := strings.Join([]string{
 		`event: message`,

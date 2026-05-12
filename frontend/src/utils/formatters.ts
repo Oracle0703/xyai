@@ -1,9 +1,10 @@
 /**
- * 格式化缓存 token 数量（1K/1M 缩写）
+ * 格式化缓存 token 数量。
+ * 小缓存命中保持精确数字，避免 1848 这类值在明细表中被缩写成 1.8K。
  */
 export function formatCacheTokens(tokens: number): string {
   if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`
-  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`
+  if (tokens >= 10000) return `${(tokens / 1000).toFixed(1)}K`
   return tokens.toLocaleString()
 }
 

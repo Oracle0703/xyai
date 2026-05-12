@@ -4632,6 +4632,63 @@ func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *OpenAIUsage) {
 	s.parseSSEUsageBytes([]byte(data), usage)
 }
 
+func applyOpenAICompatibleCacheUsageFromJSON(data []byte, usage *OpenAIUsage, usagePath string) {
+	if usage == nil || len(data) == 0 {
+		return
+	}
+	base := strings.TrimSpace(usagePath)
+	if base == "" {
+		base = "usage"
+	}
+	path := func(suffix string) string {
+		return base + "." + suffix
+	}
+
+	cacheCreation := int(gjson.GetBytes(data, path("cache_creation_input_tokens")).Int())
+	if cacheCreation == 0 {
+		cacheCreation5m := int(gjson.GetBytes(data, path("cache_creation.ephemeral_5m_input_tokens")).Int())
+		cacheCreation1h := int(gjson.GetBytes(data, path("cache_creation.ephemeral_1h_input_tokens")).Int())
+		if cacheCreation5m > 0 || cacheCreation1h > 0 {
+			cacheCreation = cacheCreation5m + cacheCreation1h
+		}
+	}
+	usage.CacheCreationInputTokens = cacheCreation
+
+	cacheRead := int(gjson.GetBytes(data, path("cache_read_input_tokens")).Int())
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("prompt_tokens_details.cached_tokens")).Int())
+	}
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("input_tokens_details.cached_tokens")).Int())
+	}
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("cached_tokens")).Int())
+	}
+	usage.CacheReadInputTokens = cacheRead
+}
+
+func applyOpenAICompatibleResponsesUsageDetailsFromJSON(data []byte, usage *apicompat.ResponsesUsage, usagePath string) {
+	if usage == nil {
+		return
+	}
+	compatUsage := OpenAIUsage{}
+	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
+	if compatUsage.CacheReadInputTokens > 0 && (usage.InputTokensDetails == nil || usage.InputTokensDetails.CachedTokens == 0) {
+		usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{CachedTokens: compatUsage.CacheReadInputTokens}
+	}
+}
+
+func applyOpenAICompatibleChatUsageDetailsFromJSON(data []byte, usage *apicompat.ChatUsage, usagePath string) {
+	if usage == nil {
+		return
+	}
+	compatUsage := OpenAIUsage{}
+	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
+	if compatUsage.CacheReadInputTokens > 0 && (usage.PromptTokensDetails == nil || usage.PromptTokensDetails.CachedTokens == 0) {
+		usage.PromptTokensDetails = &apicompat.ChatTokenDetails{CachedTokens: compatUsage.CacheReadInputTokens}
+	}
+}
+
 func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsage) {
 	if usage == nil || len(data) == 0 || bytes.Equal(data, []byte("[DONE]")) {
 		return
@@ -4648,7 +4705,9 @@ func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsag
 
 	usage.InputTokens = int(gjson.GetBytes(data, "response.usage.input_tokens").Int())
 	usage.OutputTokens = int(gjson.GetBytes(data, "response.usage.output_tokens").Int())
-	usage.CacheReadInputTokens = int(gjson.GetBytes(data, "response.usage.input_tokens_details.cached_tokens").Int())
+	usage.CacheCreationInputTokens = 0
+	usage.CacheReadInputTokens = 0
+	applyOpenAICompatibleCacheUsageFromJSON(data, usage, "response.usage")
 	usage.ImageOutputTokens = int(gjson.GetBytes(data, "response.usage.output_tokens_details.image_tokens").Int())
 }
 
@@ -4663,12 +4722,13 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 		"usage.input_tokens_details.cached_tokens",
 		"usage.output_tokens_details.image_tokens",
 	)
-	return OpenAIUsage{
-		InputTokens:          int(values[0].Int()),
-		OutputTokens:         int(values[1].Int()),
-		CacheReadInputTokens: int(values[2].Int()),
-		ImageOutputTokens:    int(values[3].Int()),
-	}, true
+	usage := OpenAIUsage{
+		InputTokens:       int(values[0].Int()),
+		OutputTokens:      int(values[1].Int()),
+		ImageOutputTokens: int(values[3].Int()),
+	}
+	applyOpenAICompatibleCacheUsageFromJSON(body, &usage, "usage")
+	return usage, true
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {

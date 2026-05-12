@@ -69,6 +69,59 @@ func TestOpenAIGatewayService_ResponsesFallsBackToRawChatCompletionsForOpenAICom
 	require.Equal(t, "hello back", gjson.GetBytes(rec.Body.Bytes(), "output.0.content.0.text").String())
 }
 
+func TestOpenAIGatewayService_ResponsesCompatPreservesCompatibleCacheUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"glm-5.1","stream":false,"input":[{"role":"user","content":"hello"}]}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_responses_compat_cache"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"id":"chatcmpl_compat_cache","object":"chat.completion","created":1710000000,"model":"glm-5.1","choices":[{"index":0,"message":{"role":"assistant","content":"hello back"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12,"cache_read_input_tokens":4,"cache_creation_input_tokens":6,"cached_tokens":99}}`,
+		)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	account := &Account{
+		ID:          203,
+		Name:        "openai-compatible-apikey-cache",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		},
+		Extra: map[string]any{
+			"openai_responses_supported": false,
+		},
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 10, result.Usage.InputTokens)
+	require.Equal(t, 2, result.Usage.OutputTokens)
+	require.Equal(t, 4, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 6, result.Usage.CacheCreationInputTokens)
+	require.Equal(t, int64(4), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens_details.cached_tokens").Int())
+}
+
 func TestOpenAIGatewayService_ResponsesStreamFallsBackToRawChatCompletionsForOpenAICompatibleAPIKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

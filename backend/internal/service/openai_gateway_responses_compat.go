@@ -193,6 +193,9 @@ func (s *OpenAIGatewayService) bufferResponsesViaRawChatCompletions(
 		writeResponsesError(c, http.StatusBadGateway, "api_error", "Failed to parse upstream response")
 		return nil, fmt.Errorf("parse upstream chat completions response: %w", err)
 	}
+	if chatResp.Usage != nil {
+		applyOpenAICompatibleChatUsageDetailsFromJSON(respBody, chatResp.Usage, "usage")
+	}
 
 	responsesResp := chatCompletionsToResponsesResponse(&chatResp, originalModel)
 
@@ -205,9 +208,7 @@ func (s *OpenAIGatewayService) bufferResponsesViaRawChatCompletions(
 	if chatResp.Usage != nil {
 		usage.InputTokens = chatResp.Usage.PromptTokens
 		usage.OutputTokens = chatResp.Usage.CompletionTokens
-		if chatResp.Usage.PromptTokensDetails != nil {
-			usage.CacheReadInputTokens = chatResp.Usage.PromptTokensDetails.CachedTokens
-		}
+		applyOpenAICompatibleCacheUsageFromJSON(respBody, &usage, "usage")
 	}
 
 	return &OpenAIForwardResult{
@@ -354,11 +355,12 @@ func (s *OpenAIGatewayService) streamResponsesViaRawChatCompletions(
 		}
 
 		if chunk.Usage != nil {
-			usage.InputTokens = chunk.Usage.PromptTokens
-			usage.OutputTokens = chunk.Usage.CompletionTokens
-			if chunk.Usage.PromptTokensDetails != nil {
-				usage.CacheReadInputTokens = chunk.Usage.PromptTokensDetails.CachedTokens
+			applyOpenAICompatibleChatUsageDetailsFromJSON([]byte(payload), chunk.Usage, "usage")
+			usage = OpenAIUsage{
+				InputTokens:  chunk.Usage.PromptTokens,
+				OutputTokens: chunk.Usage.CompletionTokens,
 			}
+			applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, "usage")
 		}
 
 		events := state.ProcessChunk(&chunk, usage)
@@ -679,18 +681,23 @@ func (s *chatCompletionsToResponsesStreamState) finalResponseEvent(finishReason 
 		incomplete = &apicompat.ResponsesIncompleteDetails{Reason: "max_output_tokens"}
 	}
 
+	responseUsage := &apicompat.ResponsesUsage{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+		TotalTokens:  usage.InputTokens + usage.OutputTokens,
+	}
+	if usage.CacheReadInputTokens > 0 {
+		responseUsage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{CachedTokens: usage.CacheReadInputTokens}
+	}
+
 	return s.nextEvent("response.completed", &apicompat.ResponsesStreamEvent{
 		Response: &apicompat.ResponsesResponse{
-			ID:     s.ResponseID,
-			Object: "response",
-			Model:  s.Model,
-			Status: status,
-			Output: s.completedOutputItems(),
-			Usage: &apicompat.ResponsesUsage{
-				InputTokens:  usage.InputTokens,
-				OutputTokens: usage.OutputTokens,
-				TotalTokens:  usage.InputTokens + usage.OutputTokens,
-			},
+			ID:                s.ResponseID,
+			Object:            "response",
+			Model:             s.Model,
+			Status:            status,
+			Output:            s.completedOutputItems(),
+			Usage:             responseUsage,
 			IncompleteDetails: incomplete,
 		},
 	})
