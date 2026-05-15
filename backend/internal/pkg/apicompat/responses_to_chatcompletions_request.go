@@ -10,23 +10,38 @@ import (
 // Chat Completions request. This is used for third-party OpenAI-compatible
 // upstreams that only implement /v1/chat/completions.
 func ResponsesToChatCompletionsRequest(req *ResponsesRequest) (*ChatCompletionsRequest, error) {
+	return ResponsesToChatCompletionsRequestWithOptions(req, ResponsesToChatCompletionsOptions{})
+}
+
+// ResponsesToChatCompletionsOptions controls compatibility filtering applied
+// while converting a Responses request into a Chat Completions request.
+type ResponsesToChatCompletionsOptions struct {
+	DropTemperature         bool
+	DropMaxCompletionTokens bool
+}
+
+// ResponsesToChatCompletionsRequestWithOptions converts a Responses API
+// request into a Chat Completions request with upstream-specific filtering.
+func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts ResponsesToChatCompletionsOptions) (*ChatCompletionsRequest, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil responses request")
 	}
 
 	out := &ChatCompletionsRequest{
 		Model:       req.Model,
-		Temperature: req.Temperature,
 		TopP:        req.TopP,
 		Stream:      req.Stream,
 		ToolChoice:  req.ToolChoice,
 		ServiceTier: req.ServiceTier,
 	}
+	if !opts.DropTemperature {
+		out.Temperature = req.Temperature
+	}
 	if req.Stream {
 		out.StreamOptions = &ChatStreamOptions{IncludeUsage: true}
 	}
 
-	if req.MaxOutputTokens != nil {
+	if req.MaxOutputTokens != nil && !opts.DropMaxCompletionTokens {
 		v := *req.MaxOutputTokens
 		out.MaxCompletionTokens = &v
 	}

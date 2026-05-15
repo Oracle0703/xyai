@@ -2296,12 +2296,18 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	// Handle max_output_tokens based on platform and account type
 	if !isCodexCLI {
+		useRawChatCompletionsCompat := account.Platform == PlatformOpenAI &&
+			account.Type == AccountTypeAPIKey &&
+			!openai_compat.ShouldUseResponsesAPI(account.Extra)
+
 		if maxOutputTokens, hasMaxOutputTokens := reqBody["max_output_tokens"]; hasMaxOutputTokens {
 			switch account.Platform {
 			case PlatformOpenAI:
-				// For OpenAI API Key, remove max_output_tokens (not supported)
+				// For OpenAI-compatible API keys without /v1/responses support,
+				// preserve max_output_tokens until the Responses -> Chat
+				// Completions fallback maps it to max_completion_tokens.
 				// For OpenAI OAuth (Responses API), keep it (supported)
-				if account.Type == AccountTypeAPIKey {
+				if account.Type == AccountTypeAPIKey && !useRawChatCompletionsCompat {
 					delete(reqBody, "max_output_tokens")
 					bodyModified = true
 					markPatchDelete("max_output_tokens")
