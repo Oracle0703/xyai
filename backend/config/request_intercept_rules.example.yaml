@@ -1,0 +1,21 @@
+version: 1
+
+# Copy this file to config/request_intercept_rules.yaml and edit it there.
+# The service loads the rules file on each matching request, so rule changes
+# take effect without rebuilding the application.
+rules:
+  - id: greeting
+    match: exact
+    keywords:
+      - hi
+      - hello
+      - 你好
+      - 您好
+    reply: 你好，我是迅游AI，有什么可以帮助你？
+
+  - id: policy
+    match: contains
+    keywords:
+      - 示例敏感词1
+      - 示例敏感词2
+    reply: 你的问题超出法律规定，请问一些其他的。

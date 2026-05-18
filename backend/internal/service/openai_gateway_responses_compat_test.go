@@ -69,6 +69,71 @@ func TestOpenAIGatewayService_ResponsesFallsBackToRawChatCompletionsForOpenAICom
 	require.Equal(t, "hello back", gjson.GetBytes(rec.Body.Bytes(), "output.0.content.0.text").String())
 }
 
+func TestOpenAIGatewayService_ResponsesCompatSanitizesUnsupportedRequestParameters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"gpt-5.5","stream":true,"temperature":0.7,"max_output_tokens":1000,"input":"hello","tools":[{"type":"function","name":"lookup","description":"Lookup data","parameters":{"type":"object"}}]}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_responses_compat_params"}},
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"id":"chatcmpl_params_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-5.5","choices":[{"index":0,"delta":{"content":"ok"}}]}`,
+			"",
+			`data: {"id":"chatcmpl_params_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-5.5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`,
+			"",
+			"data: [DONE]",
+			"",
+		}, "\n"))),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	account := &Account{
+		ID:          204,
+		Name:        "openai-compatible-apikey-params",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "http://upstream.example",
+		},
+		Extra: map[string]any{
+			"openai_responses_supported": false,
+		},
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+
+	upstreamReqBody, err := io.ReadAll(upstream.lastReq.Body)
+	require.NoError(t, err)
+	require.Equal(t, "gpt-5.5", gjson.GetBytes(upstreamReqBody, "model").String())
+	require.True(t, gjson.GetBytes(upstreamReqBody, "stream").Bool())
+	require.Equal(t, int64(1000), gjson.GetBytes(upstreamReqBody, "max_completion_tokens").Int())
+	require.False(t, gjson.GetBytes(upstreamReqBody, "max_output_tokens").Exists())
+	require.False(t, gjson.GetBytes(upstreamReqBody, "temperature").Exists())
+	require.Equal(t, "hello", gjson.GetBytes(upstreamReqBody, `messages.#(role=="user").content`).String())
+	require.Equal(t, "function", gjson.GetBytes(upstreamReqBody, "tools.0.type").String())
+	require.Equal(t, "lookup", gjson.GetBytes(upstreamReqBody, "tools.0.function.name").String())
+}
+
 func TestOpenAIGatewayService_ResponsesCompatPreservesCompatibleCacheUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

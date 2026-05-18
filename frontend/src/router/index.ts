@@ -541,6 +541,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/request-intercept',
+    name: 'AdminRequestIntercept',
+    component: () => import('@/views/admin/RequestInterceptView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Request Intercept',
+      titleKey: 'admin.requestIntercept.title',
+      descriptionKey: 'admin.requestIntercept.description'
+    }
+  },
+  {
     path: '/admin/usage',
     name: 'AdminUsage',
     component: () => import('@/views/admin/UsageView.vue'),
