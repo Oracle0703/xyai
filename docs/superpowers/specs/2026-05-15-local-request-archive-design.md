@@ -44,8 +44,8 @@ WebSocket 首条消息本期不作为主要目标；GET `/responses` 建连本�
 |---|---:|---|
 | `enabled` | `true` | 总开关 |
 | `dir` | `data/request-archive` | JSONL 输出目录 |
-| `max_request_body_bytes` | `65536` | 请求体保存上限 |
-| `max_response_body_bytes` | `65536` | 响应体保存上限 |
+| `max_request_body_bytes` | `8388608` | 请求体保存上限 |
+| `max_response_body_bytes` | `2097152` | 响应体保存上限 |
 | `capture_response` | `true` | 是否捕获返回给用户的响应体 |
 
 ## 安全边界

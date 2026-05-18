@@ -72,7 +72,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write failing config default test**
 
-Assert defaults: `gateway.request_archive.enabled=true`, `dir=data/request-archive`, `max_request_body_bytes=65536`, `max_response_body_bytes=65536`, `capture_response=true`.
+Assert defaults: `gateway.request_archive.enabled=true`, `dir=data/request-archive`, `max_request_body_bytes=8388608`, `max_response_body_bytes=2097152`, `capture_response=true`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
