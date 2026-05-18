@@ -77,6 +77,9 @@ func RegisterAdminRoutes(
 		// 错误透传规则管理
 		registerErrorPassthroughRoutes(admin, h)
 
+		// 请求拦截规则管理
+		registerRequestInterceptRoutes(admin, h)
+
 		// TLS 指纹模板管理
 		registerTLSFingerprintProfileRoutes(admin, h)
 
@@ -570,6 +573,17 @@ func registerErrorPassthroughRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		rules.POST("", h.Admin.ErrorPassthrough.Create)
 		rules.PUT("/:id", h.Admin.ErrorPassthrough.Update)
 		rules.DELETE("/:id", h.Admin.ErrorPassthrough.Delete)
+	}
+}
+
+func registerRequestInterceptRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	rules := admin.Group("/request-intercept")
+	{
+		rules.GET("/rules", h.Admin.RequestIntercept.List)
+		rules.PUT("/rules", h.Admin.RequestIntercept.SaveAll)
+		rules.PUT("/rules/:id", h.Admin.RequestIntercept.Upsert)
+		rules.DELETE("/rules/:id", h.Admin.RequestIntercept.Delete)
+		rules.POST("/test", h.Admin.RequestIntercept.Test)
 	}
 }
 

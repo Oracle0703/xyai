@@ -175,6 +175,29 @@ func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultGatewayRequestArchiveConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Gateway.RequestArchive.Enabled)
+	require.Equal(t, "data/request-archive", cfg.Gateway.RequestArchive.Dir)
+	require.Equal(t, int64(64*1024), cfg.Gateway.RequestArchive.MaxRequestBodyBytes)
+	require.Equal(t, int64(64*1024), cfg.Gateway.RequestArchive.MaxResponseBodyBytes)
+	require.True(t, cfg.Gateway.RequestArchive.CaptureResponse)
+}
+
+func TestLoadDefaultGatewayRequestInterceptConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Gateway.RequestIntercept.Enabled)
+	require.Equal(t, "config/request_intercept_rules.yaml", cfg.Gateway.RequestIntercept.RulesFile)
+}
+
 func TestLoadDefaultIdempotencyConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 

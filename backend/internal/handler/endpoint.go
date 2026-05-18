@@ -42,7 +42,7 @@ const (
 func NormalizeInboundEndpoint(path string) string {
 	path = strings.TrimSpace(path)
 	switch {
-	case strings.Contains(path, EndpointChatCompletions):
+	case strings.Contains(path, EndpointChatCompletions) || strings.Contains(path, "/chat/completions"):
 		return EndpointChatCompletions
 	case strings.Contains(path, EndpointMessages):
 		return EndpointMessages
@@ -50,7 +50,10 @@ func NormalizeInboundEndpoint(path string) string {
 		return EndpointImagesGenerations
 	case strings.Contains(path, EndpointImagesEdits) || strings.Contains(path, "/images/edits"):
 		return EndpointImagesEdits
-	case strings.Contains(path, EndpointResponses):
+	case strings.Contains(path, EndpointResponses) ||
+		path == "/responses" ||
+		strings.Contains(path, "/responses/") ||
+		strings.Contains(path, "/backend-api/codex/responses"):
 		return EndpointResponses
 	case strings.Contains(path, EndpointGeminiModels):
 		return EndpointGeminiModels

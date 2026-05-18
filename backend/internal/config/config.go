@@ -716,6 +716,32 @@ type GatewayConfig struct {
 	// UserMessageQueue: 用户消息串行队列配置
 	// 对 role:"user" 的真实用户消息实施账号级串行化 + RPM 自适应延迟
 	UserMessageQueue UserMessageQueueConfig `mapstructure:"user_message_queue"`
+	// RequestArchive: 本地请求/响应归档配置，默认关闭，仅用于内部小范围排查。
+	RequestArchive GatewayRequestArchiveConfig `mapstructure:"request_archive"`
+	// RequestIntercept: 请求拦截配置，规则文件由安全人员独立维护。
+	RequestIntercept GatewayRequestInterceptConfig `mapstructure:"request_intercept"`
+}
+
+// GatewayRequestArchiveConfig 本地请求/响应归档配置。
+type GatewayRequestArchiveConfig struct {
+	// Enabled: 是否启用本地归档，默认关闭。
+	Enabled bool `mapstructure:"enabled"`
+	// Dir: JSONL 文件输出目录。
+	Dir string `mapstructure:"dir"`
+	// MaxRequestBodyBytes: 单条请求体最多保存字节数，超出后截断。
+	MaxRequestBodyBytes int64 `mapstructure:"max_request_body_bytes"`
+	// MaxResponseBodyBytes: 单条响应体最多保存字节数，超出后截断。
+	MaxResponseBodyBytes int64 `mapstructure:"max_response_body_bytes"`
+	// CaptureResponse: 是否捕获返回给用户的响应体。
+	CaptureResponse bool `mapstructure:"capture_response"`
+}
+
+// GatewayRequestInterceptConfig 请求拦截配置。
+type GatewayRequestInterceptConfig struct {
+	// Enabled: 是否启用请求拦截。
+	Enabled bool `mapstructure:"enabled"`
+	// RulesFile: YAML 规则文件路径，空或不存在时不拦截。
+	RulesFile string `mapstructure:"rules_file"`
 }
 
 // UserMessageQueueConfig 用户消息串行队列配置
@@ -1669,6 +1695,13 @@ func setDefaults() {
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
+	viper.SetDefault("gateway.request_archive.enabled", true)
+	viper.SetDefault("gateway.request_archive.dir", "data/request-archive")
+	viper.SetDefault("gateway.request_archive.max_request_body_bytes", int64(64*1024))
+	viper.SetDefault("gateway.request_archive.max_response_body_bytes", int64(64*1024))
+	viper.SetDefault("gateway.request_archive.capture_response", true)
+	viper.SetDefault("gateway.request_intercept.enabled", true)
+	viper.SetDefault("gateway.request_intercept.rules_file", "config/request_intercept_rules.yaml")
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）
 	viper.SetDefault("gateway.openai_ws.enabled", true)
 	viper.SetDefault("gateway.openai_ws.mode_router_v2_enabled", false)
