@@ -593,6 +593,8 @@ func registerErrorPassthroughRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 func registerRequestInterceptRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	rules := admin.Group("/request-intercept")
 	{
+		rules.GET("/config", h.Admin.RequestIntercept.Config)
+		rules.PUT("/config", h.Admin.RequestIntercept.UpdateConfig)
 		rules.GET("/rules", h.Admin.RequestIntercept.List)
 		rules.PUT("/rules", h.Admin.RequestIntercept.SaveAll)
 		rules.PUT("/rules/:id", h.Admin.RequestIntercept.Upsert)

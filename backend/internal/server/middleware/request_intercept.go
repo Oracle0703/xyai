@@ -18,6 +18,7 @@ import (
 )
 
 type RequestInterceptRulesProvider func(*gin.Context) ([]service.RequestInterceptRuleConfig, error)
+type RequestInterceptEnabledProvider func(*gin.Context) (bool, error)
 
 type requestInterceptRulesFile struct {
 	Version int                    `yaml:"version"`
@@ -39,10 +40,23 @@ func RequestIntercept(cfg config.GatewayRequestInterceptConfig) gin.HandlerFunc 
 // RequestInterceptWithProvider intercepts matching model requests using DB-backed rules first,
 // then falls back to the configured YAML rules file.
 func RequestInterceptWithProvider(cfg config.GatewayRequestInterceptConfig, provider RequestInterceptRulesProvider) gin.HandlerFunc {
+	return RequestInterceptWithProviders(cfg, provider, nil)
+}
+
+func RequestInterceptWithProviders(cfg config.GatewayRequestInterceptConfig, provider RequestInterceptRulesProvider, enabledProvider RequestInterceptEnabledProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !cfg.Enabled || !shouldArchiveGatewayRequest(c) {
 			c.Next()
 			return
+		}
+		if enabledProvider != nil {
+			enabled, err := enabledProvider(c)
+			if err != nil {
+				logger.L().Warn("request_intercept.load_enabled_failed", zap.Error(err))
+			} else if !enabled {
+				c.Next()
+				return
+			}
 		}
 		if c.Request.Body == nil {
 			c.Request.Body = http.NoBody
@@ -85,6 +99,16 @@ func NewRequestInterceptRulesProvider(svc *service.RequestInterceptRulesService)
 	}
 	return func(c *gin.Context) ([]service.RequestInterceptRuleConfig, error) {
 		return svc.ListRules(c.Request.Context())
+	}
+}
+
+func NewRequestInterceptEnabledProvider(svc *service.RequestInterceptRulesService) RequestInterceptEnabledProvider {
+	if svc == nil {
+		return nil
+	}
+	return func(c *gin.Context) (bool, error) {
+		cfg, err := svc.GetConfig(c.Request.Context())
+		return cfg.Enabled, err
 	}
 }
 

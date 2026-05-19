@@ -18,7 +18,17 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div class="rounded-lg border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.requestIntercept.globalSwitch') }}</p>
+              <p class="mt-2 text-sm font-medium text-gray-900 dark:text-white">{{ globalEnabled ? t('common.enabled') : t('common.disabled') }}</p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.requestIntercept.globalSwitchHint') }}</p>
+            </div>
+            <Toggle :model-value="globalEnabled" :disabled="configSaving" @update:model-value="updateGlobalEnabled" />
+          </div>
+        </div>
         <div class="rounded-lg border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.requestIntercept.totalRules') }}</p>
           <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ rules.length }}</p>
@@ -192,7 +202,9 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const saving = ref(false)
+const configSaving = ref(false)
 const testing = ref(false)
+const globalEnabled = ref(true)
 const rules = ref<RequestInterceptRule[]>([])
 const selectedRule = ref<RequestInterceptRule | null>(null)
 const keywordsText = ref('')
@@ -316,7 +328,11 @@ function validateDraft(): boolean {
 async function loadRules() {
   loading.value = true
   try {
-    const result = await adminAPI.requestIntercept.listRules()
+    const [config, result] = await Promise.all([
+      adminAPI.requestIntercept.getConfig(),
+      adminAPI.requestIntercept.listRules()
+    ])
+    globalEnabled.value = config.enabled
     rules.value = result.rules || []
     if (rules.value.length > 0) {
       selectRule(sortedRules.value[0])
@@ -327,6 +343,22 @@ async function loadRules() {
     appStore.showError(extractApiErrorMessage(err, t('admin.requestIntercept.loadFailed')))
   } finally {
     loading.value = false
+  }
+}
+
+async function updateGlobalEnabled(enabled: boolean) {
+  const previous = globalEnabled.value
+  globalEnabled.value = enabled
+  configSaving.value = true
+  try {
+    const config = await adminAPI.requestIntercept.updateConfig({ enabled })
+    globalEnabled.value = config.enabled
+    appStore.showSuccess(t('common.saved'))
+  } catch (err) {
+    globalEnabled.value = previous
+    appStore.showError(extractApiErrorMessage(err, t('admin.requestIntercept.saveConfigFailed')))
+  } finally {
+    configSaving.value = false
   }
 }
 

@@ -154,6 +154,44 @@ rules:
 	require.NotContains(t, w.Body.String(), "file reply")
 }
 
+func TestRequestInterceptRuntimeDisabledCallsNext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	called := false
+	router := gin.New()
+	router.Use(RequestInterceptWithProviders(config.GatewayRequestInterceptConfig{
+		Enabled: true,
+	}, func(c *gin.Context) ([]service.RequestInterceptRuleConfig, error) {
+		return []service.RequestInterceptRuleConfig{{
+			ID:              "provider",
+			Name:            "provider",
+			Enabled:         true,
+			Priority:        1,
+			MatchMode:       service.RequestInterceptMatchExact,
+			Keywords:        []string{"hi"},
+			Reply:           "provider reply",
+			Scopes:          []string{service.RequestInterceptScopeAll},
+			Normalize:       service.DefaultRequestInterceptNormalization(),
+			CaseInsensitive: true,
+		}}, nil
+	}, func(c *gin.Context) (bool, error) {
+		return false, nil
+	}))
+	router.POST("/v1/responses", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusAccepted, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5","input":"hi"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.True(t, called)
+	require.Equal(t, http.StatusAccepted, w.Code)
+	require.Contains(t, w.Body.String(), `"upstream":true`)
+	require.NotContains(t, w.Body.String(), "provider reply")
+}
+
 func TestRequestInterceptFallsBackToFileWhenProviderEmpty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rulesFile := writeInterceptRules(t, `

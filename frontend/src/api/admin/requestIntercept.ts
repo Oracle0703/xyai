@@ -31,6 +31,10 @@ export interface RequestInterceptRulesResponse {
   rules: RequestInterceptRule[]
 }
 
+export interface RequestInterceptConfig {
+  enabled: boolean
+}
+
 export interface RequestInterceptTestPayload {
   text: string
   endpoint: string
@@ -55,6 +59,16 @@ export async function listRules(): Promise<RequestInterceptRulesResponse> {
   return data
 }
 
+export async function getConfig(): Promise<RequestInterceptConfig> {
+  const { data } = await apiClient.get<RequestInterceptConfig>('/admin/request-intercept/config')
+  return data
+}
+
+export async function updateConfig(config: RequestInterceptConfig): Promise<RequestInterceptConfig> {
+  const { data } = await apiClient.put<RequestInterceptConfig>('/admin/request-intercept/config', config)
+  return data
+}
+
 export async function saveRules(rules: RequestInterceptRule[]): Promise<RequestInterceptRulesResponse> {
   const { data } = await apiClient.put<RequestInterceptRulesResponse>('/admin/request-intercept/rules', { rules })
   return data
@@ -76,6 +90,8 @@ export async function testRules(payload: RequestInterceptTestPayload): Promise<R
 }
 
 export const requestInterceptAPI = {
+  getConfig,
+  updateConfig,
   listRules,
   saveRules,
   upsertRule,

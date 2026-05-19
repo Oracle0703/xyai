@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -56,6 +57,10 @@ type RequestInterceptRulesDocument struct {
 	UpdatedAt string                       `json:"updated_at"`
 }
 
+type RequestInterceptConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
 type RequestInterceptMatchInput struct {
 	Text     string
 	Endpoint string
@@ -93,6 +98,30 @@ func DefaultRequestInterceptNormalization() RequestInterceptNormalization {
 		CollapseSpace:     true,
 		RemovePunctuation: true,
 	}
+}
+
+func (s *RequestInterceptRulesService) GetConfig(ctx context.Context) (RequestInterceptConfig, error) {
+	if s == nil || s.settingRepo == nil {
+		return RequestInterceptConfig{}, fmt.Errorf("request intercept rules service is not configured")
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyRequestInterceptEnabled)
+	if err != nil {
+		if err == ErrSettingNotFound {
+			return RequestInterceptConfig{Enabled: true}, nil
+		}
+		return RequestInterceptConfig{}, fmt.Errorf("get request intercept config: %w", err)
+	}
+	return RequestInterceptConfig{Enabled: !isFalseSettingValue(value)}, nil
+}
+
+func (s *RequestInterceptRulesService) SetConfig(ctx context.Context, cfg RequestInterceptConfig) (RequestInterceptConfig, error) {
+	if s == nil || s.settingRepo == nil {
+		return RequestInterceptConfig{}, fmt.Errorf("request intercept rules service is not configured")
+	}
+	if err := s.settingRepo.Set(ctx, SettingKeyRequestInterceptEnabled, strconv.FormatBool(cfg.Enabled)); err != nil {
+		return RequestInterceptConfig{}, fmt.Errorf("save request intercept config: %w", err)
+	}
+	return cfg, nil
 }
 
 func (s *RequestInterceptRulesService) ListRules(ctx context.Context) ([]RequestInterceptRuleConfig, error) {
