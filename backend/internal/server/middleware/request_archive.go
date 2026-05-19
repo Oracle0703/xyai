@@ -60,9 +60,15 @@ func RequestArchive(cfg config.GatewayRequestArchiveConfig) gin.HandlerFunc {
 		}
 
 		var captureWriter *requestArchiveResponseWriter
+		originalWriter := c.Writer
 		if cfg.CaptureResponse {
 			captureWriter = newRequestArchiveResponseWriter(c.Writer, cfg.MaxResponseBodyBytes)
 			c.Writer = captureWriter
+			defer func() {
+				if c.Writer == captureWriter {
+					c.Writer = originalWriter
+				}
+			}()
 		}
 
 		c.Next()
