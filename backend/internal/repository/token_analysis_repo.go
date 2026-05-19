@@ -1,0 +1,604 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+)
+
+type tokenAnalysisRepository struct {
+	db *sql.DB
+}
+
+func NewTokenAnalysisRepository(db *sql.DB) service.TokenAnalysisRepository {
+	return &tokenAnalysisRepository{db: db}
+}
+
+func (r *tokenAnalysisRepository) UpsertRequestSummary(ctx context.Context, summary *service.TokenAnalysisRequestSummary) error {
+	if summary == nil {
+		return nil
+	}
+	summaryJSON, err := json.Marshal(nonNilMap(summary.SummaryJSON))
+	if err != nil {
+		return fmt.Errorf("marshal token analysis summary json: %w", err)
+	}
+	riskReasons, err := json.Marshal(summary.RiskReasons)
+	if err != nil {
+		return fmt.Errorf("marshal token analysis risk reasons: %w", err)
+	}
+	_, err = r.db.ExecContext(ctx, `
+INSERT INTO token_analysis_request_summaries (
+    archive_id, usage_log_id, match_confidence, event_time,
+    user_id, api_key_id, account_id, group_id,
+    model, endpoint, method,
+    request_body_size, request_body_truncated, body_sha256,
+    message_count, system_chars, user_chars, last_user_preview, tools_count, image_count,
+    summary_json, risk_score, risk_reasons, source_file, source_offset
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9, $10, $11,
+    $12, $13, $14,
+    $15, $16, $17, $18, $19, $20,
+    $21::jsonb, $22, $23::jsonb, $24, $25
+)
+ON CONFLICT (archive_id) DO UPDATE SET
+    usage_log_id = EXCLUDED.usage_log_id,
+    match_confidence = EXCLUDED.match_confidence,
+    event_time = EXCLUDED.event_time,
+    user_id = EXCLUDED.user_id,
+    api_key_id = EXCLUDED.api_key_id,
+    account_id = EXCLUDED.account_id,
+    group_id = EXCLUDED.group_id,
+    model = EXCLUDED.model,
+    endpoint = EXCLUDED.endpoint,
+    method = EXCLUDED.method,
+    request_body_size = EXCLUDED.request_body_size,
+    request_body_truncated = EXCLUDED.request_body_truncated,
+    body_sha256 = EXCLUDED.body_sha256,
+    message_count = EXCLUDED.message_count,
+    system_chars = EXCLUDED.system_chars,
+    user_chars = EXCLUDED.user_chars,
+    last_user_preview = EXCLUDED.last_user_preview,
+    tools_count = EXCLUDED.tools_count,
+    image_count = EXCLUDED.image_count,
+    summary_json = EXCLUDED.summary_json,
+    risk_score = EXCLUDED.risk_score,
+    risk_reasons = EXCLUDED.risk_reasons,
+    indexed_at = NOW(),
+    source_file = EXCLUDED.source_file,
+    source_offset = EXCLUDED.source_offset`,
+		summary.ArchiveID,
+		nullableInt64(summary.UsageLogID),
+		summary.MatchConfidence,
+		summary.EventTime,
+		nullableInt64(summary.UserID),
+		nullableInt64(summary.APIKeyID),
+		nullableInt64(summary.AccountID),
+		nullableInt64(summary.GroupID),
+		summary.Model,
+		summary.Endpoint,
+		summary.Method,
+		summary.RequestBodySize,
+		summary.RequestBodyTruncated,
+		summary.BodySHA256,
+		summary.MessageCount,
+		summary.SystemChars,
+		summary.UserChars,
+		summary.LastUserPreview,
+		summary.ToolsCount,
+		summary.ImageCount,
+		string(summaryJSON),
+		summary.RiskScore,
+		string(riskReasons),
+		summary.SourceFile,
+		nullableInt64(summary.SourceOffset),
+	)
+	if err != nil {
+		return fmt.Errorf("upsert token analysis request summary: %w", err)
+	}
+	return nil
+}
+
+func (r *tokenAnalysisRepository) FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*service.TokenAnalysisUsageMatch, error) {
+	start := eventTime.Add(-window)
+	end := eventTime.Add(window)
+	args := []any{start, end, eventTime}
+	where := []string{"created_at >= $1", "created_at <= $2"}
+	confidenceParts := make([]string, 0, 3)
+	if userID != nil {
+		args = append(args, *userID)
+		placeholder := fmt.Sprintf("$%d", len(args))
+		where = append(where, "user_id = "+placeholder)
+		confidenceParts = append(confidenceParts, "1")
+	}
+	if apiKeyID != nil {
+		args = append(args, *apiKeyID)
+		placeholder := fmt.Sprintf("$%d", len(args))
+		where = append(where, "api_key_id = "+placeholder)
+		confidenceParts = append(confidenceParts, "1")
+	}
+	if strings.TrimSpace(model) != "" {
+		args = append(args, strings.TrimSpace(model))
+		placeholder := fmt.Sprintf("$%d", len(args))
+		where = append(where, "(model = "+placeholder+" OR requested_model = "+placeholder+" OR upstream_model = "+placeholder+")")
+		confidenceParts = append(confidenceParts, "1")
+	}
+	confidenceExpr := "1"
+	if len(confidenceParts) > 0 {
+		confidenceExpr = strings.Join(confidenceParts, " + ")
+	}
+
+	query := `
+SELECT
+    id,
+    input_tokens,
+    output_tokens,
+    cache_read_tokens,
+    cache_creation_tokens,
+    total_cost,
+    actual_cost,
+    (` + confidenceExpr + `)::smallint AS confidence
+FROM usage_logs
+WHERE ` + strings.Join(where, " AND ") + `
+ORDER BY ABS(EXTRACT(EPOCH FROM (created_at - $3::timestamptz))) ASC, id DESC
+LIMIT 1`
+
+	var match service.TokenAnalysisUsageMatch
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&match.UsageLogID,
+		&match.InputTokens,
+		&match.OutputTokens,
+		&match.CacheReadTokens,
+		&match.CacheCreationTokens,
+		&match.TotalCost,
+		&match.ActualCost,
+		&match.MatchConfidence,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find nearest usage log: %w", err)
+	}
+	return &match, nil
+}
+
+func (r *tokenAnalysisRepository) CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error) {
+	if strings.TrimSpace(bodySHA256) == "" {
+		return 0, nil
+	}
+	args := []any{bodySHA256, eventTime.Add(-window), eventTime.Add(window)}
+	where := []string{"body_sha256 = $1", "event_time >= $2", "event_time <= $3"}
+	if userID != nil {
+		args = append(args, *userID)
+		where = append(where, fmt.Sprintf("user_id = $%d", len(args)))
+	}
+	if apiKeyID != nil {
+		args = append(args, *apiKeyID)
+		where = append(where, fmt.Sprintf("api_key_id = $%d", len(args)))
+	}
+	var count int
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM token_analysis_request_summaries WHERE "+strings.Join(where, " AND "), args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count same body recent: %w", err)
+	}
+	return count, nil
+}
+
+func (r *tokenAnalysisRepository) GetSummary(ctx context.Context, filters service.TokenAnalysisFilters) (*service.TokenAnalysisSummary, error) {
+	where, args := buildTokenAnalysisWhere(filters, "s")
+	query := `
+SELECT
+    COUNT(*) AS total_requests,
+    COUNT(s.usage_log_id) AS matched_requests,
+    COALESCE(SUM(ul.input_tokens), 0) AS total_input_tokens,
+    COALESCE(SUM(ul.output_tokens), 0) AS total_output_tokens,
+    COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+    COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens,
+    COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens), 0) AS total_tokens,
+    COALESCE(SUM(ul.total_cost), 0) AS total_cost,
+    COALESCE(SUM(ul.actual_cost), 0) AS total_actual_cost,
+    COUNT(*) FILTER (WHERE s.risk_score > 0) AS risky_requests,
+    COALESCE(SUM(ul.actual_cost) FILTER (WHERE s.risk_score > 0), 0) AS risky_cost
+FROM token_analysis_request_summaries s
+LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+WHERE ` + strings.Join(where, " AND ")
+
+	var summary service.TokenAnalysisSummary
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&summary.TotalRequests,
+		&summary.MatchedRequests,
+		&summary.TotalInputTokens,
+		&summary.TotalOutputTokens,
+		&summary.CacheReadTokens,
+		&summary.CacheCreationTokens,
+		&summary.TotalTokens,
+		&summary.TotalCost,
+		&summary.TotalActualCost,
+		&summary.RiskyRequests,
+		&summary.RiskyCost,
+	); err != nil {
+		return nil, fmt.Errorf("get token analysis summary: %w", err)
+	}
+	cacheable := summary.TotalInputTokens + summary.CacheReadTokens + summary.CacheCreationTokens
+	if cacheable > 0 {
+		summary.CacheHitRate = float64(summary.CacheReadTokens) / float64(cacheable)
+	}
+	return &summary, nil
+}
+
+func (r *tokenAnalysisRepository) ListUserUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisUserUsage, *pagination.PaginationResult, error) {
+	where, args := buildTokenAnalysisWhere(filters, "s")
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+	countQuery := `
+SELECT COUNT(*) FROM (
+    SELECT s.user_id, s.api_key_id
+    FROM token_analysis_request_summaries s
+    LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+    ` + whereSQL + `
+    GROUP BY s.user_id, s.api_key_id
+) grouped`
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count token analysis user usage: %w", err)
+	}
+
+	queryArgs := append([]any{}, args...)
+	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	query := `
+SELECT
+    s.user_id,
+    COALESCE(u.email, '') AS user_email,
+    s.api_key_id,
+    COALESCE(k.name, '') AS api_key_name,
+    COUNT(*) AS request_count,
+    COUNT(*) FILTER (WHERE s.risk_score > 0) AS risky_request_count,
+    COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens), 0) AS total_tokens,
+    COALESCE(SUM(ul.input_tokens), 0) AS input_tokens,
+    COALESCE(SUM(ul.output_tokens), 0) AS output_tokens,
+    COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+    COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens,
+    COALESCE(SUM(ul.actual_cost), 0) AS actual_cost,
+    COALESCE(SUM(ul.actual_cost) FILTER (WHERE s.risk_score > 0), 0) AS risky_cost,
+    MAX(s.event_time) AS last_event_time
+FROM token_analysis_request_summaries s
+LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+LEFT JOIN users u ON u.id = s.user_id
+LEFT JOIN api_keys k ON k.id = s.api_key_id
+` + whereSQL + `
+GROUP BY s.user_id, u.email, s.api_key_id, k.name
+ORDER BY actual_cost DESC, total_tokens DESC, request_count DESC
+LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
+
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list token analysis user usage: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]service.TokenAnalysisUserUsage, 0)
+	for rows.Next() {
+		var item service.TokenAnalysisUserUsage
+		var userID, apiKeyID sql.NullInt64
+		var lastEvent sql.NullTime
+		if err := rows.Scan(
+			&userID,
+			&item.UserEmail,
+			&apiKeyID,
+			&item.APIKeyName,
+			&item.RequestCount,
+			&item.RiskyRequestCount,
+			&item.TotalTokens,
+			&item.InputTokens,
+			&item.OutputTokens,
+			&item.CacheReadTokens,
+			&item.CacheCreationTokens,
+			&item.ActualCost,
+			&item.RiskyCost,
+			&lastEvent,
+		); err != nil {
+			return nil, nil, fmt.Errorf("scan token analysis user usage: %w", err)
+		}
+		if userID.Valid {
+			item.UserID = &userID.Int64
+		}
+		if apiKeyID.Valid {
+			item.APIKeyID = &apiKeyID.Int64
+		}
+		if lastEvent.Valid {
+			item.LastEventTime = &lastEvent.Time
+		}
+		cacheable := item.InputTokens + item.CacheReadTokens + item.CacheCreationTokens
+		if cacheable > 0 {
+			item.CacheHitRate = float64(item.CacheReadTokens) / float64(cacheable)
+		}
+		if item.RequestCount > 0 {
+			item.RiskRatio = float64(item.RiskyRequestCount) / float64(item.RequestCount)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate token analysis user usage: %w", err)
+	}
+	return items, paginationResultFromTotal(total, params), nil
+}
+
+func (r *tokenAnalysisRepository) ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
+	where, args := buildTokenAnalysisWhere(filters, "s")
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM token_analysis_request_summaries s LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id "+whereSQL, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count token analysis requests: %w", err)
+	}
+
+	orderBy := tokenAnalysisRequestOrderBy(params)
+	queryArgs := append([]any{}, args...)
+	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	query := `
+SELECT
+    s.id, s.archive_id, s.usage_log_id, s.match_confidence, s.event_time,
+    s.user_id, COALESCE(u.email, '') AS user_email,
+    s.api_key_id, COALESCE(k.name, '') AS api_key_name,
+    s.account_id, s.group_id, s.model, s.endpoint, s.method,
+    s.request_body_size, s.request_body_truncated,
+    s.message_count, s.system_chars, s.user_chars, s.last_user_preview, s.tools_count, s.image_count,
+    s.summary_json, s.risk_score, s.risk_reasons,
+    COALESCE(ul.input_tokens, 0), COALESCE(ul.output_tokens, 0), COALESCE(ul.cache_read_tokens, 0), COALESCE(ul.cache_creation_tokens, 0),
+    COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens, 0), COALESCE(ul.actual_cost, 0)
+FROM token_analysis_request_summaries s
+LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+LEFT JOIN users u ON u.id = s.user_id
+LEFT JOIN api_keys k ON k.id = s.api_key_id
+` + whereSQL + `
+ORDER BY ` + orderBy + `
+LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
+
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list token analysis requests: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]service.TokenAnalysisRequestItem, 0)
+	for rows.Next() {
+		item, err := scanTokenAnalysisRequestItem(rows)
+		if err != nil {
+			return nil, nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate token analysis requests: %w", err)
+	}
+	return items, paginationResultFromTotal(total, params), nil
+}
+
+func (r *tokenAnalysisRepository) GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT source_file, last_offset, last_archive_id, processed_rows, failed_rows, last_error, started_at, finished_at, updated_at
+FROM token_analysis_index_state
+ORDER BY updated_at DESC
+LIMIT 50`)
+	if err != nil {
+		return nil, fmt.Errorf("get token analysis index status: %w", err)
+	}
+	defer rows.Close()
+
+	status := &service.TokenAnalysisIndexStatus{Files: []service.TokenAnalysisIndexState{}}
+	for rows.Next() {
+		var state service.TokenAnalysisIndexState
+		if err := rows.Scan(
+			&state.SourceFile,
+			&state.LastOffset,
+			&state.LastArchiveID,
+			&state.ProcessedRows,
+			&state.FailedRows,
+			&state.LastError,
+			&state.StartedAt,
+			&state.FinishedAt,
+			&state.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan token analysis index state: %w", err)
+		}
+		status.ProcessedRows += state.ProcessedRows
+		status.FailedRows += state.FailedRows
+		if state.LastError != "" && status.LastError == "" {
+			status.LastError = state.LastError
+		}
+		if status.UpdatedAt == nil || state.UpdatedAt.After(*status.UpdatedAt) {
+			v := state.UpdatedAt
+			status.UpdatedAt = &v
+		}
+		if state.StartedAt != nil && state.FinishedAt == nil {
+			status.Running = true
+		}
+		status.Files = append(status.Files, state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate token analysis index status: %w", err)
+	}
+	return status, nil
+}
+
+func (r *tokenAnalysisRepository) UpdateIndexState(ctx context.Context, state service.TokenAnalysisIndexState) error {
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO token_analysis_index_state (
+    source_file, last_offset, last_archive_id, processed_rows, failed_rows, last_error, started_at, finished_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, NOW()
+)
+ON CONFLICT (source_file) DO UPDATE SET
+    last_offset = EXCLUDED.last_offset,
+    last_archive_id = EXCLUDED.last_archive_id,
+    processed_rows = token_analysis_index_state.processed_rows + EXCLUDED.processed_rows,
+    failed_rows = token_analysis_index_state.failed_rows + EXCLUDED.failed_rows,
+    last_error = EXCLUDED.last_error,
+    started_at = COALESCE(EXCLUDED.started_at, token_analysis_index_state.started_at),
+    finished_at = EXCLUDED.finished_at,
+    updated_at = NOW()`,
+		state.SourceFile,
+		state.LastOffset,
+		state.LastArchiveID,
+		state.ProcessedRows,
+		state.FailedRows,
+		state.LastError,
+		state.StartedAt,
+		state.FinishedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("update token analysis index state: %w", err)
+	}
+	return nil
+}
+
+type tokenAnalysisRowsScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenAnalysisRequestItem, error) {
+	var item service.TokenAnalysisRequestItem
+	var usageLogID, userID, apiKeyID, accountID, groupID sql.NullInt64
+	var summaryRaw, reasonsRaw []byte
+	if err := rows.Scan(
+		&item.ID,
+		&item.ArchiveID,
+		&usageLogID,
+		&item.MatchConfidence,
+		&item.EventTime,
+		&userID,
+		&item.UserEmail,
+		&apiKeyID,
+		&item.APIKeyName,
+		&accountID,
+		&groupID,
+		&item.Model,
+		&item.Endpoint,
+		&item.Method,
+		&item.RequestBodySize,
+		&item.RequestBodyTruncated,
+		&item.MessageCount,
+		&item.SystemChars,
+		&item.UserChars,
+		&item.LastUserPreview,
+		&item.ToolsCount,
+		&item.ImageCount,
+		&summaryRaw,
+		&item.RiskScore,
+		&reasonsRaw,
+		&item.InputTokens,
+		&item.OutputTokens,
+		&item.CacheReadTokens,
+		&item.CacheCreationTokens,
+		&item.TotalTokens,
+		&item.ActualCost,
+	); err != nil {
+		return item, fmt.Errorf("scan token analysis request: %w", err)
+	}
+	if usageLogID.Valid {
+		item.UsageLogID = &usageLogID.Int64
+	}
+	if userID.Valid {
+		item.UserID = &userID.Int64
+	}
+	if apiKeyID.Valid {
+		item.APIKeyID = &apiKeyID.Int64
+	}
+	if accountID.Valid {
+		item.AccountID = &accountID.Int64
+	}
+	if groupID.Valid {
+		item.GroupID = &groupID.Int64
+	}
+	item.SummaryJSON = map[string]any{}
+	_ = json.Unmarshal(summaryRaw, &item.SummaryJSON)
+	item.RiskReasons = []service.TokenAnalysisRiskReason{}
+	_ = json.Unmarshal(reasonsRaw, &item.RiskReasons)
+	return item, nil
+}
+
+func buildTokenAnalysisWhere(filters service.TokenAnalysisFilters, alias string) ([]string, []any) {
+	prefix := strings.TrimSpace(alias)
+	if prefix != "" {
+		prefix += "."
+	}
+	where := []string{"1=1"}
+	args := make([]any, 0)
+	add := func(expr string, value any) {
+		args = append(args, value)
+		where = append(where, fmt.Sprintf(expr, len(args)))
+	}
+	if filters.StartTime != nil {
+		add(prefix+"event_time >= $%d", *filters.StartTime)
+	}
+	if filters.EndTime != nil {
+		add(prefix+"event_time < $%d", *filters.EndTime)
+	}
+	if filters.UserID != nil {
+		add(prefix+"user_id = $%d", *filters.UserID)
+	}
+	if filters.APIKeyID != nil {
+		add(prefix+"api_key_id = $%d", *filters.APIKeyID)
+	}
+	if filters.AccountID != nil {
+		add(prefix+"account_id = $%d", *filters.AccountID)
+	}
+	if filters.GroupID != nil {
+		add(prefix+"group_id = $%d", *filters.GroupID)
+	}
+	if model := strings.TrimSpace(filters.Model); model != "" {
+		add(prefix+"model = $%d", model)
+	}
+	if endpoint := strings.TrimSpace(filters.Endpoint); endpoint != "" {
+		add(prefix+"endpoint = $%d", endpoint)
+	}
+	if filters.RiskMin > 0 {
+		add(prefix+"risk_score >= $%d", filters.RiskMin)
+	}
+	if reason := strings.TrimSpace(filters.RiskReason); reason != "" {
+		add(prefix+"risk_reasons @> $%d::jsonb", `[{"code":"`+escapeJSONString(reason)+`"}]`)
+	}
+	if !filters.IncludeUnmatched {
+		where = append(where, prefix+"usage_log_id IS NOT NULL")
+	}
+	return where, args
+}
+
+func tokenAnalysisRequestOrderBy(params pagination.PaginationParams) string {
+	order := params.NormalizedSortOrder(pagination.SortOrderDesc)
+	switch strings.TrimSpace(params.SortBy) {
+	case "event_time":
+		return "s.event_time " + order + ", s.id DESC"
+	case "total_tokens":
+		return "total_tokens " + order + ", s.event_time DESC"
+	case "actual_cost":
+		return "actual_cost " + order + ", s.event_time DESC"
+	default:
+		return "s.risk_score " + order + ", s.event_time DESC, s.id DESC"
+	}
+}
+
+func nullableInt64(value *int64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func nonNilMap(value map[string]any) map[string]any {
+	if value == nil {
+		return map[string]any{}
+	}
+	return value
+}
+
+func escapeJSONString(value string) string {
+	raw, _ := json.Marshal(value)
+	return strings.Trim(string(raw), `"`)
+}
