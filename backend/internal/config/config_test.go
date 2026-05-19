@@ -188,6 +188,19 @@ func TestLoadDefaultGatewayRequestArchiveConfig(t *testing.T) {
 	require.True(t, cfg.Gateway.RequestArchive.CaptureResponse)
 }
 
+func TestLoadDefaultTokenAnalysisConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.TokenAnalysis.IndexEnabled)
+	require.Equal(t, 1000, cfg.TokenAnalysis.IndexBatchSize)
+	require.Equal(t, 300, cfg.TokenAnalysis.MaxPreviewChars)
+	require.Equal(t, 300, cfg.TokenAnalysis.AutoIndexIntervalSeconds)
+	require.Equal(t, 10, cfg.TokenAnalysis.UsageMatchWindowSeconds)
+}
+
 func TestLoadDefaultGatewayRequestInterceptConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 

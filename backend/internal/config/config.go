@@ -84,6 +84,7 @@ type Config struct {
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
+	TokenAnalysis           TokenAnalysisConfig           `mapstructure:"token_analysis"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -1243,6 +1244,14 @@ type UsageCleanupConfig struct {
 	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
 }
 
+type TokenAnalysisConfig struct {
+	IndexEnabled             bool `mapstructure:"index_enabled"`
+	IndexBatchSize           int  `mapstructure:"index_batch_size"`
+	MaxPreviewChars          int  `mapstructure:"max_preview_chars"`
+	AutoIndexIntervalSeconds int  `mapstructure:"auto_index_interval_seconds"`
+	UsageMatchWindowSeconds  int  `mapstructure:"usage_match_window_seconds"`
+}
+
 func NormalizeRunMode(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
@@ -1673,6 +1682,12 @@ func setDefaults() {
 	viper.SetDefault("usage_cleanup.batch_size", 5000)
 	viper.SetDefault("usage_cleanup.worker_interval_seconds", 10)
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
+
+	viper.SetDefault("token_analysis.index_enabled", true)
+	viper.SetDefault("token_analysis.index_batch_size", 1000)
+	viper.SetDefault("token_analysis.max_preview_chars", 300)
+	viper.SetDefault("token_analysis.auto_index_interval_seconds", 300)
+	viper.SetDefault("token_analysis.usage_match_window_seconds", 10)
 
 	// Idempotency
 	viper.SetDefault("idempotency.observe_only", true)
@@ -2283,6 +2298,18 @@ func (c *Config) Validate() error {
 		if c.UsageCleanup.TaskTimeoutSeconds < 0 {
 			return fmt.Errorf("usage_cleanup.task_timeout_seconds must be non-negative")
 		}
+	}
+	if c.TokenAnalysis.IndexBatchSize <= 0 {
+		return fmt.Errorf("token_analysis.index_batch_size must be positive")
+	}
+	if c.TokenAnalysis.MaxPreviewChars <= 0 || c.TokenAnalysis.MaxPreviewChars > 2000 {
+		return fmt.Errorf("token_analysis.max_preview_chars must be between 1 and 2000")
+	}
+	if c.TokenAnalysis.AutoIndexIntervalSeconds < 0 {
+		return fmt.Errorf("token_analysis.auto_index_interval_seconds must be non-negative")
+	}
+	if c.TokenAnalysis.UsageMatchWindowSeconds <= 0 || c.TokenAnalysis.UsageMatchWindowSeconds > 120 {
+		return fmt.Errorf("token_analysis.usage_match_window_seconds must be between 1 and 120")
 	}
 	if c.Idempotency.DefaultTTLSeconds <= 0 {
 		return fmt.Errorf("idempotency.default_ttl_seconds must be positive")
