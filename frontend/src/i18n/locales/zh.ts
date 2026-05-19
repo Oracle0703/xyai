@@ -384,6 +384,7 @@ export default {
     channelStatus: '渠道状态',
     riskControl: '风控中心',
     requestIntercept: '请求拦截',
+    tokenAnalysis: 'Token 分析',
   },
 
   // Auth
@@ -1381,6 +1382,34 @@ export default {
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
       failedToLoad: '加载仪表盘数据失败'
+    },
+
+    tokenAnalysis: {
+      title: 'Token 分析',
+      description: '查看部门用量、缓存命中和疑似浪费请求',
+      indexNow: '索引当前范围',
+      riskMin: '风险分',
+      includeUnmatched: '包含未匹配归档',
+      indexStatus: '索引状态',
+      processed: '已处理',
+      failed: '失败',
+      indexed: '已索引',
+      userRanking: '用户 / API Key 排行',
+      suspiciousRequests: '可疑请求',
+      user: '用户',
+      tokens: 'Token',
+      cost: '费用',
+      risk: '风险',
+      usage: '用量',
+      preview: '请求预览',
+      summary: {
+        totalTokens: '总 Token',
+        totalCost: '总费用',
+        cacheRead: '缓存命中',
+        cacheHitRate: '缓存命中率',
+        riskyRequests: '可疑请求',
+        riskyCost: '可疑费用'
+      }
     },
 
     backup: {

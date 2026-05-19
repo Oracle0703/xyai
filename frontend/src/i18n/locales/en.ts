@@ -384,6 +384,7 @@ export default {
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
     requestIntercept: 'Request Intercept',
+    tokenAnalysis: 'Token Analysis',
   },
 
   // Auth
@@ -1360,6 +1361,34 @@ export default {
       requestsShort: 'Req',
       tokensShort: 'Tok',
       failedToLoad: 'Failed to load dashboard statistics'
+    },
+
+    tokenAnalysis: {
+      title: 'Token Analysis',
+      description: 'View department usage, cache hits, and suspicious token waste requests',
+      indexNow: 'Index Range',
+      riskMin: 'Risk',
+      includeUnmatched: 'Include unmatched',
+      indexStatus: 'Index status',
+      processed: 'Processed',
+      failed: 'Failed',
+      indexed: 'Indexed',
+      userRanking: 'User / API Key Ranking',
+      suspiciousRequests: 'Suspicious Requests',
+      user: 'User',
+      tokens: 'Tokens',
+      cost: 'Cost',
+      risk: 'Risk',
+      usage: 'Usage',
+      preview: 'Request Preview',
+      summary: {
+        totalTokens: 'Total Tokens',
+        totalCost: 'Total Cost',
+        cacheRead: 'Cache Read',
+        cacheHitRate: 'Cache Hit Rate',
+        riskyRequests: 'Risky Requests',
+        riskyCost: 'Risky Cost'
+      }
     },
 
     backup: {
