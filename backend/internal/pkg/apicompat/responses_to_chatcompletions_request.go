@@ -31,7 +31,7 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 		Model:       req.Model,
 		TopP:        req.TopP,
 		Stream:      req.Stream,
-		ToolChoice:  req.ToolChoice,
+		ToolChoice:  responsesToolChoiceToChatToolChoice(req.ToolChoice),
 		ServiceTier: req.ServiceTier,
 	}
 	if !opts.DropTemperature {
@@ -108,13 +108,32 @@ func convertResponsesInputToChatMessages(raw json.RawMessage) ([]ChatMessage, er
 		}}, nil
 	}
 
-	var items []ResponsesInputItem
-	if err := json.Unmarshal(raw, &items); err != nil {
+	var rawItems []json.RawMessage
+	if err := json.Unmarshal(raw, &rawItems); err != nil {
 		return nil, fmt.Errorf("parse responses input: %w", err)
 	}
 
-	messages := make([]ChatMessage, 0, len(items))
-	for _, item := range items {
+	messages := make([]ChatMessage, 0, len(rawItems))
+	for _, rawItem := range rawItems {
+		rawItem = bytesTrimSpace(rawItem)
+		if len(rawItem) == 0 || string(rawItem) == "null" {
+			continue
+		}
+		var item ResponsesInputItem
+		if err := json.Unmarshal(rawItem, &item); err != nil {
+			var text string
+			if textErr := json.Unmarshal(rawItem, &text); textErr == nil {
+				content, err := json.Marshal(text)
+				if err != nil {
+					return nil, err
+				}
+				messages = append(messages, ChatMessage{Role: "user", Content: content})
+				continue
+			}
+			return nil, fmt.Errorf("parse responses input item: %w", err)
+		}
+		var itemMap map[string]json.RawMessage
+		_ = json.Unmarshal(rawItem, &itemMap)
 		switch strings.TrimSpace(item.Type) {
 		case "function_call":
 			messages = append(messages, ChatMessage{
@@ -137,6 +156,40 @@ func convertResponsesInputToChatMessages(raw json.RawMessage) ([]ChatMessage, er
 				Role:       "tool",
 				ToolCallID: item.CallID,
 				Content:    output,
+			})
+		case "input_text", "text":
+			text := rawString(itemMap["text"])
+			if strings.TrimSpace(text) == "" {
+				continue
+			}
+			content, err := json.Marshal(text)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, ChatMessage{
+				Role:    "user",
+				Content: content,
+			})
+		case "input_image", "image_url":
+			imageURL := rawString(itemMap["image_url"])
+			if imageURL == "" {
+				imageURL = rawNestedString(itemMap["image_url"], "url")
+			}
+			if strings.TrimSpace(imageURL) == "" {
+				continue
+			}
+			content, err := json.Marshal([]ChatContentPart{{
+				Type: "image_url",
+				ImageURL: &ChatImageURL{
+					URL: imageURL,
+				},
+			}})
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, ChatMessage{
+				Role:    "user",
+				Content: content,
 			})
 		default:
 			role := normalizeResponsesInputRole(item.Role)
@@ -171,7 +224,8 @@ func normalizeResponsesInputRole(role string) string {
 }
 
 func convertResponsesContentToChatMessageContent(role string, raw json.RawMessage) (json.RawMessage, error) {
-	if len(raw) == 0 {
+	raw = bytesTrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
 		return json.Marshal("")
 	}
 
@@ -182,24 +236,31 @@ func convertResponsesContentToChatMessageContent(role string, raw json.RawMessag
 
 	var parts []ResponsesContentPart
 	if err := json.Unmarshal(raw, &parts); err != nil {
-		return nil, fmt.Errorf("parse responses content: %w", err)
+		var part map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &part); err != nil {
+			return nil, fmt.Errorf("parse responses content: %w", err)
+		}
+		return convertSingleResponsesContentPartToChat(role, part)
 	}
 
 	chatParts := make([]ChatContentPart, 0, len(parts))
 	var textOnly strings.Builder
 	hasImage := false
 	for _, part := range parts {
-		switch part.Type {
-		case "input_text", "output_text":
+		switch strings.TrimSpace(part.Type) {
+		case "input_text", "output_text", "text", "":
 			if part.Text == "" {
 				continue
+			}
+			if textOnly.Len() > 0 {
+				textOnly.WriteString("\n\n")
 			}
 			textOnly.WriteString(part.Text)
 			chatParts = append(chatParts, ChatContentPart{
 				Type: "text",
 				Text: part.Text,
 			})
-		case "input_image":
+		case "input_image", "image_url":
 			if part.ImageURL == "" {
 				continue
 			}
@@ -217,6 +278,55 @@ func convertResponsesContentToChatMessageContent(role string, raw json.RawMessag
 		return json.Marshal(textOnly.String())
 	}
 	return json.Marshal(chatParts)
+}
+
+func convertSingleResponsesContentPartToChat(role string, part map[string]json.RawMessage) (json.RawMessage, error) {
+	switch rawString(part["type"]) {
+	case "input_image", "image_url":
+		imageURL := rawString(part["image_url"])
+		if imageURL == "" {
+			imageURL = rawNestedString(part["image_url"], "url")
+		}
+		if role != "user" || imageURL == "" {
+			return json.Marshal("")
+		}
+		return json.Marshal([]ChatContentPart{{
+			Type:     "image_url",
+			ImageURL: &ChatImageURL{URL: imageURL},
+		}})
+	default:
+		return json.Marshal(rawString(part["text"]))
+	}
+}
+
+func responsesToolChoiceToChatToolChoice(raw json.RawMessage) json.RawMessage {
+	if len(bytesTrimSpace(raw)) == 0 {
+		return raw
+	}
+	var choice map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &choice); err != nil {
+		return raw
+	}
+	if rawString(choice["type"]) != "function" {
+		return raw
+	}
+	name := rawString(choice["name"])
+	if name == "" {
+		name = rawNestedString(choice["function"], "name")
+	}
+	if name == "" {
+		return raw
+	}
+	out, err := json.Marshal(map[string]any{
+		"type": "function",
+		"function": map[string]string{
+			"name": name,
+		},
+	})
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 func normalizeResponsesArguments(raw string) string {

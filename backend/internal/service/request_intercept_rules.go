@@ -337,7 +337,7 @@ func normalizeRequestInterceptRules(rules []RequestInterceptRuleConfig) ([]Reque
 		if rule.CaseInsensitive {
 			rule.Normalize.CaseInsensitive = true
 		}
-		rule.Keywords = compactTrimmedStrings(rule.Keywords)
+		rule.Keywords = compactTrimmedUniqueStrings(rule.Keywords)
 		normalized = append(normalized, rule)
 	}
 	sort.SliceStable(normalized, func(i, j int) bool {
@@ -433,7 +433,7 @@ func normalizeRequestInterceptScopes(scopes []string) []string {
 	return result
 }
 
-func compactTrimmedStrings(values []string) []string {
+func compactTrimmedUniqueStrings(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := map[string]bool{}
 	for _, value := range values {
