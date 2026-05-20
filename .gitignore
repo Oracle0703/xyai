@@ -85,6 +85,7 @@ temp/
 *.bak
 .cache/
 .dev/
+.localdev/
 .serena/
 
 # ===================

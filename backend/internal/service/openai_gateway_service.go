@@ -5358,7 +5358,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			zap.Int64("api_key_id", apiKey.ID),
 			zap.Int64("account_id", account.ID),
 		).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(err))
-		cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
+		cost = zeroCostBreakdown(result)
 	}
 
 	// Determine billing type
@@ -5455,7 +5455,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			tokens, cost.TotalCost,
+			tokens, usageCostTotal(cost),
 		)
 	}
 
@@ -5487,6 +5487,21 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+func zeroCostBreakdown(result *OpenAIForwardResult) *CostBreakdown {
+	billingMode := string(BillingModeToken)
+	if result != nil && result.ImageCount > 0 {
+		billingMode = string(BillingModeImage)
+	}
+	return &CostBreakdown{BillingMode: billingMode}
+}
+
+func usageCostTotal(cost *CostBreakdown) float64 {
+	if cost == nil {
+		return 0
+	}
+	return cost.TotalCost
 }
 
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
