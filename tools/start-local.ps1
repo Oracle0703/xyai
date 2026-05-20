@@ -371,7 +371,7 @@ Sync-LocalAdminPassword $envValues
 Write-Step "Starting frontend"
 Rotate-LogIfExists $FrontendLog
 
-$frontendArgs = "/d /c corepack pnpm run dev --host 127.0.0.1 --port $frontendPort >> ""$FrontendLog"" 2>&1"
+$frontendArgs = "/d /c corepack pnpm run dev --host 0.0.0.0 --port $frontendPort >> ""$FrontendLog"" 2>&1"
 $frontendProc = Start-DetachedProcess `
     -FilePath "cmd.exe" `
     -Arguments $frontendArgs `
