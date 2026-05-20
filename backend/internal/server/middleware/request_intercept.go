@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -45,7 +46,7 @@ func RequestInterceptWithProvider(cfg config.GatewayRequestInterceptConfig, prov
 
 func RequestInterceptWithProviders(cfg config.GatewayRequestInterceptConfig, provider RequestInterceptRulesProvider, enabledProvider RequestInterceptEnabledProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !cfg.Enabled || !shouldArchiveGatewayRequest(c) {
+		if !cfg.Enabled || !shouldInterceptGatewayRequest(c) {
 			c.Next()
 			return
 		}
@@ -91,6 +92,30 @@ func RequestInterceptWithProviders(cfg config.GatewayRequestInterceptConfig, pro
 		writeInterceptResponse(c, body, decision.Reply)
 		c.Abort()
 	}
+}
+
+func shouldInterceptGatewayRequest(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	if c.Request.Method != http.MethodPost {
+		return false
+	}
+	path := strings.TrimRight(strings.TrimSpace(c.Request.URL.Path), "/")
+	if path == "" {
+		return false
+	}
+	return path == "/v1/messages" ||
+		path == "/antigravity/v1/messages" ||
+		path == "/v1/responses" ||
+		strings.HasPrefix(path, "/v1/responses/") ||
+		path == "/responses" ||
+		strings.HasPrefix(path, "/responses/") ||
+		path == "/backend-api/codex/responses" ||
+		strings.HasPrefix(path, "/backend-api/codex/responses/") ||
+		path == "/v1/chat/completions" ||
+		path == "/chat/completions" ||
+		isGeminiGenerateContentPath(path)
 }
 
 func NewRequestInterceptRulesProvider(svc *service.RequestInterceptRulesService) RequestInterceptRulesProvider {
@@ -220,16 +245,51 @@ func writeInterceptResponse(c *gin.Context, body []byte, reply string) {
 		extractModelFromPath(path),
 		"intercept",
 	)
+	stream := isRequestInterceptStream(c, body)
 	switch {
 	case strings.Contains(path, "/chat/completions"):
+		if stream {
+			writeChatCompletionsStreamIntercept(c, model, reply)
+			return
+		}
 		writeChatCompletionsIntercept(c, model, reply)
 	case strings.Contains(path, "/v1beta/models/") || strings.Contains(path, "/antigravity/v1beta/models/"):
+		if stream {
+			writeGeminiStreamIntercept(c, model, reply)
+			return
+		}
 		writeGeminiIntercept(c, model, reply)
 	case strings.Contains(path, "/responses"):
+		if stream {
+			writeResponsesStreamIntercept(c, model, reply)
+			return
+		}
 		writeResponsesIntercept(c, model, reply)
 	default:
+		if stream {
+			writeMessagesStreamIntercept(c, model, reply)
+			return
+		}
 		writeMessagesIntercept(c, model, reply)
 	}
+}
+
+func isRequestInterceptStream(c *gin.Context, body []byte) bool {
+	if gjson.GetBytes(body, "stream").Bool() {
+		return true
+	}
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if c.Request.URL != nil && strings.Contains(c.Request.URL.Path, ":streamGenerateContent") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(c.GetHeader("Accept")), "text/event-stream")
+}
+
+func isGeminiGenerateContentPath(path string) bool {
+	return (strings.HasPrefix(path, "/v1beta/models/") || strings.HasPrefix(path, "/antigravity/v1beta/models/")) &&
+		(strings.Contains(path, ":generateContent") || strings.Contains(path, ":streamGenerateContent"))
 }
 
 func writeResponsesIntercept(c *gin.Context, model, reply string) {
@@ -249,6 +309,107 @@ func writeResponsesIntercept(c *gin.Context, model, reply string) {
 	})
 }
 
+func writeResponsesStreamIntercept(c *gin.Context, model, reply string) {
+	now := time.Now()
+	responseID := "resp_intercept_" + now.Format("20060102150405")
+	itemID := "msg_intercept_" + now.Format("20060102150405")
+	created := now.Unix()
+	content := gin.H{
+		"type":        "output_text",
+		"text":        reply,
+		"annotations": []gin.H{},
+	}
+	doneItem := gin.H{
+		"id":      itemID,
+		"type":    "message",
+		"status":  "completed",
+		"role":    "assistant",
+		"content": []gin.H{content},
+	}
+	completedResponse := gin.H{
+		"id":         responseID,
+		"object":     "response",
+		"created":    created,
+		"created_at": created,
+		"status":     "completed",
+		"model":      model,
+		"output":     []gin.H{doneItem},
+		"usage": gin.H{
+			"input_tokens":  0,
+			"output_tokens": 0,
+			"total_tokens":  0,
+		},
+	}
+
+	writeRequestInterceptSSEHeaders(c)
+	writeRequestInterceptSSEJSON(c, "response.created", gin.H{
+		"type": "response.created",
+		"response": gin.H{
+			"id":         responseID,
+			"object":     "response",
+			"created":    created,
+			"created_at": created,
+			"status":     "in_progress",
+			"model":      model,
+			"output":     []gin.H{},
+		},
+	})
+	writeRequestInterceptSSEJSON(c, "response.output_item.added", gin.H{
+		"type":         "response.output_item.added",
+		"output_index": 0,
+		"item": gin.H{
+			"id":      itemID,
+			"type":    "message",
+			"status":  "in_progress",
+			"role":    "assistant",
+			"content": []gin.H{},
+		},
+	})
+	writeRequestInterceptSSEJSON(c, "response.content_part.added", gin.H{
+		"type":          "response.content_part.added",
+		"item_id":       itemID,
+		"output_index":  0,
+		"content_index": 0,
+		"part": gin.H{
+			"type":        "output_text",
+			"text":        "",
+			"annotations": []gin.H{},
+		},
+	})
+	writeRequestInterceptSSEJSON(c, "response.output_text.delta", gin.H{
+		"type":          "response.output_text.delta",
+		"item_id":       itemID,
+		"output_index":  0,
+		"content_index": 0,
+		"delta":         reply,
+	})
+	writeRequestInterceptSSEJSON(c, "response.output_text.done", gin.H{
+		"type":          "response.output_text.done",
+		"item_id":       itemID,
+		"output_index":  0,
+		"content_index": 0,
+		"text":          reply,
+	})
+	writeRequestInterceptSSEJSON(c, "response.content_part.done", gin.H{
+		"type":          "response.content_part.done",
+		"item_id":       itemID,
+		"output_index":  0,
+		"content_index": 0,
+		"part":          content,
+	})
+	writeRequestInterceptSSEJSON(c, "response.output_item.done", gin.H{
+		"type":         "response.output_item.done",
+		"output_index": 0,
+		"item":         doneItem,
+	})
+	writeRequestInterceptSSEJSON(c, "response.completed", gin.H{
+		"type":     "response.completed",
+		"response": completedResponse,
+	})
+	writeRequestInterceptSSERawData(c, "[DONE]")
+	c.Writer.Flush()
+}
+
 func writeChatCompletionsIntercept(c *gin.Context, model, reply string) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":      "chatcmpl_intercept_" + time.Now().Format("20060102150405"),
@@ -266,6 +427,32 @@ func writeChatCompletionsIntercept(c *gin.Context, model, reply string) {
 	})
 }
 
+func writeChatCompletionsStreamIntercept(c *gin.Context, model, reply string) {
+	now := time.Now()
+	id := "chatcmpl_intercept_" + now.Format("20060102150405")
+	created := now.Unix()
+	chunk := func(delta gin.H, finishReason any) gin.H {
+		return gin.H{
+			"id":      id,
+			"object":  "chat.completion.chunk",
+			"created": created,
+			"model":   model,
+			"choices": []gin.H{{
+				"index":         0,
+				"delta":         delta,
+				"finish_reason": finishReason,
+			}},
+		}
+	}
+
+	writeRequestInterceptSSEHeaders(c)
+	writeRequestInterceptSSEJSON(c, "", chunk(gin.H{"role": "assistant"}, nil))
+	writeRequestInterceptSSEJSON(c, "", chunk(gin.H{"content": reply}, nil))
+	writeRequestInterceptSSEJSON(c, "", chunk(gin.H{}, "stop"))
+	writeRequestInterceptSSERawData(c, "[DONE]")
+	c.Writer.Flush()
+}
+
 func writeMessagesIntercept(c *gin.Context, model, reply string) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":            "msg_intercept_" + time.Now().Format("20060102150405"),
@@ -279,6 +466,58 @@ func writeMessagesIntercept(c *gin.Context, model, reply string) {
 	})
 }
 
+func writeMessagesStreamIntercept(c *gin.Context, model, reply string) {
+	now := time.Now()
+	id := "msg_intercept_" + now.Format("20060102150405")
+
+	writeRequestInterceptSSEHeaders(c)
+	writeRequestInterceptSSEJSON(c, "message_start", gin.H{
+		"type": "message_start",
+		"message": gin.H{
+			"id":            id,
+			"type":          "message",
+			"role":          "assistant",
+			"model":         model,
+			"content":       []gin.H{},
+			"stop_reason":   nil,
+			"stop_sequence": nil,
+			"usage":         gin.H{"input_tokens": 0, "output_tokens": 0},
+		},
+	})
+	writeRequestInterceptSSEJSON(c, "content_block_start", gin.H{
+		"type":  "content_block_start",
+		"index": 0,
+		"content_block": gin.H{
+			"type": "text",
+			"text": "",
+		},
+	})
+	writeRequestInterceptSSEJSON(c, "content_block_delta", gin.H{
+		"type":  "content_block_delta",
+		"index": 0,
+		"delta": gin.H{
+			"type": "text_delta",
+			"text": reply,
+		},
+	})
+	writeRequestInterceptSSEJSON(c, "content_block_stop", gin.H{
+		"type":  "content_block_stop",
+		"index": 0,
+	})
+	writeRequestInterceptSSEJSON(c, "message_delta", gin.H{
+		"type": "message_delta",
+		"delta": gin.H{
+			"stop_reason":   "end_turn",
+			"stop_sequence": nil,
+		},
+		"usage": gin.H{"output_tokens": 0},
+	})
+	writeRequestInterceptSSEJSON(c, "message_stop", gin.H{
+		"type": "message_stop",
+	})
+	c.Writer.Flush()
+}
+
 func writeGeminiIntercept(c *gin.Context, model, reply string) {
 	c.JSON(http.StatusOK, gin.H{
 		"candidates": []gin.H{{
@@ -290,6 +529,53 @@ func writeGeminiIntercept(c *gin.Context, model, reply string) {
 		}},
 		"modelVersion": model,
 	})
+}
+
+func writeGeminiStreamIntercept(c *gin.Context, model, reply string) {
+	writeRequestInterceptSSEHeaders(c)
+	writeRequestInterceptSSEJSON(c, "", gin.H{
+		"candidates": []gin.H{{
+			"content": gin.H{
+				"role":  "model",
+				"parts": []gin.H{{"text": reply}},
+			},
+			"finishReason": "STOP",
+		}},
+		"modelVersion": model,
+	})
+	c.Writer.Flush()
+}
+
+func writeRequestInterceptSSEHeaders(c *gin.Context) {
+	header := c.Writer.Header()
+	header.Set("Content-Type", "text/event-stream; charset=utf-8")
+	header.Set("Cache-Control", "no-cache")
+	header.Set("Connection", "keep-alive")
+	header.Set("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+}
+
+func writeRequestInterceptSSEJSON(c *gin.Context, event string, data any) {
+	raw, err := json.Marshal(data)
+	if err != nil {
+		logger.L().Warn("request_intercept.marshal_sse_failed", zap.String("event", event), zap.Error(err))
+		return
+	}
+	if event != "" {
+		if _, err := c.Writer.Write([]byte("event: " + event + "\n")); err != nil {
+			logger.L().Warn("request_intercept.write_sse_failed", zap.String("event", event), zap.Error(err))
+			return
+		}
+	}
+	if _, err := c.Writer.Write(append(append([]byte("data: "), raw...), []byte("\n\n")...)); err != nil {
+		logger.L().Warn("request_intercept.write_sse_failed", zap.String("event", event), zap.Error(err))
+	}
+}
+
+func writeRequestInterceptSSERawData(c *gin.Context, data string) {
+	if _, err := c.Writer.Write([]byte("data: " + data + "\n\n")); err != nil {
+		logger.L().Warn("request_intercept.write_sse_failed", zap.String("data", data), zap.Error(err))
+	}
 }
 
 func extractModelFromPath(path string) string {
