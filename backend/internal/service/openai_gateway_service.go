@@ -2479,12 +2479,6 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 	}
 
-	if account.Platform == PlatformOpenAI &&
-		account.Type == AccountTypeAPIKey &&
-		!openai_compat.ShouldUseResponsesAPI(account.Extra) {
-		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
-	}
-
 	// Get access token
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
