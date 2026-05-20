@@ -384,6 +384,7 @@ export default {
     channelStatus: '渠道状态',
     riskControl: '风控中心',
     requestIntercept: '请求拦截',
+    tokenAnalysis: 'Token 分析',
   },
 
   // Auth
@@ -1381,6 +1382,34 @@ export default {
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
       failedToLoad: '加载仪表盘数据失败'
+    },
+
+    tokenAnalysis: {
+      title: 'Token 分析',
+      description: '查看部门用量、缓存命中和疑似浪费请求',
+      indexNow: '索引当前范围',
+      riskMin: '风险分',
+      includeUnmatched: '包含未匹配归档',
+      indexStatus: '索引状态',
+      processed: '已处理',
+      failed: '失败',
+      indexed: '已索引',
+      userRanking: '用户 / API Key 排行',
+      suspiciousRequests: '可疑请求',
+      user: '用户',
+      tokens: 'Token',
+      cost: '费用',
+      risk: '风险',
+      usage: '用量',
+      preview: '请求预览',
+      summary: {
+        totalTokens: '总 Token',
+        totalCost: '总费用',
+        cacheRead: '缓存命中',
+        cacheHitRate: '缓存命中率',
+        riskyRequests: '可疑请求',
+        riskyCost: '可疑费用'
+      }
     },
 
     backup: {
@@ -2399,9 +2428,12 @@ export default {
       description: '在请求上游模型前按关键词命中规则并返回固定协议响应',
       loadFailed: '加载请求拦截规则失败',
       saveFailed: '保存请求拦截规则失败',
+      saveConfigFailed: '保存请求拦截开关失败',
       deleteFailed: '删除请求拦截规则失败',
       testFailed: '测试请求拦截规则失败',
       addRule: '添加规则',
+      globalSwitch: '全局开关',
+      globalSwitchHint: '关闭后所有规则都会放行到上游模型。',
       rules: '拦截规则',
       rulesHint: '按优先级从小到大匹配，命中后不会请求上游模型。',
       totalRules: '规则总数',

@@ -71,6 +71,9 @@ func RegisterAdminRoutes(
 		// 使用记录管理
 		registerUsageRoutes(admin, h)
 
+		// Token 分析
+		registerTokenAnalysisRoutes(admin, h)
+
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
 
@@ -100,6 +103,17 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+	}
+}
+
+func registerTokenAnalysisRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	tokenAnalysis := admin.Group("/token-analysis")
+	{
+		tokenAnalysis.GET("/summary", h.Admin.TokenAnalysis.Summary)
+		tokenAnalysis.GET("/users", h.Admin.TokenAnalysis.Users)
+		tokenAnalysis.GET("/requests", h.Admin.TokenAnalysis.Requests)
+		tokenAnalysis.POST("/index", h.Admin.TokenAnalysis.TriggerIndex)
+		tokenAnalysis.GET("/index/status", h.Admin.TokenAnalysis.IndexStatus)
 	}
 }
 
@@ -579,6 +593,8 @@ func registerErrorPassthroughRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 func registerRequestInterceptRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	rules := admin.Group("/request-intercept")
 	{
+		rules.GET("/config", h.Admin.RequestIntercept.Config)
+		rules.PUT("/config", h.Admin.RequestIntercept.UpdateConfig)
 		rules.GET("/rules", h.Admin.RequestIntercept.List)
 		rules.PUT("/rules", h.Admin.RequestIntercept.SaveAll)
 		rules.PUT("/rules/:id", h.Admin.RequestIntercept.Upsert)

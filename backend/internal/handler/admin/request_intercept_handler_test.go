@@ -104,6 +104,33 @@ func TestRequestInterceptHandlerSaveListAndTest(t *testing.T) {
 	require.Contains(t, w.Body.String(), "迅游AI")
 }
 
+func TestRequestInterceptHandlerConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &requestInterceptHandlerRepoStub{}
+	handler := NewRequestInterceptHandler(service.NewRequestInterceptRulesService(repo))
+	router := gin.New()
+	router.GET("/config", handler.Config)
+	router.PUT("/config", handler.UpdateConfig)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/config", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"enabled":true`)
+
+	w = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/config", bytes.NewBufferString(`{"enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"enabled":false`)
+	require.Equal(t, "false", repo.values[service.SettingKeyRequestInterceptEnabled])
+
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/config", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"enabled":false`)
+}
+
 func TestRequestInterceptHandlerUpsertAndDelete(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler := NewRequestInterceptHandler(service.NewRequestInterceptRulesService(&requestInterceptHandlerRepoStub{}))

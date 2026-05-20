@@ -565,6 +565,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/token-analysis',
+    name: 'AdminTokenAnalysis',
+    component: () => import('@/views/admin/TokenAnalysisView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Token Analysis',
+      titleKey: 'admin.tokenAnalysis.title',
+      descriptionKey: 'admin.tokenAnalysis.description'
+    }
+  },
+  {
     path: '/admin/affiliates',
     redirect: '/admin/affiliates/invites'
   },

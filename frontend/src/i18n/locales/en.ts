@@ -384,6 +384,7 @@ export default {
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
     requestIntercept: 'Request Intercept',
+    tokenAnalysis: 'Token Analysis',
   },
 
   // Auth
@@ -1362,6 +1363,34 @@ export default {
       failedToLoad: 'Failed to load dashboard statistics'
     },
 
+    tokenAnalysis: {
+      title: 'Token Analysis',
+      description: 'View department usage, cache hits, and suspicious token waste requests',
+      indexNow: 'Index Range',
+      riskMin: 'Risk',
+      includeUnmatched: 'Include unmatched',
+      indexStatus: 'Index status',
+      processed: 'Processed',
+      failed: 'Failed',
+      indexed: 'Indexed',
+      userRanking: 'User / API Key Ranking',
+      suspiciousRequests: 'Suspicious Requests',
+      user: 'User',
+      tokens: 'Tokens',
+      cost: 'Cost',
+      risk: 'Risk',
+      usage: 'Usage',
+      preview: 'Request Preview',
+      summary: {
+        totalTokens: 'Total Tokens',
+        totalCost: 'Total Cost',
+        cacheRead: 'Cache Read',
+        cacheHitRate: 'Cache Hit Rate',
+        riskyRequests: 'Risky Requests',
+        riskyCost: 'Risky Cost'
+      }
+    },
+
     backup: {
       title: 'Database Backup',
       description: 'Full database backup to S3-compatible storage with scheduled backup and restore',
@@ -2322,9 +2351,12 @@ export default {
       description: 'Match gateway requests before upstream calls and return fixed protocol-compatible responses',
       loadFailed: 'Failed to load request intercept rules',
       saveFailed: 'Failed to save request intercept rules',
+      saveConfigFailed: 'Failed to save request intercept switch',
       deleteFailed: 'Failed to delete request intercept rule',
       testFailed: 'Failed to test request intercept rules',
       addRule: 'Add Rule',
+      globalSwitch: 'Global Switch',
+      globalSwitchHint: 'When disabled, all rules pass through to upstream models.',
       rules: 'Intercept Rules',
       rulesHint: 'Rules are matched by ascending priority. Matched requests skip the upstream model.',
       totalRules: 'Total Rules',

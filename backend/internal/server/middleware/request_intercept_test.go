@@ -47,6 +47,42 @@ rules:
 	require.Contains(t, w.Body.String(), `"object":"response"`)
 }
 
+func TestRequestInterceptResponsesStreamReturnsSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: stream
+    match: contains
+    keywords: ["intercept-test"]
+    reply: "intercepted locally"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/responses", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5.5","input":"please trigger intercept-test","stream":true}`))
+	req.Header.Set("Accept", "text/event-stream")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, w.Body.String(), "event: response.completed")
+	require.Contains(t, w.Body.String(), "event: response.output_text.delta")
+	require.Contains(t, w.Body.String(), "intercepted locally")
+	require.Contains(t, w.Body.String(), "data: [DONE]")
+}
+
 func TestRequestInterceptPolicyChatCompletions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rulesFile := writeInterceptRules(t, `
@@ -77,6 +113,175 @@ rules:
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "你的问题超出法律规定")
 	require.Contains(t, w.Body.String(), `"chat.completion"`)
+}
+
+func TestRequestInterceptChatCompletionsStreamReturnsSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: stream
+    match: contains
+    keywords: ["intercept-test"]
+    reply: "chat stream intercepted"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-5.5","messages":[{"role":"user","content":"please trigger intercept-test"}],"stream":true}`))
+	req.Header.Set("Accept", "text/event-stream")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, w.Body.String(), `"object":"chat.completion.chunk"`)
+	require.Contains(t, w.Body.String(), "chat stream intercepted")
+	require.Contains(t, w.Body.String(), `"finish_reason":"stop"`)
+	require.Contains(t, w.Body.String(), "data: [DONE]")
+}
+
+func TestRequestInterceptMessagesStreamReturnsSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: stream
+    match: contains
+    keywords: ["intercept-test"]
+    reply: "message stream intercepted"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/messages", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-3","messages":[{"role":"user","content":"please trigger intercept-test"}],"stream":true}`))
+	req.Header.Set("Accept", "text/event-stream")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, w.Body.String(), "event: message_start")
+	require.Contains(t, w.Body.String(), "event: content_block_delta")
+	require.Contains(t, w.Body.String(), "message stream intercepted")
+	require.Contains(t, w.Body.String(), "event: message_stop")
+}
+
+func TestRequestInterceptGeminiStreamGenerateContentReturnsSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: stream
+    match: contains
+    keywords: ["intercept-test"]
+    reply: "gemini stream intercepted"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1beta/models/gemini-2.5-pro:streamGenerateContent", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-2.5-pro:streamGenerateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"please trigger intercept-test"}]}]}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
+	require.Contains(t, w.Body.String(), `"text":"gemini stream intercepted"`)
+	require.Contains(t, w.Body.String(), `"finishReason":"STOP"`)
+}
+
+func TestRequestInterceptSkipsCountTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: all
+    match: contains
+    keywords: ["intercept-test"]
+    reply: "should not intercept"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/messages/count_tokens", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusAccepted, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"claude-3","messages":[{"role":"user","content":"please trigger intercept-test"}]}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.True(t, called)
+	require.Equal(t, http.StatusAccepted, w.Code)
+	require.Contains(t, w.Body.String(), `"upstream":true`)
+	require.NotContains(t, w.Body.String(), "should not intercept")
+}
+
+func TestRequestInterceptSkipsImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: all
+    match: contains
+    keywords: ["intercept-test"]
+    reply: "should not intercept"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/images/generations", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusAccepted, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"gpt-image-1","prompt":"please trigger intercept-test"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.True(t, called)
+	require.Equal(t, http.StatusAccepted, w.Code)
+	require.Contains(t, w.Body.String(), `"upstream":true`)
+	require.NotContains(t, w.Body.String(), "should not intercept")
 }
 
 func TestRequestInterceptMissRestoresBodyAndCallsNext(t *testing.T) {
@@ -152,6 +357,44 @@ rules:
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "provider reply")
 	require.NotContains(t, w.Body.String(), "file reply")
+}
+
+func TestRequestInterceptRuntimeDisabledCallsNext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	called := false
+	router := gin.New()
+	router.Use(RequestInterceptWithProviders(config.GatewayRequestInterceptConfig{
+		Enabled: true,
+	}, func(c *gin.Context) ([]service.RequestInterceptRuleConfig, error) {
+		return []service.RequestInterceptRuleConfig{{
+			ID:              "provider",
+			Name:            "provider",
+			Enabled:         true,
+			Priority:        1,
+			MatchMode:       service.RequestInterceptMatchExact,
+			Keywords:        []string{"hi"},
+			Reply:           "provider reply",
+			Scopes:          []string{service.RequestInterceptScopeAll},
+			Normalize:       service.DefaultRequestInterceptNormalization(),
+			CaseInsensitive: true,
+		}}, nil
+	}, func(c *gin.Context) (bool, error) {
+		return false, nil
+	}))
+	router.POST("/v1/responses", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusAccepted, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5","input":"hi"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.True(t, called)
+	require.Equal(t, http.StatusAccepted, w.Code)
+	require.Contains(t, w.Body.String(), `"upstream":true`)
+	require.NotContains(t, w.Body.String(), "provider reply")
 }
 
 func TestRequestInterceptFallsBackToFileWhenProviderEmpty(t *testing.T) {

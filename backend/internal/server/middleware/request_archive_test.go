@@ -136,6 +136,64 @@ func TestRequestArchiveTruncatesBodies(t *testing.T) {
 	require.Equal(t, true, records[1]["body_truncated"])
 }
 
+func TestRequestArchiveRestoresResponseWriterForOuterMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		require.Equal(t, http.StatusOK, c.Writer.Status())
+	})
+	router.Use(func(c *gin.Context) {
+		originalWriter := c.Writer
+		w := &releasedOnReturnWriter{ResponseWriter: originalWriter}
+		defer func() {
+			if c.Writer == w {
+				c.Writer = originalWriter
+			}
+			w.ResponseWriter = nil
+		}()
+		c.Writer = w
+		c.Next()
+	})
+	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1/messages", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-3"}`))
+	w := httptest.NewRecorder()
+
+	require.NotPanics(t, func() {
+		router.ServeHTTP(w, req)
+	})
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+type releasedOnReturnWriter struct {
+	gin.ResponseWriter
+}
+
+func (w *releasedOnReturnWriter) Status() int {
+	if w.ResponseWriter == nil {
+		panic("released writer status")
+	}
+	return w.ResponseWriter.Status()
+}
+
+func (w *releasedOnReturnWriter) Written() bool {
+	if w.ResponseWriter == nil {
+		panic("released writer written")
+	}
+	return w.ResponseWriter.Written()
+}
+
 func readArchiveRecords(t *testing.T, dir string) []map[string]any {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))

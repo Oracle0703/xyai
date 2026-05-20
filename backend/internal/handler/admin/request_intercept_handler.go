@@ -38,6 +38,33 @@ type requestInterceptTestRequest struct {
 	Endpoint string `json:"endpoint"`
 }
 
+type requestInterceptConfigRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+func (h *RequestInterceptHandler) Config(c *gin.Context) {
+	cfg, err := h.service.GetConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *RequestInterceptHandler) UpdateConfig(c *gin.Context) {
+	var req requestInterceptConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	cfg, err := h.service.SetConfig(c.Request.Context(), service.RequestInterceptConfig{Enabled: req.Enabled})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
 func (h *RequestInterceptHandler) List(c *gin.Context) {
 	rules, err := h.service.ListRules(c.Request.Context())
 	if err != nil {
