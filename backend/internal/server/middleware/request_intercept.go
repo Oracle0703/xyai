@@ -27,10 +27,11 @@ type requestInterceptRulesFile struct {
 }
 
 type requestInterceptRule struct {
-	ID       string   `yaml:"id"`
-	Match    string   `yaml:"match"`
-	Keywords []string `yaml:"keywords"`
-	Reply    string   `yaml:"reply"`
+	ID         string   `yaml:"id"`
+	Match      string   `yaml:"match"`
+	MatchScope string   `yaml:"match_scope"`
+	Keywords   []string `yaml:"keywords"`
+	Reply      string   `yaml:"reply"`
 }
 
 // RequestIntercept intercepts matching model requests and returns a fixed response.
@@ -76,13 +77,15 @@ func RequestInterceptWithProviders(cfg config.GatewayRequestInterceptConfig, pro
 			return
 		}
 		text := extractRequestInterceptText(body)
+		fullContextText := extractRequestInterceptFullContextText(body)
 		path := ""
 		if c.Request != nil && c.Request.URL != nil {
 			path = c.Request.URL.Path
 		}
 		decision, ok := service.MatchRequestInterceptRules(rules, service.RequestInterceptMatchInput{
-			Text:     text,
-			Endpoint: path,
+			Text:            text,
+			FullContextText: fullContextText,
+			Endpoint:        path,
 		})
 		if !ok {
 			c.Next()
@@ -176,6 +179,7 @@ func loadRequestInterceptRulesFromProvider(c *gin.Context, cfg config.GatewayReq
 			Enabled:         true,
 			Priority:        0,
 			MatchMode:       rule.Match,
+			MatchScope:      rule.MatchScope,
 			Keywords:        rule.Keywords,
 			Reply:           rule.Reply,
 			Scopes:          []string{service.RequestInterceptScopeAll},
@@ -187,6 +191,22 @@ func loadRequestInterceptRulesFromProvider(c *gin.Context, cfg config.GatewayReq
 }
 
 func extractRequestInterceptText(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	if text := extractResponsesInputText(gjson.GetBytes(body, "input")); text != "" {
+		return text
+	}
+	if text := extractLastUserContent(gjson.GetBytes(body, "messages")); text != "" {
+		return text
+	}
+	if text := extractLastGeminiUserContent(gjson.GetBytes(body, "contents")); text != "" {
+		return text
+	}
+	return ""
+}
+
+func extractRequestInterceptFullContextText(body []byte) string {
 	if len(body) == 0 {
 		return ""
 	}
@@ -214,6 +234,119 @@ func extractRequestInterceptText(body []byte) string {
 	if result := gjson.GetBytes(body, "system"); result.Exists() {
 		addJSONText(result, add)
 	}
+	return strings.Join(parts, "\n")
+}
+
+func extractResponsesInputText(input gjson.Result) string {
+	if !input.Exists() {
+		return ""
+	}
+	if input.Type == gjson.String {
+		return strings.TrimSpace(input.String())
+	}
+	if !input.IsArray() {
+		return extractJSONText(input)
+	}
+
+	var fallback string
+	var lastUser string
+	input.ForEach(func(_, item gjson.Result) bool {
+		text := extractResponsesInputItemText(item)
+		if strings.TrimSpace(text) == "" {
+			return true
+		}
+		fallback = text
+		if strings.EqualFold(strings.TrimSpace(item.Get("role").String()), "user") || strings.EqualFold(strings.TrimSpace(item.Get("type").String()), "input_text") {
+			lastUser = text
+		}
+		return true
+	})
+	if lastUser != "" {
+		return strings.TrimSpace(lastUser)
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func extractResponsesInputItemText(item gjson.Result) string {
+	if item.Type == gjson.String {
+		return item.String()
+	}
+	if item.Get("type").String() == "input_text" {
+		return item.Get("text").String()
+	}
+	if text := extractJSONText(item.Get("content")); text != "" {
+		return text
+	}
+	return extractJSONText(item)
+}
+
+func extractLastUserContent(messages gjson.Result) string {
+	if !messages.IsArray() {
+		return ""
+	}
+	var fallback string
+	var lastUser string
+	messages.ForEach(func(_, message gjson.Result) bool {
+		text := extractJSONText(message.Get("content"))
+		if strings.TrimSpace(text) == "" {
+			return true
+		}
+		fallback = text
+		if strings.EqualFold(strings.TrimSpace(message.Get("role").String()), "user") {
+			lastUser = text
+		}
+		return true
+	})
+	if lastUser != "" {
+		return strings.TrimSpace(lastUser)
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func extractLastGeminiUserContent(contents gjson.Result) string {
+	if !contents.IsArray() {
+		return ""
+	}
+	var fallback string
+	var lastUser string
+	contents.ForEach(func(_, content gjson.Result) bool {
+		text := extractGeminiPartsText(content.Get("parts"))
+		if strings.TrimSpace(text) == "" {
+			return true
+		}
+		fallback = text
+		if strings.EqualFold(strings.TrimSpace(content.Get("role").String()), "user") {
+			lastUser = text
+		}
+		return true
+	})
+	if lastUser != "" {
+		return strings.TrimSpace(lastUser)
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func extractGeminiPartsText(parts gjson.Result) string {
+	if !parts.IsArray() {
+		return ""
+	}
+	var values []string
+	parts.ForEach(func(_, part gjson.Result) bool {
+		if text := strings.TrimSpace(part.Get("text").String()); text != "" {
+			values = append(values, text)
+		}
+		return true
+	})
+	return strings.Join(values, "\n")
+}
+
+func extractJSONText(value gjson.Result) string {
+	var parts []string
+	addJSONText(value, func(text string) {
+		if text = strings.TrimSpace(text); text != "" {
+			parts = append(parts, text)
+		}
+	})
 	return strings.Join(parts, "\n")
 }
 

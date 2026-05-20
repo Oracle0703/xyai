@@ -19,6 +19,9 @@ const (
 	RequestInterceptMatchContains = "contains"
 	RequestInterceptMatchRegex    = "regex"
 
+	RequestInterceptMatchScopeLatestUser  = "latest_user"
+	RequestInterceptMatchScopeFullContext = "full_context"
+
 	RequestInterceptScopeAll             = "all"
 	RequestInterceptScopeMessages        = "messages"
 	RequestInterceptScopeResponses       = "responses"
@@ -41,6 +44,7 @@ type RequestInterceptRuleConfig struct {
 	Enabled         bool                          `json:"enabled"`
 	Priority        int                           `json:"priority"`
 	MatchMode       string                        `json:"match_mode"`
+	MatchScope      string                        `json:"match_scope,omitempty"`
 	Keywords        []string                      `json:"keywords"`
 	Reply           string                        `json:"reply"`
 	Scopes          []string                      `json:"scopes"`
@@ -62,17 +66,19 @@ type RequestInterceptConfig struct {
 }
 
 type RequestInterceptMatchInput struct {
-	Text     string
-	Endpoint string
+	Text            string
+	FullContextText string
+	Endpoint        string
 }
 
 type RequestInterceptDecision struct {
-	RuleID    string `json:"rule_id"`
-	RuleName  string `json:"rule_name"`
-	Keyword   string `json:"keyword"`
-	MatchMode string `json:"match_mode"`
-	Reply     string `json:"reply"`
-	Endpoint  string `json:"endpoint"`
+	RuleID     string `json:"rule_id"`
+	RuleName   string `json:"rule_name"`
+	Keyword    string `json:"keyword"`
+	MatchMode  string `json:"match_mode"`
+	MatchScope string `json:"match_scope,omitempty"`
+	Reply      string `json:"reply"`
+	Endpoint   string `json:"endpoint"`
 }
 
 type RequestInterceptRulesService struct {
@@ -253,7 +259,7 @@ func MatchRequestInterceptRules(rules []RequestInterceptRuleConfig, input Reques
 		if !rule.Enabled || strings.TrimSpace(rule.Reply) == "" || !requestInterceptScopeMatches(rule.Scopes, input.Endpoint) {
 			continue
 		}
-		text := NormalizeRequestInterceptText(input.Text, rule.Normalize)
+		text := NormalizeRequestInterceptText(requestInterceptTextForRule(rule, input), rule.Normalize)
 		if text == "" {
 			continue
 		}
@@ -264,12 +270,13 @@ func MatchRequestInterceptRules(rules []RequestInterceptRuleConfig, input Reques
 			}
 			if requestInterceptKeywordMatches(rule.MatchMode, text, normalizedKeyword) {
 				return RequestInterceptDecision{
-					RuleID:    rule.ID,
-					RuleName:  rule.Name,
-					Keyword:   normalizedKeyword,
-					MatchMode: rule.MatchMode,
-					Reply:     rule.Reply,
-					Endpoint:  input.Endpoint,
+					RuleID:     rule.ID,
+					RuleName:   rule.Name,
+					Keyword:    normalizedKeyword,
+					MatchMode:  rule.MatchMode,
+					MatchScope: rule.MatchScope,
+					Reply:      rule.Reply,
+					Endpoint:   input.Endpoint,
 				}, true
 			}
 		}
@@ -318,6 +325,7 @@ func normalizeRequestInterceptRules(rules []RequestInterceptRuleConfig) ([]Reque
 		rule.ID = strings.TrimSpace(rule.ID)
 		rule.Name = strings.TrimSpace(rule.Name)
 		rule.MatchMode = normalizeRequestInterceptMatchMode(rule.MatchMode)
+		rule.MatchScope = normalizeRequestInterceptMatchScope(rule.MatchScope)
 		rule.Reply = strings.TrimSpace(rule.Reply)
 		if len(rule.Scopes) == 0 {
 			rule.Scopes = []string{RequestInterceptScopeAll}
@@ -384,6 +392,24 @@ func normalizeRequestInterceptMatchMode(raw string) string {
 	default:
 		return RequestInterceptMatchContains
 	}
+}
+
+func normalizeRequestInterceptMatchScope(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case RequestInterceptMatchScopeFullContext:
+		return RequestInterceptMatchScopeFullContext
+	default:
+		return RequestInterceptMatchScopeLatestUser
+	}
+}
+
+func requestInterceptTextForRule(rule RequestInterceptRuleConfig, input RequestInterceptMatchInput) string {
+	if normalizeRequestInterceptMatchScope(rule.MatchScope) == RequestInterceptMatchScopeFullContext {
+		if strings.TrimSpace(input.FullContextText) != "" {
+			return input.FullContextText
+		}
+	}
+	return input.Text
 }
 
 func normalizeRequestInterceptScopes(scopes []string) []string {

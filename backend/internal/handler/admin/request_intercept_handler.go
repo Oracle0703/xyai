@@ -25,6 +25,7 @@ type requestInterceptRuleUpsertRequest struct {
 	Enabled         *bool                                 `json:"enabled"`
 	Priority        int                                   `json:"priority"`
 	MatchMode       string                                `json:"match_mode"`
+	MatchScope      string                                `json:"match_scope"`
 	Keywords        []string                              `json:"keywords"`
 	Reply           string                                `json:"reply"`
 	Scopes          []string                              `json:"scopes"`
@@ -117,6 +118,7 @@ func (h *RequestInterceptHandler) Upsert(c *gin.Context) {
 		Enabled:         enabled,
 		Priority:        req.Priority,
 		MatchMode:       req.MatchMode,
+		MatchScope:      req.MatchScope,
 		Keywords:        req.Keywords,
 		Reply:           req.Reply,
 		Scopes:          req.Scopes,

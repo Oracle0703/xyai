@@ -6,6 +6,7 @@ version: 1
 rules:
   - id: greeting
     match: exact
+    match_scope: latest_user
     keywords:
       - hi
       - hello
@@ -15,6 +16,7 @@ rules:
 
   - id: policy
     match: contains
+    match_scope: latest_user
     keywords:
       - 示例敏感词1
       - 示例敏感词2

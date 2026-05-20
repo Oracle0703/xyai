@@ -111,4 +111,4 @@ export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from 
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
-export type { RequestInterceptRule, RequestInterceptNormalization, RequestInterceptMatchMode, RequestInterceptScope, RequestInterceptTestResponse } from './requestIntercept'
+export type { RequestInterceptRule, RequestInterceptNormalization, RequestInterceptMatchMode, RequestInterceptMatchScope, RequestInterceptScope, RequestInterceptTestResponse } from './requestIntercept'

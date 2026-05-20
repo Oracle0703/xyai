@@ -82,13 +82,14 @@ func TestRequestInterceptHandlerSaveListAndTest(t *testing.T) {
 	router.PUT("/rules", handler.SaveAll)
 	router.POST("/test", handler.Test)
 
-	saveBody := `{"rules":[{"id":"greeting","name":"问候","enabled":true,"priority":1,"match_mode":"exact","keywords":["hi"],"reply":"你好，我是迅游AI，有什么可以帮助你？","scopes":["all"],"normalize":{"trim_space":true,"case_insensitive":true,"full_width_to_half":true,"collapse_space":true,"remove_punctuation":true}}]}`
+	saveBody := `{"rules":[{"id":"greeting","name":"问候","enabled":true,"priority":1,"match_mode":"exact","match_scope":"latest_user","keywords":["hi"],"reply":"你好，我是迅游AI，有什么可以帮助你？","scopes":["all"],"normalize":{"trim_space":true,"case_insensitive":true,"full_width_to_half":true,"collapse_space":true,"remove_punctuation":true}}]}`
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPut, "/rules", bytes.NewBufferString(saveBody))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "greeting")
+	require.Contains(t, w.Body.String(), `"match_scope":"latest_user"`)
 
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/rules", nil))
@@ -140,13 +141,14 @@ func TestRequestInterceptHandlerUpsertAndDelete(t *testing.T) {
 	router.GET("/rules", handler.List)
 
 	payload := map[string]any{
-		"name":       "政策",
-		"enabled":    true,
-		"priority":   1,
-		"match_mode": "contains",
-		"keywords":   []string{"示例敏感词"},
-		"reply":      "你的问题超出法律规定，请问一些其他的。",
-		"scopes":     []string{"all"},
+		"name":        "政策",
+		"enabled":     true,
+		"priority":    1,
+		"match_mode":  "contains",
+		"match_scope": "full_context",
+		"keywords":    []string{"示例敏感词"},
+		"reply":       "你的问题超出法律规定，请问一些其他的。",
+		"scopes":      []string{"all"},
 	}
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -157,6 +159,7 @@ func TestRequestInterceptHandlerUpsertAndDelete(t *testing.T) {
 	router.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "policy")
+	require.Contains(t, w.Body.String(), `"match_scope":"full_context"`)
 
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/rules/policy", nil))

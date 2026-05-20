@@ -153,6 +153,45 @@ func TestRequestInterceptRulesServiceRegexAndNormalization(t *testing.T) {
 	require.Equal(t, "regex", decision.RuleID)
 }
 
+func TestRequestInterceptRulesServiceFullContextScope(t *testing.T) {
+	rules := []RequestInterceptRuleConfig{
+		{
+			ID:         "latest-user",
+			Name:       "本轮用户输入",
+			Enabled:    true,
+			Priority:   1,
+			MatchMode:  RequestInterceptMatchContains,
+			MatchScope: RequestInterceptMatchScopeLatestUser,
+			Keywords:   []string{"历史敏感词"},
+			Reply:      "latest reply",
+			Scopes:     []string{RequestInterceptScopeAll},
+			Normalize:  DefaultRequestInterceptNormalization(),
+		},
+		{
+			ID:         "full-context",
+			Name:       "完整上下文",
+			Enabled:    true,
+			Priority:   2,
+			MatchMode:  RequestInterceptMatchContains,
+			MatchScope: RequestInterceptMatchScopeFullContext,
+			Keywords:   []string{"历史敏感词"},
+			Reply:      "full context reply",
+			Scopes:     []string{RequestInterceptScopeAll},
+			Normalize:  DefaultRequestInterceptNormalization(),
+		},
+	}
+
+	decision, ok := MatchRequestInterceptRules(rules, RequestInterceptMatchInput{
+		Text:            "hi",
+		FullContextText: "上一轮出现历史敏感词\nhi",
+		Endpoint:        "/v1/responses",
+	})
+
+	require.True(t, ok)
+	require.Equal(t, "full-context", decision.RuleID)
+	require.Equal(t, RequestInterceptMatchScopeFullContext, decision.MatchScope)
+}
+
 func TestRequestInterceptRulesServiceValidatesRules(t *testing.T) {
 	svc := NewRequestInterceptRulesService(&requestInterceptSettingRepoStub{})
 

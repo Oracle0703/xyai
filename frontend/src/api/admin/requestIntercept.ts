@@ -1,6 +1,7 @@
 import { apiClient } from '../client'
 
 export type RequestInterceptMatchMode = 'exact' | 'contains' | 'regex'
+export type RequestInterceptMatchScope = 'latest_user' | 'full_context'
 export type RequestInterceptScope = 'all' | 'messages' | 'responses' | 'chat_completions' | 'gemini' | 'images'
 
 export interface RequestInterceptNormalization {
@@ -17,6 +18,7 @@ export interface RequestInterceptRule {
   enabled: boolean
   priority: number
   match_mode: RequestInterceptMatchMode
+  match_scope: RequestInterceptMatchScope
   keywords: string[]
   reply: string
   scopes: RequestInterceptScope[]
@@ -45,6 +47,7 @@ export interface RequestInterceptDecision {
   rule_name: string
   keyword: string
   match_mode: RequestInterceptMatchMode
+  match_scope?: RequestInterceptMatchScope
   reply: string
   endpoint: string
 }

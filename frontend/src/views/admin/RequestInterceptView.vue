@@ -122,10 +122,15 @@
                   <Select v-model="draft.match_mode" :options="matchModeOptions" />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('admin.requestIntercept.scopes') }}</label>
-                  <Select v-model="scopeSelector" :options="scopeOptions" @change="setSingleScope" />
+                  <label class="input-label">{{ t('admin.requestIntercept.matchScope') }}</label>
+                  <Select v-model="draft.match_scope" :options="matchScopeOptions" />
                 </div>
               </div>
+              <div>
+                <label class="input-label">{{ t('admin.requestIntercept.scopes') }}</label>
+                <Select v-model="scopeSelector" :options="scopeOptions" @change="setSingleScope" />
+              </div>
+              <p class="-mt-2 text-xs text-gray-500 dark:text-gray-400">{{ matchScopeHint }}</p>
               <div>
                 <label class="input-label">{{ t('admin.requestIntercept.keywords') }}</label>
                 <textarea v-model="keywordsText" class="input min-h-[88px]" :placeholder="t('admin.requestIntercept.keywordsPlaceholder')"></textarea>
@@ -193,7 +198,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
-import { adminAPI, type RequestInterceptRule, type RequestInterceptScope, type RequestInterceptTestResponse } from '@/api/admin'
+import { adminAPI, type RequestInterceptMatchScope, type RequestInterceptRule, type RequestInterceptScope, type RequestInterceptTestResponse } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
@@ -227,6 +232,7 @@ const emptyDraft = (): RequestInterceptRule => ({
   enabled: true,
   priority: 100,
   match_mode: 'contains',
+  match_scope: 'latest_user',
   keywords: [],
   reply: '你好，我是迅游AI，有什么可以帮助你？',
   scopes: ['all'],
@@ -242,6 +248,15 @@ const matchModeOptions = computed(() => [
   { value: 'exact', label: t('admin.requestIntercept.matchExact') },
   { value: 'regex', label: t('admin.requestIntercept.matchRegex') },
 ])
+
+const matchScopeOptions = computed(() => [
+  { value: 'latest_user', label: t('admin.requestIntercept.matchScopeLatestUser') },
+  { value: 'full_context', label: t('admin.requestIntercept.matchScopeFullContext') },
+])
+
+const matchScopeHint = computed(() => draft.match_scope === 'full_context'
+  ? t('admin.requestIntercept.matchScopeFullContextHint')
+  : t('admin.requestIntercept.matchScopeLatestUserHint'))
 
 const scopeOptions = computed(() => [
   { value: 'all', label: t('admin.requestIntercept.scopeAll') },
@@ -274,6 +289,7 @@ const firstEnabledRuleName = computed(() => sortedRules.value.find(rule => rule.
 
 function applyDraft(rule: RequestInterceptRule) {
   Object.assign(draft, JSON.parse(JSON.stringify(rule)))
+  draft.match_scope = (draft.match_scope || 'latest_user') as RequestInterceptMatchScope
   keywordsText.value = draft.keywords.join('\n')
   scopeSelector.value = (draft.scopes[0] || 'all') as RequestInterceptScope
 }

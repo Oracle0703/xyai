@@ -47,6 +47,132 @@ rules:
 	require.Contains(t, w.Body.String(), `"object":"response"`)
 }
 
+func TestRequestInterceptUsesLastUserMessageForChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: greeting
+    match: exact
+    keywords: ["hi", "hello", "你好", "您好"]
+    reply: "greeting reply"
+  - id: policy
+    match: contains
+    keywords: ["台独"]
+    reply: "policy reply"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+		"model":"gpt-5",
+		"messages":[
+			{"role":"system","content":"历史策略说明包含台独这个词"},
+			{"role":"user","content":"之前聊过台独"},
+			{"role":"assistant","content":"历史回复"},
+			{"role":"user","content":"hi"}
+		]
+	}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "greeting reply")
+	require.NotContains(t, w.Body.String(), "policy reply")
+}
+
+func TestRequestInterceptUsesLastUserInputForResponsesArray(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: greeting
+    match: exact
+    keywords: ["hi", "hello", "你好", "您好"]
+    reply: "greeting reply"
+  - id: policy
+    match: contains
+    keywords: ["台独"]
+    reply: "policy reply"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/responses", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{
+		"model":"gpt-5",
+		"input":[
+			{"role":"user","content":[{"type":"input_text","text":"之前聊过台独"}]},
+			{"role":"assistant","content":[{"type":"output_text","text":"历史回复"}]},
+			{"role":"user","content":[{"type":"input_text","text":"hi"}]}
+		]
+	}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "greeting reply")
+	require.NotContains(t, w.Body.String(), "policy reply")
+}
+
+func TestRequestInterceptFullContextScopeCanMatchHistory(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rulesFile := writeInterceptRules(t, `
+version: 1
+rules:
+  - id: full-context-policy
+    match: contains
+    match_scope: full_context
+    keywords: ["台独"]
+    reply: "policy reply"
+`)
+	called := false
+	router := gin.New()
+	router.Use(RequestIntercept(config.GatewayRequestInterceptConfig{
+		Enabled:   true,
+		RulesFile: rulesFile,
+	}))
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		called = true
+		c.JSON(http.StatusOK, gin.H{"upstream": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{
+		"model":"gpt-5",
+		"messages":[
+			{"role":"user","content":"之前聊过台独"},
+			{"role":"assistant","content":"历史回复"},
+			{"role":"user","content":"hi"}
+		]
+	}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.False(t, called)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "policy reply")
+}
+
 func TestRequestInterceptResponsesStreamReturnsSSE(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rulesFile := writeInterceptRules(t, `
