@@ -54,17 +54,39 @@ func (s *TokenAnalysisService) indexArchiveFile(ctx context.Context, file string
 	defer f.Close()
 	result.Files = 1
 
-	startedAt := time.Now().UTC()
-	_ = s.repo.UpdateIndexState(ctx, TokenAnalysisIndexState{SourceFile: file, StartedAt: &startedAt, UpdatedAt: startedAt})
-
-	reader := bufio.NewReader(f)
+	state, err := s.repo.GetIndexState(ctx, file)
+	if err != nil {
+		return nil, err
+	}
 	var offset int64
 	var lastArchiveID string
+	if state != nil && state.LastOffset > 0 {
+		if _, err := f.Seek(state.LastOffset, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("seek request archive %s: %w", file, err)
+		}
+		offset = state.LastOffset
+		lastArchiveID = state.LastArchiveID
+	}
+
+	startedAt := time.Now().UTC()
+	_ = s.repo.UpdateIndexState(ctx, TokenAnalysisIndexState{
+		SourceFile:    file,
+		LastOffset:    offset,
+		LastArchiveID: lastArchiveID,
+		StartedAt:     &startedAt,
+		UpdatedAt:     startedAt,
+	})
+
+	reader := bufio.NewReader(f)
 	for {
 		line, readErr := reader.ReadBytes('\n')
 		if len(line) > 0 {
-			offset += int64(len(line))
-			indexed, skipped, failed, archiveID, err := s.indexArchiveLine(ctx, file, offset, line)
+			lineOffset := offset + int64(len(line))
+			incompleteTrailingLine := readErr == io.EOF && !strings.HasSuffix(string(line), "\n")
+			indexed, skipped, failed, archiveID, err := s.indexArchiveLine(ctx, file, lineOffset, line, readErr == io.EOF)
+			if !incompleteTrailingLine || indexed > 0 || failed > 0 {
+				offset = lineOffset
+			}
 			if archiveID != "" {
 				lastArchiveID = archiveID
 			}
@@ -110,13 +132,16 @@ func (s *TokenAnalysisService) indexArchiveFile(ctx context.Context, file string
 	return result, nil
 }
 
-func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string, offset int64, line []byte) (indexed int64, skipped int64, failed int64, archiveID string, err error) {
+func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string, offset int64, line []byte, eof bool) (indexed int64, skipped int64, failed int64, archiveID string, err error) {
 	trimmed := strings.TrimSpace(string(line))
 	if trimmed == "" {
 		return 0, 1, 0, "", nil
 	}
 	var event tokenAnalysisArchiveEvent
 	if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+		if eof && !strings.HasSuffix(string(line), "\n") {
+			return 0, 1, 0, "", nil
+		}
 		return 0, 0, 1, "", nil
 	}
 	archiveID = event.ArchiveID

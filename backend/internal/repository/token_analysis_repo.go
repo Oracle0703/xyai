@@ -205,12 +205,27 @@ SELECT
     COALESCE(SUM(ul.total_cost), 0) AS total_cost,
     COALESCE(SUM(ul.actual_cost), 0) AS total_actual_cost,
     COUNT(*) FILTER (WHERE s.risk_score > 0) AS risky_requests,
-    COALESCE(SUM(ul.actual_cost) FILTER (WHERE s.risk_score > 0), 0) AS risky_cost
+    COALESCE(SUM(ul.actual_cost) FILTER (WHERE s.risk_score > 0), 0) AS risky_cost,
+    COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('code', code, 'count', count) ORDER BY count DESC, code ASC)
+        FROM (
+            SELECT reason->>'code' AS code, COUNT(*) AS count
+            FROM token_analysis_request_summaries reason_source
+            LEFT JOIN usage_logs reason_ul ON reason_ul.id = reason_source.usage_log_id
+            CROSS JOIN LATERAL jsonb_array_elements(reason_source.risk_reasons) AS reason
+            WHERE ` + strings.Join(rewriteTokenAnalysisAlias(where, "s", "reason_source"), " AND ") + `
+              AND reason->>'code' <> ''
+            GROUP BY reason->>'code'
+            ORDER BY count DESC, code ASC
+            LIMIT 8
+        ) ranked_reasons
+    ), '[]'::jsonb) AS risk_reasons
 FROM token_analysis_request_summaries s
 LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 WHERE ` + strings.Join(where, " AND ")
 
 	var summary service.TokenAnalysisSummary
+	var riskReasonsRaw []byte
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&summary.TotalRequests,
 		&summary.MatchedRequests,
@@ -223,13 +238,21 @@ WHERE ` + strings.Join(where, " AND ")
 		&summary.TotalActualCost,
 		&summary.RiskyRequests,
 		&summary.RiskyCost,
+		&riskReasonsRaw,
 	); err != nil {
 		return nil, fmt.Errorf("get token analysis summary: %w", err)
+	}
+	summary.UnmatchedRequests = summary.TotalRequests - summary.MatchedRequests
+	if summary.TotalRequests > 0 {
+		summary.UnmatchedRate = float64(summary.UnmatchedRequests) / float64(summary.TotalRequests)
+		summary.RiskRequestRate = float64(summary.RiskyRequests) / float64(summary.TotalRequests)
 	}
 	cacheable := summary.TotalInputTokens + summary.CacheReadTokens + summary.CacheCreationTokens
 	if cacheable > 0 {
 		summary.CacheHitRate = float64(summary.CacheReadTokens) / float64(cacheable)
 	}
+	summary.RiskReasons = []service.TokenAnalysisRiskReasonSummary{}
+	_ = json.Unmarshal(riskReasonsRaw, &summary.RiskReasons)
 	return &summary, nil
 }
 
@@ -427,6 +450,31 @@ LIMIT 50`)
 	return status, nil
 }
 
+func (r *tokenAnalysisRepository) GetIndexState(ctx context.Context, sourceFile string) (*service.TokenAnalysisIndexState, error) {
+	var state service.TokenAnalysisIndexState
+	err := r.db.QueryRowContext(ctx, `
+SELECT source_file, last_offset, last_archive_id, processed_rows, failed_rows, last_error, started_at, finished_at, updated_at
+FROM token_analysis_index_state
+WHERE source_file = $1`, sourceFile).Scan(
+		&state.SourceFile,
+		&state.LastOffset,
+		&state.LastArchiveID,
+		&state.ProcessedRows,
+		&state.FailedRows,
+		&state.LastError,
+		&state.StartedAt,
+		&state.FinishedAt,
+		&state.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get token analysis index state: %w", err)
+	}
+	return &state, nil
+}
+
 func (r *tokenAnalysisRepository) UpdateIndexState(ctx context.Context, state service.TokenAnalysisIndexState) error {
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO token_analysis_index_state (
@@ -568,6 +616,19 @@ func buildTokenAnalysisWhere(filters service.TokenAnalysisFilters, alias string)
 		where = append(where, prefix+"usage_log_id IS NOT NULL")
 	}
 	return where, args
+}
+
+func rewriteTokenAnalysisAlias(where []string, fromAlias, toAlias string) []string {
+	from := strings.TrimSpace(fromAlias)
+	to := strings.TrimSpace(toAlias)
+	if from == "" || to == "" || from == to {
+		return where
+	}
+	out := make([]string, 0, len(where))
+	for _, expr := range where {
+		out = append(out, strings.ReplaceAll(expr, from+".", to+"."))
+	}
+	return out
 }
 
 func tokenAnalysisRequestOrderBy(params pagination.PaginationParams) string {

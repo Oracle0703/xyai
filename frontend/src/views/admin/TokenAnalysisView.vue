@@ -54,6 +54,46 @@
         </div>
       </div>
 
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="card p-4">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.matchQuality') }}</h2>
+          <div class="mt-3 grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.matched') }}</div>
+              <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatNumber(summary?.matched_requests ?? 0) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.unmatched') }}</div>
+              <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatNumber(summary?.unmatched_requests ?? 0) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.unmatchedRate') }}</div>
+              <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ percent(summary?.unmatched_rate ?? 0) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 lg:col-span-2">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.riskReasons') }}</h2>
+            <span class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.riskRate') }} {{ percent(summary?.risk_request_rate ?? 0) }}</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="reason in summary?.risk_reasons || []"
+              :key="reason.code"
+              type="button"
+              class="rounded border px-2.5 py-1 text-xs"
+              :class="filters.risk_reason === reason.code ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300'"
+              @click="toggleRiskReason(reason.code)"
+            >
+              {{ reason.code }} · {{ formatNumber(reason.count) }}
+            </button>
+            <span v-if="!(summary?.risk_reasons || []).length" class="text-sm text-gray-500">{{ t('common.noData') }}</span>
+          </div>
+        </div>
+      </div>
+
       <div class="card p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="text-sm text-gray-500 dark:text-gray-400">
@@ -63,6 +103,28 @@
           <div class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.tokenAnalysis.processed') }} {{ indexStatus?.processed_rows ?? 0 }} / {{ t('admin.tokenAnalysis.failed') }} {{ indexStatus?.failed_rows ?? 0 }}
           </div>
+        </div>
+        <div v-if="indexStatus?.files?.length" class="mt-3 overflow-x-auto">
+          <table class="table text-xs">
+            <thead>
+              <tr>
+                <th>{{ t('admin.tokenAnalysis.file') }}</th>
+                <th>{{ t('admin.tokenAnalysis.offset') }}</th>
+                <th>{{ t('admin.tokenAnalysis.processed') }}</th>
+                <th>{{ t('admin.tokenAnalysis.failed') }}</th>
+                <th>{{ t('admin.tokenAnalysis.updated') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="file in indexStatus.files.slice(0, 5)" :key="file.source_file">
+                <td class="max-w-[320px] truncate">{{ file.source_file }}</td>
+                <td>{{ formatNumber(file.last_offset) }}</td>
+                <td>{{ formatNumber(file.processed_rows) }}</td>
+                <td>{{ formatNumber(file.failed_rows) }}</td>
+                <td>{{ file.updated_at || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -368,6 +430,11 @@ function changeRequestPageSize(pageSize: number) {
   requestsPagination.page_size = pageSize
   requestsPagination.page = 1
   void loadRequests()
+}
+
+function toggleRiskReason(code: string) {
+  filters.risk_reason = filters.risk_reason === code ? undefined : code
+  void reloadAll()
 }
 
 onMounted(() => {

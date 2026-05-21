@@ -89,3 +89,59 @@ func TestTokenAnalysisRepositoryFindNearestUsageLogNoRows(t *testing.T) {
 	require.Nil(t, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestTokenAnalysisRepositoryGetIndexState(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	now := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery("FROM token_analysis_index_state").
+		WithArgs("data/request-archive/2026-05-21.jsonl").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"source_file", "last_offset", "last_archive_id", "processed_rows", "failed_rows", "last_error", "started_at", "finished_at", "updated_at",
+		}).AddRow("data/request-archive/2026-05-21.jsonl", int64(1234), "arch-1", int64(2), int64(1), "bad line", now, now, now))
+
+	state, err := repo.GetIndexState(context.Background(), "data/request-archive/2026-05-21.jsonl")
+
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	require.Equal(t, int64(1234), state.LastOffset)
+	require.Equal(t, "arch-1", state.LastArchiveID)
+	require.Equal(t, int64(2), state.ProcessedRows)
+	require.Equal(t, int64(1), state.FailedRows)
+	require.Equal(t, "bad line", state.LastError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	start := time.Date(2026, 5, 21, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+
+	mock.ExpectQuery("COUNT\\(\\*\\) AS total_requests").
+		WithArgs(start, end).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"total_requests", "matched_requests", "total_input_tokens", "total_output_tokens", "cache_read_tokens", "cache_creation_tokens",
+			"total_tokens", "total_cost", "total_actual_cost", "risky_requests", "risky_cost", "risk_reasons",
+		}).AddRow(int64(10), int64(7), int64(1000), int64(100), int64(300), int64(200), int64(1600), 1.2, 1.1, int64(4), 0.6, []byte(`[{"code":"huge_input_tiny_output","count":3},{"code":"low_cache_hit_large_input","count":1}]`)))
+
+	got, err := repo.GetSummary(context.Background(), service.TokenAnalysisFilters{StartTime: &start, EndTime: &end})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(10), got.TotalRequests)
+	require.Equal(t, int64(7), got.MatchedRequests)
+	require.Equal(t, int64(3), got.UnmatchedRequests)
+	require.Equal(t, 0.3, got.UnmatchedRate)
+	require.Equal(t, 0.4, got.RiskRequestRate)
+	require.Len(t, got.RiskReasons, 2)
+	require.Equal(t, "huge_input_tiny_output", got.RiskReasons[0].Code)
+	require.Equal(t, int64(3), got.RiskReasons[0].Count)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

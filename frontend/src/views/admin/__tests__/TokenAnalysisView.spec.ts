@@ -42,13 +42,18 @@ describe('TokenAnalysisView', () => {
     api.triggerIndex.mockReset()
     api.getSummary.mockResolvedValue({
       total_requests: 12,
+      matched_requests: 10,
+      unmatched_requests: 2,
       total_tokens: 9000,
       total_actual_cost: 1.23,
       cache_read_tokens: 4000,
       cache_creation_tokens: 1000,
       cache_hit_rate: 0.4,
       risky_requests: 2,
-      risky_cost: 0.6
+      risky_cost: 0.6,
+      unmatched_rate: 0.1667,
+      risk_request_rate: 0.1667,
+      risk_reasons: [{ code: 'huge_input_tiny_output', count: 2 }]
     })
     api.listUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
     api.listRequests.mockResolvedValue({
@@ -75,7 +80,20 @@ describe('TokenAnalysisView', () => {
       page: 1,
       page_size: 20
     })
-    api.getIndexStatus.mockResolvedValue({ running: false, processed_rows: 10, failed_rows: 0, files: [] })
+    api.getIndexStatus.mockResolvedValue({
+      running: false,
+      processed_rows: 10,
+      failed_rows: 0,
+      files: [{
+        source_file: '2026-05-21.jsonl',
+        last_offset: 1234,
+        last_archive_id: 'arch-1',
+        processed_rows: 10,
+        failed_rows: 0,
+        last_error: '',
+        updated_at: '2026-05-21T01:00:00Z'
+      }]
+    })
   })
 
   it('renders summary and suspicious request rows', async () => {
@@ -89,5 +107,8 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('user@example.com')
     expect(wrapper.text()).toContain('gpt-4.1')
     expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('16.7%')
+    expect(wrapper.text()).toContain('huge_input_tiny_output')
+    expect(wrapper.text()).toContain('2026-05-21.jsonl')
   })
 })

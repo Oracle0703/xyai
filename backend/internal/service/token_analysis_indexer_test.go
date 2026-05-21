@@ -44,9 +44,65 @@ func TestTokenAnalysisIndexerIndexesOnlyRequestEvents(t *testing.T) {
 	require.Equal(t, int64(123), *repo.upserts[0].UsageLogID)
 }
 
+func TestTokenAnalysisIndexerResumesFromStoredOffset(t *testing.T) {
+	dir := t.TempDir()
+	firstLine := `{"archive_id":"old","event":"request","timestamp":"2026-05-19T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"old\"}]}","body_size":64,"body_sha256":"hash-old"}` + "\n"
+	secondLine := `{"archive_id":"new","event":"request","timestamp":"2026-05-19T01:03:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"new\"}]}","body_size":64,"body_sha256":"hash-new"}` + "\n"
+	file := filepath.Join(dir, "2026-05-19.jsonl")
+	err := os.WriteFile(file, []byte(firstLine+secondLine), 0o600)
+	require.NoError(t, err)
+
+	repo := &tokenAnalysisRepoStub{
+		indexStates: map[string]TokenAnalysisIndexState{
+			file: {SourceFile: file, LastOffset: int64(len(firstLine))},
+		},
+	}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	})
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-05-19", EndDate: "2026-05-19"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Len(t, repo.upserts, 1)
+	require.Equal(t, "new", repo.upserts[0].ArchiveID)
+	require.Equal(t, "new", repo.upserts[0].LastUserPreview)
+}
+
+func TestTokenAnalysisIndexerSkipsIncompleteTrailingJSONLine(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-05-21.jsonl")
+	err := os.WriteFile(file, []byte(
+		`{"archive_id":"a1","event":"request","timestamp":"2026-05-21T01:02:03Z","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"input\":\"hello\"}","body_size":64,"body_sha256":"hash1"}`+"\n"+
+			`{"archive_id":"partial","event":"request"`),
+		0o600,
+	)
+	require.NoError(t, err)
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	})
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-05-21", EndDate: "2026-05-21"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(1), result.SkippedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Len(t, repo.upserts, 1)
+	require.Equal(t, "a1", repo.upserts[0].ArchiveID)
+	require.NotEmpty(t, repo.states)
+	require.Equal(t, int64(len(`{"archive_id":"a1","event":"request","timestamp":"2026-05-21T01:02:03Z","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"input\":\"hello\"}","body_size":64,"body_sha256":"hash1"}`+"\n")), repo.states[len(repo.states)-1].LastOffset)
+}
+
 type tokenAnalysisRepoStub struct {
-	upserts []TokenAnalysisRequestSummary
-	states  []TokenAnalysisIndexState
+	upserts     []TokenAnalysisRequestSummary
+	states      []TokenAnalysisIndexState
+	indexStates map[string]TokenAnalysisIndexState
 }
 
 func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
@@ -88,6 +144,17 @@ func (r *tokenAnalysisRepoStub) ListRequests(ctx context.Context, filters TokenA
 
 func (r *tokenAnalysisRepoStub) GetIndexStatus(ctx context.Context) (*TokenAnalysisIndexStatus, error) {
 	return &TokenAnalysisIndexStatus{}, nil
+}
+
+func (r *tokenAnalysisRepoStub) GetIndexState(ctx context.Context, sourceFile string) (*TokenAnalysisIndexState, error) {
+	if r.indexStates == nil {
+		return nil, nil
+	}
+	state, ok := r.indexStates[sourceFile]
+	if !ok {
+		return nil, nil
+	}
+	return &state, nil
 }
 
 func (r *tokenAnalysisRepoStub) UpdateIndexState(ctx context.Context, state TokenAnalysisIndexState) error {

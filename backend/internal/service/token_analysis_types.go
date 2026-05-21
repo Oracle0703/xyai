@@ -95,6 +95,7 @@ type TokenAnalysisFilters struct {
 type TokenAnalysisSummary struct {
 	TotalRequests       int64   `json:"total_requests"`
 	MatchedRequests     int64   `json:"matched_requests"`
+	UnmatchedRequests   int64   `json:"unmatched_requests"`
 	TotalInputTokens    int64   `json:"total_input_tokens"`
 	TotalOutputTokens   int64   `json:"total_output_tokens"`
 	CacheReadTokens     int64   `json:"cache_read_tokens"`
@@ -105,6 +106,14 @@ type TokenAnalysisSummary struct {
 	CacheHitRate        float64 `json:"cache_hit_rate"`
 	RiskyRequests       int64   `json:"risky_requests"`
 	RiskyCost           float64 `json:"risky_cost"`
+	UnmatchedRate       float64 `json:"unmatched_rate"`
+	RiskRequestRate     float64 `json:"risk_request_rate"`
+	RiskReasons         []TokenAnalysisRiskReasonSummary `json:"risk_reasons"`
+}
+
+type TokenAnalysisRiskReasonSummary struct {
+	Code  string `json:"code"`
+	Count int64  `json:"count"`
 }
 
 type TokenAnalysisUserUsage struct {
@@ -224,6 +233,7 @@ type TokenAnalysisRepository interface {
 	ListUserUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisUserUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisRequestItem, *pagination.PaginationResult, error)
 	GetIndexStatus(ctx context.Context) (*TokenAnalysisIndexStatus, error)
+	GetIndexState(ctx context.Context, sourceFile string) (*TokenAnalysisIndexState, error)
 	UpdateIndexState(ctx context.Context, state TokenAnalysisIndexState) error
 }
 

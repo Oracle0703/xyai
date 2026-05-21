@@ -30,6 +30,7 @@ export interface TokenAnalysisRiskReason {
 export interface TokenAnalysisSummary {
   total_requests: number
   matched_requests?: number
+  unmatched_requests?: number
   total_input_tokens?: number
   total_output_tokens?: number
   cache_read_tokens: number
@@ -40,6 +41,14 @@ export interface TokenAnalysisSummary {
   cache_hit_rate: number
   risky_requests: number
   risky_cost: number
+  unmatched_rate?: number
+  risk_request_rate?: number
+  risk_reasons?: TokenAnalysisRiskReasonSummary[]
+}
+
+export interface TokenAnalysisRiskReasonSummary {
+  code: string
+  count: number
 }
 
 export interface TokenAnalysisUserUsage {
