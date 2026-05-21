@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -99,6 +100,36 @@ type AcquireResult struct {
 	ReleaseFunc func() // Must be called when done (typically via defer)
 }
 
+// ConcurrencyCacheError marks Redis/cache infrastructure failures while managing slots.
+type ConcurrencyCacheError struct {
+	SlotType string
+	Err      error
+}
+
+func NewConcurrencyCacheError(slotType string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ConcurrencyCacheError{SlotType: slotType, Err: err}
+}
+
+func (e *ConcurrencyCacheError) Error() string {
+	if e == nil || e.Err == nil {
+		return "concurrency cache error"
+	}
+	if e.SlotType == "" {
+		return fmt.Sprintf("concurrency cache error: %v", e.Err)
+	}
+	return fmt.Sprintf("%s concurrency cache error: %v", e.SlotType, e.Err)
+}
+
+func (e *ConcurrencyCacheError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 type AccountWithConcurrency struct {
 	ID             int64
 	MaxConcurrency int
@@ -140,7 +171,7 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 
 	acquired, err := s.cache.AcquireAccountSlot(ctx, accountID, maxConcurrency, requestID)
 	if err != nil {
-		return nil, err
+		return nil, NewConcurrencyCacheError("account", err)
 	}
 
 	if acquired {
@@ -179,7 +210,7 @@ func (s *ConcurrencyService) AcquireUserSlot(ctx context.Context, userID int64, 
 
 	acquired, err := s.cache.AcquireUserSlot(ctx, userID, maxConcurrency, requestID)
 	if err != nil {
-		return nil, err
+		return nil, NewConcurrencyCacheError("user", err)
 	}
 
 	if acquired {

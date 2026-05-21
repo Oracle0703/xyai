@@ -132,6 +132,20 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	assert.Equal(t, "test error", errorObj["message"])
 }
 
+func TestOpenAIHandleConcurrencyError_CacheFailureIsServiceUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleConcurrencyError(c, service.NewConcurrencyCacheError("user", errors.New("redis down")), "user", false)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.Equal(t, "server_error", gjson.GetBytes(w.Body.Bytes(), "error.type").String())
+	require.Contains(t, gjson.GetBytes(w.Body.Bytes(), "error.message").String(), "Concurrency service unavailable")
+}
+
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
 	payload := `{"model":"gpt-5","input":"hello"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(payload))

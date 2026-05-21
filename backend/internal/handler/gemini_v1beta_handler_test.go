@@ -3,10 +3,13 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -166,4 +169,15 @@ func TestShouldFallbackGeminiModel_DelegatesScopeFallback(t *testing.T) {
 		Body:       []byte("insufficient authentication scopes"),
 	}
 	require.True(t, shouldFallbackGeminiModel("gemini-future-model", res))
+}
+
+func TestGeminiConcurrencyErrorStatus_CacheFailureIsServiceUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	err := service.NewConcurrencyCacheError("user", errors.New("redis down"))
+
+	googleConcurrencyError(c, err)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
