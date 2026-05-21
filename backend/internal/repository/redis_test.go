@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,4 +46,26 @@ func TestBuildRedisOptions(t *testing.T) {
 	optsTLS := buildRedisOptions(cfgTLS)
 	require.NotNil(t, optsTLS.TLSConfig)
 	require.Equal(t, "localhost", optsTLS.TLSConfig.ServerName)
+}
+
+func TestValidateRedisServerVersionRejectsRedis3(t *testing.T) {
+	err := validateRedisServerVersion(context.Background(), redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), "3.0.504")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Redis 7+ is required")
+	require.Contains(t, err.Error(), "3.0.504")
+}
+
+func TestValidateRedisServerVersionAllowsRedis7(t *testing.T) {
+	err := validateRedisServerVersion(context.Background(), redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), "7.2.4")
+	require.NoError(t, err)
+}
+
+func TestValidateRedisServerVersionAllowsMemuraiRedisCompatibility(t *testing.T) {
+	err := validateRedisServerVersion(context.Background(), redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), "7.2.0-memurai")
+	require.NoError(t, err)
+}
+
+func TestValidateRedisServerVersionAllowsMemuraiInfo(t *testing.T) {
+	err := validateRedisServerInfo(context.Background(), redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}), "memurai_version:4.2.2\r\n")
+	require.NoError(t, err)
 }

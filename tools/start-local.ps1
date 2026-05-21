@@ -48,6 +48,51 @@ function Test-TcpPort([string]$TargetHost, [int]$Port) {
     }
 }
 
+function Get-RedisInfoValue([string]$Info, [string]$Name) {
+    foreach ($line in ($Info -split "`r?`n")) {
+        if ($line -like "$Name`:*") {
+            return ($line.Substring($Name.Length + 1)).Trim()
+        }
+    }
+    return ""
+}
+
+function Get-MajorVersion([string]$Version) {
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        return 0
+    }
+    if ($Version -match '^(\d+)') {
+        return [int]$matches[1]
+    }
+    return 0
+}
+
+function Assert-RedisVersion {
+    $cli = Get-Command "redis-cli" -ErrorAction SilentlyContinue
+    if (-not $cli) {
+        $cli = Get-Command "memurai-cli" -ErrorAction SilentlyContinue
+    }
+    if (-not $cli) {
+        throw "redis-cli or memurai-cli is required to verify Redis version. Install Redis 7+ or Memurai and add its CLI to PATH."
+    }
+
+    $info = & $cli.Source -h 127.0.0.1 -p 6379 INFO server 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to read Redis INFO server from 127.0.0.1:6379: $info"
+    }
+
+    $infoText = $info -join "`n"
+    $version = Get-RedisInfoValue $infoText "redis_version"
+    $memuraiVersion = Get-RedisInfoValue $infoText "memurai_version"
+    if (-not [string]::IsNullOrWhiteSpace($memuraiVersion)) {
+        return
+    }
+    $major = Get-MajorVersion $version
+    if ($major -lt 7) {
+        throw "Redis 7+ or Memurai is required on 127.0.0.1:6379; current redis_version is '$version'. Stop the old Redis service and start Redis 7+ or Memurai before running start-local."
+    }
+}
+
 function Get-FreeTcpPort([int]$PreferredPort) {
     if (-not (Get-NetTCPConnection -LocalPort $PreferredPort -State Listen -ErrorAction SilentlyContinue)) {
         return $PreferredPort
@@ -262,6 +307,7 @@ if (-not (Test-TcpPort "127.0.0.1" 5432)) {
 if (-not (Test-TcpPort "127.0.0.1" 6379)) {
     throw "Local Redis/Memurai is not reachable on 127.0.0.1:6379."
 }
+Assert-RedisVersion
 
 $envValues = Read-LocalEnv
 if (-not $envValues.ContainsKey("DATABASE_USER")) {
