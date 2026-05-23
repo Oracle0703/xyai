@@ -8,6 +8,7 @@ import (
 type AdminHandlers struct {
 	Dashboard              *admin.DashboardHandler
 	User                   *admin.UserHandler
+	UserConcurrencyPreset  *admin.UserConcurrencyPresetHandler
 	Group                  *admin.GroupHandler
 	Account                *admin.AccountHandler
 	Announcement           *admin.AnnouncementHandler

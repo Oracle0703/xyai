@@ -246,6 +246,15 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	users := admin.Group("/users")
 	{
 		users.GET("", h.Admin.User.List)
+		presets := users.Group("/concurrency-presets")
+		{
+			presets.GET("", h.Admin.UserConcurrencyPreset.List)
+			presets.POST("", h.Admin.UserConcurrencyPreset.Create)
+			presets.PUT("/:id", h.Admin.UserConcurrencyPreset.Update)
+			presets.DELETE("/:id", h.Admin.UserConcurrencyPreset.Delete)
+			presets.POST("/:id/apply", h.Admin.UserConcurrencyPreset.Apply)
+			presets.GET("/:id/runs", h.Admin.UserConcurrencyPreset.ListRuns)
+		}
 		users.GET("/:id", h.Admin.User.GetByID)
 		users.POST("/:id/auth-identities", h.Admin.User.BindAuthIdentity)
 		users.POST("", h.Admin.User.Create)
