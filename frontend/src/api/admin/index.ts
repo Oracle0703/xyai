@@ -33,6 +33,7 @@ import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import requestInterceptAPI from './requestIntercept'
+import userConcurrencyPresetsAPI from './userConcurrencyPresets'
 
 /**
  * Unified admin API object for convenient access
@@ -67,7 +68,8 @@ export const adminAPI = {
   payment: adminPaymentAPI,
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
-  requestIntercept: requestInterceptAPI
+  requestIntercept: requestInterceptAPI,
+  userConcurrencyPresets: userConcurrencyPresetsAPI
 }
 
 export {
@@ -100,7 +102,8 @@ export {
   adminPaymentAPI,
   affiliatesAPI,
   riskControlAPI,
-  requestInterceptAPI
+  requestInterceptAPI,
+  userConcurrencyPresetsAPI
 }
 
 export default adminAPI
