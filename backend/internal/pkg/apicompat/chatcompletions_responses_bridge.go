@@ -2,9 +2,212 @@ package apicompat
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 )
+
+func responsesInputToChatMessages(instructions string, inputRaw json.RawMessage) ([]ChatMessage, error) {
+	var messages []ChatMessage
+	if strings.TrimSpace(instructions) != "" {
+		content, _ := json.Marshal(instructions)
+		messages = append(messages, ChatMessage{
+			Role:    "system",
+			Content: content,
+		})
+	}
+
+	inputRaw = bytesTrimSpace(inputRaw)
+	if len(inputRaw) == 0 || string(inputRaw) == "null" {
+		return messages, nil
+	}
+
+	var inputText string
+	if err := json.Unmarshal(inputRaw, &inputText); err == nil {
+		content, _ := json.Marshal(inputText)
+		messages = append(messages, ChatMessage{
+			Role:    "user",
+			Content: content,
+		})
+		return messages, nil
+	}
+
+	var rawItems []json.RawMessage
+	if err := json.Unmarshal(inputRaw, &rawItems); err != nil {
+		return nil, fmt.Errorf("parse responses input: %w", err)
+	}
+
+	for _, raw := range rawItems {
+		raw = bytesTrimSpace(raw)
+		if len(raw) == 0 || string(raw) == "null" {
+			continue
+		}
+
+		var item map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &item); err != nil {
+			var text string
+			if textErr := json.Unmarshal(raw, &text); textErr == nil {
+				content, _ := json.Marshal(text)
+				messages = append(messages, ChatMessage{Role: "user", Content: content})
+				continue
+			}
+			return nil, fmt.Errorf("parse responses input item: %w", err)
+		}
+
+		role := chatCompletionsBridgeRole(rawString(item["role"]))
+		itemType := rawString(item["type"])
+		switch itemType {
+		case "function_call":
+			arguments := rawString(item["arguments"])
+			if strings.TrimSpace(arguments) == "" {
+				arguments = "{}"
+			}
+			messages = append(messages, ChatMessage{
+				Role: "assistant",
+				ToolCalls: []ChatToolCall{{
+					ID:   rawString(item["call_id"]),
+					Type: "function",
+					Function: ChatFunctionCall{
+						Name:      rawString(item["name"]),
+						Arguments: arguments,
+					},
+				}},
+			})
+			continue
+		case "function_call_output":
+			content, _ := json.Marshal(rawString(item["output"]))
+			messages = append(messages, ChatMessage{
+				Role:       "tool",
+				ToolCallID: rawString(item["call_id"]),
+				Content:    content,
+			})
+			continue
+		case "input_text", "text":
+			content, _ := json.Marshal(rawString(item["text"]))
+			messages = append(messages, ChatMessage{Role: "user", Content: content})
+			continue
+		case "input_image":
+			content, err := bridgeSingleResponsesPartToChatContent(itemType, item)
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, ChatMessage{Role: "user", Content: content})
+			continue
+		}
+
+		content := item["content"]
+		if len(bytesTrimSpace(content)) == 0 {
+			if text := rawString(item["text"]); text != "" {
+				content, _ = json.Marshal(text)
+			}
+		}
+		chatContent, err := bridgeResponsesContentToChatContent(content, role)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, ChatMessage{
+			Role:    role,
+			Content: chatContent,
+		})
+	}
+
+	return messages, nil
+}
+
+func chatCompletionsBridgeRole(role string) string {
+	trimmed := strings.TrimSpace(role)
+	if trimmed == "" {
+		return "user"
+	}
+	if strings.EqualFold(trimmed, "developer") {
+		return "system"
+	}
+	return trimmed
+}
+
+func bridgeResponsesContentToChatContent(raw json.RawMessage, role string) (json.RawMessage, error) {
+	raw = bytesTrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return json.Marshal("")
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return raw, nil
+	}
+
+	var rawParts []json.RawMessage
+	if err := json.Unmarshal(raw, &rawParts); err == nil {
+		return bridgeResponsesContentPartsToChatContent(rawParts, role)
+	}
+
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		return bridgeSingleResponsesPartToChatContent(rawString(obj["type"]), obj)
+	}
+
+	return raw, nil
+}
+
+func bridgeResponsesContentPartsToChatContent(rawParts []json.RawMessage, role string) (json.RawMessage, error) {
+	var textParts []string
+	var chatParts []ChatContentPart
+	hasNonText := false
+
+	for _, rawPart := range rawParts {
+		var part map[string]json.RawMessage
+		if err := json.Unmarshal(rawPart, &part); err != nil {
+			continue
+		}
+		partType := rawString(part["type"])
+		switch partType {
+		case "input_text", "output_text", "text", "":
+			text := rawString(part["text"])
+			if text == "" {
+				continue
+			}
+			textParts = append(textParts, text)
+			chatParts = append(chatParts, ChatContentPart{Type: "text", Text: text})
+		case "input_image", "image_url":
+			imageURL := rawString(part["image_url"])
+			if imageURL == "" {
+				imageURL = rawNestedString(part["image_url"], "url")
+			}
+			if imageURL == "" {
+				continue
+			}
+			hasNonText = true
+			chatParts = append(chatParts, ChatContentPart{
+				Type:     "image_url",
+				ImageURL: &ChatImageURL{URL: imageURL},
+			})
+		}
+	}
+
+	if !hasNonText || role != "user" {
+		return json.Marshal(strings.Join(textParts, "\n\n"))
+	}
+	if len(chatParts) == 0 {
+		return json.Marshal("")
+	}
+	return json.Marshal(chatParts)
+}
+
+func bridgeSingleResponsesPartToChatContent(partType string, part map[string]json.RawMessage) (json.RawMessage, error) {
+	switch partType {
+	case "input_image", "image_url":
+		imageURL := rawString(part["image_url"])
+		if imageURL == "" {
+			imageURL = rawNestedString(part["image_url"], "url")
+		}
+		return json.Marshal([]ChatContentPart{{
+			Type:     "image_url",
+			ImageURL: &ChatImageURL{URL: imageURL},
+		}})
+	default:
+		return json.Marshal(rawString(part["text"]))
+	}
+}
 
 // ChatCompletionsResponseToResponses converts a non-streaming Chat Completions
 // response into a Responses API response.
