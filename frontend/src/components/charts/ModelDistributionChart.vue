@@ -354,7 +354,7 @@ const displayModelStats = computed(() => {
   if (!sourceStats?.length) return []
 
   const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...sourceStats].sort((a, b) => b[metricKey] - a[metricKey])
+  return [...sourceStats].sort((a, b) => Number(b[metricKey] ?? 0) - Number(a[metricKey] ?? 0))
 })
 
 const chartData = computed(() => {
@@ -364,7 +364,7 @@ const chartData = computed(() => {
     labels: displayModelStats.value.map((m) => m.model),
     datasets: [
       {
-        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? m.actual_cost : m.total_tokens),
+        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? Number(m.actual_cost ?? 0) : Number(m.total_tokens ?? 0)),
         backgroundColor: chartColors.slice(0, displayModelStats.value.length),
         borderWidth: 0
       }
@@ -376,7 +376,7 @@ const rankingChartData = computed(() => {
   if (!props.rankingItems?.length) return null
 
   const labels = props.rankingItems.map((item, index) => `#${index + 1} ${getRankingUserLabel(item)}`)
-  const data = props.rankingItems.map((item) => item.actual_cost)
+  const data = props.rankingItems.map((item) => Number(item.actual_cost ?? 0))
   const backgroundColor = chartColors.slice(0, props.rankingItems.length)
 
   if (otherRankingItem.value) {
@@ -400,9 +400,9 @@ const rankingChartData = computed(() => {
 const otherRankingItem = computed<RankingDisplayItem | null>(() => {
   if (!props.rankingItems?.length) return null
 
-  const rankedActualCost = props.rankingItems.reduce((sum, item) => sum + item.actual_cost, 0)
-  const rankedRequests = props.rankingItems.reduce((sum, item) => sum + item.requests, 0)
-  const rankedTokens = props.rankingItems.reduce((sum, item) => sum + item.tokens, 0)
+  const rankedActualCost = props.rankingItems.reduce((sum, item) => sum + Number(item.actual_cost ?? 0), 0)
+  const rankedRequests = props.rankingItems.reduce((sum, item) => sum + Number(item.requests ?? 0), 0)
+  const rankedTokens = props.rankingItems.reduce((sum, item) => sum + Number(item.tokens ?? 0), 0)
 
   const otherActualCost = Math.max((props.rankingTotalActualCost || 0) - rankedActualCost, 0)
   const otherRequests = Math.max((props.rankingTotalRequests || 0) - rankedRequests, 0)
@@ -470,7 +470,10 @@ const rankingDoughnutOptions = computed(() => ({
   }
 }))
 
+const safeNumber = (value: unknown): number => Number.isFinite(Number(value)) ? Number(value) : 0
+
 const formatTokens = (value: number): string => {
+  value = safeNumber(value)
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}B`
   } else if (value >= 1_000_000) {
@@ -482,6 +485,7 @@ const formatTokens = (value: number): string => {
 }
 
 const formatNumber = (value: number): string => {
+  value = safeNumber(value)
   return value.toLocaleString()
 }
 
@@ -496,6 +500,7 @@ const getRankingRowLabel = (item: RankingDisplayItem): string => {
 }
 
 const formatCost = (value: number): string => {
+  value = safeNumber(value)
   if (value >= 1000) {
     return (value / 1000).toFixed(2) + 'K'
   } else if (value >= 1) {
