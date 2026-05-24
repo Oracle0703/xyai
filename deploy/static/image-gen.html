@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文生图工具</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-soft: #f9fafb;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #dfe3ea;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #047857;
+      --danger: #b91c1c;
+      --shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
+    .page {
+      min-height: 100vh;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 16px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2563eb, #14b8a6);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 15px;
+    }
+
+    .brand span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+      display: grid;
+      grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel-body {
+      padding: 20px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+    }
+
+    .panel-subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .form {
+      margin-top: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    label {
+      color: #374151;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .control {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.16s, box-shadow 0.16s;
+    }
+
+    .control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+    }
+
+    textarea.control {
+      min-height: 150px;
+      resize: vertical;
+    }
+
+    .key-wrap {
+      position: relative;
+    }
+
+    .key-wrap .control {
+      padding-right: 46px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .icon-button:hover {
+      background: #eef2f7;
+      color: var(--text);
+    }
+
+    .key-toggle {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .button {
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 650;
+      font-size: 14px;
+      min-height: 42px;
+    }
+
+    .button-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .button-primary:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    .button-secondary {
+      background: #fff;
+      border-color: var(--border);
+      color: #374151;
+    }
+
+    .button-secondary:hover:not(:disabled) {
+      background: #f3f4f6;
+    }
+
+    .status {
+      margin-top: 14px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: var(--danger);
+    }
+
+    .status.success {
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      color: var(--success);
+    }
+
+    .result-head,
+    .history-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .empty {
+      min-height: 260px;
+      border: 1px dashed #cbd5e1;
+      background: var(--panel-soft);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+    }
+
+    .image-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--panel-soft);
+    }
+
+    .image-box {
+      aspect-ratio: 1 / 1;
+      background: #fff;
+      display: grid;
+      place-items: center;
+    }
+
+    .image-box img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .image-meta {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .revised {
+      margin: 0;
+      color: #4b5563;
+      font-size: 12px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .history {
+      margin-top: 20px;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .history-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      background: #fff;
+    }
+
+    .thumbs {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(2, 44px);
+      gap: 4px;
+    }
+
+    .thumbs img {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+    }
+
+    .history-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .history-meta {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #fff;
+      border-radius: 999px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 860px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar-inner,
+      .shell {
+        width: min(100% - 20px, 1180px);
+      }
+
+      .two-col,
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .history-item {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .history-item > .icon-button {
+        grid-column: 2;
+        justify-self: end;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <div class="brand-mark">AI</div>
+          <div>
+            <strong>文生图工具</strong>
+            <span>单页静态版 · 使用自有 API Key</span>
+          </div>
+        </div>
+        <button id="clearAllButton" class="button button-secondary" type="button">清空历史</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section>
+        <div class="panel">
+          <div class="panel-body">
+            <h1 class="panel-title">生成图片</h1>
+            <p class="panel-subtitle">填写网关地址和已验证 API Key，生成结果只保存在当前浏览器。</p>
+
+            <form id="imageForm" class="form">
+              <div class="field">
+                <label for="gatewayBase">网关地址</label>
+                <input id="gatewayBase" class="control" type="url" placeholder="https://your-domain.example" autocomplete="off">
+                <div class="hint">默认使用当前站点地址；跨域部署时后端需要放行当前页面域名。</div>
+              </div>
+
+              <div class="field">
+                <div class="label-row">
+                  <label for="apiKey">API Key</label>
+                  <span class="hint">不会写入历史</span>
+                </div>
+                <div class="key-wrap">
+                  <input id="apiKey" class="control" type="password" placeholder="sk-..." autocomplete="off">
+                  <button id="toggleKeyButton" class="icon-button key-toggle" type="button" title="显示或隐藏 API Key">👁</button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="prompt">提示词</label>
+                <textarea id="prompt" class="control" placeholder="描述图片主体、场景、风格、用途..."></textarea>
+              </div>
+
+              <div class="two-col">
+                <div class="field">
+                  <label for="size">尺寸</label>
+                  <select id="size" class="control">
+                    <option value="1024x1024">1024 x 1024</option>
+                    <option value="1536x1024">1536 x 1024</option>
+                    <option value="1024x1536">1024 x 1536</option>
+                    <option value="1792x1024">1792 x 1024</option>
+                    <option value="1024x1792">1024 x 1792</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="count">数量</label>
+                  <input id="count" class="control" type="number" min="1" max="4" value="1">
+                </div>
+              </div>
+
+              <button id="generateButton" class="button button-primary" type="submit">
+                <span id="generateSpinner" class="spinner hidden"></span>
+                <span id="generateText">生成图片</span>
+              </button>
+            </form>
+
+            <div id="statusBox" class="status" role="status"></div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="panel">
+          <div class="panel-body">
+            <div class="result-head">
+              <div>
+                <h2 class="panel-title">生成结果</h2>
+                <p class="panel-subtitle">支持下载和复制 Data URL。</p>
+              </div>
+              <span id="resultCount" class="hint"></span>
+            </div>
+
+            <div id="emptyResults" class="empty">
+              <div>
+                <strong>还没有生成结果</strong>
+                <div class="hint">填写表单后开始生成。</div>
+              </div>
+            </div>
+            <div id="resultGrid" class="result-grid"></div>
+          </div>
+        </div>
+
+        <div class="panel history">
+          <div class="panel-body">
+            <div class="history-head">
+              <div>
+                <h2 class="panel-title">历史生图</h2>
+                <p class="panel-subtitle">仅本机浏览器保存，最多最近 20 条。</p>
+              </div>
+            </div>
+            <div id="emptyHistory" class="empty">
+              <div>
+                <strong>暂无历史</strong>
+                <div class="hint">成功生成后会自动记录。</div>
+              </div>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'xyai-image-gen-history-v1';
+    const GATEWAY_STORAGE_KEY = 'xyai-image-gen-gateway-base';
+    const DEFAULT_GATEWAY_BASE = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '';
+    const MODEL = 'gpt-image-2';
+    const MAX_HISTORY = 20;
+
+    const els = {
+      form: document.getElementById('imageForm'),
+      gatewayBase: document.getElementById('gatewayBase'),
+      apiKey: document.getElementById('apiKey'),
+      toggleKeyButton: document.getElementById('toggleKeyButton'),
+      prompt: document.getElementById('prompt'),
+      size: document.getElementById('size'),
+      count: document.getElementById('count'),
+      generateButton: document.getElementById('generateButton'),
+      generateSpinner: document.getElementById('generateSpinner'),
+      generateText: document.getElementById('generateText'),
+      statusBox: document.getElementById('statusBox'),
+      resultGrid: document.getElementById('resultGrid'),
+      resultCount: document.getElementById('resultCount'),
+      emptyResults: document.getElementById('emptyResults'),
+      historyList: document.getElementById('historyList'),
+      emptyHistory: document.getElementById('emptyHistory'),
+      clearAllButton: document.getElementById('clearAllButton'),
+    };
+
+    let currentResults = [];
+    let historyItems = loadHistory();
+
+    init();
+
+    function init() {
+      els.gatewayBase.value = localStorage.getItem(GATEWAY_STORAGE_KEY) || DEFAULT_GATEWAY_BASE;
+      renderResults();
+      renderHistory();
+      els.form.addEventListener('submit', handleSubmit);
+      els.toggleKeyButton.addEventListener('click', toggleKeyVisible);
+      els.clearAllButton.addEventListener('click', clearHistory);
+      els.gatewayBase.addEventListener('change', persistGatewayBase);
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      setStatus('', '');
+
+      const gatewayBase = normalizeGatewayBase(els.gatewayBase.value);
+      const apiKey = els.apiKey.value.trim();
+      const prompt = els.prompt.value.trim();
+      const size = els.size.value;
+      const count = normalizeCount(els.count.value);
+
+      if (!apiKey) {
+        setStatus('请输入 API Key', 'error');
+        return;
+      }
+      if (!prompt) {
+        setStatus('请输入提示词', 'error');
+        return;
+      }
+
+      persistGatewayBase();
+      setLoading(true);
+      try {
+        const endpoint = gatewayBase + '/v1/images/generations';
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            prompt,
+            size,
+            n: count,
+            response_format: 'b64_json',
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(extractErrorMessage(payload, response.status));
+        }
+
+        const images = normalizeImages(payload);
+        if (images.length === 0) {
+          throw new Error('接口未返回可展示的图片');
+        }
+
+        currentResults = images;
+        renderResults();
+        saveHistory({
+          id: createId(),
+          createdAt: new Date().toISOString(),
+          prompt,
+          model: MODEL,
+          size,
+          images: images.map((item) => item.src),
+        });
+        setStatus(`生成成功：${images.length} 张图片`, 'success');
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : '生成失败，请稍后重试', 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function normalizeGatewayBase(raw) {
+      const trimmed = String(raw || '').trim().replace(/\/+$/, '');
+      return trimmed || DEFAULT_GATEWAY_BASE;
+    }
+
+    function persistGatewayBase() {
+      try {
+        const value = els.gatewayBase.value.trim().replace(/\/+$/, '');
+        if (value) {
+          localStorage.setItem(GATEWAY_STORAGE_KEY, value);
+        } else {
+          localStorage.removeItem(GATEWAY_STORAGE_KEY);
+        }
+      } catch (_) {
+        // Ignore storage failures.
+      }
+    }
+
+    function normalizeCount(raw) {
+      const value = Number.parseInt(String(raw), 10);
+      if (!Number.isFinite(value)) return 1;
+      return Math.min(4, Math.max(1, value));
+    }
+
+    function normalizeImages(payload) {
+      const format = payload && payload.output_format ? payload.output_format : 'png';
+      const data = Array.isArray(payload && payload.data) ? payload.data : [];
+      return data
+        .map((item, index) => {
+          const src = imageSource(item, format);
+          if (!src) return null;
+          return {
+            id: `${Date.now()}-${index}`,
+            src,
+            revisedPrompt: item.revised_prompt || '',
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function imageSource(item, format) {
+      if (!item) return '';
+      if (item.url) return item.url;
+      if (!item.b64_json) return '';
+      return `data:${mimeType(format)};base64,${item.b64_json}`;
+    }
+
+    function mimeType(format) {
+      const normalized = String(format || '').toLowerCase();
+      if (normalized === 'jpg' || normalized === 'jpeg') return 'image/jpeg';
+      if (normalized === 'webp') return 'image/webp';
+      return 'image/png';
+    }
+
+    function extractErrorMessage(payload, status) {
+      if (payload && payload.error && typeof payload.error.message === 'string') {
+        return payload.error.message;
+      }
+      if (payload && typeof payload.message === 'string') {
+        return payload.message;
+      }
+      return `生成失败，网关返回 ${status}`;
+    }
+
+    function renderResults() {
+      els.resultGrid.innerHTML = '';
+      els.resultCount.textContent = currentResults.length ? `${currentResults.length} 张` : '';
+      els.emptyResults.classList.toggle('hidden', currentResults.length > 0);
+
+      currentResults.forEach((item) => {
+        const card = document.createElement('article');
+        card.className = 'image-card';
+        card.innerHTML = `
+          <div class="image-box"><img src="${escapeAttr(item.src)}" alt="${escapeAttr(item.revisedPrompt || '生成图片')}"></div>
+          <div class="image-meta">
+            ${item.revisedPrompt ? `<p class="revised">${escapeHtml(item.revisedPrompt)}</p>` : ''}
+            <div class="actions">
+              <button class="button button-secondary" type="button" data-action="download">下载</button>
+              <button class="button button-secondary" type="button" data-action="copy">复制</button>
+            </div>
+          </div>
+        `;
+        card.querySelector('[data-action="download"]').addEventListener('click', () => downloadImage(item.src, item.id));
+        card.querySelector('[data-action="copy"]').addEventListener('click', () => copyText(item.src));
+        els.resultGrid.appendChild(card);
+      });
+    }
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(isHistoryItem).slice(0, MAX_HISTORY);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveHistory(item) {
+      historyItems = [item, ...historyItems].slice(0, MAX_HISTORY);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(historyItems));
+      } catch (_) {
+        // Ignore storage failures; the current result remains visible.
+      }
+      renderHistory();
+    }
+
+    function renderHistory() {
+      els.historyList.innerHTML = '';
+      els.emptyHistory.classList.toggle('hidden', historyItems.length > 0);
+      els.clearAllButton.disabled = historyItems.length === 0;
+
+      historyItems.forEach((item) => {
+        const row = document.createElement('article');
+        row.className = 'history-item';
+        const thumbs = item.images.slice(0, 4).map((src) => `<img src="${escapeAttr(src)}" alt="">`).join('');
+        row.innerHTML = `
+          <button class="thumbs" type="button" data-action="restore">${thumbs}</button>
+          <div>
+            <p class="history-title">${escapeHtml(item.prompt)}</p>
+            <p class="history-meta">${escapeHtml(formatTime(item.createdAt))} · ${escapeHtml(item.model)} · ${escapeHtml(item.size)} · ${item.images.length} 张</p>
+          </div>
+          <button class="icon-button" type="button" title="删除记录" data-action="delete">✕</button>
+        `;
+        row.querySelector('[data-action="restore"]').addEventListener('click', () => restoreHistory(item));
+        row.querySelector('[data-action="delete"]').addEventListener('click', () => deleteHistoryItem(item.id));
+        els.historyList.appendChild(row);
+      });
+    }
+
+    function restoreHistory(item) {
+      els.prompt.value = item.prompt;
+      els.size.value = item.size;
+      currentResults = item.images.map((src, index) => ({
+        id: `${item.id}-${index}`,
+        src,
+        revisedPrompt: '',
+      }));
+      renderResults();
+      setStatus('已载入历史图片', 'success');
+    }
+
+    function deleteHistoryItem(id) {
+      historyItems = historyItems.filter((item) => item.id !== id);
+      persistHistory();
+      renderHistory();
+    }
+
+    function clearHistory() {
+      historyItems = [];
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (_) {
+        // Ignore storage failures.
+      }
+      renderHistory();
+    }
+
+    function persistHistory() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(historyItems));
+      } catch (_) {
+        // Ignore storage failures.
+      }
+    }
+
+    function isHistoryItem(value) {
+      return Boolean(
+        value &&
+        typeof value.id === 'string' &&
+        typeof value.createdAt === 'string' &&
+        typeof value.prompt === 'string' &&
+        typeof value.model === 'string' &&
+        typeof value.size === 'string' &&
+        Array.isArray(value.images) &&
+        value.images.every((src) => typeof src === 'string')
+      );
+    }
+
+    function setLoading(loading) {
+      els.generateButton.disabled = loading;
+      els.generateSpinner.classList.toggle('hidden', !loading);
+      els.generateText.textContent = loading ? '生成中...' : '生成图片';
+    }
+
+    function setStatus(message, type) {
+      els.statusBox.textContent = message;
+      els.statusBox.className = 'status';
+      if (message) {
+        els.statusBox.classList.add('show', type);
+      }
+    }
+
+    function toggleKeyVisible() {
+      els.apiKey.type = els.apiKey.type === 'password' ? 'text' : 'password';
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('已复制', 'success');
+      } catch (_) {
+        setStatus('复制失败，请手动复制', 'error');
+      }
+    }
+
+    function downloadImage(src, id) {
+      const link = document.createElement('a');
+      link.href = src;
+      link.download = `image-gen-${id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function createId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    function formatTime(raw) {
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return raw;
+      return new Intl.DateTimeFormat('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value);
+    }
+  </script>
+</body>
+</html>
