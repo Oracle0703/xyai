@@ -78,6 +78,25 @@ func TestUserConcurrencyPresetRepositoryListDueUsesLocalDate(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUserConcurrencyPresetRepositoryListEmptyReturnsNonNilSlice(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	repo := NewUserConcurrencyPresetRepository(db)
+	mock.ExpectQuery("FROM user_concurrency_presets").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "name", "description", "target_concurrency", "user_ids",
+			"schedule_enabled", "schedule_time", "last_scheduled_run_date", "created_at", "updated_at",
+		}))
+
+	presets, err := repo.List(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, presets)
+	require.Empty(t, presets)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUserConcurrencyPresetRepositoryRunLifecycle(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)

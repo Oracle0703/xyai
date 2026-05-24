@@ -126,7 +126,7 @@ func (r *userConcurrencyPresetRepository) ListRuns(ctx context.Context, presetID
 	}
 	defer func() { _ = rows.Close() }()
 
-	var runs []*service.UserConcurrencyPresetRun
+	runs := make([]*service.UserConcurrencyPresetRun, 0)
 	for rows.Next() {
 		run, err := scanUserConcurrencyPresetRun(rows)
 		if err != nil {
@@ -176,7 +176,7 @@ func scanUserConcurrencyPreset(row scannable) (*service.UserConcurrencyPreset, e
 }
 
 func scanUserConcurrencyPresets(rows *sql.Rows) ([]*service.UserConcurrencyPreset, error) {
-	var presets []*service.UserConcurrencyPreset
+	presets := make([]*service.UserConcurrencyPreset, 0)
 	for rows.Next() {
 		preset, err := scanUserConcurrencyPreset(rows)
 		if err != nil {

@@ -125,6 +125,20 @@ describe('UserConcurrencyPresetsDialog', () => {
     }))
   })
 
+  it('treats a null preset list response as an empty list', async () => {
+    listPresets.mockResolvedValue(null)
+
+    const wrapper = mount(UserConcurrencyPresetsDialog, {
+      props: { show: true },
+      global: { stubs: { BaseDialog: BaseDialogStub } }
+    })
+
+    await flushPromises()
+
+    expect(showError).not.toHaveBeenCalledWith('加载并发方案失败')
+    expect(wrapper.text()).toContain('暂无方案')
+  })
+
   it('blocks invalid schedule time', async () => {
     const wrapper = mount(UserConcurrencyPresetsDialog, {
       props: { show: true },

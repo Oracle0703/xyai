@@ -228,7 +228,8 @@ watch(
 async function loadPresets() {
   loadingPresets.value = true
   try {
-    presets.value = await listPresets()
+    const loaded = await listPresets()
+    presets.value = Array.isArray(loaded) ? loaded : []
     if (presets.value.length > 0 && !selectedPreset.value) {
       selectPreset(presets.value[0])
     }
