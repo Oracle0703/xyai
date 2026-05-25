@@ -676,6 +676,24 @@ const (
 	ImageConcurrencyOverflowModeWait   = "wait"
 )
 
+type GatewayLargeRequestConfig struct {
+	Enabled                  bool    `mapstructure:"enabled"`
+	Mode                     string  `mapstructure:"mode"`
+	BodyThresholdBytes       int64   `mapstructure:"body_threshold_bytes"`
+	ToolTotalThresholdBytes  int64   `mapstructure:"tool_total_threshold_bytes"`
+	NormalToolThresholdBytes int64   `mapstructure:"normal_tool_threshold_bytes"`
+	GiantToolThresholdBytes  int64   `mapstructure:"giant_tool_threshold_bytes"`
+	RecentToolKeep           int     `mapstructure:"recent_tool_keep"`
+	AbsoluteRecentToolKeep   int     `mapstructure:"absolute_recent_tool_keep"`
+	TargetBodyBytes          int64   `mapstructure:"target_body_bytes"`
+	HeadChars                int     `mapstructure:"head_chars"`
+	TailChars                int     `mapstructure:"tail_chars"`
+	EnabledUserIDs           []int64 `mapstructure:"enabled_user_ids"`
+	EnabledAPIKeyIDs         []int64 `mapstructure:"enabled_api_key_ids"`
+	EnabledGroupIDs          []int64 `mapstructure:"enabled_group_ids"`
+	AutoPromptCacheKey       bool    `mapstructure:"auto_prompt_cache_key"`
+}
+
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
 	// 等待上游响应头的超时时间（秒），0表示无超时
@@ -710,6 +728,8 @@ type GatewayConfig struct {
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// ImageConcurrency: 图片生成独立并发限制配置（默认关闭）
 	ImageConcurrency ImageConcurrencyConfig `mapstructure:"image_concurrency"`
+	// LargeRequest: 大请求观测与历史 tool 输出压缩配置（默认只观测）。
+	LargeRequest GatewayLargeRequestConfig `mapstructure:"large_request"`
 
 	// HTTP 上游连接池配置（性能优化：支持高并发场景调优）
 	// MaxIdleConns: 所有主机的最大空闲连接总数
@@ -1851,6 +1871,21 @@ func setDefaults() {
 	viper.SetDefault("gateway.image_concurrency.overflow_mode", ImageConcurrencyOverflowModeReject)
 	viper.SetDefault("gateway.image_concurrency.wait_timeout_seconds", 30)
 	viper.SetDefault("gateway.image_concurrency.max_waiting_requests", 100)
+	viper.SetDefault("gateway.large_request.enabled", true)
+	viper.SetDefault("gateway.large_request.mode", "warn")
+	viper.SetDefault("gateway.large_request.body_threshold_bytes", int64(1048576))
+	viper.SetDefault("gateway.large_request.tool_total_threshold_bytes", int64(524288))
+	viper.SetDefault("gateway.large_request.normal_tool_threshold_bytes", int64(131072))
+	viper.SetDefault("gateway.large_request.giant_tool_threshold_bytes", int64(524288))
+	viper.SetDefault("gateway.large_request.recent_tool_keep", 20)
+	viper.SetDefault("gateway.large_request.absolute_recent_tool_keep", 6)
+	viper.SetDefault("gateway.large_request.target_body_bytes", int64(921600))
+	viper.SetDefault("gateway.large_request.head_chars", 8000)
+	viper.SetDefault("gateway.large_request.tail_chars", 8000)
+	viper.SetDefault("gateway.large_request.enabled_user_ids", []int64{})
+	viper.SetDefault("gateway.large_request.enabled_api_key_ids", []int64{})
+	viper.SetDefault("gateway.large_request.enabled_group_ids", []int64{})
+	viper.SetDefault("gateway.large_request.auto_prompt_cache_key", true)
 	viper.SetDefault("gateway.antigravity_fallback_cooldown_minutes", 1)
 	viper.SetDefault("gateway.antigravity_extra_retries", 10)
 	viper.SetDefault("gateway.max_body_size", int64(256*1024*1024))
@@ -2447,6 +2482,37 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.ImageConcurrency.MaxWaitingRequests < 0 {
 		return fmt.Errorf("gateway.image_concurrency.max_waiting_requests must be non-negative")
+	}
+	largeRequestMode := strings.TrimSpace(c.Gateway.LargeRequest.Mode)
+	if largeRequestMode == "" {
+		largeRequestMode = "warn"
+	}
+	switch largeRequestMode {
+	case "off", "warn", "tool_output_compact":
+		c.Gateway.LargeRequest.Mode = largeRequestMode
+	default:
+		return fmt.Errorf("gateway.large_request.mode must be one of off, warn, tool_output_compact")
+	}
+	if c.Gateway.LargeRequest.BodyThresholdBytes <= 0 {
+		return fmt.Errorf("gateway.large_request.body_threshold_bytes must be positive")
+	}
+	if c.Gateway.LargeRequest.ToolTotalThresholdBytes <= 0 {
+		return fmt.Errorf("gateway.large_request.tool_total_threshold_bytes must be positive")
+	}
+	if c.Gateway.LargeRequest.NormalToolThresholdBytes <= 0 {
+		return fmt.Errorf("gateway.large_request.normal_tool_threshold_bytes must be positive")
+	}
+	if c.Gateway.LargeRequest.GiantToolThresholdBytes < c.Gateway.LargeRequest.NormalToolThresholdBytes {
+		return fmt.Errorf("gateway.large_request.giant_tool_threshold_bytes must be >= normal_tool_threshold_bytes")
+	}
+	if c.Gateway.LargeRequest.AbsoluteRecentToolKeep < 0 || c.Gateway.LargeRequest.RecentToolKeep < 0 {
+		return fmt.Errorf("gateway.large_request recent keep values must be non-negative")
+	}
+	if c.Gateway.LargeRequest.AbsoluteRecentToolKeep > c.Gateway.LargeRequest.RecentToolKeep {
+		return fmt.Errorf("gateway.large_request.absolute_recent_tool_keep must be <= recent_tool_keep")
+	}
+	if c.Gateway.LargeRequest.HeadChars <= 0 || c.Gateway.LargeRequest.TailChars <= 0 {
+		return fmt.Errorf("gateway.large_request head_chars and tail_chars must be positive")
 	}
 	if c.Gateway.MaxIdleConns <= 0 {
 		return fmt.Errorf("gateway.max_idle_conns must be positive")

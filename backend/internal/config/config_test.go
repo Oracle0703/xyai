@@ -191,6 +191,30 @@ func TestLoadDefaultGatewayRequestArchiveConfig(t *testing.T) {
 	require.True(t, cfg.Gateway.RequestArchive.CaptureResponse)
 }
 
+func TestLoadDefaultGatewayLargeRequestConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	lr := cfg.Gateway.LargeRequest
+	require.True(t, lr.Enabled)
+	require.Equal(t, "warn", lr.Mode)
+	require.Equal(t, int64(1048576), lr.BodyThresholdBytes)
+	require.Equal(t, int64(524288), lr.ToolTotalThresholdBytes)
+	require.Equal(t, int64(131072), lr.NormalToolThresholdBytes)
+	require.Equal(t, int64(524288), lr.GiantToolThresholdBytes)
+	require.Equal(t, 20, lr.RecentToolKeep)
+	require.Equal(t, 6, lr.AbsoluteRecentToolKeep)
+	require.Equal(t, int64(921600), lr.TargetBodyBytes)
+	require.Equal(t, 8000, lr.HeadChars)
+	require.Equal(t, 8000, lr.TailChars)
+	require.Empty(t, lr.EnabledUserIDs)
+	require.Empty(t, lr.EnabledAPIKeyIDs)
+	require.Empty(t, lr.EnabledGroupIDs)
+	require.True(t, lr.AutoPromptCacheKey)
+}
+
 func TestLoadDefaultTokenAnalysisConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 
