@@ -107,6 +107,16 @@ backend/internal/web/dist/*
 backend/data/
 data/request-archive/
 
+# 本地运行报告和生产调试样本
+report/
+runtime-report*.json
+runtime-report*.md
+runtime-report*.txt
+runtime-report*.html
+fixtures/
+tools/build_runtime_report_html.js
+tools/check_runtime_report_hover.js
+
 # ===================
 # 本地配置文件（包含敏感信息）
 # ===================
