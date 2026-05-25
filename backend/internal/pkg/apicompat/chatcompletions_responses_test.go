@@ -39,6 +39,20 @@ func TestChatCompletionsToResponses_BasicText(t *testing.T) {
 	assert.Equal(t, "user", items[0].Role)
 }
 
+func TestChatCompletionsToResponses_PromptCacheKey(t *testing.T) {
+	req := &ChatCompletionsRequest{
+		Model:          "gpt-5.5",
+		PromptCacheKey: "pcache_test_key",
+		Messages: []ChatMessage{
+			{Role: "user", Content: json.RawMessage(`"hello"`)},
+		},
+	}
+
+	resp, err := ChatCompletionsToResponses(req)
+	require.NoError(t, err)
+	require.Equal(t, "pcache_test_key", resp.PromptCacheKey)
+}
+
 func TestChatCompletionsToResponses_SystemMessage(t *testing.T) {
 	req := &ChatCompletionsRequest{
 		Model: "gpt-4o",

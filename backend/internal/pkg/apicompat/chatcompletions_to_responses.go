@@ -34,6 +34,8 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		Include:      []string{"reasoning.encrypted_content"},
 		ServiceTier:  req.ServiceTier,
 	}
+	out.PromptCacheKey = strings.TrimSpace(req.PromptCacheKey)
+	out.PreviousResponseID = strings.TrimSpace(req.PreviousResponseID)
 
 	// Reasoning models (gpt-5.x) do not accept sampling parameters.
 	// See isReasoningModel in anthropic_to_responses.go.
