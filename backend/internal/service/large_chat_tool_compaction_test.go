@@ -96,6 +96,58 @@ func TestCompactLargeChatToolOutputsKeepsMessagesAfterLastUser(t *testing.T) {
 	require.NotContains(t, string(result.Request.Messages[len(result.Request.Messages)-1].Content), "Sub2API compressed")
 }
 
+func TestLargeRequestScopeFromConfigMatchesAPIKey(t *testing.T) {
+	cfg := defaultLargeRequestTestConfig()
+	cfg.EnabledAPIKeyIDs = []int64{30}
+
+	scope := LargeRequestScopeFromConfig(cfg, LargeRequestIdentity{UserID: 21, APIKeyID: 30, GroupID: 11})
+
+	require.True(t, scope.Enabled)
+}
+
+func TestLargeRequestScopeFromConfigNoMatch(t *testing.T) {
+	cfg := defaultLargeRequestTestConfig()
+	cfg.EnabledUserIDs = []int64{99}
+
+	scope := LargeRequestScopeFromConfig(cfg, LargeRequestIdentity{UserID: 21, APIKeyID: 30, GroupID: 11})
+
+	require.False(t, scope.Enabled)
+}
+
+func TestMaybeInjectLargeRequestPromptCacheKeyDoesNotOverrideClientValue(t *testing.T) {
+	req := apicompat.ChatCompletionsRequest{
+		Model:          "gpt-5.5",
+		PromptCacheKey: "client-key",
+		Messages: []apicompat.ChatMessage{
+			{Role: "user", Content: mustJSONRawString(t, "hello")},
+		},
+	}
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+	result, err := CompactLargeChatToolOutputs(req, body, defaultLargeRequestTestConfig(), LargeRequestScope{Enabled: true})
+	require.NoError(t, err)
+
+	MaybeInjectLargeRequestPromptCacheKey(&result, LargeRequestIdentity{UserID: 21, APIKeyID: 30, GroupID: 11})
+
+	require.False(t, result.PromptCacheKeyInjected)
+	require.Equal(t, "client-key", result.Request.PromptCacheKey)
+}
+
+func TestMaybeInjectLargeRequestPromptCacheKeyUsesStablePrefix(t *testing.T) {
+	body := readLargeRequestFixture(t)
+	var req apicompat.ChatCompletionsRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+	result, err := CompactLargeChatToolOutputs(req, body, defaultLargeRequestTestConfig(), LargeRequestScope{Enabled: true})
+	require.NoError(t, err)
+
+	MaybeInjectLargeRequestPromptCacheKey(&result, LargeRequestIdentity{UserID: 21, APIKeyID: 30, GroupID: 11})
+
+	require.True(t, result.PromptCacheKeyInjected)
+	require.NotEmpty(t, result.PromptCacheKey)
+	require.Equal(t, result.PromptCacheKey, result.Request.PromptCacheKey)
+	require.Contains(t, string(result.Body), `"prompt_cache_key":"`+result.PromptCacheKey+`"`)
+}
+
 func readLargeRequestFixture(t *testing.T) []byte {
 	t.Helper()
 	path := filepath.Join("..", "..", "..", "fixtures", "chat-completions-large-20260525-113534-archive-2b9ad158-request.json")

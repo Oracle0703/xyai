@@ -23,6 +23,12 @@ type LargeRequestScope struct {
 	Enabled bool
 }
 
+type LargeRequestIdentity struct {
+	UserID   int64
+	APIKeyID int64
+	GroupID  int64
+}
+
 type LargeChatToolCompactionResult struct {
 	Request                  apicompat.ChatCompletionsRequest
 	Body                     []byte
@@ -40,6 +46,40 @@ type LargeChatToolCompactionResult struct {
 	PromptCacheKeyInjected   bool
 	PromptCacheKey           string
 	SkipReasons              map[string]int
+}
+
+func LargeRequestScopeFromConfig(cfg config.GatewayLargeRequestConfig, identity LargeRequestIdentity) LargeRequestScope {
+	if !cfg.Enabled || normalizeLargeRequestMode(cfg.Mode) != LargeRequestModeToolOutputCompact {
+		return LargeRequestScope{Enabled: false}
+	}
+	if len(cfg.EnabledUserIDs) == 0 && len(cfg.EnabledAPIKeyIDs) == 0 && len(cfg.EnabledGroupIDs) == 0 {
+		return LargeRequestScope{Enabled: false}
+	}
+	return LargeRequestScope{
+		Enabled: containsInt64(cfg.EnabledUserIDs, identity.UserID) ||
+			containsInt64(cfg.EnabledAPIKeyIDs, identity.APIKeyID) ||
+			containsInt64(cfg.EnabledGroupIDs, identity.GroupID),
+	}
+}
+
+func MaybeInjectLargeRequestPromptCacheKey(result *LargeChatToolCompactionResult, identity LargeRequestIdentity) {
+	if result == nil || !result.LargeRequestDetected || strings.TrimSpace(result.Request.PromptCacheKey) != "" {
+		return
+	}
+	seed := largeRequestPromptCacheSeed(result.Request, identity)
+	if seed == "" {
+		return
+	}
+	sum := sha256.Sum256([]byte(seed))
+	key := "sub2api-large-" + hex.EncodeToString(sum[:])[:32]
+	result.Request.PromptCacheKey = key
+	result.PromptCacheKey = key
+	result.PromptCacheKeyInjected = true
+	body, err := marshalLargeChatRequest(result.Request)
+	if err == nil {
+		result.Body = body
+		result.RequestBodySizeAfter = int64(len(body))
+	}
 }
 
 type largeToolCandidate struct {
@@ -190,6 +230,30 @@ func normalizeLargeRequestMode(mode string) string {
 	default:
 		return LargeRequestModeWarn
 	}
+}
+
+func largeRequestPromptCacheSeed(req apicompat.ChatCompletionsRequest, identity LargeRequestIdentity) string {
+	var b strings.Builder
+	b.WriteString(req.Model)
+	b.WriteString("|u=")
+	b.WriteString(fmt.Sprint(identity.UserID))
+	b.WriteString("|k=")
+	b.WriteString(fmt.Sprint(identity.APIKeyID))
+	b.WriteString("|g=")
+	b.WriteString(fmt.Sprint(identity.GroupID))
+	for _, msg := range req.Messages {
+		switch msg.Role {
+		case "system", "developer":
+			b.WriteString("|msg=")
+			b.Write(msg.Content)
+		}
+	}
+	if len(req.Tools) > 0 {
+		body, _ := json.Marshal(req.Tools)
+		b.WriteString("|tools=")
+		b.Write(body)
+	}
+	return b.String()
 }
 
 func lastNIndexSet(indices []int, n int) map[int]bool {
