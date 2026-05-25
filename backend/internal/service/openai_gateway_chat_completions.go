@@ -83,6 +83,29 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
 
+	if s.cfg != nil {
+		identity := LargeRequestIdentity{
+			UserID:   ginContextInt64Value(c, "user_id"),
+			APIKeyID: ginContextInt64Value(c, "api_key_id"),
+			GroupID:  ginContextInt64Value(c, "group_id"),
+		}
+		scope := LargeRequestScopeFromConfig(s.cfg.Gateway.LargeRequest, identity)
+		largeRequestResult, compactErr := CompactLargeChatToolOutputs(chatReq, body, s.cfg.Gateway.LargeRequest, scope)
+		if compactErr != nil {
+			logger.L().Warn("openai chat_completions: large request compaction failed", zap.Error(compactErr))
+		} else {
+			if s.cfg.Gateway.LargeRequest.AutoPromptCacheKey {
+				MaybeInjectLargeRequestPromptCacheKey(&largeRequestResult, identity)
+			}
+			chatReq = largeRequestResult.Request
+			body = largeRequestResult.Body
+			if largeRequestResult.PromptCacheKeyInjected && strings.TrimSpace(promptCacheKey) == "" {
+				promptCacheKey = largeRequestResult.PromptCacheKey
+			}
+			logLargeChatToolCompactionResult(account, largeRequestResult)
+		}
+	}
+
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
 	if promptCacheKey == "" && account.Type == AccountTypeOAuth && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
@@ -292,7 +315,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	if clientStream {
 		result, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, includeUsage, startTime, len(body))
 	} else {
-		result, handleErr = s.handleChatBufferedStreamingResponse(resp, c, originalModel, billingModel, upstreamModel, startTime)
+		result, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
 	}
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
@@ -368,6 +391,7 @@ func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
 func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
+	account *Account,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -389,6 +413,10 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	// accumulated delta events so the client receives the full content.
 	acc.SupplementResponseOutput(finalResponse)
 
+	if isOpenAIResponsesChatCompletionEmptySuccess(finalResponse) {
+		return nil, newOpenAISilentRefusalFailoverError(c, account, requestID)
+	}
+
 	chatResp := apicompat.ResponsesToChatCompletions(finalResponse, originalModel)
 
 	if s.responseHeaderFilter != nil {
@@ -405,6 +433,69 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		Stream:        false,
 		Duration:      time.Since(startTime),
 	}, nil
+}
+
+func isOpenAIResponsesChatCompletionEmptySuccess(resp *apicompat.ResponsesResponse) bool {
+	if resp == nil || resp.Usage != nil {
+		return false
+	}
+	for _, item := range resp.Output {
+		switch item.Type {
+		case "function_call":
+			return false
+		case "message":
+			for _, part := range item.Content {
+				if part.Type == "output_text" && strings.TrimSpace(part.Text) != "" {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func ginContextInt64Value(c *gin.Context, key string) int64 {
+	if c == nil {
+		return 0
+	}
+	value, ok := c.Get(key)
+	if !ok || value == nil {
+		return 0
+	}
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case float64:
+		return int64(v)
+	default:
+		return 0
+	}
+}
+
+func logLargeChatToolCompactionResult(account *Account, result LargeChatToolCompactionResult) {
+	if !result.LargeRequestDetected {
+		return
+	}
+	fields := []zap.Field{
+		zap.String("mode", result.Mode),
+		zap.Int64("request_body_size_before", result.RequestBodySizeBefore),
+		zap.Int64("request_body_size_after", result.RequestBodySizeAfter),
+		zap.Int64("tool_output_bytes", result.ToolOutputBytes),
+		zap.Int("tool_message_count", result.ToolMessageCount),
+		zap.Bool("compacted", result.Compacted),
+		zap.Int("compressed_tool_messages", result.CompressedToolMessages),
+		zap.Int64("compressed_original_bytes", result.CompressedOriginalBytes),
+		zap.Int64("compressed_final_bytes", result.CompressedFinalBytes),
+		zap.Bool("prompt_cache_key_injected", result.PromptCacheKeyInjected),
+	}
+	if account != nil {
+		fields = append(fields, zap.Int64("account_id", account.ID))
+	}
+	logger.L().Info("openai chat_completions: large request observed", fields...)
 }
 
 // handleChatStreamingResponse reads Responses SSE events from upstream,
