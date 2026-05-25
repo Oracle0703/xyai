@@ -41,6 +41,9 @@ describe('ImageGenView', () => {
         ],
       }),
     }))
+
+    URL.createObjectURL = vi.fn(() => 'blob:image-preview')
+    URL.revokeObjectURL = vi.fn()
   })
 
   afterEach(() => {
@@ -118,6 +121,99 @@ describe('ImageGenView', () => {
     })
     expect(JSON.stringify(history)).not.toContain('sk-history-key')
     expect(wrapper.findAll('[data-test="history-item"]')).toHaveLength(1)
+
+    wrapper.unmount()
+  })
+
+  it('calls the image edits gateway with an uploaded source image', async () => {
+    const wrapper = mount(ImageGenView, {
+      global: {
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          Icon: true,
+        },
+      },
+    })
+    const sourceImage = new File(['source image'], 'source.png', { type: 'image/png' })
+
+    await wrapper.get('[data-test="mode-edit-button"]').trigger('click')
+    await wrapper.get('[data-test="api-key-input"]').setValue('sk-edit-key')
+    await wrapper.get('[data-test="prompt-input"]').setValue('把背景改成白色')
+    const input = wrapper.get('[data-test="source-image-input"]').element as HTMLInputElement
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [sourceImage],
+    })
+    await wrapper.get('[data-test="source-image-input"]').trigger('change')
+    await wrapper.get('[data-test="generate-button"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const fetchMock = vi.mocked(fetch)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/v1/images/edits',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer sk-edit-key',
+        },
+      })
+    )
+    const body = fetchMock.mock.calls[0][1]?.body
+    expect(body).toBeInstanceOf(FormData)
+    const formData = body as FormData
+    expect(formData.get('model')).toBe('gpt-image-2')
+    expect(formData.get('prompt')).toBe('把背景改成白色')
+    expect(formData.get('size')).toBe('1024x1024')
+    expect(formData.get('n')).toBe('1')
+    expect(formData.get('response_format')).toBe('b64_json')
+    expect(formData.get('image')).toBe(sourceImage)
+
+    wrapper.unmount()
+  })
+
+  it('uses a pasted image as the image edit source', async () => {
+    const wrapper = mount(ImageGenView, {
+      global: {
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          Icon: true,
+        },
+      },
+    })
+    const pastedImage = new File(['pasted image'], 'paste.png', { type: 'image/png' })
+
+    await wrapper.get('[data-test="mode-edit-button"]').trigger('click')
+    await wrapper.get('[data-test="api-key-input"]').setValue('sk-paste-key')
+    await wrapper.get('[data-test="prompt-input"]').setValue('把人物换成卡通风格')
+
+    const pasteEvent = new Event('paste') as ClipboardEvent
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        files: [pastedImage],
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => pastedImage,
+          },
+        ],
+      },
+    })
+    window.dispatchEvent(pasteEvent)
+    await nextTick()
+
+    expect(wrapper.text()).toContain('paste.png')
+
+    await wrapper.get('[data-test="generate-button"]').trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    const fetchMock = vi.mocked(fetch)
+    const body = fetchMock.mock.calls[0][1]?.body as FormData
+    expect(fetchMock.mock.calls[0][0]).toBe('/v1/images/edits')
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.get('image')).toBe(pastedImage)
 
     wrapper.unmount()
   })

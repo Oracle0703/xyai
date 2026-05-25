@@ -216,6 +216,93 @@
       gap: 12px;
     }
 
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-soft);
+    }
+
+    .mode-button {
+      border: 0;
+      border-radius: 9px;
+      min-height: 40px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .mode-button.active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    }
+
+    .source-upload {
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 0.16s, background 0.16s;
+    }
+
+    .source-upload:hover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .source-upload.has-file {
+      border-style: solid;
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+
+    .source-empty {
+      min-height: 96px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .source-preview {
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .source-thumb {
+      width: 64px;
+      height: 64px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: var(--muted);
+    }
+
+    .source-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .source-name {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .button {
       border: 1px solid transparent;
       border-radius: 10px;
@@ -427,8 +514,18 @@
       }
 
       .two-col,
-      .actions {
+      .actions,
+      .mode-switch {
         grid-template-columns: 1fr;
+      }
+
+      .source-preview {
+        grid-template-columns: 54px minmax(0, 1fr);
+      }
+
+      .source-preview > .icon-button {
+        grid-column: 2;
+        justify-self: end;
       }
 
       .history-item {
@@ -483,8 +580,38 @@
               </div>
 
               <div class="field">
-                <label for="prompt">提示词</label>
+                <label>生成方式</label>
+                <div class="mode-switch">
+                  <button id="modeGenerate" class="mode-button active" type="button">文生图</button>
+                  <button id="modeEdit" class="mode-button" type="button">图改图</button>
+                </div>
+              </div>
+
+              <div class="field">
+                <label id="promptLabel" for="prompt">提示词</label>
                 <textarea id="prompt" class="control" placeholder="描述图片主体、场景、风格、用途..."></textarea>
+              </div>
+
+              <div id="sourceImageField" class="field hidden">
+                <label for="sourceImage">原图</label>
+                <div id="sourceUpload" class="source-upload" tabindex="0">
+                  <input id="sourceImage" class="hidden" type="file" accept="image/*">
+                  <div id="sourceEmpty" class="source-empty">
+                    <div>
+                      <strong>点击选择、拖拽或 Ctrl+V 粘贴图片</strong>
+                      <div class="hint">支持常见图片格式，单张不超过 20MB。</div>
+                    </div>
+                  </div>
+                  <div id="sourcePreview" class="source-preview hidden">
+                    <div class="source-thumb"><img id="sourcePreviewImage" alt=""></div>
+                    <div>
+                      <p id="sourceName" class="source-name"></p>
+                      <div id="sourceSize" class="hint"></div>
+                    </div>
+                    <button id="clearSourceButton" class="icon-button" type="button" title="移除原图">✕</button>
+                  </div>
+                </div>
+                <div class="hint">图改图会把这张原图作为 image 字段提交。</div>
               </div>
 
               <div class="two-col">
@@ -563,13 +690,26 @@
     const DEFAULT_GATEWAY_BASE = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '';
     const MODEL = 'gpt-image-2';
     const MAX_HISTORY = 20;
+    const MAX_SOURCE_IMAGE_SIZE = 20 * 1024 * 1024;
 
     const els = {
       form: document.getElementById('imageForm'),
       gatewayBase: document.getElementById('gatewayBase'),
       apiKey: document.getElementById('apiKey'),
       toggleKeyButton: document.getElementById('toggleKeyButton'),
+      modeGenerate: document.getElementById('modeGenerate'),
+      modeEdit: document.getElementById('modeEdit'),
+      promptLabel: document.getElementById('promptLabel'),
       prompt: document.getElementById('prompt'),
+      sourceImageField: document.getElementById('sourceImageField'),
+      sourceUpload: document.getElementById('sourceUpload'),
+      sourceImage: document.getElementById('sourceImage'),
+      sourceEmpty: document.getElementById('sourceEmpty'),
+      sourcePreview: document.getElementById('sourcePreview'),
+      sourcePreviewImage: document.getElementById('sourcePreviewImage'),
+      sourceName: document.getElementById('sourceName'),
+      sourceSize: document.getElementById('sourceSize'),
+      clearSourceButton: document.getElementById('clearSourceButton'),
       size: document.getElementById('size'),
       count: document.getElementById('count'),
       generateButton: document.getElementById('generateButton'),
@@ -586,6 +726,9 @@
 
     let currentResults = [];
     let historyItems = loadHistory();
+    let mode = 'generate';
+    let sourceImageFile = null;
+    let sourceImagePreviewUrl = '';
 
     init();
 
@@ -597,6 +740,24 @@
       els.toggleKeyButton.addEventListener('click', toggleKeyVisible);
       els.clearAllButton.addEventListener('click', clearHistory);
       els.gatewayBase.addEventListener('change', persistGatewayBase);
+      els.modeGenerate.addEventListener('click', () => setMode('generate'));
+      els.modeEdit.addEventListener('click', () => setMode('edit'));
+      els.sourceUpload.addEventListener('click', () => els.sourceImage.click());
+      els.sourceUpload.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          els.sourceImage.click();
+        }
+      });
+      els.sourceImage.addEventListener('change', handleSourceImageChange);
+      els.sourceUpload.addEventListener('dragover', (event) => event.preventDefault());
+      els.sourceUpload.addEventListener('drop', handleSourceImageDrop);
+      els.clearSourceButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        clearSourceImage();
+      });
+      window.addEventListener('paste', handleSourceImagePaste);
+      setMode('generate');
     }
 
     async function handleSubmit(event) {
@@ -617,25 +778,17 @@
         setStatus('请输入提示词', 'error');
         return;
       }
+      if (mode === 'edit' && !sourceImageFile) {
+        setStatus('请先上传或粘贴原图', 'error');
+        return;
+      }
 
       persistGatewayBase();
       setLoading(true);
       try {
-        const endpoint = gatewayBase + '/v1/images/generations';
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: MODEL,
-            prompt,
-            size,
-            n: count,
-            response_format: 'b64_json',
-          }),
-        });
+        const response = mode === 'edit'
+          ? await editImages(gatewayBase, apiKey, prompt, size, count)
+          : await createImages(gatewayBase, apiKey, prompt, size, count);
 
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -655,14 +808,51 @@
           prompt,
           model: MODEL,
           size,
+          mode,
           images: images.map((item) => item.src),
         });
-        setStatus(`生成成功：${images.length} 张图片`, 'success');
+        setStatus(`${mode === 'edit' ? '修改' : '生成'}成功：${images.length} 张图片`, 'success');
       } catch (error) {
         setStatus(error instanceof Error ? error.message : '生成失败，请稍后重试', 'error');
       } finally {
         setLoading(false);
       }
+    }
+
+    function createImages(gatewayBase, apiKey, prompt, size, count) {
+      const endpoint = gatewayBase + '/v1/images/generations';
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          prompt,
+          size,
+          n: count,
+          response_format: 'b64_json',
+        }),
+      });
+    }
+
+    function editImages(gatewayBase, apiKey, prompt, size, count) {
+      const endpoint = gatewayBase + '/v1/images/edits';
+      const formData = new FormData();
+      formData.append('model', MODEL);
+      formData.append('prompt', prompt);
+      formData.append('size', size);
+      formData.append('n', String(count));
+      formData.append('response_format', 'b64_json');
+      formData.append('image', sourceImageFile);
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      });
     }
 
     function normalizeGatewayBase(raw) {
@@ -687,6 +877,90 @@
       const value = Number.parseInt(String(raw), 10);
       if (!Number.isFinite(value)) return 1;
       return Math.min(4, Math.max(1, value));
+    }
+
+    function setMode(nextMode) {
+      mode = nextMode === 'edit' ? 'edit' : 'generate';
+      els.modeGenerate.classList.toggle('active', mode === 'generate');
+      els.modeEdit.classList.toggle('active', mode === 'edit');
+      els.sourceImageField.classList.toggle('hidden', mode !== 'edit');
+      els.promptLabel.textContent = mode === 'edit' ? '修改要求' : '提示词';
+      els.prompt.placeholder = mode === 'edit'
+        ? '描述希望如何修改这张图片，例如：把背景改成白色，保持主体不变...'
+        : '描述图片主体、场景、风格、用途...';
+      els.generateText.textContent = mode === 'edit' ? '修改图片' : '生成图片';
+    }
+
+    function handleSourceImageChange() {
+      const file = els.sourceImage.files && els.sourceImage.files[0] ? els.sourceImage.files[0] : null;
+      setSourceImage(file);
+      els.sourceImage.value = '';
+    }
+
+    function handleSourceImageDrop(event) {
+      event.preventDefault();
+      const files = Array.from(event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files : []);
+      const image = files.find((file) => file.type && file.type.startsWith('image/'));
+      setSourceImage(image || null);
+    }
+
+    function handleSourceImagePaste(event) {
+      if (mode !== 'edit') return;
+      const files = Array.from(event.clipboardData && event.clipboardData.files ? event.clipboardData.files : []);
+      const itemFiles = Array.from(event.clipboardData && event.clipboardData.items ? event.clipboardData.items : [])
+        .filter((item) => item.kind === 'file' && item.type && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      const image = files.find((file) => file.type && file.type.startsWith('image/')) || itemFiles[0];
+      if (!image) return;
+      event.preventDefault();
+      setSourceImage(image);
+    }
+
+    function setSourceImage(file) {
+      setStatus('', '');
+      if (!file) return;
+      if (!file.type || !file.type.startsWith('image/')) {
+        setStatus('请选择图片文件', 'error');
+        return;
+      }
+      if (file.size > MAX_SOURCE_IMAGE_SIZE) {
+        setStatus('原图不能超过 20MB', 'error');
+        return;
+      }
+      clearSourcePreviewUrl();
+      sourceImageFile = file;
+      sourceImagePreviewUrl = URL.createObjectURL(file);
+      renderSourceImage();
+    }
+
+    function clearSourceImage() {
+      sourceImageFile = null;
+      clearSourcePreviewUrl();
+      renderSourceImage();
+    }
+
+    function clearSourcePreviewUrl() {
+      if (sourceImagePreviewUrl) {
+        URL.revokeObjectURL(sourceImagePreviewUrl);
+        sourceImagePreviewUrl = '';
+      }
+    }
+
+    function renderSourceImage() {
+      const hasFile = Boolean(sourceImageFile);
+      els.sourceUpload.classList.toggle('has-file', hasFile);
+      els.sourceEmpty.classList.toggle('hidden', hasFile);
+      els.sourcePreview.classList.toggle('hidden', !hasFile);
+      if (!hasFile) {
+        els.sourcePreviewImage.removeAttribute('src');
+        els.sourceName.textContent = '';
+        els.sourceSize.textContent = '';
+        return;
+      }
+      els.sourcePreviewImage.src = sourceImagePreviewUrl;
+      els.sourceName.textContent = sourceImageFile.name || '粘贴图片';
+      els.sourceSize.textContent = formatFileSize(sourceImageFile.size);
     }
 
     function normalizeImages(payload) {
@@ -788,7 +1062,7 @@
           <button class="thumbs" type="button" data-action="restore">${thumbs}</button>
           <div>
             <p class="history-title">${escapeHtml(item.prompt)}</p>
-            <p class="history-meta">${escapeHtml(formatTime(item.createdAt))} · ${escapeHtml(item.model)} · ${escapeHtml(item.size)} · ${item.images.length} 张</p>
+            <p class="history-meta">${escapeHtml(formatTime(item.createdAt))} · ${escapeHtml(modeLabel(item.mode))} · ${escapeHtml(item.model)} · ${escapeHtml(item.size)} · ${item.images.length} 张</p>
           </div>
           <button class="icon-button" type="button" title="删除记录" data-action="delete">✕</button>
         `;
@@ -801,6 +1075,7 @@
     function restoreHistory(item) {
       els.prompt.value = item.prompt;
       els.size.value = item.size;
+      setMode(item.mode === 'edit' ? 'edit' : 'generate');
       currentResults = item.images.map((src, index) => ({
         id: `${item.id}-${index}`,
         src,
@@ -842,6 +1117,7 @@
         typeof value.prompt === 'string' &&
         typeof value.model === 'string' &&
         typeof value.size === 'string' &&
+        (value.mode === undefined || value.mode === 'generate' || value.mode === 'edit') &&
         Array.isArray(value.images) &&
         value.images.every((src) => typeof src === 'string')
       );
@@ -850,7 +1126,7 @@
     function setLoading(loading) {
       els.generateButton.disabled = loading;
       els.generateSpinner.classList.toggle('hidden', !loading);
-      els.generateText.textContent = loading ? '生成中...' : '生成图片';
+      els.generateText.textContent = loading ? '处理中...' : mode === 'edit' ? '修改图片' : '生成图片';
     }
 
     function setStatus(message, type) {
@@ -899,6 +1175,16 @@
         hour: '2-digit',
         minute: '2-digit',
       }).format(date);
+    }
+
+    function modeLabel(raw) {
+      return raw === 'edit' ? '图改图' : '文生图';
+    }
+
+    function formatFileSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+      if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+      return `${Math.max(1, Math.round(bytes / 1024))} KB`;
     }
 
     function escapeHtml(value) {
