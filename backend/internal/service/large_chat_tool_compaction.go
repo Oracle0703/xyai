@@ -67,19 +67,19 @@ func MaybeInjectLargeRequestPromptCacheKey(result *LargeChatToolCompactionResult
 		return
 	}
 	seed := largeRequestPromptCacheSeed(result.Request, identity)
-	if seed == "" {
-		return
-	}
 	sum := sha256.Sum256([]byte(seed))
 	key := "sub2api-large-" + hex.EncodeToString(sum[:])[:32]
 	result.Request.PromptCacheKey = key
+	body, err := marshalLargeChatRequest(result.Request)
+	if err != nil {
+		// 回滚，避免出现 "struct 里有 key 但透传 body 没有" 的不一致。
+		result.Request.PromptCacheKey = ""
+		return
+	}
+	result.Body = body
+	result.RequestBodySizeAfter = int64(len(body))
 	result.PromptCacheKey = key
 	result.PromptCacheKeyInjected = true
-	body, err := marshalLargeChatRequest(result.Request)
-	if err == nil {
-		result.Body = body
-		result.RequestBodySizeAfter = int64(len(body))
-	}
 }
 
 type largeToolCandidate struct {

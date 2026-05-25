@@ -214,6 +214,45 @@ func TestForwardAsChatCompletionsWarnModeDoesNotMutateLargeRequest(t *testing.T)
 	require.Greater(t, len(upstream.lastBody), len(body)/2)
 }
 
+// 回归：生产中间件只往 gin context 写入 *APIKey 整体对象（key="api_key"），
+// 不会单独 set user_id / api_key_id / group_id。压缩特性必须能从该对象解析身份，
+// 否则配置里的白名单永远不会命中。
+func TestForwardAsChatCompletionsCompactionUsesAPIKeyFromContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	groupID := int64(11)
+	c.Set("api_key", &APIKey{ID: 30, UserID: 21, GroupID: &groupID})
+	body := syntheticLargeRequestBody(t)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":17,"output_tokens":8,"total_tokens":25}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_large_apikey_ctx"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	cfg := &config.Config{}
+	cfg.Gateway.LargeRequest = defaultLargeRequestTestConfig()
+	cfg.Gateway.LargeRequest.EnabledAPIKeyIDs = []int64{30}
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+	account := openAIChatCompletionsOAuthTestAccount()
+
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, string(upstream.lastBody), "Sub2API compressed historical tool output")
+	require.Less(t, len(upstream.lastBody), len(body))
+}
+
 func TestForwardAsChatCompletions_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

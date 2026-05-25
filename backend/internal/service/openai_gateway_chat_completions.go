@@ -84,11 +84,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
 
 	if s.cfg != nil {
-		identity := LargeRequestIdentity{
-			UserID:   ginContextInt64Value(c, "user_id"),
-			APIKeyID: ginContextInt64Value(c, "api_key_id"),
-			GroupID:  ginContextInt64Value(c, "group_id"),
-		}
+		identity := largeRequestIdentityFromContext(c)
 		scope := LargeRequestScopeFromConfig(s.cfg.Gateway.LargeRequest, identity)
 		largeRequestResult, compactErr := CompactLargeChatToolOutputs(chatReq, body, s.cfg.Gateway.LargeRequest, scope)
 		if compactErr != nil {
@@ -97,8 +93,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			if s.cfg.Gateway.LargeRequest.AutoPromptCacheKey && scope.Enabled {
 				MaybeInjectLargeRequestPromptCacheKey(&largeRequestResult, identity)
 			}
-			chatReq = largeRequestResult.Request
-			body = largeRequestResult.Body
+			// 仅在确实修改过 request 时替换 chatReq / body，避免 warn 模式做无谓的拷贝替换。
+			if largeRequestResult.Compacted || largeRequestResult.PromptCacheKeyInjected {
+				chatReq = largeRequestResult.Request
+				body = largeRequestResult.Body
+			}
 			if largeRequestResult.PromptCacheKeyInjected && strings.TrimSpace(promptCacheKey) == "" {
 				promptCacheKey = largeRequestResult.PromptCacheKey
 			}
@@ -452,6 +451,37 @@ func isOpenAIResponsesChatCompletionEmptySuccess(resp *apicompat.ResponsesRespon
 		}
 	}
 	return true
+}
+
+// largeRequestIdentityFromContext 从 gin 上下文里抽取大请求压缩所需的身份字段。
+// 实际生产中间件只在 context 里 set 了 *APIKey 整体对象（key="api_key"），
+// 因此这里从该对象解出 UserID / APIKeyID / GroupID。
+// 单测可以直接 set 这三个 int64 key 作为后备路径。
+func largeRequestIdentityFromContext(c *gin.Context) LargeRequestIdentity {
+	if c == nil {
+		return LargeRequestIdentity{}
+	}
+	identity := LargeRequestIdentity{}
+	if v, ok := c.Get("api_key"); ok {
+		if apiKey, ok := v.(*APIKey); ok && apiKey != nil {
+			identity.APIKeyID = apiKey.ID
+			identity.UserID = apiKey.UserID
+			if apiKey.GroupID != nil {
+				identity.GroupID = *apiKey.GroupID
+			}
+		}
+	}
+	// 测试或上游中间件显式 set 的 int64 字段优先覆盖。
+	if v := ginContextInt64Value(c, "user_id"); v != 0 {
+		identity.UserID = v
+	}
+	if v := ginContextInt64Value(c, "api_key_id"); v != 0 {
+		identity.APIKeyID = v
+	}
+	if v := ginContextInt64Value(c, "group_id"); v != 0 {
+		identity.GroupID = v
+	}
+	return identity
 }
 
 func ginContextInt64Value(c *gin.Context, key string) int64 {
