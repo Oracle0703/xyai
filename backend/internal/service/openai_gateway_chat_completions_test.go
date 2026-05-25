@@ -142,7 +142,7 @@ func TestForwardAsChatCompletionsCompactsLargeToolOutputForEnabledAPIKey(t *test
 	c.Set("api_key_id", int64(30))
 	c.Set("user_id", int64(21))
 	c.Set("group_id", int64(11))
-	body := readLargeRequestFixture(t)
+	body := syntheticLargeRequestBody(t)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -170,6 +170,48 @@ func TestForwardAsChatCompletionsCompactsLargeToolOutputForEnabledAPIKey(t *test
 	require.Contains(t, string(upstream.lastBody), "Sub2API compressed historical tool output")
 	require.Less(t, len(upstream.lastBody), len(body))
 	require.Equal(t, 17, result.Usage.InputTokens)
+}
+
+func TestForwardAsChatCompletionsWarnModeDoesNotMutateLargeRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set("api_key_id", int64(30))
+	c.Set("user_id", int64(21))
+	c.Set("group_id", int64(11))
+	body := syntheticLargeRequestBody(t)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":17,"output_tokens":8,"total_tokens":25}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_large_warn"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	cfg := &config.Config{}
+	cfg.Gateway.LargeRequest = defaultLargeRequestTestConfig()
+	cfg.Gateway.LargeRequest.Mode = "warn"
+	cfg.Gateway.LargeRequest.EnabledAPIKeyIDs = []int64{30}
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+	account := openAIChatCompletionsOAuthTestAccount()
+	account.Type = AccountTypeAPIKey
+	account.Extra = map[string]any{"openai_responses_supported": true}
+	account.Credentials = map[string]any{"api_key": "sk-test"}
+
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotContains(t, string(upstream.lastBody), "Sub2API compressed historical tool output")
+	require.False(t, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").Exists())
+	require.Greater(t, len(upstream.lastBody), len(body)/2)
 }
 
 func TestForwardAsChatCompletions_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {

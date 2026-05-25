@@ -94,7 +94,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		if compactErr != nil {
 			logger.L().Warn("openai chat_completions: large request compaction failed", zap.Error(compactErr))
 		} else {
-			if s.cfg.Gateway.LargeRequest.AutoPromptCacheKey {
+			if s.cfg.Gateway.LargeRequest.AutoPromptCacheKey && scope.Enabled {
 				MaybeInjectLargeRequestPromptCacheKey(&largeRequestResult, identity)
 			}
 			chatReq = largeRequestResult.Request

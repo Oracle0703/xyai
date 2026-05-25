@@ -2,8 +2,7 @@ package service
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+	"fmt"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -11,26 +10,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCompactLargeChatToolOutputsFixture(t *testing.T) {
-	body := readLargeRequestFixture(t)
+func TestCompactLargeChatToolOutputsSyntheticProductionShape(t *testing.T) {
+	body := syntheticLargeRequestBody(t)
 	var req apicompat.ChatCompletionsRequest
 	require.NoError(t, json.Unmarshal(body, &req))
 
 	result, err := CompactLargeChatToolOutputs(req, body, defaultLargeRequestTestConfig(), LargeRequestScope{Enabled: true})
 	require.NoError(t, err)
 	require.True(t, result.LargeRequestDetected)
-	require.True(t, result.Compacted)
+	require.True(t, result.Compacted, "skip=%v role450=%s bytes450=%d before=%d after=%d tool_bytes=%d tool_count=%d",
+		result.SkipReasons,
+		req.Messages[450].Role,
+		len(req.Messages[450].Content),
+		result.RequestBodySizeBefore,
+		result.RequestBodySizeAfter,
+		result.ToolOutputBytes,
+		result.ToolMessageCount,
+	)
 	require.Equal(t, 1, result.CompressedToolMessages)
 	require.Equal(t, []int{450}, result.CompressedMessageIndices)
-	require.Equal(t, int64(1922708), result.RequestBodySizeBefore)
-	require.InDelta(t, int64(1348121), result.RequestBodySizeAfter, 512)
+	require.Greater(t, result.RequestBodySizeBefore, int64(1048576))
 	require.Less(t, result.RequestBodySizeAfter, result.RequestBodySizeBefore)
 	require.Contains(t, string(result.Request.Messages[450].Content), "[Sub2API compressed historical tool output]")
-	require.Contains(t, string(result.Request.Messages[450].Content), "original_bytes: 591817")
+	require.Contains(t, string(result.Request.Messages[450].Content), "original_bytes:")
+	require.Len(t, req.Messages, 474)
+	require.Len(t, req.Tools, 88)
+	require.Equal(t, 243, result.ToolMessageCount)
 }
 
 func TestCompactLargeChatToolOutputsWarnModeDoesNotMutate(t *testing.T) {
-	body := readLargeRequestFixture(t)
+	body := syntheticLargeRequestBody(t)
 	var req apicompat.ChatCompletionsRequest
 	require.NoError(t, json.Unmarshal(body, &req))
 	cfg := defaultLargeRequestTestConfig()
@@ -134,7 +143,7 @@ func TestMaybeInjectLargeRequestPromptCacheKeyDoesNotOverrideClientValue(t *test
 }
 
 func TestMaybeInjectLargeRequestPromptCacheKeyUsesStablePrefix(t *testing.T) {
-	body := readLargeRequestFixture(t)
+	body := syntheticLargeRequestBody(t)
 	var req apicompat.ChatCompletionsRequest
 	require.NoError(t, json.Unmarshal(body, &req))
 	result, err := CompactLargeChatToolOutputs(req, body, defaultLargeRequestTestConfig(), LargeRequestScope{Enabled: true})
@@ -148,12 +157,73 @@ func TestMaybeInjectLargeRequestPromptCacheKeyUsesStablePrefix(t *testing.T) {
 	require.Contains(t, string(result.Body), `"prompt_cache_key":"`+result.PromptCacheKey+`"`)
 }
 
-func readLargeRequestFixture(t *testing.T) []byte {
+func syntheticLargeRequestBody(t *testing.T) []byte {
 	t.Helper()
-	path := filepath.Join("..", "..", "..", "fixtures", "chat-completions-large-20260525-113534-archive-2b9ad158-request.json")
-	body, err := os.ReadFile(path)
+	req := syntheticLargeChatCompletionsRequest(t)
+	body, err := json.Marshal(req)
 	require.NoError(t, err)
 	return body
+}
+
+func syntheticLargeChatCompletionsRequest(t *testing.T) apicompat.ChatCompletionsRequest {
+	t.Helper()
+	req := apicompat.ChatCompletionsRequest{
+		Model:  "gpt-5.5",
+		Stream: true,
+	}
+	for i := 0; i < 88; i++ {
+		req.Tools = append(req.Tools, apicompat.ChatTool{
+			Type: "function",
+			Function: &apicompat.ChatFunction{
+				Name:        "tool_" + makePaddedNumber(i),
+				Description: "Synthetic tool schema for large-request compaction tests.",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}}}`),
+			},
+		})
+	}
+	for i := 0; i < 228; i++ {
+		req.Messages = append(req.Messages, apicompat.ChatMessage{
+			Role:    "assistant",
+			Content: mustJSONRawString(t, "synthetic assistant context"),
+		})
+	}
+	for i := 0; i < 222; i++ {
+		req.Messages = append(req.Messages, syntheticToolMessage(t, i, syntheticToolOutput(i)))
+	}
+	req.Messages = append(req.Messages,
+		syntheticToolMessage(t, 222, makeString('G', 591815)),
+		apicompat.ChatMessage{Role: "user", Content: mustJSONRawString(t, "Please continue the coding task.")},
+	)
+	for i := 223; i < 243; i++ {
+		req.Messages = append(req.Messages, syntheticToolMessage(t, i, syntheticToolOutput(i)))
+	}
+	for len(req.Messages) < 474 {
+		req.Messages = append(req.Messages, apicompat.ChatMessage{
+			Role:    "assistant",
+			Content: mustJSONRawString(t, "synthetic tail context"),
+		})
+	}
+	return req
+}
+
+func syntheticToolMessage(t *testing.T, index int, output string) apicompat.ChatMessage {
+	t.Helper()
+	return apicompat.ChatMessage{
+		Role:       "tool",
+		Content:    mustJSONRawString(t, output),
+		ToolCallID: "call_" + makePaddedNumber(index),
+	}
+}
+
+func syntheticToolOutput(index int) string {
+	if index >= 223 {
+		return makeLargeToolText("recent", 1024)
+	}
+	return makeLargeToolText("historical", 2200)
+}
+
+func makePaddedNumber(n int) string {
+	return fmt.Sprintf("%03d", n)
 }
 
 func defaultLargeRequestTestConfig() config.GatewayLargeRequestConfig {
