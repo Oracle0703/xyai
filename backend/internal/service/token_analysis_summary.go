@@ -53,6 +53,9 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 	summary.SummaryJSON["user_chars"] = summary.UserChars
 	summary.SummaryJSON["tools_count"] = summary.ToolsCount
 	summary.SummaryJSON["image_count"] = summary.ImageCount
+	summary.SummaryJSON["tool_message_count"] = summary.ToolMessageCount
+	summary.SummaryJSON["tool_output_bytes"] = summary.ToolOutputBytes
+	summary.SummaryJSON["max_tool_output_bytes"] = summary.MaxToolOutputBytes
 	return summary, nil
 }
 
@@ -91,6 +94,16 @@ func summaryMessagesRequest(root map[string]any, summary *TokenAnalysisBodySumma
 			summary.UserChars += len([]rune(text))
 			if strings.TrimSpace(text) != "" {
 				summary.LastUserPreview = text
+			}
+		case "tool":
+			bytesLen := int64(0)
+			if raw, err := json.Marshal(content); err == nil {
+				bytesLen = int64(len(raw))
+			}
+			summary.ToolMessageCount++
+			summary.ToolOutputBytes += bytesLen
+			if bytesLen > summary.MaxToolOutputBytes {
+				summary.MaxToolOutputBytes = bytesLen
 			}
 		}
 	}

@@ -48,6 +48,16 @@ func TestTokenAnalysisRiskCapsAt100(t *testing.T) {
 	require.Equal(t, 100, score)
 }
 
+func TestTokenAnalysisRiskLargeToolHistory(t *testing.T) {
+	summary := TokenAnalysisBodySummary{ToolMessageCount: 40, ToolOutputBytes: 800000, MaxToolOutputBytes: 600000}
+
+	score, reasons := ScoreTokenAnalysisRisk(summary, TokenAnalysisUsageSignals{}, TokenAnalysisDuplicateSignals{})
+
+	require.Greater(t, score, 0)
+	requireRiskReason(t, reasons, TokenAnalysisRiskLargeToolHistory)
+	requireRiskReason(t, reasons, TokenAnalysisRiskGiantToolOutput)
+}
+
 func requireRiskReason(t *testing.T, reasons []TokenAnalysisRiskReason, code string) {
 	t.Helper()
 	for _, reason := range reasons {

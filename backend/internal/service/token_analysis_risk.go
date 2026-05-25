@@ -53,6 +53,17 @@ func ScoreTokenAnalysisRisk(summary TokenAnalysisBodySummary, usage TokenAnalysi
 			"output_tokens": usage.OutputTokens,
 		})
 	}
+	if summary.ToolOutputBytes >= 524288 && summary.ToolMessageCount >= 10 {
+		add(TokenAnalysisRiskLargeToolHistory, "历史 tool 输出体积过大", 25, map[string]any{
+			"tool_message_count": summary.ToolMessageCount,
+			"tool_output_bytes":  summary.ToolOutputBytes,
+		})
+	}
+	if summary.MaxToolOutputBytes >= 524288 {
+		add(TokenAnalysisRiskGiantToolOutput, "存在单条巨型 tool 输出", 25, map[string]any{
+			"max_tool_output_bytes": summary.MaxToolOutputBytes,
+		})
+	}
 
 	if score > 100 {
 		score = 100

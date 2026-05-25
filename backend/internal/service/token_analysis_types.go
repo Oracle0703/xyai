@@ -14,6 +14,8 @@ const (
 	TokenAnalysisRiskRapidSimilarRequests  = "rapid_similar_requests"
 	TokenAnalysisRiskOversizedSystemPrompt = "oversized_system_prompt"
 	TokenAnalysisRiskToolHeavyShortOutput  = "tool_heavy_short_output"
+	TokenAnalysisRiskLargeToolHistory      = "large_tool_history"
+	TokenAnalysisRiskGiantToolOutput       = "giant_tool_output"
 )
 
 type TokenAnalysisRiskReason struct {
@@ -54,14 +56,17 @@ type TokenAnalysisRequestSummary struct {
 }
 
 type TokenAnalysisBodySummary struct {
-	Model           string         `json:"model"`
-	MessageCount    int            `json:"message_count"`
-	SystemChars     int            `json:"system_chars"`
-	UserChars       int            `json:"user_chars"`
-	LastUserPreview string         `json:"last_user_preview"`
-	ToolsCount      int            `json:"tools_count"`
-	ImageCount      int            `json:"image_count"`
-	SummaryJSON     map[string]any `json:"summary_json"`
+	Model              string         `json:"model"`
+	MessageCount       int            `json:"message_count"`
+	SystemChars        int            `json:"system_chars"`
+	UserChars          int            `json:"user_chars"`
+	LastUserPreview    string         `json:"last_user_preview"`
+	ToolsCount         int            `json:"tools_count"`
+	ImageCount         int            `json:"image_count"`
+	ToolMessageCount   int            `json:"tool_message_count"`
+	ToolOutputBytes    int64          `json:"tool_output_bytes"`
+	MaxToolOutputBytes int64          `json:"max_tool_output_bytes"`
+	SummaryJSON        map[string]any `json:"summary_json"`
 }
 
 type TokenAnalysisUsageSignals struct {
@@ -93,21 +98,21 @@ type TokenAnalysisFilters struct {
 }
 
 type TokenAnalysisSummary struct {
-	TotalRequests       int64   `json:"total_requests"`
-	MatchedRequests     int64   `json:"matched_requests"`
-	UnmatchedRequests   int64   `json:"unmatched_requests"`
-	TotalInputTokens    int64   `json:"total_input_tokens"`
-	TotalOutputTokens   int64   `json:"total_output_tokens"`
-	CacheReadTokens     int64   `json:"cache_read_tokens"`
-	CacheCreationTokens int64   `json:"cache_creation_tokens"`
-	TotalTokens         int64   `json:"total_tokens"`
-	TotalCost           float64 `json:"total_cost"`
-	TotalActualCost     float64 `json:"total_actual_cost"`
-	CacheHitRate        float64 `json:"cache_hit_rate"`
-	RiskyRequests       int64   `json:"risky_requests"`
-	RiskyCost           float64 `json:"risky_cost"`
-	UnmatchedRate       float64 `json:"unmatched_rate"`
-	RiskRequestRate     float64 `json:"risk_request_rate"`
+	TotalRequests       int64                            `json:"total_requests"`
+	MatchedRequests     int64                            `json:"matched_requests"`
+	UnmatchedRequests   int64                            `json:"unmatched_requests"`
+	TotalInputTokens    int64                            `json:"total_input_tokens"`
+	TotalOutputTokens   int64                            `json:"total_output_tokens"`
+	CacheReadTokens     int64                            `json:"cache_read_tokens"`
+	CacheCreationTokens int64                            `json:"cache_creation_tokens"`
+	TotalTokens         int64                            `json:"total_tokens"`
+	TotalCost           float64                          `json:"total_cost"`
+	TotalActualCost     float64                          `json:"total_actual_cost"`
+	CacheHitRate        float64                          `json:"cache_hit_rate"`
+	RiskyRequests       int64                            `json:"risky_requests"`
+	RiskyCost           float64                          `json:"risky_cost"`
+	UnmatchedRate       float64                          `json:"unmatched_rate"`
+	RiskRequestRate     float64                          `json:"risk_request_rate"`
 	RiskReasons         []TokenAnalysisRiskReasonSummary `json:"risk_reasons"`
 }
 

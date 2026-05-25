@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,6 +27,20 @@ func TestTokenAnalysisSummarizeChatCompletionsSanitizesPreview(t *testing.T) {
 	require.Equal(t, 1, got.ToolsCount)
 	require.NotContains(t, got.LastUserPreview, "sk-secret")
 	require.Contains(t, got.LastUserPreview, "[redacted]")
+}
+
+func TestTokenAnalysisSummarizeChatCompletionsToolOutputMetrics(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"run"},{"role":"tool","content":"` + strings.Repeat("x", 2000) + `","tool_call_id":"call_1"}],"tools":[{"type":"function","function":{"name":"read","parameters":{}}}]}`)
+
+	got, err := SummarizeTokenAnalysisRequest("/v1/chat/completions", body, 300)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, got.MessageCount)
+	require.Equal(t, 1, got.ToolMessageCount)
+	require.GreaterOrEqual(t, got.ToolOutputBytes, int64(2000))
+	require.GreaterOrEqual(t, got.MaxToolOutputBytes, int64(2000))
+	require.Equal(t, 1, got.ToolsCount)
+	require.EqualValues(t, 1, got.SummaryJSON["tool_message_count"])
 }
 
 func TestTokenAnalysisSummarizeClaudeMessages(t *testing.T) {
