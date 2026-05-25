@@ -335,7 +335,7 @@ func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) 
 	require.Contains(t, rec.Body.String(), `"finish_reason":"tool_calls"`)
 }
 
-func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *testing.T) {
+func TestHandleChatStreamingResponse_SilentRefusalReasoningOnlyTriggersFailover(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -368,10 +368,13 @@ func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *test
 		time.Now(),
 		openAISilentRefusalMinRequestBodyBytes,
 	)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Contains(t, rec.Body.String(), `"reasoning_content":"thinking only"`)
-	require.Contains(t, rec.Body.String(), "data: [DONE]")
+	require.Nil(t, result)
+	var failoverErr *UpstreamFailoverError
+	require.True(t, errors.As(err, &failoverErr))
+	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
+	require.False(t, c.Writer.Written(), "reasoning-only empty upstream response must not commit a 200 response")
+	require.Empty(t, rec.Body.String())
 }
 
 func TestForwardAsRawChatCompletions_SilentRefusalNormalContentExempt(t *testing.T) {

@@ -31,8 +31,9 @@ type openAIChatSilentRefusalDetector struct {
 }
 
 func newOpenAIChatSilentRefusalDetector(requestBodyLen int) *openAIChatSilentRefusalDetector {
+	_ = requestBodyLen
 	return &openAIChatSilentRefusalDetector{
-		enabled: requestBodyLen >= openAISilentRefusalMinRequestBodyBytes,
+		enabled: true,
 	}
 }
 
@@ -110,7 +111,7 @@ func (d *openAIChatSilentRefusalDetector) ShouldReleaseClientOutput() bool {
 	if d == nil || !d.enabled {
 		return true
 	}
-	if d.sawContent || d.sawToolCall || d.sawFunctionCall || d.sawUsage || d.sawError || d.sawReasoning {
+	if d.sawContent || d.sawToolCall || d.sawFunctionCall || d.sawUsage || d.sawError {
 		return true
 	}
 	return d.sawFinish && d.finishReason != "" && d.finishReason != "stop"
@@ -125,7 +126,6 @@ func (d *openAIChatSilentRefusalDetector) IsSilentRefusal() bool {
 		!d.sawFunctionCall &&
 		!d.sawUsage &&
 		!d.sawError &&
-		!d.sawReasoning &&
 		d.sawFinish &&
 		d.finishReason == "stop"
 }
