@@ -166,6 +166,15 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/image-gen',
+    name: 'ImageGen',
+    component: () => import('@/views/ImageGenView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Image Generation',
+    }
+  },
+  {
     path: '/legal/:documentId',
     name: 'LegalDocument',
     component: () => import('@/views/public/LegalDocumentView.vue'),
@@ -562,6 +571,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/request-intercept',
+    name: 'AdminRequestIntercept',
+    component: () => import('@/views/admin/RequestInterceptView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Request Intercept',
+      titleKey: 'admin.requestIntercept.title',
+      descriptionKey: 'admin.requestIntercept.description'
+    }
+  },
+  {
     path: '/admin/usage',
     name: 'AdminUsage',
     component: () => import('@/views/admin/UsageView.vue'),
@@ -571,6 +592,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Usage Records',
       titleKey: 'admin.usage.title',
       descriptionKey: 'admin.usage.description'
+    }
+  },
+  {
+    path: '/admin/token-analysis',
+    name: 'AdminTokenAnalysis',
+    component: () => import('@/views/admin/TokenAnalysisView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Token Analysis',
+      titleKey: 'admin.tokenAnalysis.title',
+      descriptionKey: 'admin.tokenAnalysis.description'
     }
   },
   {
@@ -689,7 +722,7 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/image-gen', '/setup', '/payment/result', '/payment/airwallex', '/legal']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',

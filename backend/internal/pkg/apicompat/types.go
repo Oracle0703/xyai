@@ -246,6 +246,13 @@ type ResponsesContentPart struct {
 	ImageURL string `json:"image_url,omitempty"` // data URI for input_image
 }
 
+// ResponsesStreamContentPart is used for streaming lifecycle events where
+// OpenAI emits an empty text field to initialize an output_text part.
+type ResponsesStreamContentPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
 // ResponsesTool describes a tool in the Responses API.
 type ResponsesTool struct {
 	Type        string          `json:"type"` // "function" | "web_search" | "local_shell" etc.
@@ -303,6 +310,16 @@ type ResponsesOutput struct {
 
 	// type=web_search_call
 	Action *WebSearchAction `json:"action,omitempty"`
+}
+
+// ResponsesStreamOutputItem is used for streaming output_item lifecycle
+// events where an in-progress message item must carry content: [].
+type ResponsesStreamOutputItem struct {
+	Type    string                       `json:"type"`
+	ID      string                       `json:"id,omitempty"`
+	Role    string                       `json:"role,omitempty"`
+	Content []ResponsesStreamContentPart `json:"content"`
+	Status  string                       `json:"status,omitempty"`
 }
 
 // WebSearchAction describes the search action in a web_search_call output item.
@@ -384,9 +401,17 @@ type ResponsesStreamEvent struct {
 	// response.output_item.added / response.output_item.done
 	Item *ResponsesOutput `json:"item,omitempty"`
 
+	// response.content_part.added / response.content_part.done
+	Part *ResponsesContentPart `json:"part,omitempty"`
+
+	// StreamItem and StreamPart override Item/Part JSON for lifecycle events
+	// that need empty arrays or empty strings preserved.
+	StreamItem *ResponsesStreamOutputItem  `json:"-"`
+	StreamPart *ResponsesStreamContentPart `json:"-"`
+
 	// response.output_text.delta / response.output_text.done
-	OutputIndex  int    `json:"output_index,omitempty"`
-	ContentIndex int    `json:"content_index,omitempty"`
+	OutputIndex  int    `json:"output_index"`
+	ContentIndex int    `json:"content_index"`
 	Delta        string `json:"delta,omitempty"`
 	Text         string `json:"text,omitempty"`
 	ItemID       string `json:"item_id,omitempty"`
@@ -406,6 +431,61 @@ type ResponsesStreamEvent struct {
 
 	// Sequence number for ordering events
 	SequenceNumber int `json:"sequence_number,omitempty"`
+}
+
+func (e ResponsesStreamEvent) MarshalJSON() ([]byte, error) {
+	type responsesStreamEventJSON struct {
+		Type string `json:"type"`
+
+		Response *ResponsesResponse `json:"response,omitempty"`
+		Item     any                `json:"item,omitempty"`
+		Part     any                `json:"part,omitempty"`
+
+		OutputIndex  int    `json:"output_index"`
+		ContentIndex int    `json:"content_index"`
+		Delta        string `json:"delta,omitempty"`
+		Text         string `json:"text,omitempty"`
+		ItemID       string `json:"item_id,omitempty"`
+
+		CallID    string `json:"call_id,omitempty"`
+		Name      string `json:"name,omitempty"`
+		Arguments string `json:"arguments,omitempty"`
+
+		SummaryIndex int `json:"summary_index,omitempty"`
+
+		Code  string `json:"code,omitempty"`
+		Param string `json:"param,omitempty"`
+
+		SequenceNumber int `json:"sequence_number,omitempty"`
+	}
+
+	item := any(e.Item)
+	if e.StreamItem != nil {
+		item = e.StreamItem
+	}
+	part := any(e.Part)
+	if e.StreamPart != nil {
+		part = e.StreamPart
+	}
+
+	return json.Marshal(responsesStreamEventJSON{
+		Type:           e.Type,
+		Response:       e.Response,
+		Item:           item,
+		Part:           part,
+		OutputIndex:    e.OutputIndex,
+		ContentIndex:   e.ContentIndex,
+		Delta:          e.Delta,
+		Text:           e.Text,
+		ItemID:         e.ItemID,
+		CallID:         e.CallID,
+		Name:           e.Name,
+		Arguments:      e.Arguments,
+		SummaryIndex:   e.SummaryIndex,
+		Code:           e.Code,
+		Param:          e.Param,
+		SequenceNumber: e.SequenceNumber,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +508,8 @@ type ChatCompletionsRequest struct {
 	ReasoningEffort     string             `json:"reasoning_effort,omitempty"` // "low" | "medium" | "high" | "xhigh"
 	ServiceTier         string             `json:"service_tier,omitempty"`
 	Stop                json.RawMessage    `json:"stop,omitempty"` // string or []string
+	PromptCacheKey      string             `json:"prompt_cache_key,omitempty"`
+	PreviousResponseID  string             `json:"previous_response_id,omitempty"`
 
 	// Legacy function calling (deprecated but still supported)
 	Functions    []ChatFunction  `json:"functions,omitempty"`

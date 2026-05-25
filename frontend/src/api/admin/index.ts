@@ -15,6 +15,7 @@ import settingsAPI from './settings'
 import systemAPI from './system'
 import subscriptionsAPI from './subscriptions'
 import usageAPI from './usage'
+import tokenAnalysisAPI from './tokenAnalysis'
 import geminiAPI from './gemini'
 import antigravityAPI from './antigravity'
 import userAttributesAPI from './userAttributes'
@@ -31,6 +32,8 @@ import channelMonitorTemplateAPI from './channelMonitorTemplate'
 import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
+import requestInterceptAPI from './requestIntercept'
+import userConcurrencyPresetsAPI from './userConcurrencyPresets'
 
 /**
  * Unified admin API object for convenient access
@@ -48,6 +51,7 @@ export const adminAPI = {
   system: systemAPI,
   subscriptions: subscriptionsAPI,
   usage: usageAPI,
+  tokenAnalysis: tokenAnalysisAPI,
   gemini: geminiAPI,
   antigravity: antigravityAPI,
   userAttributes: userAttributesAPI,
@@ -63,7 +67,9 @@ export const adminAPI = {
   channelMonitorTemplate: channelMonitorTemplateAPI,
   payment: adminPaymentAPI,
   affiliates: affiliatesAPI,
-  riskControl: riskControlAPI
+  riskControl: riskControlAPI,
+  requestIntercept: requestInterceptAPI,
+  userConcurrencyPresets: userConcurrencyPresetsAPI
 }
 
 export {
@@ -79,6 +85,7 @@ export {
   systemAPI,
   subscriptionsAPI,
   usageAPI,
+  tokenAnalysisAPI,
   geminiAPI,
   antigravityAPI,
   userAttributesAPI,
@@ -94,7 +101,9 @@ export {
   channelMonitorTemplateAPI,
   adminPaymentAPI,
   affiliatesAPI,
-  riskControlAPI
+  riskControlAPI,
+  requestInterceptAPI,
+  userConcurrencyPresetsAPI
 }
 
 export default adminAPI
@@ -105,3 +114,4 @@ export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from 
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
+export type { RequestInterceptRule, RequestInterceptNormalization, RequestInterceptMatchMode, RequestInterceptMatchScope, RequestInterceptScope, RequestInterceptTestResponse } from './requestIntercept'

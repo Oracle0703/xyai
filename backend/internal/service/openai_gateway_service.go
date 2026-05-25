@@ -2378,12 +2378,18 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	// Handle max_output_tokens based on platform and account type
 	if !isCodexCLI {
+		useRawChatCompletionsCompat := account.Platform == PlatformOpenAI &&
+			account.Type == AccountTypeAPIKey &&
+			!openai_compat.ShouldUseResponsesAPI(account.Extra)
+
 		if maxOutputTokens, hasMaxOutputTokens := reqBody["max_output_tokens"]; hasMaxOutputTokens {
 			switch account.Platform {
 			case PlatformOpenAI:
-				// For OpenAI API Key, remove max_output_tokens (not supported)
+				// For OpenAI-compatible API keys without /v1/responses support,
+				// preserve max_output_tokens until the Responses -> Chat
+				// Completions fallback maps it to max_completion_tokens.
 				// For OpenAI OAuth (Responses API), keep it (supported)
-				if account.Type == AccountTypeAPIKey {
+				if account.Type == AccountTypeAPIKey && !useRawChatCompletionsCompat {
 					delete(reqBody, "max_output_tokens")
 					bodyModified = true
 					markPatchDelete("max_output_tokens")
@@ -4835,6 +4841,63 @@ func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *OpenAIUsage) {
 	s.parseSSEUsageBytes([]byte(data), usage)
 }
 
+func applyOpenAICompatibleCacheUsageFromJSON(data []byte, usage *OpenAIUsage, usagePath string) {
+	if usage == nil || len(data) == 0 {
+		return
+	}
+	base := strings.TrimSpace(usagePath)
+	if base == "" {
+		base = "usage"
+	}
+	path := func(suffix string) string {
+		return base + "." + suffix
+	}
+
+	cacheCreation := int(gjson.GetBytes(data, path("cache_creation_input_tokens")).Int())
+	if cacheCreation == 0 {
+		cacheCreation5m := int(gjson.GetBytes(data, path("cache_creation.ephemeral_5m_input_tokens")).Int())
+		cacheCreation1h := int(gjson.GetBytes(data, path("cache_creation.ephemeral_1h_input_tokens")).Int())
+		if cacheCreation5m > 0 || cacheCreation1h > 0 {
+			cacheCreation = cacheCreation5m + cacheCreation1h
+		}
+	}
+	usage.CacheCreationInputTokens = cacheCreation
+
+	cacheRead := int(gjson.GetBytes(data, path("cache_read_input_tokens")).Int())
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("prompt_tokens_details.cached_tokens")).Int())
+	}
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("input_tokens_details.cached_tokens")).Int())
+	}
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("cached_tokens")).Int())
+	}
+	usage.CacheReadInputTokens = cacheRead
+}
+
+func applyOpenAICompatibleResponsesUsageDetailsFromJSON(data []byte, usage *apicompat.ResponsesUsage, usagePath string) {
+	if usage == nil {
+		return
+	}
+	compatUsage := OpenAIUsage{}
+	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
+	if compatUsage.CacheReadInputTokens > 0 && (usage.InputTokensDetails == nil || usage.InputTokensDetails.CachedTokens == 0) {
+		usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{CachedTokens: compatUsage.CacheReadInputTokens}
+	}
+}
+
+func applyOpenAICompatibleChatUsageDetailsFromJSON(data []byte, usage *apicompat.ChatUsage, usagePath string) {
+	if usage == nil {
+		return
+	}
+	compatUsage := OpenAIUsage{}
+	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
+	if compatUsage.CacheReadInputTokens > 0 && (usage.PromptTokensDetails == nil || usage.PromptTokensDetails.CachedTokens == 0) {
+		usage.PromptTokensDetails = &apicompat.ChatTokenDetails{CachedTokens: compatUsage.CacheReadInputTokens}
+	}
+}
+
 func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsage) {
 	if usage == nil || len(data) == 0 || bytes.Equal(data, []byte("[DONE]")) {
 		return
@@ -4880,6 +4943,20 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 	if cacheReadTokens == 0 {
 		cacheReadTokens = value.Get("prompt_tokens_details.cached_tokens").Int()
 	}
+	if cacheReadTokens == 0 {
+		cacheReadTokens = value.Get("cache_read_input_tokens").Int()
+	}
+	if cacheReadTokens == 0 {
+		cacheReadTokens = value.Get("cached_tokens").Int()
+	}
+	cacheCreationTokens := value.Get("cache_creation_input_tokens").Int()
+	if cacheCreationTokens == 0 {
+		cacheCreation5m := value.Get("cache_creation.ephemeral_5m_input_tokens").Int()
+		cacheCreation1h := value.Get("cache_creation.ephemeral_1h_input_tokens").Int()
+		if cacheCreation5m > 0 || cacheCreation1h > 0 {
+			cacheCreationTokens = cacheCreation5m + cacheCreation1h
+		}
+	}
 	imageOutputTokens := value.Get("output_tokens_details.image_tokens").Int()
 	if imageOutputTokens == 0 {
 		imageOutputTokens = value.Get("completion_tokens_details.image_tokens").Int()
@@ -4887,7 +4964,7 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 	return OpenAIUsage{
 		InputTokens:              int(inputTokens),
 		OutputTokens:             int(outputTokens),
-		CacheCreationInputTokens: int(value.Get("cache_creation_input_tokens").Int()),
+		CacheCreationInputTokens: int(cacheCreationTokens),
 		CacheReadInputTokens:     int(cacheReadTokens),
 		ImageOutputTokens:        int(imageOutputTokens),
 	}, true
@@ -5511,7 +5588,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			zap.Int64("api_key_id", apiKey.ID),
 			zap.Int64("account_id", account.ID),
 		).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(err))
-		cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
+		cost = zeroCostBreakdown(result)
 	}
 
 	// Determine billing type
@@ -5612,7 +5689,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			tokens, cost.TotalCost,
+			tokens, usageCostTotal(cost),
 		)
 	}
 
@@ -5644,6 +5721,21 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+func zeroCostBreakdown(result *OpenAIForwardResult) *CostBreakdown {
+	billingMode := string(BillingModeToken)
+	if result != nil && result.ImageCount > 0 {
+		billingMode = string(BillingModeImage)
+	}
+	return &CostBreakdown{BillingMode: billingMode}
+}
+
+func usageCostTotal(cost *CostBreakdown) float64 {
+	if cost == nil {
+		return 0
+	}
+	return cost.TotalCost
 }
 
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(

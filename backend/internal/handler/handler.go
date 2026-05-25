@@ -8,6 +8,7 @@ import (
 type AdminHandlers struct {
 	Dashboard              *admin.DashboardHandler
 	User                   *admin.UserHandler
+	UserConcurrencyPreset  *admin.UserConcurrencyPresetHandler
 	Group                  *admin.GroupHandler
 	Account                *admin.AccountHandler
 	Announcement           *admin.AnnouncementHandler
@@ -25,8 +26,10 @@ type AdminHandlers struct {
 	System                 *admin.SystemHandler
 	Subscription           *admin.SubscriptionHandler
 	Usage                  *admin.UsageHandler
+	TokenAnalysis          *admin.TokenAnalysisHandler
 	UserAttribute          *admin.UserAttributeHandler
 	ErrorPassthrough       *admin.ErrorPassthroughHandler
+	RequestIntercept       *admin.RequestInterceptHandler
 	TLSFingerprintProfile  *admin.TLSFingerprintProfileHandler
 	APIKey                 *admin.AdminAPIKeyHandler
 	ScheduledTest          *admin.ScheduledTestHandler

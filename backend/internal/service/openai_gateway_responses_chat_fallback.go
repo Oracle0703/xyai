@@ -54,7 +54,10 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, originalModel)
 	serviceTier := extractOpenAIServiceTierFromBody(body)
 
-	chatReq, err := apicompat.ResponsesToChatCompletionsRequest(&responsesReq)
+	billingModel := resolveOpenAIForwardModel(account, originalModel, "")
+	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+
+	chatReq, err := apicompat.ResponsesToChatCompletionsRequestWithOptions(&responsesReq, openAICompatibleResponsesToChatOptions(account, upstreamModel))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": gin.H{
@@ -64,9 +67,6 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		})
 		return nil, fmt.Errorf("convert responses to chat completions: %w", err)
 	}
-
-	billingModel := resolveOpenAIForwardModel(account, originalModel, "")
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
 	chatReq.Model = upstreamModel
 	if clientStream {
 		chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}
@@ -236,6 +236,9 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 			},
 		})
 		return nil, fmt.Errorf("parse chat completions response: %w", err)
+	}
+	if ccResp.Usage != nil {
+		applyOpenAICompatibleChatUsageDetailsFromJSON(respBody, ccResp.Usage, "usage")
 	}
 	responsesResp := apicompat.ChatCompletionsResponseToResponses(&ccResp, originalModel)
 
@@ -420,6 +423,37 @@ func chatChunkStartsResponsesOutput(chunk *apicompat.ChatCompletionsChunk) bool 
 	for _, choice := range chunk.Choices {
 		if choice.Delta.Content != nil || choice.Delta.ReasoningContent != nil || len(choice.Delta.ToolCalls) > 0 {
 			return true
+		}
+	}
+	return false
+}
+
+func openAICompatibleResponsesToChatOptions(account *Account, upstreamModel string) apicompat.ResponsesToChatCompletionsOptions {
+	return apicompat.ResponsesToChatCompletionsOptions{
+		DropTemperature:         shouldDropOpenAICompatibleResponsesTemperature(account, upstreamModel),
+		DropMaxCompletionTokens: shouldDropOpenAICompatibleMaxCompletionTokens(account, upstreamModel),
+	}
+}
+
+func shouldDropOpenAICompatibleResponsesTemperature(account *Account, upstreamModel string) bool {
+	if account == nil || account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+		return false
+	}
+	if account.Extra != nil {
+		if v, ok := account.Extra["openai_compat_drop_temperature"].(bool); ok {
+			return v
+		}
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(upstreamModel)), "gpt-5.5")
+}
+
+func shouldDropOpenAICompatibleMaxCompletionTokens(account *Account, upstreamModel string) bool {
+	if account == nil || account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+		return false
+	}
+	if account.Extra != nil {
+		if v, ok := account.Extra["openai_compat_drop_max_completion_tokens"].(bool); ok {
+			return v
 		}
 	}
 	return false

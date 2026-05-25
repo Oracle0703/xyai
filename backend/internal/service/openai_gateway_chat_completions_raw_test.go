@@ -121,6 +121,43 @@ func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndPassesUsageDown
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
 }
 
+func TestForwardAsRawChatCompletions_StreamPreservesCompatibleCacheUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":true}`)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"content":"ok"}}]}`,
+		"",
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"prompt_tokens":9,"completion_tokens":4,"total_tokens":13,"cache_read_input_tokens":3,"cache_creation_input_tokens":2,"cached_tokens":99}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_raw_usage_compat"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	account := rawChatCompletionsTestAccount()
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
+	require.Contains(t, rec.Body.String(), `"prompt_tokens_details":{"cached_tokens":3}`)
+}
+
 func TestForwardAsRawChatCompletions_PreservesDeepSeekReasoningContentNonStreaming(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -298,7 +335,7 @@ func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) 
 	require.Contains(t, rec.Body.String(), `"finish_reason":"tool_calls"`)
 }
 
-func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *testing.T) {
+func TestHandleChatStreamingResponse_SilentRefusalReasoningOnlyTriggersFailover(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -331,10 +368,13 @@ func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *test
 		time.Now(),
 		openAISilentRefusalMinRequestBodyBytes,
 	)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Contains(t, rec.Body.String(), `"reasoning_content":"thinking only"`)
-	require.Contains(t, rec.Body.String(), "data: [DONE]")
+	require.Nil(t, result)
+	var failoverErr *UpstreamFailoverError
+	require.True(t, errors.As(err, &failoverErr))
+	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
+	require.False(t, c.Writer.Written(), "reasoning-only empty upstream response must not commit a 200 response")
+	require.Empty(t, rec.Body.String())
 }
 
 func TestForwardAsRawChatCompletions_SilentRefusalNormalContentExempt(t *testing.T) {
@@ -531,6 +571,31 @@ func TestBufferRawChatCompletions_RejectsOversizedResponse(t *testing.T) {
 	require.ErrorIs(t, err, ErrUpstreamResponseBodyTooLarge)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusBadGateway, rec.Code)
+}
+
+func TestBufferRawChatCompletions_CompatibleCacheFieldsFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_raw_cache_compat"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"id":"chatcmpl_compat","object":"chat.completion","model":"gpt-5.4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4,"total_tokens":13,"cache_read_input_tokens":3,"cache_creation_input_tokens":2,"cached_tokens":99}}`,
+		)),
+	}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+
+	result, err := svc.bufferRawChatCompletions(c, resp, "gpt-5.4", "gpt-5.4", "gpt-5.4", nil, nil, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 9, result.Usage.InputTokens)
+	require.Equal(t, 4, result.Usage.OutputTokens)
+	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 2, result.Usage.CacheCreationInputTokens)
+	require.Equal(t, int64(3), gjson.GetBytes(rec.Body.Bytes(), "usage.prompt_tokens_details.cached_tokens").Int())
 }
 
 func rawChatCompletionsTestConfig() *config.Config {

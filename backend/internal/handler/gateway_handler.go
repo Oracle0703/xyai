@@ -1347,6 +1347,12 @@ func (h *GatewayHandler) calculateSubscriptionRemaining(group *service.Group, su
 
 // handleConcurrencyError handles concurrency-related errors with proper 429 response
 func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
+	var cacheErr *service.ConcurrencyCacheError
+	if errors.As(err, &cacheErr) {
+		h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error",
+			"Concurrency service unavailable, please retry later", streamStarted)
+		return
+	}
 	h.handleStreamingAwareError(c, http.StatusTooManyRequests, "rate_limit_error",
 		fmt.Sprintf("Concurrency limit exceeded for %s, please retry later", slotType), streamStarted)
 }

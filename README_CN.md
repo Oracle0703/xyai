@@ -400,6 +400,73 @@ rm -rf data/ postgres_data/ redis_data/
 
 ---
 
+### Windows 本机手动重启记录
+
+如果是在本机 Windows 环境手动运行，而不是 Docker 或 systemd，重启电脑后需要按顺序启动 PostgreSQL、Redis 和 Sub2API 后端。本机当前使用的路径如下：
+
+| 组件 | 路径/地址 |
+|------|-----------|
+| 项目代码 | `E:\allsite\sub2api` |
+| PostgreSQL 程序 | `E:\tools\pgsql\pgsql\bin\pg_ctl.exe` |
+| PostgreSQL 数据目录 | `E:\tools\pgdata` |
+| PostgreSQL 日志 | `E:\tools\pg.log` |
+| Redis 程序 | `E:\tools\redis\redis-server.exe` |
+| Sub2API 数据目录 | `E:\tools\sub2api-data` |
+| Sub2API 配置文件 | `E:\tools\sub2api-data\config.yaml` |
+| 访问地址 | `http://127.0.0.1:8080` |
+
+#### 重启步骤
+
+在 PowerShell 中执行：
+
+```powershell
+# 1. 启动 PostgreSQL
+E:\tools\pgsql\pgsql\bin\pg_ctl.exe start -D E:\tools\pgdata -l E:\tools\pg.log
+
+# 2. 启动 Redis（如果 6379 已经通，可以跳过）
+Start-Process -WindowStyle Hidden -FilePath "E:\tools\redis\redis-server.exe"
+
+# 3. 启动 Sub2API 后端
+Start-Process -FilePath cmd.exe -WindowStyle Hidden -WorkingDirectory "E:\allsite\sub2api\backend" -ArgumentList '/c','set "DATA_DIR=E:\tools\sub2api-data" && go run ./cmd/server > E:\tmp\sub2api-runtime.log 2>&1'
+```
+
+#### 检查是否启动成功
+
+```powershell
+# 检查 PostgreSQL
+Test-NetConnection 127.0.0.1 -Port 5432
+
+# 检查 Redis
+Test-NetConnection 127.0.0.1 -Port 6379
+
+# 检查 Sub2API
+Test-NetConnection 127.0.0.1 -Port 8080
+Invoke-RestMethod -Uri "http://127.0.0.1:8080/health"
+```
+
+如果健康检查返回：
+
+```json
+{"status":"ok"}
+```
+
+说明服务已恢复。默认本机管理员账号：
+
+| 邮箱 | 密码 |
+|------|------|
+| `admin@sub2api.local` | `admin123` |
+
+#### 常见问题
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| `dial tcp 127.0.0.1:5432 ... refused` | PostgreSQL 没有启动 | 先执行 PostgreSQL 启动命令 |
+| 打开网页进入首次安装向导 | 后端启动时没有设置正确的 `DATA_DIR` | 用上面的第 3 步命令重新启动后端 |
+| API 返回 404 | 可能启动了安装向导模式，或 8080 被其他进程占用 | 停掉错误的 8080 进程后，用正确 `DATA_DIR` 重启 |
+| 数据不见了 | 通常是连到了空数据库或错误配置目录 | 确认使用 `E:\tools\pgdata` 和 `E:\tools\sub2api-data` |
+
+---
+
 ### 方式三：源码编译
 
 从源码编译安装，适合开发或定制需求。

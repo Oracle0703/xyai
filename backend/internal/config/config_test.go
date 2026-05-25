@@ -178,6 +178,66 @@ func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultGatewayRequestArchiveConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Gateway.RequestArchive.Enabled)
+	require.Equal(t, "data/request-archive", cfg.Gateway.RequestArchive.Dir)
+	require.Equal(t, int64(8*1024*1024), cfg.Gateway.RequestArchive.MaxRequestBodyBytes)
+	require.Equal(t, int64(2*1024*1024), cfg.Gateway.RequestArchive.MaxResponseBodyBytes)
+	require.True(t, cfg.Gateway.RequestArchive.CaptureResponse)
+}
+
+func TestLoadDefaultGatewayLargeRequestConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	lr := cfg.Gateway.LargeRequest
+	require.True(t, lr.Enabled)
+	require.Equal(t, "warn", lr.Mode)
+	require.Equal(t, int64(1048576), lr.BodyThresholdBytes)
+	require.Equal(t, int64(524288), lr.ToolTotalThresholdBytes)
+	require.Equal(t, int64(131072), lr.NormalToolThresholdBytes)
+	require.Equal(t, int64(524288), lr.GiantToolThresholdBytes)
+	require.Equal(t, 20, lr.RecentToolKeep)
+	require.Equal(t, 6, lr.AbsoluteRecentToolKeep)
+	require.Equal(t, int64(921600), lr.TargetBodyBytes)
+	require.Equal(t, 8000, lr.HeadChars)
+	require.Equal(t, 8000, lr.TailChars)
+	require.Empty(t, lr.EnabledUserIDs)
+	require.Empty(t, lr.EnabledAPIKeyIDs)
+	require.Empty(t, lr.EnabledGroupIDs)
+	require.True(t, lr.AutoPromptCacheKey)
+}
+
+func TestLoadDefaultTokenAnalysisConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.TokenAnalysis.IndexEnabled)
+	require.Equal(t, 1000, cfg.TokenAnalysis.IndexBatchSize)
+	require.Equal(t, 300, cfg.TokenAnalysis.MaxPreviewChars)
+	require.Equal(t, 300, cfg.TokenAnalysis.AutoIndexIntervalSeconds)
+	require.Equal(t, 10, cfg.TokenAnalysis.UsageMatchWindowSeconds)
+}
+
+func TestLoadDefaultGatewayRequestInterceptConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Gateway.RequestIntercept.Enabled)
+	require.Equal(t, "config/request_intercept_rules.yaml", cfg.Gateway.RequestIntercept.RulesFile)
+}
+
 func TestLoadDefaultIdempotencyConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
 

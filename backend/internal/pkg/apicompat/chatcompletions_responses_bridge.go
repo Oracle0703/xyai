@@ -7,41 +7,6 @@ import (
 	"time"
 )
 
-// ResponsesToChatCompletionsRequest converts a Responses API request into a
-// Chat Completions request for upstreams that only implement
-// /v1/chat/completions.
-func ResponsesToChatCompletionsRequest(req *ResponsesRequest) (*ChatCompletionsRequest, error) {
-	if req == nil {
-		return nil, fmt.Errorf("responses request is nil")
-	}
-
-	messages, err := responsesInputToChatMessages(req.Instructions, req.Input)
-	if err != nil {
-		return nil, err
-	}
-
-	out := &ChatCompletionsRequest{
-		Model:               req.Model,
-		Messages:            messages,
-		MaxCompletionTokens: req.MaxOutputTokens,
-		Temperature:         req.Temperature,
-		TopP:                req.TopP,
-		Stream:              req.Stream,
-		ServiceTier:         req.ServiceTier,
-	}
-	if req.Reasoning != nil {
-		out.ReasoningEffort = req.Reasoning.Effort
-	}
-	if len(req.Tools) > 0 {
-		out.Tools = responsesToolsToChatTools(req.Tools)
-	}
-	if len(req.ToolChoice) > 0 {
-		out.ToolChoice = responsesToolChoiceToChatToolChoice(req.ToolChoice)
-	}
-
-	return out, nil
-}
-
 func responsesInputToChatMessages(instructions string, inputRaw json.RawMessage) ([]ChatMessage, error) {
 	var messages []ChatMessage
 	if strings.TrimSpace(instructions) != "" {
@@ -122,7 +87,7 @@ func responsesInputToChatMessages(instructions string, inputRaw json.RawMessage)
 			messages = append(messages, ChatMessage{Role: "user", Content: content})
 			continue
 		case "input_image":
-			content, err := chatContentFromSingleResponsesPart(itemType, item)
+			content, err := bridgeSingleResponsesPartToChatContent(itemType, item)
 			if err != nil {
 				return nil, err
 			}
@@ -136,7 +101,7 @@ func responsesInputToChatMessages(instructions string, inputRaw json.RawMessage)
 				content, _ = json.Marshal(text)
 			}
 		}
-		chatContent, err := responsesContentToChatContent(content, role)
+		chatContent, err := bridgeResponsesContentToChatContent(content, role)
 		if err != nil {
 			return nil, err
 		}
@@ -157,14 +122,13 @@ func chatCompletionsBridgeRole(role string) string {
 	if strings.EqualFold(trimmed, "developer") {
 		return "system"
 	}
-	return role
+	return trimmed
 }
 
-func responsesContentToChatContent(raw json.RawMessage, role string) (json.RawMessage, error) {
+func bridgeResponsesContentToChatContent(raw json.RawMessage, role string) (json.RawMessage, error) {
 	raw = bytesTrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
-		empty, _ := json.Marshal("")
-		return empty, nil
+		return json.Marshal("")
 	}
 
 	var text string
@@ -174,18 +138,18 @@ func responsesContentToChatContent(raw json.RawMessage, role string) (json.RawMe
 
 	var rawParts []json.RawMessage
 	if err := json.Unmarshal(raw, &rawParts); err == nil {
-		return responsesContentPartsToChatContent(rawParts, role)
+		return bridgeResponsesContentPartsToChatContent(rawParts, role)
 	}
 
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &obj); err == nil {
-		return chatContentFromSingleResponsesPart(rawString(obj["type"]), obj)
+		return bridgeSingleResponsesPartToChatContent(rawString(obj["type"]), obj)
 	}
 
 	return raw, nil
 }
 
-func responsesContentPartsToChatContent(rawParts []json.RawMessage, role string) (json.RawMessage, error) {
+func bridgeResponsesContentPartsToChatContent(rawParts []json.RawMessage, role string) (json.RawMessage, error) {
 	var textParts []string
 	var chatParts []ChatContentPart
 	hasNonText := false
@@ -220,22 +184,16 @@ func responsesContentPartsToChatContent(rawParts []json.RawMessage, role string)
 		}
 	}
 
-	if !hasNonText {
-		joined, _ := json.Marshal(strings.Join(textParts, "\n\n"))
-		return joined, nil
-	}
-	if role != "user" {
-		joined, _ := json.Marshal(strings.Join(textParts, "\n\n"))
-		return joined, nil
+	if !hasNonText || role != "user" {
+		return json.Marshal(strings.Join(textParts, "\n\n"))
 	}
 	if len(chatParts) == 0 {
-		empty, _ := json.Marshal("")
-		return empty, nil
+		return json.Marshal("")
 	}
 	return json.Marshal(chatParts)
 }
 
-func chatContentFromSingleResponsesPart(partType string, part map[string]json.RawMessage) (json.RawMessage, error) {
+func bridgeSingleResponsesPartToChatContent(partType string, part map[string]json.RawMessage) (json.RawMessage, error) {
 	switch partType {
 	case "input_image", "image_url":
 		imageURL := rawString(part["image_url"])
@@ -249,52 +207,6 @@ func chatContentFromSingleResponsesPart(partType string, part map[string]json.Ra
 	default:
 		return json.Marshal(rawString(part["text"]))
 	}
-}
-
-func responsesToolsToChatTools(tools []ResponsesTool) []ChatTool {
-	out := make([]ChatTool, 0, len(tools))
-	for _, tool := range tools {
-		if tool.Type != "function" {
-			continue
-		}
-		out = append(out, ChatTool{
-			Type: "function",
-			Function: &ChatFunction{
-				Name:        tool.Name,
-				Description: tool.Description,
-				Parameters:  tool.Parameters,
-				Strict:      tool.Strict,
-			},
-		})
-	}
-	return out
-}
-
-func responsesToolChoiceToChatToolChoice(raw json.RawMessage) json.RawMessage {
-	var choice map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &choice); err != nil {
-		return raw
-	}
-	if rawString(choice["type"]) != "function" {
-		return raw
-	}
-	name := rawString(choice["name"])
-	if name == "" {
-		name = rawNestedString(choice["function"], "name")
-	}
-	if name == "" {
-		return raw
-	}
-	out, err := json.Marshal(map[string]any{
-		"type": "function",
-		"function": map[string]string{
-			"name": name,
-		},
-	})
-	if err != nil {
-		return raw
-	}
-	return out
 }
 
 // ChatCompletionsResponseToResponses converts a non-streaming Chat Completions
@@ -455,6 +367,7 @@ type ChatCompletionsToResponsesStreamState struct {
 
 	FinishReason string
 	Usage        *ResponsesUsage
+	ContentOpen  bool
 }
 
 // NewChatCompletionsToResponsesStreamState returns an initialized stream state.
@@ -492,6 +405,7 @@ func ChatCompletionsChunkToResponsesEvents(
 	for _, choice := range chunk.Choices {
 		if choice.Delta.Content != nil {
 			events = append(events, ensureChatToResponsesMessageItem(state)...)
+			events = append(events, ensureChatToResponsesContentPart(state)...)
 			_, _ = state.Text.WriteString(*choice.Delta.Content)
 			events = append(events, chatToResponsesEvent(state, "response.output_text.delta", &ResponsesStreamEvent{
 				OutputIndex:  0,
@@ -572,12 +486,28 @@ func FinalizeChatCompletionsResponsesStream(state *ChatCompletionsToResponsesStr
 			Text:         state.Text.String(),
 			ItemID:       state.MessageItemID,
 		}))
+		if state.ContentOpen {
+			events = append(events, chatToResponsesEvent(state, "response.content_part.done", &ResponsesStreamEvent{
+				OutputIndex:  0,
+				ContentIndex: 0,
+				ItemID:       state.MessageItemID,
+				Part: &ResponsesContentPart{
+					Type: "output_text",
+					Text: state.Text.String(),
+				},
+			}))
+			state.ContentOpen = false
+		}
 		events = append(events, chatToResponsesEvent(state, "response.output_item.done", &ResponsesStreamEvent{
 			OutputIndex: 0,
-			Item: &ResponsesOutput{
-				Type:   "message",
-				ID:     state.MessageItemID,
-				Role:   "assistant",
+			StreamItem: &ResponsesStreamOutputItem{
+				Type: "message",
+				ID:   state.MessageItemID,
+				Role: "assistant",
+				Content: []ResponsesStreamContentPart{{
+					Type: "output_text",
+					Text: state.Text.String(),
+				}},
 				Status: "completed",
 			},
 		}))
@@ -625,14 +555,31 @@ func ensureChatToResponsesMessageItem(state *ChatCompletionsToResponsesStreamSta
 	if state.MessageItemID != "" {
 		return nil
 	}
-	state.MessageItemID = generateItemID()
+	state.MessageItemID = "item_msg_0"
 	return []ResponsesStreamEvent{chatToResponsesEvent(state, "response.output_item.added", &ResponsesStreamEvent{
 		OutputIndex: 0,
-		Item: &ResponsesOutput{
-			Type:   "message",
-			ID:     state.MessageItemID,
-			Role:   "assistant",
-			Status: "in_progress",
+		StreamItem: &ResponsesStreamOutputItem{
+			Type:    "message",
+			ID:      state.MessageItemID,
+			Role:    "assistant",
+			Content: []ResponsesStreamContentPart{},
+			Status:  "in_progress",
+		},
+	})}
+}
+
+func ensureChatToResponsesContentPart(state *ChatCompletionsToResponsesStreamState) []ResponsesStreamEvent {
+	if state.ContentOpen {
+		return nil
+	}
+	state.ContentOpen = true
+	return []ResponsesStreamEvent{chatToResponsesEvent(state, "response.content_part.added", &ResponsesStreamEvent{
+		OutputIndex:  0,
+		ContentIndex: 0,
+		ItemID:       state.MessageItemID,
+		StreamPart: &ResponsesStreamContentPart{
+			Type: "output_text",
+			Text: "",
 		},
 	})}
 }

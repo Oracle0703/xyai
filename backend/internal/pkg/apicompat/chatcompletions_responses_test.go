@@ -8,6 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func mustJSONString(t *testing.T, raw json.RawMessage) string {
+	t.Helper()
+	var out string
+	require.NoError(t, json.Unmarshal(raw, &out))
+	return out
+}
+
 // ---------------------------------------------------------------------------
 // ChatCompletionsToResponses tests
 // ---------------------------------------------------------------------------
@@ -30,6 +37,20 @@ func TestChatCompletionsToResponses_BasicText(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Input, &items))
 	require.Len(t, items, 1)
 	assert.Equal(t, "user", items[0].Role)
+}
+
+func TestChatCompletionsToResponses_PromptCacheKey(t *testing.T) {
+	req := &ChatCompletionsRequest{
+		Model:          "gpt-5.5",
+		PromptCacheKey: "pcache_test_key",
+		Messages: []ChatMessage{
+			{Role: "user", Content: json.RawMessage(`"hello"`)},
+		},
+	}
+
+	resp, err := ChatCompletionsToResponses(req)
+	require.NoError(t, err)
+	require.Equal(t, "pcache_test_key", resp.PromptCacheKey)
 }
 
 func TestChatCompletionsToResponses_SystemMessage(t *testing.T) {
@@ -661,6 +682,101 @@ func TestResponsesToChatCompletions_CachedTokens(t *testing.T) {
 	require.NotNil(t, chat.Usage)
 	require.NotNil(t, chat.Usage.PromptTokensDetails)
 	assert.Equal(t, 80, chat.Usage.PromptTokensDetails.CachedTokens)
+}
+
+func TestResponsesToChatCompletionsRequest_BasicText(t *testing.T) {
+	req := &ResponsesRequest{
+		Model:        "glm-5.1",
+		Instructions: "be precise",
+		Stream:       true,
+		Input:        json.RawMessage(`[{"role":"user","content":"hello"}]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Equal(t, "glm-5.1", chatReq.Model)
+	require.True(t, chatReq.Stream)
+	require.Len(t, chatReq.Messages, 2)
+	require.Equal(t, "system", chatReq.Messages[0].Role)
+	require.Equal(t, "be precise", mustJSONString(t, chatReq.Messages[0].Content))
+	require.Equal(t, "user", chatReq.Messages[1].Role)
+	require.Equal(t, "hello", mustJSONString(t, chatReq.Messages[1].Content))
+	require.NotNil(t, chatReq.StreamOptions)
+	require.True(t, chatReq.StreamOptions.IncludeUsage)
+}
+
+func TestResponsesToChatCompletionsRequest_NonStreamDoesNotSetStreamOptions(t *testing.T) {
+	req := &ResponsesRequest{
+		Model:  "glm-5.1",
+		Stream: false,
+		Input:  json.RawMessage(`[{"role":"user","content":"hello"}]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Nil(t, chatReq.StreamOptions)
+}
+
+func TestResponsesToChatCompletionsRequest_FunctionCallAndToolOutput(t *testing.T) {
+	req := &ResponsesRequest{
+		Model: "glm-5.1",
+		Input: json.RawMessage(`[
+			{"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{\"q\":\"hi\"}"},
+			{"type":"function_call_output","call_id":"call_1","output":"{\"result\":\"ok\"}"}
+		]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+	require.Equal(t, "assistant", chatReq.Messages[0].Role)
+	require.Len(t, chatReq.Messages[0].ToolCalls, 1)
+	require.Equal(t, "call_1", chatReq.Messages[0].ToolCalls[0].ID)
+	require.Equal(t, "lookup", chatReq.Messages[0].ToolCalls[0].Function.Name)
+	require.Equal(t, `{"q":"hi"}`, chatReq.Messages[0].ToolCalls[0].Function.Arguments)
+	require.Equal(t, "tool", chatReq.Messages[1].Role)
+	require.Equal(t, "call_1", chatReq.Messages[1].ToolCallID)
+	require.Equal(t, `{"result":"ok"}`, mustJSONString(t, chatReq.Messages[1].Content))
+}
+
+func TestResponsesToChatCompletionsRequest_DirectInputParts(t *testing.T) {
+	req := &ResponsesRequest{
+		Model: "glm-5.1",
+		Input: json.RawMessage(`[
+			{"type":"input_text","text":"describe"},
+			{"type":"input_image","image_url":"data:image/png;base64,aGVsbG8="}
+		]`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+	require.Len(t, chatReq.Messages, 2)
+	require.Equal(t, "describe", mustJSONString(t, chatReq.Messages[0].Content))
+
+	var parts []ChatContentPart
+	require.NoError(t, json.Unmarshal(chatReq.Messages[1].Content, &parts))
+	require.Len(t, parts, 1)
+	require.Equal(t, "image_url", parts[0].Type)
+	require.NotNil(t, parts[0].ImageURL)
+	require.Equal(t, "data:image/png;base64,aGVsbG8=", parts[0].ImageURL.URL)
+}
+
+func TestResponsesToChatCompletionsRequest_NormalizesLegacyFunctionToolChoice(t *testing.T) {
+	req := &ResponsesRequest{
+		Model:      "glm-5.1",
+		Input:      json.RawMessage(`"hello"`),
+		ToolChoice: json.RawMessage(`{"type":"function","name":"lookup"}`),
+	}
+
+	chatReq, err := ResponsesToChatCompletionsRequest(req)
+	require.NoError(t, err)
+
+	var choice map[string]any
+	require.NoError(t, json.Unmarshal(chatReq.ToolChoice, &choice))
+	require.Equal(t, "function", choice["type"])
+	fn, ok := choice["function"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "lookup", fn["name"])
 }
 
 func TestResponsesToChatCompletions_WebSearch(t *testing.T) {

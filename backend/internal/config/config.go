@@ -86,6 +86,7 @@ type Config struct {
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
+	TokenAnalysis           TokenAnalysisConfig           `mapstructure:"token_analysis"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -675,6 +676,24 @@ const (
 	ImageConcurrencyOverflowModeWait   = "wait"
 )
 
+type GatewayLargeRequestConfig struct {
+	Enabled                  bool    `mapstructure:"enabled"`
+	Mode                     string  `mapstructure:"mode"`
+	BodyThresholdBytes       int64   `mapstructure:"body_threshold_bytes"`
+	ToolTotalThresholdBytes  int64   `mapstructure:"tool_total_threshold_bytes"`
+	NormalToolThresholdBytes int64   `mapstructure:"normal_tool_threshold_bytes"`
+	GiantToolThresholdBytes  int64   `mapstructure:"giant_tool_threshold_bytes"`
+	RecentToolKeep           int     `mapstructure:"recent_tool_keep"`
+	AbsoluteRecentToolKeep   int     `mapstructure:"absolute_recent_tool_keep"`
+	TargetBodyBytes          int64   `mapstructure:"target_body_bytes"`
+	HeadChars                int     `mapstructure:"head_chars"`
+	TailChars                int     `mapstructure:"tail_chars"`
+	EnabledUserIDs           []int64 `mapstructure:"enabled_user_ids"`
+	EnabledAPIKeyIDs         []int64 `mapstructure:"enabled_api_key_ids"`
+	EnabledGroupIDs          []int64 `mapstructure:"enabled_group_ids"`
+	AutoPromptCacheKey       bool    `mapstructure:"auto_prompt_cache_key"`
+}
+
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
 	// 等待上游响应头的超时时间（秒），0表示无超时
@@ -709,6 +728,8 @@ type GatewayConfig struct {
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// ImageConcurrency: 图片生成独立并发限制配置（默认关闭）
 	ImageConcurrency ImageConcurrencyConfig `mapstructure:"image_concurrency"`
+	// LargeRequest: 大请求观测与历史 tool 输出压缩配置（默认只观测）。
+	LargeRequest GatewayLargeRequestConfig `mapstructure:"large_request"`
 
 	// HTTP 上游连接池配置（性能优化：支持高并发场景调优）
 	// MaxIdleConns: 所有主机的最大空闲连接总数
@@ -783,6 +804,32 @@ type GatewayConfig struct {
 	// UserMessageQueue: 用户消息串行队列配置
 	// 对 role:"user" 的真实用户消息实施账号级串行化 + RPM 自适应延迟
 	UserMessageQueue UserMessageQueueConfig `mapstructure:"user_message_queue"`
+	// RequestArchive: 本地请求/响应归档配置，默认关闭，仅用于内部小范围排查。
+	RequestArchive GatewayRequestArchiveConfig `mapstructure:"request_archive"`
+	// RequestIntercept: 请求拦截配置，规则文件由安全人员独立维护。
+	RequestIntercept GatewayRequestInterceptConfig `mapstructure:"request_intercept"`
+}
+
+// GatewayRequestArchiveConfig 本地请求/响应归档配置。
+type GatewayRequestArchiveConfig struct {
+	// Enabled: 是否启用本地归档，默认关闭。
+	Enabled bool `mapstructure:"enabled"`
+	// Dir: JSONL 文件输出目录。
+	Dir string `mapstructure:"dir"`
+	// MaxRequestBodyBytes: 单条请求体最多保存字节数，超出后截断。
+	MaxRequestBodyBytes int64 `mapstructure:"max_request_body_bytes"`
+	// MaxResponseBodyBytes: 单条响应体最多保存字节数，超出后截断。
+	MaxResponseBodyBytes int64 `mapstructure:"max_response_body_bytes"`
+	// CaptureResponse: 是否捕获返回给用户的响应体。
+	CaptureResponse bool `mapstructure:"capture_response"`
+}
+
+// GatewayRequestInterceptConfig 请求拦截配置。
+type GatewayRequestInterceptConfig struct {
+	// Enabled: 是否启用请求拦截。
+	Enabled bool `mapstructure:"enabled"`
+	// RulesFile: YAML 规则文件路径，空或不存在时不拦截。
+	RulesFile string `mapstructure:"rules_file"`
 }
 
 // UserMessageQueueConfig 用户消息串行队列配置
@@ -1285,6 +1332,14 @@ type UsageCleanupConfig struct {
 	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
 }
 
+type TokenAnalysisConfig struct {
+	IndexEnabled             bool `mapstructure:"index_enabled"`
+	IndexBatchSize           int  `mapstructure:"index_batch_size"`
+	MaxPreviewChars          int  `mapstructure:"max_preview_chars"`
+	AutoIndexIntervalSeconds int  `mapstructure:"auto_index_interval_seconds"`
+	UsageMatchWindowSeconds  int  `mapstructure:"usage_match_window_seconds"`
+}
+
 func NormalizeRunMode(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
@@ -1731,6 +1786,12 @@ func setDefaults() {
 	viper.SetDefault("usage_cleanup.worker_interval_seconds", 10)
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
 
+	viper.SetDefault("token_analysis.index_enabled", true)
+	viper.SetDefault("token_analysis.index_batch_size", 1000)
+	viper.SetDefault("token_analysis.max_preview_chars", 300)
+	viper.SetDefault("token_analysis.auto_index_interval_seconds", 300)
+	viper.SetDefault("token_analysis.usage_match_window_seconds", 10)
+
 	// Idempotency
 	viper.SetDefault("idempotency.observe_only", true)
 	viper.SetDefault("idempotency.default_ttl_seconds", 86400)
@@ -1752,6 +1813,13 @@ func setDefaults() {
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
+	viper.SetDefault("gateway.request_archive.enabled", true)
+	viper.SetDefault("gateway.request_archive.dir", "data/request-archive")
+	viper.SetDefault("gateway.request_archive.max_request_body_bytes", int64(8*1024*1024))
+	viper.SetDefault("gateway.request_archive.max_response_body_bytes", int64(2*1024*1024))
+	viper.SetDefault("gateway.request_archive.capture_response", true)
+	viper.SetDefault("gateway.request_intercept.enabled", true)
+	viper.SetDefault("gateway.request_intercept.rules_file", "config/request_intercept_rules.yaml")
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）
 	viper.SetDefault("gateway.openai_ws.enabled", true)
 	viper.SetDefault("gateway.openai_ws.mode_router_v2_enabled", false)
@@ -1803,6 +1871,21 @@ func setDefaults() {
 	viper.SetDefault("gateway.image_concurrency.overflow_mode", ImageConcurrencyOverflowModeReject)
 	viper.SetDefault("gateway.image_concurrency.wait_timeout_seconds", 30)
 	viper.SetDefault("gateway.image_concurrency.max_waiting_requests", 100)
+	viper.SetDefault("gateway.large_request.enabled", true)
+	viper.SetDefault("gateway.large_request.mode", "warn")
+	viper.SetDefault("gateway.large_request.body_threshold_bytes", int64(1048576))
+	viper.SetDefault("gateway.large_request.tool_total_threshold_bytes", int64(524288))
+	viper.SetDefault("gateway.large_request.normal_tool_threshold_bytes", int64(131072))
+	viper.SetDefault("gateway.large_request.giant_tool_threshold_bytes", int64(524288))
+	viper.SetDefault("gateway.large_request.recent_tool_keep", 20)
+	viper.SetDefault("gateway.large_request.absolute_recent_tool_keep", 6)
+	viper.SetDefault("gateway.large_request.target_body_bytes", int64(921600))
+	viper.SetDefault("gateway.large_request.head_chars", 8000)
+	viper.SetDefault("gateway.large_request.tail_chars", 8000)
+	viper.SetDefault("gateway.large_request.enabled_user_ids", []int64{})
+	viper.SetDefault("gateway.large_request.enabled_api_key_ids", []int64{})
+	viper.SetDefault("gateway.large_request.enabled_group_ids", []int64{})
+	viper.SetDefault("gateway.large_request.auto_prompt_cache_key", true)
 	viper.SetDefault("gateway.antigravity_fallback_cooldown_minutes", 1)
 	viper.SetDefault("gateway.antigravity_extra_retries", 10)
 	viper.SetDefault("gateway.max_body_size", int64(256*1024*1024))
@@ -2335,6 +2418,18 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("usage_cleanup.task_timeout_seconds must be non-negative")
 		}
 	}
+	if c.TokenAnalysis.IndexBatchSize <= 0 {
+		return fmt.Errorf("token_analysis.index_batch_size must be positive")
+	}
+	if c.TokenAnalysis.MaxPreviewChars <= 0 || c.TokenAnalysis.MaxPreviewChars > 2000 {
+		return fmt.Errorf("token_analysis.max_preview_chars must be between 1 and 2000")
+	}
+	if c.TokenAnalysis.AutoIndexIntervalSeconds < 0 {
+		return fmt.Errorf("token_analysis.auto_index_interval_seconds must be non-negative")
+	}
+	if c.TokenAnalysis.UsageMatchWindowSeconds <= 0 || c.TokenAnalysis.UsageMatchWindowSeconds > 120 {
+		return fmt.Errorf("token_analysis.usage_match_window_seconds must be between 1 and 120")
+	}
 	if c.Idempotency.DefaultTTLSeconds <= 0 {
 		return fmt.Errorf("idempotency.default_ttl_seconds must be positive")
 	}
@@ -2387,6 +2482,37 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.ImageConcurrency.MaxWaitingRequests < 0 {
 		return fmt.Errorf("gateway.image_concurrency.max_waiting_requests must be non-negative")
+	}
+	largeRequestMode := strings.TrimSpace(c.Gateway.LargeRequest.Mode)
+	if largeRequestMode == "" {
+		largeRequestMode = "warn"
+	}
+	switch largeRequestMode {
+	case "off", "warn", "tool_output_compact":
+		c.Gateway.LargeRequest.Mode = largeRequestMode
+	default:
+		return fmt.Errorf("gateway.large_request.mode must be one of off, warn, tool_output_compact")
+	}
+	if c.Gateway.LargeRequest.BodyThresholdBytes <= 0 {
+		return fmt.Errorf("gateway.large_request.body_threshold_bytes must be positive")
+	}
+	if c.Gateway.LargeRequest.ToolTotalThresholdBytes <= 0 {
+		return fmt.Errorf("gateway.large_request.tool_total_threshold_bytes must be positive")
+	}
+	if c.Gateway.LargeRequest.NormalToolThresholdBytes <= 0 {
+		return fmt.Errorf("gateway.large_request.normal_tool_threshold_bytes must be positive")
+	}
+	if c.Gateway.LargeRequest.GiantToolThresholdBytes < c.Gateway.LargeRequest.NormalToolThresholdBytes {
+		return fmt.Errorf("gateway.large_request.giant_tool_threshold_bytes must be >= normal_tool_threshold_bytes")
+	}
+	if c.Gateway.LargeRequest.AbsoluteRecentToolKeep < 0 || c.Gateway.LargeRequest.RecentToolKeep < 0 {
+		return fmt.Errorf("gateway.large_request recent keep values must be non-negative")
+	}
+	if c.Gateway.LargeRequest.AbsoluteRecentToolKeep > c.Gateway.LargeRequest.RecentToolKeep {
+		return fmt.Errorf("gateway.large_request.absolute_recent_tool_keep must be <= recent_tool_keep")
+	}
+	if c.Gateway.LargeRequest.HeadChars <= 0 || c.Gateway.LargeRequest.TailChars <= 0 {
+		return fmt.Errorf("gateway.large_request head_chars and tail_chars must be positive")
 	}
 	if c.Gateway.MaxIdleConns <= 0 {
 		return fmt.Errorf("gateway.max_idle_conns must be positive")

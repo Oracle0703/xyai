@@ -8,7 +8,7 @@
       <textarea
         :id="id"
         ref="textAreaRef"
-        :value="modelValue"
+        :value="textareaValue"
         :disabled="disabled"
         :required="required"
         :placeholder="placeholderText"
@@ -67,6 +67,7 @@ const emit = defineEmits<{
 
 const textAreaRef = ref<HTMLTextAreaElement | null>(null)
 const placeholderText = computed(() => props.placeholder || '')
+const textareaValue = computed(() => props.modelValue ?? '')
 
 const onInput = (event: Event) => {
   const value = (event.target as HTMLTextAreaElement).value

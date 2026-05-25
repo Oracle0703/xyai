@@ -1,0 +1,17 @@
+version: 1
+
+rules:
+  - id: greeting
+    match: exact
+    keywords:
+      - hi
+      - hello
+      - 你好
+      - 您好
+    reply: 你好，我是迅游AI，有什么可以帮助你？
+
+  - id: policy
+    match: contains
+    keywords:
+      - 台独
+    reply: 你的问题超出法律规定，请问一些其他的。

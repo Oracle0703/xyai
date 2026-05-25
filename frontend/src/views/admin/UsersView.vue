@@ -229,6 +229,14 @@
                 <Icon name="cog" size="sm" class="md:mr-1.5" />
                 <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
               </button>
+              <button
+                @click="showConcurrencyPresetsModal = true"
+                class="btn btn-secondary px-2 md:px-3"
+                title="并发方案"
+              >
+                <Icon name="arrowsUpDown" size="sm" class="md:mr-1.5" />
+                <span class="hidden md:inline">并发方案</span>
+              </button>
             </div>
 
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
@@ -708,6 +716,7 @@
     <UserBalanceHistoryModal :show="showBalanceHistoryModal" :user="balanceHistoryUser" @close="closeBalanceHistoryModal" @deposit="handleDepositFromHistory" @withdraw="handleWithdrawFromHistory" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
+    <UserConcurrencyPresetsDialog :show="showConcurrencyPresetsModal" @close="showConcurrencyPresetsModal = false" @applied="loadUsers" />
   </AppLayout>
 </template>
 
@@ -743,6 +752,7 @@ import UserAllowedGroupsModal from '@/components/admin/user/UserAllowedGroupsMod
 import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
+import UserConcurrencyPresetsDialog from '@/components/admin/user/UserConcurrencyPresetsDialog.vue'
 
 const appStore = useAppStore()
 
@@ -1201,6 +1211,7 @@ const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
+const showConcurrencyPresetsModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
 const viewingUser = ref<AdminUser | null>(null)

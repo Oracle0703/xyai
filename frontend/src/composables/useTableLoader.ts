@@ -1,4 +1,4 @@
-import { ref, reactive, onUnmounted, toRaw } from 'vue'
+import { shallowRef, ref, reactive, onUnmounted, toRaw } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import type { BasePaginationResponse, FetchOptions } from '@/types'
 import { getPersistedPageSize, setPersistedPageSize } from './usePersistedPageSize'
@@ -24,7 +24,7 @@ interface TableLoaderOptions<T, P> {
 export function useTableLoader<T, P extends Record<string, any>>(options: TableLoaderOptions<T, P>) {
   const { fetchFn, initialParams, pageSize, debounceMs = 300 } = options
 
-  const items = ref<T[]>([])
+  const items = shallowRef<T[]>([])
   const loading = ref(false)
   const params = reactive<P>({ ...(initialParams || {}) } as P)
   const pagination = reactive<PaginationState>({

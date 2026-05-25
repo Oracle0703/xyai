@@ -159,6 +159,10 @@ func TestAcquireAccountSlot_CacheError(t *testing.T) {
 	result, err := svc.AcquireAccountSlot(context.Background(), 1, 5)
 	require.Error(t, err)
 	require.Nil(t, result)
+
+	var cacheErr *ConcurrencyCacheError
+	require.ErrorAs(t, err, &cacheErr)
+	require.Equal(t, "account", cacheErr.SlotType)
 }
 
 func TestAcquireAccountSlot_ReleaseDecrements(t *testing.T) {
@@ -195,6 +199,19 @@ func TestAcquireUserSlot_UnlimitedConcurrency(t *testing.T) {
 	result, err := svc.AcquireUserSlot(context.Background(), 1, 0)
 	require.NoError(t, err)
 	require.True(t, result.Acquired)
+}
+
+func TestAcquireUserSlot_CacheError(t *testing.T) {
+	cache := &stubConcurrencyCacheForTest{acquireErr: errors.New("redis down")}
+	svc := NewConcurrencyService(cache)
+
+	result, err := svc.AcquireUserSlot(context.Background(), 1, 5)
+	require.Error(t, err)
+	require.Nil(t, result)
+
+	var cacheErr *ConcurrencyCacheError
+	require.ErrorAs(t, err, &cacheErr)
+	require.Equal(t, "user", cacheErr.SlotType)
 }
 
 func TestGenerateRequestID_UsesStablePrefixAndMonotonicCounter(t *testing.T) {

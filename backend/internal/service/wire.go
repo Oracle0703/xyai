@@ -363,6 +363,23 @@ func ProvideScheduledTestRunnerService(
 	return svc
 }
 
+// ProvideUserConcurrencyPresetService creates UserConcurrencyPresetService.
+func ProvideUserConcurrencyPresetService(
+	repo UserConcurrencyPresetRepository,
+	userRepo UserRepository,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	cfg *config.Config,
+) *UserConcurrencyPresetService {
+	return NewUserConcurrencyPresetService(repo, userRepo, authCacheInvalidator, cfg)
+}
+
+// ProvideUserConcurrencyPresetRunner creates and starts UserConcurrencyPresetRunner.
+func ProvideUserConcurrencyPresetRunner(svc *UserConcurrencyPresetService) *UserConcurrencyPresetRunner {
+	runner := NewUserConcurrencyPresetRunner(svc)
+	runner.Start()
+	return runner
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -450,6 +467,7 @@ var ProviderSet = wire.NewSet(
 	NewRedeemService,
 	NewPromoService,
 	NewUsageService,
+	NewTokenAnalysisService,
 	NewDashboardService,
 	ProvidePricingService,
 	NewBillingService,
@@ -477,6 +495,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
+	NewRequestInterceptRulesService,
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,
@@ -518,6 +537,8 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideUserConcurrencyPresetService,
+	ProvideUserConcurrencyPresetRunner,
 	NewGroupCapacityService,
 	NewChannelService,
 	NewModelPricingResolver,

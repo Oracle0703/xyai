@@ -736,6 +736,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/risk-control', label: t('nav.riskControl'), icon: ShieldIcon, hideInSimpleMode: true, featureFlag: flagRiskControl },
+    { path: '/admin/request-intercept', label: t('nav.requestIntercept'), icon: ShieldIcon, hideInSimpleMode: true },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     {
@@ -764,7 +765,8 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
       ],
     },
-    { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }
+    { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
+    { path: '/admin/token-analysis', label: t('nav.tokenAnalysis'), icon: ChartIcon, hideInSimpleMode: true }
   ]
 
   const visible = applyFeatureFlags(baseItems)

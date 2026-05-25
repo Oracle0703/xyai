@@ -311,6 +311,11 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
 			if trimmedPayload != "[DONE]" {
+				normalizedPayload := normalizeOpenAICompatibleChatUsageJSON([]byte(payload), "usage")
+				if len(normalizedPayload) > 0 {
+					payload = string(normalizedPayload)
+					line = "data: " + payload
+				}
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
@@ -411,10 +416,28 @@ func extractCCStreamUsage(payload string) *OpenAIUsage {
 		InputTokens:  int(gjson.Get(payload, "usage.prompt_tokens").Int()),
 		OutputTokens: int(gjson.Get(payload, "usage.completion_tokens").Int()),
 	}
-	if cached := gjson.Get(payload, "usage.prompt_tokens_details.cached_tokens"); cached.Exists() {
-		u.CacheReadInputTokens = int(cached.Int())
-	}
+	applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &u, "usage")
 	return &u
+}
+
+func normalizeOpenAICompatibleChatUsageJSON(data []byte, usagePath string) []byte {
+	if len(data) == 0 {
+		return data
+	}
+	compatUsage := OpenAIUsage{}
+	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
+	if compatUsage.CacheReadInputTokens <= 0 {
+		return data
+	}
+	detailsPath := usagePath + ".prompt_tokens_details.cached_tokens"
+	if gjson.GetBytes(data, detailsPath).Int() > 0 {
+		return data
+	}
+	updated, err := sjson.SetBytes(data, detailsPath, compatUsage.CacheReadInputTokens)
+	if err != nil {
+		return data
+	}
+	return updated
 }
 
 // bufferRawChatCompletions 透传上游 CC 非流式 JSON 响应。
@@ -437,6 +460,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		}
 		return nil, fmt.Errorf("read upstream body: %w", err)
 	}
+	respBody = normalizeOpenAICompatibleChatUsageJSON(respBody, "usage")
 
 	var ccResp apicompat.ChatCompletionsResponse
 	var usage OpenAIUsage
@@ -445,9 +469,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 			InputTokens:  ccResp.Usage.PromptTokens,
 			OutputTokens: ccResp.Usage.CompletionTokens,
 		}
-		if ccResp.Usage.PromptTokensDetails != nil {
-			usage.CacheReadInputTokens = ccResp.Usage.PromptTokensDetails.CachedTokens
-		}
+		applyOpenAICompatibleCacheUsageFromJSON(respBody, &usage, "usage")
 	}
 
 	if s.responseHeaderFilter != nil {

@@ -70,12 +70,14 @@ var ProviderSet = wire.NewSet(
 	NewAccountRepository,
 	NewScheduledTestPlanRepository,   // 定时测试计划仓储
 	NewScheduledTestResultRepository, // 定时测试结果仓储
+	NewUserConcurrencyPresetRepository,
 	NewProxyRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
 	NewAnnouncementRepository,
 	NewAnnouncementReadRepository,
 	NewUsageLogRepository,
+	NewTokenAnalysisRepository,
 	NewUsageBillingRepository,
 	NewIdempotencyRepository,
 	NewUsageCleanupRepository,
@@ -193,6 +195,6 @@ func ProvideSQLDB(client *ent.Client) (*sql.DB, error) {
 //
 // 依赖：config.Config
 // 提供：*redis.Client
-func ProvideRedis(cfg *config.Config) *redis.Client {
+func ProvideRedis(cfg *config.Config) (*redis.Client, error) {
 	return InitRedis(cfg)
 }

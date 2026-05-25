@@ -71,11 +71,17 @@ func RegisterAdminRoutes(
 		// 使用记录管理
 		registerUsageRoutes(admin, h)
 
+		// Token 分析
+		registerTokenAnalysisRoutes(admin, h)
+
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
 
 		// 错误透传规则管理
 		registerErrorPassthroughRoutes(admin, h)
+
+		// 请求拦截规则管理
+		registerRequestInterceptRoutes(admin, h)
 
 		// TLS 指纹模板管理
 		registerTLSFingerprintProfileRoutes(admin, h)
@@ -97,6 +103,17 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+	}
+}
+
+func registerTokenAnalysisRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	tokenAnalysis := admin.Group("/token-analysis")
+	{
+		tokenAnalysis.GET("/summary", h.Admin.TokenAnalysis.Summary)
+		tokenAnalysis.GET("/users", h.Admin.TokenAnalysis.Users)
+		tokenAnalysis.GET("/requests", h.Admin.TokenAnalysis.Requests)
+		tokenAnalysis.POST("/index", h.Admin.TokenAnalysis.TriggerIndex)
+		tokenAnalysis.GET("/index/status", h.Admin.TokenAnalysis.IndexStatus)
 	}
 }
 
@@ -229,6 +246,15 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	users := admin.Group("/users")
 	{
 		users.GET("", h.Admin.User.List)
+		presets := users.Group("/concurrency-presets")
+		{
+			presets.GET("", h.Admin.UserConcurrencyPreset.List)
+			presets.POST("", h.Admin.UserConcurrencyPreset.Create)
+			presets.PUT("/:id", h.Admin.UserConcurrencyPreset.Update)
+			presets.DELETE("/:id", h.Admin.UserConcurrencyPreset.Delete)
+			presets.POST("/:id/apply", h.Admin.UserConcurrencyPreset.Apply)
+			presets.GET("/:id/runs", h.Admin.UserConcurrencyPreset.ListRuns)
+		}
 		users.GET("/:id", h.Admin.User.GetByID)
 		users.POST("/:id/auth-identities", h.Admin.User.BindAuthIdentity)
 		users.POST("", h.Admin.User.Create)
@@ -572,6 +598,19 @@ func registerErrorPassthroughRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 		rules.POST("", h.Admin.ErrorPassthrough.Create)
 		rules.PUT("/:id", h.Admin.ErrorPassthrough.Update)
 		rules.DELETE("/:id", h.Admin.ErrorPassthrough.Delete)
+	}
+}
+
+func registerRequestInterceptRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	rules := admin.Group("/request-intercept")
+	{
+		rules.GET("/config", h.Admin.RequestIntercept.Config)
+		rules.PUT("/config", h.Admin.RequestIntercept.UpdateConfig)
+		rules.GET("/rules", h.Admin.RequestIntercept.List)
+		rules.PUT("/rules", h.Admin.RequestIntercept.SaveAll)
+		rules.PUT("/rules/:id", h.Admin.RequestIntercept.Upsert)
+		rules.DELETE("/rules/:id", h.Admin.RequestIntercept.Delete)
+		rules.POST("/test", h.Admin.RequestIntercept.Test)
 	}
 }
 

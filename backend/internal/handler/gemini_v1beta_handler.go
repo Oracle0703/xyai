@@ -233,7 +233,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	userReleaseFunc, err := geminiConcurrency.AcquireUserSlotWithWait(c, authSubject.UserID, authSubject.Concurrency, stream, &streamStarted)
 	if err != nil {
 		reqLog.Warn("gemini.user_slot_acquire_failed", zap.Error(err))
-		googleError(c, http.StatusTooManyRequests, err.Error())
+		googleConcurrencyError(c, err)
 		return
 	}
 	if waitCounted {
@@ -457,7 +457,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			)
 			if err != nil {
 				reqLog.Warn("gemini.account_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-				googleError(c, http.StatusTooManyRequests, err.Error())
+				googleConcurrencyError(c, err)
 				return
 			}
 			if accountWaitCounted {
@@ -653,6 +653,15 @@ func googleError(c *gin.Context, status int, message string) {
 			"status":  googleapi.HTTPStatusToGoogleStatus(status),
 		},
 	})
+}
+
+func googleConcurrencyError(c *gin.Context, err error) {
+	var cacheErr *service.ConcurrencyCacheError
+	if errors.As(err, &cacheErr) {
+		googleError(c, http.StatusServiceUnavailable, "Concurrency service unavailable, please retry later")
+		return
+	}
+	googleError(c, http.StatusTooManyRequests, err.Error())
 }
 
 func writeUpstreamResponse(c *gin.Context, res *service.UpstreamHTTPResult) {

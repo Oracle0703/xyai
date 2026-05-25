@@ -1,7 +1,11 @@
 package repository
 
 import (
+	"context"
 	"crypto/tls"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -20,8 +24,15 @@ import (
 // 1. PoolSize: 控制最大并发连接数（默认 128）
 // 2. MinIdleConns: 保持最小空闲连接，减少冷启动延迟（默认 10）
 // 3. DialTimeout/ReadTimeout/WriteTimeout: 精确控制各阶段超时
-func InitRedis(cfg *config.Config) *redis.Client {
-	return redis.NewClient(buildRedisOptions(cfg))
+func InitRedis(cfg *config.Config) (*redis.Client, error) {
+	rdb := redis.NewClient(buildRedisOptions(cfg))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Redis.DialTimeoutSeconds)*time.Second)
+	defer cancel()
+	if err := validateRedisServerVersion(ctx, rdb, ""); err != nil {
+		_ = rdb.Close()
+		return nil, err
+	}
+	return rdb, nil
 }
 
 // buildRedisOptions 构建 Redis 连接选项
@@ -46,4 +57,72 @@ func buildRedisOptions(cfg *config.Config) *redis.Options {
 	}
 
 	return opts
+}
+
+func validateRedisServerVersion(ctx context.Context, rdb *redis.Client, versionOverride string) error {
+	version := strings.TrimSpace(versionOverride)
+	if version == "" {
+		info, err := rdb.Info(ctx, "server").Result()
+		if err != nil {
+			return fmt.Errorf("check Redis server version: %w", err)
+		}
+		return validateRedisServerInfo(ctx, rdb, info)
+	}
+	if version == "" {
+		return fmt.Errorf("check Redis server version: missing redis_version in INFO server")
+	}
+	if redisMajorVersion(version) < 7 {
+		return fmt.Errorf("Redis 7+ is required, current Redis version is %s", version)
+	}
+	return nil
+}
+
+func validateRedisServerInfo(_ context.Context, _ *redis.Client, info string) error {
+	version := redisInfoValue(info, "redis_version")
+	if version != "" {
+		if redisMajorVersion(version) < 7 {
+			return fmt.Errorf("Redis 7+ is required, current Redis version is %s", version)
+		}
+		return nil
+	}
+	memuraiVersion := redisInfoValue(info, "memurai_version")
+	if memuraiVersion != "" {
+		return nil
+	}
+	return fmt.Errorf("check Redis server version: missing redis_version in INFO server")
+}
+
+func redisVersionFromInfo(info string) string {
+	return redisInfoValue(info, "redis_version")
+}
+
+func redisInfoValue(info, name string) string {
+	for _, line := range strings.Split(info, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, name+":") {
+			return strings.TrimSpace(strings.TrimPrefix(line, name+":"))
+		}
+	}
+	return ""
+}
+
+func redisMajorVersion(version string) int {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return 0
+	}
+	for i, r := range version {
+		if r < '0' || r > '9' {
+			if i == 0 {
+				return 0
+			}
+			version = version[:i]
+			break
+		}
+	}
+	major, err := strconv.Atoi(version)
+	if err != nil {
+		return 0
+	}
+	return major
 }
