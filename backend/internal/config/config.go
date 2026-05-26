@@ -87,6 +87,7 @@ type Config struct {
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	TokenAnalysis           TokenAnalysisConfig           `mapstructure:"token_analysis"`
+	PromptMetrics           PromptMetricsConfig           `mapstructure:"prompt_metrics"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -1340,6 +1341,15 @@ type TokenAnalysisConfig struct {
 	UsageMatchWindowSeconds  int  `mapstructure:"usage_match_window_seconds"`
 }
 
+type PromptMetricsConfig struct {
+	Enabled             bool  `mapstructure:"enabled"`
+	StoreFullText       bool  `mapstructure:"store_full_text"`
+	MaxPromptBytes      int64 `mapstructure:"max_prompt_bytes"`
+	WorkerCount         int   `mapstructure:"worker_count"`
+	QueueSize           int   `mapstructure:"queue_size"`
+	WriteTimeoutSeconds int   `mapstructure:"write_timeout_seconds"`
+}
+
 func NormalizeRunMode(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
@@ -1791,6 +1801,12 @@ func setDefaults() {
 	viper.SetDefault("token_analysis.max_preview_chars", 300)
 	viper.SetDefault("token_analysis.auto_index_interval_seconds", 300)
 	viper.SetDefault("token_analysis.usage_match_window_seconds", 10)
+	viper.SetDefault("prompt_metrics.enabled", true)
+	viper.SetDefault("prompt_metrics.store_full_text", false)
+	viper.SetDefault("prompt_metrics.max_prompt_bytes", int64(256*1024))
+	viper.SetDefault("prompt_metrics.worker_count", 4)
+	viper.SetDefault("prompt_metrics.queue_size", 1024)
+	viper.SetDefault("prompt_metrics.write_timeout_seconds", 3)
 
 	// Idempotency
 	viper.SetDefault("idempotency.observe_only", true)
@@ -2429,6 +2445,18 @@ func (c *Config) Validate() error {
 	}
 	if c.TokenAnalysis.UsageMatchWindowSeconds <= 0 || c.TokenAnalysis.UsageMatchWindowSeconds > 120 {
 		return fmt.Errorf("token_analysis.usage_match_window_seconds must be between 1 and 120")
+	}
+	if c.PromptMetrics.MaxPromptBytes <= 0 {
+		return fmt.Errorf("prompt_metrics.max_prompt_bytes must be positive")
+	}
+	if c.PromptMetrics.WorkerCount <= 0 {
+		return fmt.Errorf("prompt_metrics.worker_count must be positive")
+	}
+	if c.PromptMetrics.QueueSize <= 0 {
+		return fmt.Errorf("prompt_metrics.queue_size must be positive")
+	}
+	if c.PromptMetrics.WriteTimeoutSeconds <= 0 {
+		return fmt.Errorf("prompt_metrics.write_timeout_seconds must be positive")
 	}
 	if c.Idempotency.DefaultTTLSeconds <= 0 {
 		return fmt.Errorf("idempotency.default_ttl_seconds must be positive")

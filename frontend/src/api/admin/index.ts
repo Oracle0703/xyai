@@ -34,6 +34,7 @@ import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import requestInterceptAPI from './requestIntercept'
 import userConcurrencyPresetsAPI from './userConcurrencyPresets'
+import promptMetricsAPI from './promptMetrics'
 
 /**
  * Unified admin API object for convenient access
@@ -69,7 +70,8 @@ export const adminAPI = {
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   requestIntercept: requestInterceptAPI,
-  userConcurrencyPresets: userConcurrencyPresetsAPI
+  userConcurrencyPresets: userConcurrencyPresetsAPI,
+  promptMetrics: promptMetricsAPI
 }
 
 export {
@@ -103,7 +105,8 @@ export {
   affiliatesAPI,
   riskControlAPI,
   requestInterceptAPI,
-  userConcurrencyPresetsAPI
+  userConcurrencyPresetsAPI,
+  promptMetricsAPI
 }
 
 export default adminAPI
