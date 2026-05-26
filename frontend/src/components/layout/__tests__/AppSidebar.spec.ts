@@ -30,3 +30,10 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar navigation entries', () => {
+  it('links to the image generation page from the personal navigation', () => {
+    expect(componentSource).toContain("path: '/image-gen'")
+    expect(componentSource).toContain("label: t('nav.imageGeneration')")
+  })
+})
