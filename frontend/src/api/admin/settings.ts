@@ -253,6 +253,7 @@ export function appendAuthSourceDefaultsToUpdateRequest(
     subscriptions: [],
     grant_on_signup: false,
     grant_on_first_bind: false,
+    platform_quotas: normalizePlatformQuotasMap(),
   };
 
   for (const source of AUTH_SOURCE_TYPES) {
