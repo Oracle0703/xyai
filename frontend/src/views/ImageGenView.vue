@@ -517,10 +517,10 @@ function handleSourceImagePaste(event: ClipboardEvent): void {
 }
 
 function setSourceImage(file: File | null): void {
-  errorMessage.value = ''
   if (!file) {
     return
   }
+  errorMessage.value = ''
   if (!file.type.startsWith('image/')) {
     errorMessage.value = '请选择图片文件'
     return
@@ -659,6 +659,9 @@ function restoreHistory(item: HistoryItem): void {
   prompt.value = item.prompt
   size.value = item.size
   generationMode.value = item.mode || 'generate'
+  // 历史记录不保存原图，restore 后清掉残留的上传，避免切回 edit 时出现
+  // 与当前历史不匹配的上次会话的原图。
+  clearSourceImage()
   results.value = item.images.map((src, index) => ({
     id: `${item.id}-${index}`,
     src,

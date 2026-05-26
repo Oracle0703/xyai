@@ -918,8 +918,8 @@
     }
 
     function setSourceImage(file) {
-      setStatus('', '');
       if (!file) return;
+      setStatus('', '');
       if (!file.type || !file.type.startsWith('image/')) {
         setStatus('请选择图片文件', 'error');
         return;
@@ -1076,6 +1076,9 @@
       els.prompt.value = item.prompt;
       els.size.value = item.size;
       setMode(item.mode === 'edit' ? 'edit' : 'generate');
+      // 历史记录不保存原图，restore 后清掉残留的上传，
+      // 避免切回 edit 时出现上次会话的原图。
+      clearSourceImage();
       currentResults = item.images.map((src, index) => ({
         id: `${item.id}-${index}`,
         src,
