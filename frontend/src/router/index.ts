@@ -607,6 +607,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/prompt-metrics',
+    name: 'AdminPromptMetrics',
+    component: () => import('@/views/admin/PromptMetricsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Prompt Metrics',
+      titleKey: 'admin.promptMetrics.title',
+      descriptionKey: 'admin.promptMetrics.description'
+    }
+  },
+  {
     path: '/admin/affiliates',
     redirect: '/admin/affiliates/invites'
   },

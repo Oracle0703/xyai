@@ -87,6 +87,7 @@ type Config struct {
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	TokenAnalysis           TokenAnalysisConfig           `mapstructure:"token_analysis"`
+	PromptMetrics           PromptMetricsConfig           `mapstructure:"prompt_metrics"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
@@ -644,6 +645,12 @@ type ProxyProbeConfig struct {
 
 type BillingConfig struct {
 	CircuitBreaker CircuitBreakerConfig `mapstructure:"circuit_breaker"`
+	// UserPlatformQuotaCacheTTLSeconds 用户 × 平台 quota 缓存 TTL（秒），默认 86400=1天，覆盖典型 daily 窗口。
+	// 消费点：
+	//   - billing_cache_service.cacheWriteWorker 异步累加
+	//   - billing_cache_service.checkUserPlatformQuotaEligibility 首次缓存装载
+	// 读写两端必须共用同一 TTL，避免缓存生命周期不一致导致 quota 计数漂移。
+	UserPlatformQuotaCacheTTLSeconds int `mapstructure:"user_platform_quota_cache_ttl_seconds"`
 }
 
 type CircuitBreakerConfig struct {
@@ -699,6 +706,9 @@ type GatewayConfig struct {
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
+	// OpenAIResponseHeaderTimeout: OpenAI/Codex 上游等待响应头的超时时间（秒），0表示无超时
+	// OpenAI/Codex 请求可能在上游排队较久；默认不使用通用响应头超时截断。
+	OpenAIResponseHeaderTimeout int `mapstructure:"openai_response_header_timeout"`
 	// 请求体最大字节数，用于网关请求体大小限制
 	MaxBodySize int64 `mapstructure:"max_body_size"`
 	// 非流式上游响应体读取上限（字节），用于防止无界读取导致内存放大
@@ -726,6 +736,8 @@ type GatewayConfig struct {
 	OpenAIPassthroughAllowTimeoutHeaders bool `mapstructure:"openai_passthrough_allow_timeout_headers"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
+	// OpenAIHTTP2: OpenAI HTTP 上游协议策略（默认启用 HTTP/2，可按代理能力回退 HTTP/1.1）
+	OpenAIHTTP2 GatewayOpenAIHTTP2Config `mapstructure:"openai_http2"`
 	// ImageConcurrency: 图片生成独立并发限制配置（默认关闭）
 	ImageConcurrency ImageConcurrencyConfig `mapstructure:"image_concurrency"`
 	// LargeRequest: 大请求观测与历史 tool 输出压缩配置（默认只观测）。
@@ -830,6 +842,21 @@ type GatewayRequestInterceptConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 	// RulesFile: YAML 规则文件路径，空或不存在时不拦截。
 	RulesFile string `mapstructure:"rules_file"`
+}
+
+// GatewayOpenAIHTTP2Config OpenAI HTTP 上游协议配置。
+// 默认启用 HTTP/2；在部分代理不兼容时按策略回退 HTTP/1.1。
+type GatewayOpenAIHTTP2Config struct {
+	// Enabled: 是否启用 OpenAI HTTP/2 优先策略
+	Enabled bool `mapstructure:"enabled"`
+	// AllowProxyFallbackToHTTP1: HTTP/HTTPS 代理出现明确 H2 兼容错误时，临时回退 HTTP/1.1
+	AllowProxyFallbackToHTTP1 bool `mapstructure:"allow_proxy_fallback_to_http1"`
+	// FallbackErrorThreshold: 回退窗口内累计多少次兼容错误后触发回退
+	FallbackErrorThreshold int `mapstructure:"fallback_error_threshold"`
+	// FallbackWindowSeconds: 统计兼容错误的时间窗口（秒）
+	FallbackWindowSeconds int `mapstructure:"fallback_window_seconds"`
+	// FallbackTTLSeconds: 触发后回退 HTTP/1.1 的持续时间（秒）
+	FallbackTTLSeconds int `mapstructure:"fallback_ttl_seconds"`
 }
 
 // UserMessageQueueConfig 用户消息串行队列配置
@@ -1340,6 +1367,15 @@ type TokenAnalysisConfig struct {
 	UsageMatchWindowSeconds  int  `mapstructure:"usage_match_window_seconds"`
 }
 
+type PromptMetricsConfig struct {
+	Enabled             bool  `mapstructure:"enabled"`
+	StoreFullText       bool  `mapstructure:"store_full_text"`
+	MaxPromptBytes      int64 `mapstructure:"max_prompt_bytes"`
+	WorkerCount         int   `mapstructure:"worker_count"`
+	QueueSize           int   `mapstructure:"queue_size"`
+	WriteTimeoutSeconds int   `mapstructure:"write_timeout_seconds"`
+}
+
 func NormalizeRunMode(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
@@ -1599,6 +1635,7 @@ func setDefaults() {
 	viper.SetDefault("billing.circuit_breaker.failure_threshold", 5)
 	viper.SetDefault("billing.circuit_breaker.reset_timeout_seconds", 30)
 	viper.SetDefault("billing.circuit_breaker.half_open_requests", 3)
+	viper.SetDefault("billing.user_platform_quota_cache_ttl_seconds", 86400)
 
 	// Turnstile
 	viper.SetDefault("turnstile.required", false)
@@ -1791,6 +1828,12 @@ func setDefaults() {
 	viper.SetDefault("token_analysis.max_preview_chars", 300)
 	viper.SetDefault("token_analysis.auto_index_interval_seconds", 300)
 	viper.SetDefault("token_analysis.usage_match_window_seconds", 10)
+	viper.SetDefault("prompt_metrics.enabled", true)
+	viper.SetDefault("prompt_metrics.store_full_text", false)
+	viper.SetDefault("prompt_metrics.max_prompt_bytes", int64(256*1024))
+	viper.SetDefault("prompt_metrics.worker_count", 4)
+	viper.SetDefault("prompt_metrics.queue_size", 1024)
+	viper.SetDefault("prompt_metrics.write_timeout_seconds", 3)
 
 	// Idempotency
 	viper.SetDefault("idempotency.observe_only", true)
@@ -1804,6 +1847,7 @@ func setDefaults() {
 
 	// Gateway
 	viper.SetDefault("gateway.response_header_timeout", 600) // 600秒(10分钟)等待上游响应头，LLM高负载时可能排队较久
+	viper.SetDefault("gateway.openai_response_header_timeout", 0)
 	viper.SetDefault("gateway.log_upstream_error_body", true)
 	viper.SetDefault("gateway.log_upstream_error_body_max_bytes", 2048)
 	viper.SetDefault("gateway.inject_beta_for_apikey", false)
@@ -1866,6 +1910,12 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.queue", 0.7)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.error_rate", 0.8)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 0.5)
+	// OpenAI HTTP upstream protocol strategy
+	viper.SetDefault("gateway.openai_http2.enabled", true)
+	viper.SetDefault("gateway.openai_http2.allow_proxy_fallback_to_http1", true)
+	viper.SetDefault("gateway.openai_http2.fallback_error_threshold", 2)
+	viper.SetDefault("gateway.openai_http2.fallback_window_seconds", 60)
+	viper.SetDefault("gateway.openai_http2.fallback_ttl_seconds", 600)
 	viper.SetDefault("gateway.image_concurrency.enabled", false)
 	viper.SetDefault("gateway.image_concurrency.max_concurrent_requests", 0)
 	viper.SetDefault("gateway.image_concurrency.overflow_mode", ImageConcurrencyOverflowModeReject)
@@ -2430,6 +2480,18 @@ func (c *Config) Validate() error {
 	if c.TokenAnalysis.UsageMatchWindowSeconds <= 0 || c.TokenAnalysis.UsageMatchWindowSeconds > 120 {
 		return fmt.Errorf("token_analysis.usage_match_window_seconds must be between 1 and 120")
 	}
+	if c.PromptMetrics.MaxPromptBytes <= 0 {
+		return fmt.Errorf("prompt_metrics.max_prompt_bytes must be positive")
+	}
+	if c.PromptMetrics.WorkerCount <= 0 {
+		return fmt.Errorf("prompt_metrics.worker_count must be positive")
+	}
+	if c.PromptMetrics.QueueSize <= 0 {
+		return fmt.Errorf("prompt_metrics.queue_size must be positive")
+	}
+	if c.PromptMetrics.WriteTimeoutSeconds <= 0 {
+		return fmt.Errorf("prompt_metrics.write_timeout_seconds must be positive")
+	}
 	if c.Idempotency.DefaultTTLSeconds <= 0 {
 		return fmt.Errorf("idempotency.default_ttl_seconds must be positive")
 	}
@@ -2459,6 +2521,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.ProxyProbeResponseReadMaxBytes <= 0 {
 		return fmt.Errorf("gateway.proxy_probe_response_read_max_bytes must be positive")
+	}
+	if c.Gateway.ResponseHeaderTimeout < 0 {
+		return fmt.Errorf("gateway.response_header_timeout must be non-negative")
+	}
+	if c.Gateway.OpenAIResponseHeaderTimeout < 0 {
+		return fmt.Errorf("gateway.openai_response_header_timeout must be non-negative")
 	}
 	if strings.TrimSpace(c.Gateway.ConnectionPoolIsolation) != "" {
 		switch c.Gateway.ConnectionPoolIsolation {
@@ -2664,6 +2732,15 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds < 0 {
 		return fmt.Errorf("gateway.openai_ws.sticky_previous_response_ttl_seconds must be non-negative")
+	}
+	if c.Gateway.OpenAIHTTP2.FallbackErrorThreshold < 0 {
+		return fmt.Errorf("gateway.openai_http2.fallback_error_threshold must be non-negative")
+	}
+	if c.Gateway.OpenAIHTTP2.FallbackWindowSeconds < 0 {
+		return fmt.Errorf("gateway.openai_http2.fallback_window_seconds must be non-negative")
+	}
+	if c.Gateway.OpenAIHTTP2.FallbackTTLSeconds < 0 {
+		return fmt.Errorf("gateway.openai_http2.fallback_ttl_seconds must be non-negative")
 	}
 	if c.Gateway.OpenAIWS.SchedulerScoreWeights.Priority < 0 ||
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.Load < 0 ||
