@@ -53,6 +53,8 @@ Navigation sidebar with user and admin sections.
   - Accounts
   - Proxies
   - Redeem Codes
+  - Prompt Metrics
+- Simple mode hides navigation items marked with `hideInSimpleMode`, including Prompt Metrics.
 - Collapsible sidebar with toggle button
 - Active route highlighting
 - Icons using HTML entities

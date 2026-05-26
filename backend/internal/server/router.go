@@ -11,6 +11,7 @@ import (
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/server/routes"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/service/promptmetrics"
 	"github.com/Wei-Shaw/sub2api/internal/web"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,7 @@ func SetupRouter(
 	subscriptionService *service.SubscriptionService,
 	opsService *service.OpsService,
 	settingService *service.SettingService,
+	promptMetrics *promptmetrics.Extension,
 	cfg *config.Config,
 	redisClient *redis.Client,
 ) *gin.Engine {
@@ -60,6 +62,9 @@ func SetupRouter(
 		}
 		return nil
 	}))
+	if promptMetrics != nil {
+		r.Use(promptMetrics.CaptureMiddleware())
+	}
 
 	// Serve embedded frontend with settings injection if available
 	if web.HasEmbeddedFrontend() {
@@ -81,7 +86,7 @@ func SetupRouter(
 	}
 
 	// 注册路由
-	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient)
+	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, promptMetrics, cfg, redisClient)
 
 	return r
 }
@@ -97,6 +102,7 @@ func registerRoutes(
 	subscriptionService *service.SubscriptionService,
 	opsService *service.OpsService,
 	settingService *service.SettingService,
+	promptMetrics *promptmetrics.Extension,
 	cfg *config.Config,
 	redisClient *redis.Client,
 ) {
@@ -110,8 +116,22 @@ func registerRoutes(
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, redisClient, settingService)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, settingService)
 	routes.RegisterAdminRoutes(v1, h, adminAuth)
+	registerPromptMetricsAdminRoutes(v1, adminAuth, promptMetrics)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg)
 	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, settingService)
 
 	handler.RegisterPageRoutes(v1, cfg.Pricing.DataDir, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth), settingService)
+}
+
+func registerPromptMetricsAdminRoutes(
+	v1 *gin.RouterGroup,
+	adminAuth middleware2.AdminAuthMiddleware,
+	promptMetrics *promptmetrics.Extension,
+) {
+	if promptMetrics == nil {
+		return
+	}
+	admin := v1.Group("/admin")
+	admin.Use(gin.HandlerFunc(adminAuth))
+	promptMetrics.RegisterAdminRoutes(admin)
 }
