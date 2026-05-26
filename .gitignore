@@ -142,6 +142,7 @@ docs/*
 !docs/features/
 !docs/superpowers/
 !docs/superpowers/**
+!docs/upstream-merge-playbook.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

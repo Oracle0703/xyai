@@ -21,6 +21,7 @@ def test_static_image_gen_page_calls_gateway_and_keeps_local_history():
     html = PAGE.read_text(encoding="utf-8")
 
     assert "/v1/images/generations" in html
+    assert "/v1/images/edits" in html
     assert "192.168." not in html
     assert "DEFAULT_GATEWAY_BASE = window.location.origin" in html
     assert "Authorization" in html
@@ -30,3 +31,15 @@ def test_static_image_gen_page_calls_gateway_and_keeps_local_history():
     assert "xyai-image-gen-history-v1" in html
     assert "localStorage" in html
     assert "MAX_HISTORY" in html
+
+
+def test_static_image_gen_page_supports_image_edit_upload_and_paste():
+    html = PAGE.read_text(encoding="utf-8")
+
+    assert "id=\"modeEdit\"" in html
+    assert "id=\"sourceImage\"" in html
+    assert "accept=\"image/*\"" in html
+    assert "addEventListener('paste'" in html
+    assert "new FormData()" in html
+    assert "formData.append('image'" in html
+    assert "clipboardData" in html

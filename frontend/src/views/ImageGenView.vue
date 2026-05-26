@@ -8,7 +8,7 @@
           </div>
           <div class="min-w-0">
             <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ siteName }}</p>
-            <p class="text-xs text-gray-500 dark:text-dark-400">文生图工具</p>
+            <p class="text-xs text-gray-500 dark:text-dark-400">图片生成工具</p>
           </div>
         </router-link>
         <a
@@ -29,10 +29,10 @@
         <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-800 dark:bg-dark-900">
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
-              <h1 class="text-xl font-semibold text-gray-950 dark:text-white">文生图</h1>
-              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">粘贴已验证 API Key，直接调用图片生成网关。</p>
+              <h1 class="text-xl font-semibold text-gray-950 dark:text-white">{{ formTitle }}</h1>
+              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ formSubtitle }}</p>
             </div>
-            <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">API Key</span>
+            <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">gpt-image-2</span>
           </div>
 
           <form class="space-y-4" @submit.prevent="generateImages">
@@ -61,14 +61,96 @@
             </div>
 
             <div>
-              <label class="input-label" for="image-gen-prompt">提示词</label>
+              <label class="input-label">生成方式</label>
+              <div class="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-dark-800 dark:bg-dark-950">
+                <button
+                  data-test="mode-generate-button"
+                  type="button"
+                  class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                  :class="generationMode === 'generate'
+                    ? 'bg-white text-gray-950 shadow-sm dark:bg-dark-800 dark:text-white'
+                    : 'text-gray-600 hover:bg-white/70 dark:text-dark-300 dark:hover:bg-dark-800/70'"
+                  @click="generationMode = 'generate'"
+                >
+                  <Icon name="sparkles" size="sm" />
+                  <span>文生图</span>
+                </button>
+                <button
+                  data-test="mode-edit-button"
+                  type="button"
+                  class="inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
+                  :class="generationMode === 'edit'
+                    ? 'bg-white text-gray-950 shadow-sm dark:bg-dark-800 dark:text-white'
+                    : 'text-gray-600 hover:bg-white/70 dark:text-dark-300 dark:hover:bg-dark-800/70'"
+                  @click="generationMode = 'edit'"
+                >
+                  <Icon name="edit" size="sm" />
+                  <span>图改图</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="input-label" for="image-gen-prompt">{{ generationMode === 'edit' ? '修改要求' : '提示词' }}</label>
               <textarea
                 id="image-gen-prompt"
                 v-model.trim="prompt"
                 data-test="prompt-input"
                 class="input min-h-36 resize-y leading-6"
-                placeholder="描述要生成的图片内容、风格、尺寸用途..."
+                :placeholder="promptPlaceholder"
               />
+            </div>
+
+            <div v-if="generationMode === 'edit'">
+              <label class="input-label">原图</label>
+              <div
+                data-test="source-image-dropzone"
+                class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-blue-400 hover:bg-blue-50/60 dark:border-dark-700 dark:bg-dark-950 dark:hover:border-blue-500/70 dark:hover:bg-blue-950/20"
+                :class="{ 'border-solid border-blue-300 bg-blue-50/50 dark:border-blue-600/70 dark:bg-blue-950/20': sourceImageFile }"
+                @click="sourceImageInput?.click()"
+                @dragover.prevent
+                @drop.prevent="handleSourceImageDrop"
+              >
+                <input
+                  ref="sourceImageInput"
+                  data-test="source-image-input"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleSourceImageChange"
+                />
+                <div v-if="sourceImageFile" class="flex items-center gap-3">
+                  <div class="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
+                    <img
+                      v-if="sourceImagePreview"
+                      :src="sourceImagePreview"
+                      alt=""
+                      class="h-full w-full object-cover"
+                    />
+                    <div v-else class="flex h-full w-full items-center justify-center text-gray-400 dark:text-dark-500">
+                      <Icon name="upload" size="lg" />
+                    </div>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ sourceImageFile.name }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ formatFileSize(sourceImageFile.size) }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    class="rounded-md p-2 text-gray-400 hover:bg-white hover:text-red-600 dark:hover:bg-dark-800 dark:hover:text-red-300"
+                    title="移除原图"
+                    @click.stop="clearSourceImage"
+                  >
+                    <Icon name="x" size="sm" />
+                  </button>
+                </div>
+                <div v-else class="flex min-h-24 flex-col items-center justify-center text-center">
+                  <Icon name="upload" size="xl" class="text-gray-400 dark:text-dark-500" />
+                  <p class="mt-2 text-sm font-medium text-gray-700 dark:text-dark-200">点击选择、拖拽或 Ctrl+V 粘贴图片</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">支持常见图片格式，单张不超过 20MB。</p>
+                </div>
+              </div>
+              <p class="input-hint">切到图改图后，页面会把这张原图作为 image 字段提交。</p>
             </div>
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -103,7 +185,7 @@
             >
               <Icon v-if="!isGenerating" name="sparkles" size="sm" />
               <span v-else class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
-              <span>{{ isGenerating ? '生成中...' : '生成图片' }}</span>
+              <span>{{ isGenerating ? '处理中...' : submitLabel }}</span>
             </button>
           </form>
         </div>
@@ -121,7 +203,7 @@
           <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 class="text-base font-semibold text-gray-950 dark:text-white">生成结果</h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">生成成功后可预览、下载或复制图片 Data URL。</p>
+              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">生成或修改成功后可预览、下载或复制图片 Data URL。</p>
             </div>
             <span v-if="results.length" class="text-xs text-gray-500 dark:text-dark-400">{{ results.length }} 张</span>
           </div>
@@ -156,8 +238,8 @@
           <div v-else class="flex min-h-72 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-6 text-center dark:border-dark-700 dark:bg-dark-950">
             <div>
               <Icon name="sparkles" size="xl" class="mx-auto text-gray-400 dark:text-dark-500" />
-              <p class="mt-3 text-sm font-medium text-gray-700 dark:text-dark-200">还没有生成结果</p>
-              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">填写 API Key 和提示词后开始生成。</p>
+              <p class="mt-3 text-sm font-medium text-gray-700 dark:text-dark-200">还没有结果</p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ emptyResultHint }}</p>
             </div>
           </div>
         </div>
@@ -209,7 +291,7 @@
                     </button>
                   </div>
                   <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                    {{ formatTime(item.createdAt) }} · {{ item.model }} · {{ item.size }} · {{ item.images.length }} 张
+                    {{ formatTime(item.createdAt) }} · {{ modeLabel(item.mode) }} · {{ item.model }} · {{ item.size }} · {{ item.images.length }} 张
                   </p>
                 </div>
               </div>
@@ -226,14 +308,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAppStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
 
 const HISTORY_STORAGE_KEY = 'image-gen-history-v1'
 const MAX_HISTORY_ITEMS = 20
+const MAX_SOURCE_IMAGE_SIZE = 20 * 1024 * 1024
 const DEFAULT_MODEL = 'gpt-image-2'
 const IMAGE_GENERATION_ENDPOINT = import.meta.env.VITE_IMAGE_GENERATION_ENDPOINT || '/v1/images/generations'
+const IMAGE_EDIT_ENDPOINT = import.meta.env.VITE_IMAGE_EDIT_ENDPOINT || '/v1/images/edits'
+
+type GenerationMode = 'generate' | 'edit'
 
 interface GeneratedImage {
   id: string
@@ -248,6 +334,7 @@ interface HistoryItem {
   model: string
   size: string
   images: string[]
+  mode?: GenerationMode
 }
 
 interface ImagesResponseItem {
@@ -278,17 +365,39 @@ const apiKey = ref('')
 const prompt = ref('')
 const size = ref('1024x1024')
 const count = ref(1)
+const generationMode = ref<GenerationMode>('generate')
 const showKey = ref(false)
 const isGenerating = ref(false)
 const errorMessage = ref('')
 const results = ref<GeneratedImage[]>([])
 const historyItems = ref<HistoryItem[]>([])
+const sourceImageInput = ref<HTMLInputElement | null>(null)
+const sourceImageFile = ref<File | null>(null)
+const sourceImagePreview = ref('')
+
+const formTitle = computed(() => generationMode.value === 'edit' ? '图改图' : '文生图')
+const formSubtitle = computed(() => generationMode.value === 'edit'
+  ? '上传或粘贴原图，再用已验证 API Key 调用图片编辑网关。'
+  : '粘贴已验证 API Key，直接调用图片生成网关。')
+const promptPlaceholder = computed(() => generationMode.value === 'edit'
+  ? '描述希望如何修改这张图片，例如：把背景改成白色，保持主体不变...'
+  : '描述要生成的图片内容、风格、尺寸用途...')
+const submitLabel = computed(() => generationMode.value === 'edit' ? '修改图片' : '生成图片')
+const emptyResultHint = computed(() => generationMode.value === 'edit'
+  ? '上传原图、填写 API Key 和修改要求后开始处理。'
+  : '填写 API Key 和提示词后开始生成。')
 
 onMounted(() => {
   loadHistory()
+  window.addEventListener('paste', handleSourceImagePaste)
   if (!appStore.publicSettingsLoaded) {
     void appStore.fetchPublicSettings()
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('paste', handleSourceImagePaste)
+  revokeSourceImagePreview()
 })
 
 async function generateImages(): Promise<void> {
@@ -305,23 +414,16 @@ async function generateImages(): Promise<void> {
     errorMessage.value = '请输入提示词'
     return
   }
+  if (generationMode.value === 'edit' && !sourceImageFile.value) {
+    errorMessage.value = '请先上传或粘贴原图'
+    return
+  }
 
   isGenerating.value = true
   try {
-    const response = await fetch(IMAGE_GENERATION_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        prompt: text,
-        size: size.value,
-        n: imageCount,
-        response_format: 'b64_json',
-      }),
-    })
+    const response = generationMode.value === 'edit'
+      ? await editImages(key, text, imageCount)
+      : await createImages(key, text, imageCount)
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
@@ -341,11 +443,106 @@ async function generateImages(): Promise<void> {
       model: DEFAULT_MODEL,
       size: size.value,
       images: images.map((item) => item.src),
+      mode: generationMode.value,
     })
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '生成失败，请稍后重试'
   } finally {
     isGenerating.value = false
+  }
+}
+
+function createImages(key: string, text: string, imageCount: number): Promise<Response> {
+  return fetch(IMAGE_GENERATION_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: DEFAULT_MODEL,
+      prompt: text,
+      size: size.value,
+      n: imageCount,
+      response_format: 'b64_json',
+    }),
+  })
+}
+
+function editImages(key: string, text: string, imageCount: number): Promise<Response> {
+  const formData = new FormData()
+  formData.set('model', DEFAULT_MODEL)
+  formData.set('prompt', text)
+  formData.set('size', size.value)
+  formData.set('n', String(imageCount))
+  formData.set('response_format', 'b64_json')
+  formData.set('image', sourceImageFile.value as File)
+
+  return fetch(IMAGE_EDIT_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+    },
+    body: formData,
+  })
+}
+
+function handleSourceImageChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  setSourceImage(file || null)
+  input.value = ''
+}
+
+function handleSourceImageDrop(event: DragEvent): void {
+  const file = Array.from(event.dataTransfer?.files ?? []).find((item) => item.type.startsWith('image/'))
+  setSourceImage(file || null)
+}
+
+function handleSourceImagePaste(event: ClipboardEvent): void {
+  if (generationMode.value !== 'edit') {
+    return
+  }
+  const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
+  const fromItems = Array.from(event.clipboardData?.items ?? [])
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
+  const image = files[0] || fromItems[0]
+  if (!image) {
+    return
+  }
+  event.preventDefault()
+  setSourceImage(image)
+}
+
+function setSourceImage(file: File | null): void {
+  if (!file) {
+    return
+  }
+  errorMessage.value = ''
+  if (!file.type.startsWith('image/')) {
+    errorMessage.value = '请选择图片文件'
+    return
+  }
+  if (file.size > MAX_SOURCE_IMAGE_SIZE) {
+    errorMessage.value = '原图不能超过 20MB'
+    return
+  }
+  revokeSourceImagePreview()
+  sourceImageFile.value = file
+  sourceImagePreview.value = URL.createObjectURL(file)
+}
+
+function clearSourceImage(): void {
+  sourceImageFile.value = null
+  revokeSourceImagePreview()
+}
+
+function revokeSourceImagePreview(): void {
+  if (sourceImagePreview.value) {
+    URL.revokeObjectURL(sourceImagePreview.value)
+    sourceImagePreview.value = ''
   }
 }
 
@@ -461,6 +658,10 @@ function clearHistory(): void {
 function restoreHistory(item: HistoryItem): void {
   prompt.value = item.prompt
   size.value = item.size
+  generationMode.value = item.mode || 'generate'
+  // 历史记录不保存原图，restore 后清掉残留的上传，避免切回 edit 时出现
+  // 与当前历史不匹配的上次会话的原图。
+  clearSourceImage()
   results.value = item.images.map((src, index) => ({
     id: `${item.id}-${index}`,
     src,
@@ -478,8 +679,23 @@ function isHistoryItem(value: unknown): value is HistoryItem {
     && typeof item.prompt === 'string'
     && typeof item.model === 'string'
     && typeof item.size === 'string'
+    && (item.mode === undefined || item.mode === 'generate' || item.mode === 'edit')
     && Array.isArray(item.images)
     && item.images.every((src) => typeof src === 'string')
+}
+
+function modeLabel(mode?: GenerationMode): string {
+  return mode === 'edit' ? '图改图' : '文生图'
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 KB'
+  }
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  }
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
 async function copyText(text: string): Promise<void> {
