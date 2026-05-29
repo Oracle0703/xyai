@@ -1759,6 +1759,20 @@ func TestOpenAIValidateUpstreamBaseURLEnabledEnforcesAllowlist(t *testing.T) {
 	}
 }
 
+func TestOpenAIOfficialRequestSanitizersStripThinkingAndKeepReasoning(t *testing.T) {
+	responsesBody := []byte(`{"model":"gpt-5.4","input":"hello","thinking":{"type":"enabled"},"reasoning":{"effort":"high"}}`)
+	responsesBody, err := sanitizeOpenAIResponsesOfficialRequestBody(responsesBody)
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(responsesBody, "thinking").Exists())
+	require.Equal(t, "high", gjson.GetBytes(responsesBody, "reasoning.effort").String())
+
+	chatBody := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"thinking":{"type":"enabled"},"reasoning_effort":"high"}`)
+	chatBody, err = sanitizeOpenAIChatCompletionsOfficialRequestBody(chatBody)
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(chatBody, "thinking").Exists())
+	require.Equal(t, "high", gjson.GetBytes(chatBody, "reasoning_effort").String())
+}
+
 func TestOpenAIUpdateCodexUsageSnapshotFromHeaders(t *testing.T) {
 	repo := &snapshotUpdateAccountRepo{updateExtraCalls: make(chan map[string]any, 1)}
 	svc := &OpenAIGatewayService{accountRepo: repo}

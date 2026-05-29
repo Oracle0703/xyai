@@ -75,6 +75,12 @@
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `/backend-api/codex/responses` 支持 Codex 直连别名。
 
+OpenAI 上游请求会按官方 endpoint 做字段过滤:
+
+- `/v1/responses` / Responses 透传路径删除 top-level `thinking`, 保留官方 `reasoning`。
+- `/v1/chat/completions` raw 直转路径删除 top-level `thinking`, 保留官方 `reasoning_effort`。
+- Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
+
 网关链路常见中间件:
 
 - `RequestBodyLimit`

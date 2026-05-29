@@ -2454,6 +2454,11 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		markPatchSet("instructions", "You are a helpful coding assistant.")
 	}
 
+	if sanitizeOpenAIResponsesOfficialRequestBodyMap(reqBody) {
+		bodyModified = true
+		markPatchDelete("thinking")
+	}
+
 	if codexImageGenerationBridgeEnabled && ensureOpenAIResponsesImageGenerationTool(reqBody) {
 		bodyModified = true
 		disablePatch()
@@ -3205,6 +3210,11 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 	if sanitized {
 		body = sanitizedBody
+	}
+
+	body, err = sanitizeOpenAIResponsesOfficialRequestBody(body)
+	if err != nil {
+		return nil, err
 	}
 
 	// Apply OpenAI fast policy to the passthrough body (filter/block by service_tier).
@@ -6906,6 +6916,42 @@ func isEmptyBase64DataURI(raw string) bool {
 		return false
 	}
 	return strings.TrimSpace(strings.TrimPrefix(rest, "base64,")) == ""
+}
+
+func sanitizeOpenAIResponsesOfficialRequestBody(body []byte) ([]byte, error) {
+	return deleteOpenAITopLevelUnsupportedFields(body, "thinking")
+}
+
+func sanitizeOpenAIChatCompletionsOfficialRequestBody(body []byte) ([]byte, error) {
+	return deleteOpenAITopLevelUnsupportedFields(body, "thinking")
+}
+
+func sanitizeOpenAIResponsesOfficialRequestBodyMap(reqBody map[string]any) bool {
+	if reqBody == nil {
+		return false
+	}
+	if _, ok := reqBody["thinking"]; ok {
+		delete(reqBody, "thinking")
+		return true
+	}
+	return false
+}
+
+func deleteOpenAITopLevelUnsupportedFields(body []byte, fields ...string) ([]byte, error) {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return body, nil
+	}
+	var err error
+	for _, field := range fields {
+		if strings.TrimSpace(field) == "" || !gjson.GetBytes(body, field).Exists() {
+			continue
+		}
+		body, err = sjson.DeleteBytes(body, field)
+		if err != nil {
+			return body, fmt.Errorf("strip unsupported OpenAI request field %q: %w", field, err)
+		}
+	}
+	return body, nil
 }
 
 func getOpenAIRequestBodyMap(c *gin.Context, body []byte) (map[string]any, error) {

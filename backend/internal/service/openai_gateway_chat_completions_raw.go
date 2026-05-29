@@ -106,6 +106,11 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 			return nil, fmt.Errorf("enable stream usage: %w", usageErr)
 		}
 	}
+	sanitizedBody, sanitizeErr := sanitizeOpenAIChatCompletionsOfficialRequestBody(upstreamBody)
+	if sanitizeErr != nil {
+		return nil, sanitizeErr
+	}
+	upstreamBody = sanitizedBody
 
 	logger.L().Debug("openai chat_completions raw: forwarding without protocol conversion",
 		zap.Int64("account_id", account.ID),

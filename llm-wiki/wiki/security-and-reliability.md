@@ -108,6 +108,12 @@
 
 请求链路会记录 request id, ops error, request archive, 并可使用 request intercept 动态改写/阻断。
 
+OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level thinking 字段:
+
+- Responses API 使用 `reasoning` 表达推理控制, `thinking` 在发送上游前删除。
+- Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
+- 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
+
 修改流式响应时要同时验证:
 
 - SSE flush。
