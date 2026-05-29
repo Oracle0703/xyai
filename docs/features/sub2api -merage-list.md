@@ -68,7 +68,7 @@ git diff 4dfcbf79..0a7baaf9 -- backend/cmd/server/wire_gen.go frontend/src/views
 | Base before merge | `b3ff58955c7e` |
 | Merge base | `9ef144874adc` |
 | Upstream head merged | `7321e4dea807` |
-| Merge commit | `pending until commit` |
+| Merge commit | `1687bd6a6b75` |
 | Conflict files | `backend/internal/handler/endpoint.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/pkg/apicompat/chatcompletions_responses_test.go`, `backend/internal/server/routes/gateway.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/keys/UseKeyModal.vue` |
 
 ### Summary
