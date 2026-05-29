@@ -111,6 +111,11 @@ API 模块分布:
 
 修改 `frontend/src/components/` 下模块时, 必须同步更新该模块目录下 README; 缺失则新建。
 
+## 账号与 Key 配置 UI
+
+- `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI 账号创建/编辑能力, 包括 OpenAI-compatible provider preset, endpoint capabilities, Responses WebSocket V2 mode, Codex CLI only 和 Claude Code allowlist。
+- `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。
+
 ## 测试与质量
 
 `frontend/package.json`:

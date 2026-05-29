@@ -89,6 +89,6 @@ func TestGatewayHandleConcurrencyError_CacheFailureIsServiceUnavailable(t *testi
 	require.Equal(t, "error", parsed["type"])
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "api_error", errorObj["type"])
+	require.Equal(t, "server_error", errorObj["type"])
 	require.Contains(t, errorObj["message"], "Concurrency service unavailable")
 }

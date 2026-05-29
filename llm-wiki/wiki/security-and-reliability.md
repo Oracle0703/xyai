@@ -38,6 +38,7 @@
 - RPM cache: user/group/account 维度。
 - Gateway scheduling: sticky session wait, fallback wait, snapshot/outbox, slot cleanup。
 - User message queue 可选串行/节流。
+- 并发 slot 获取失败由 `backend/internal/handler/concurrency_error_response.go` 统一映射; `ConcurrencyCacheError` 必须返回 503 和明确的 service-unavailable 文案, 不应被归类为普通 429 限流。
 
 相关路径:
 
@@ -114,6 +115,7 @@
 - 上游错误体截断。
 - client disconnect。
 - OpenAI Responses WebSocket fallback。
+- OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
 
 ## 日志与监控
 

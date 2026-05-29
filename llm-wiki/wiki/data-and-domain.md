@@ -6,8 +6,8 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, RPM, 支持模型范围。
-- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, RPM, 支持模型范围和自定义 `/v1/models` 列表。
+- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only 和允许 Claude Code 客户端。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image metadata 等。
 - SubscriptionPlan/UserSubscription: 套餐和用户订阅。
@@ -133,5 +133,5 @@ go generate ./cmd/server
 - group 默认映射。
 - account 可用模型和 whitelist。
 - channel pricing 和 model default pricing。
-- OpenAI/Codex responses 路径。
+- OpenAI/Codex responses, chat completions, embeddings, images 路径。
 - Gemini v1beta 路径。

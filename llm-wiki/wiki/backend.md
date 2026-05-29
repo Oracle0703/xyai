@@ -70,6 +70,7 @@
 - `/v1/messages/count_tokens` 对 OpenAI group 返回不支持。
 - `/v1/responses` 和根级 `/responses` 支持 OpenAI Responses API。
 - `/v1/chat/completions` 和根级 `/chat/completions` 支持 OpenAI Chat Completions。
+- `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
 - `/v1/images/generations` 和 `/v1/images/edits` 仅 OpenAI platform 支持。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `/backend-api/codex/responses` 支持 Codex 直连别名。
@@ -84,6 +85,8 @@
 - `RequireGroupAssignment`
 - `RequestArchive`
 - `RequestIntercept`
+
+端点归一化集中在 `backend/internal/handler/endpoint.go`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini 分流测试。
 
 ## 分层约定
 
