@@ -572,13 +572,21 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 						acc.ProcessEvent(&event)
 						if isOpenAICompatResponsesTerminalEvent(event.Type) && event.Response != nil {
 							if event.Usage != nil {
+								applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Usage, "usage")
 								usage = copyOpenAIUsageFromResponsesUsage(event.Usage)
+								applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, "usage")
 								if event.Response.Usage == nil {
 									event.Response.Usage = event.Usage
 								}
 							}
 							if event.Response.Usage != nil {
+								usagePath := "response.usage"
+								if event.Response.Usage == event.Usage {
+									usagePath = "usage"
+								}
+								applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Response.Usage, usagePath)
 								usage = copyOpenAIUsageFromResponsesUsage(event.Response.Usage)
+								applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, usagePath)
 							}
 							return event.Response, usage, acc, nil
 						}
@@ -619,15 +627,21 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 
 			if isOpenAICompatResponsesTerminalEvent(event.Type) && event.Response != nil {
 				if event.Usage != nil {
+					applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Usage, "usage")
 					usage = copyOpenAIUsageFromResponsesUsage(event.Usage)
+					applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, "usage")
 					if event.Response.Usage == nil {
 						event.Response.Usage = event.Usage
 					}
 				}
 				if event.Response.Usage != nil {
-					applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Response.Usage, "response.usage")
+					usagePath := "response.usage"
+					if event.Response.Usage == event.Usage {
+						usagePath = "usage"
+					}
+					applyOpenAICompatibleResponsesUsageDetailsFromJSON([]byte(payload), event.Response.Usage, usagePath)
 					usage = copyOpenAIUsageFromResponsesUsage(event.Response.Usage)
-					applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, "response.usage")
+					applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &usage, usagePath)
 				}
 				return event.Response, usage, acc, nil
 			}

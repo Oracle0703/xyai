@@ -293,7 +293,7 @@ const cleanFilters = computed(() => {
   const out: TokenAnalysisQueryParams = {}
   for (const [key, value] of Object.entries(filters)) {
     if (value !== '' && value !== undefined && value !== null) {
-      ;(out as Record<string, unknown>)[key] = value
+      (out as Record<string, unknown>)[key] = value
     }
   }
   return out

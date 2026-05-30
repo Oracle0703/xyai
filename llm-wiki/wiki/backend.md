@@ -80,6 +80,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `/v1/responses` / Responses 透传路径删除 top-level `thinking`, 保留官方 `reasoning`。
 - `/v1/chat/completions` raw 直转路径删除 top-level `thinking`, 保留官方 `reasoning_effort`。
 - Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
+- OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; buffered Chat Completions 转换和计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`。
 
 网关链路常见中间件:
 
