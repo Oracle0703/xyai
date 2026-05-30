@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -91,6 +92,7 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 
 func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
 	dir := t.TempDir()
+	t.Cleanup(servermiddleware.CloseRequestArchiveWritersForTest)
 	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
 		Gateway: config.GatewayConfig{
 			MaxBodySize: 1024 * 1024,
@@ -123,6 +125,7 @@ func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
 
 func TestGatewayRoutesRequestInterceptRunsAfterArchive(t *testing.T) {
 	dir := t.TempDir()
+	t.Cleanup(servermiddleware.CloseRequestArchiveWritersForTest)
 	rulesFile := filepath.Join(dir, "rules.yaml")
 	require.NoError(t, os.WriteFile(rulesFile, []byte(`
 version: 1
@@ -167,8 +170,21 @@ rules:
 
 func readGatewayRouteArchiveRecords(t *testing.T, dir string) []map[string]any {
 	t.Helper()
+	var records []map[string]any
+	require.Eventually(t, func() bool {
+		records = loadGatewayRouteArchiveRecords(t, dir)
+		return len(records) >= 2
+	}, 2*time.Second, 5*time.Millisecond)
+	return records
+}
+
+func loadGatewayRouteArchiveRecords(t *testing.T, dir string) []map[string]any {
+	t.Helper()
 	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	require.NoError(t, err)
+	if len(files) == 0 {
+		return nil
+	}
 	require.Len(t, files, 1)
 
 	f, err := os.Open(files[0])

@@ -1124,6 +1124,34 @@ export async function updateRateLimit429CooldownSettings(
   return data;
 }
 
+// ==================== Request Archive Settings ====================
+
+export interface RequestArchiveSettings {
+  enabled: boolean;
+  capture_response: boolean;
+  dir: string;
+  max_request_body_bytes: number;
+  max_response_body_bytes: number;
+  queue_size: number;
+}
+
+export async function getRequestArchiveSettings(): Promise<RequestArchiveSettings> {
+  const { data } = await apiClient.get<RequestArchiveSettings>(
+    "/admin/settings/request-archive",
+  );
+  return data;
+}
+
+export async function updateRequestArchiveSettings(
+  settings: Pick<RequestArchiveSettings, "enabled" | "capture_response">,
+): Promise<RequestArchiveSettings> {
+  const { data } = await apiClient.put<RequestArchiveSettings>(
+    "/admin/settings/request-archive",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1350,6 +1378,8 @@ export const settingsAPI = {
   updateOverloadCooldownSettings,
   getRateLimit429CooldownSettings,
   updateRateLimit429CooldownSettings,
+  getRequestArchiveSettings,
+  updateRequestArchiveSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

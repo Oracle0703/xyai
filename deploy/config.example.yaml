@@ -242,6 +242,25 @@ gateway:
   # OpenAI 透传模式是否放行客户端超时头（如 x-stainless-timeout）
   # 默认 false：过滤超时头，降低上游提前断流风险。
   openai_passthrough_allow_timeout_headers: false
+  # 本地请求/响应归档：把网关请求与响应体写入本地 JSONL 文件。
+  # 警告：仅用于短期排障，不要长期开启。归档位于请求热路径，
+  # 会读取完整请求体、按字节缓存响应并落盘，高并发/大 body/流式场景
+  # 会放大磁盘占用与尾延迟（单日文件可达 GB 级）。排障结束后请关闭。
+  # 操作入口：管理后台 /admin/settings 的 Gateway 标签页可热切换 enabled 和 capture_response。
+  # dir、body 截断上限和 queue_size 仍由配置文件控制，修改后需重启服务。
+  request_archive:
+    # 是否启用归档，默认 false（关闭）。
+    enabled: false
+    # JSONL 输出目录。
+    dir: "data/request-archive"
+    # 单条请求体最多保存字节数，超出截断。
+    max_request_body_bytes: 8388608
+    # 单条响应体最多保存字节数，超出截断。
+    max_response_body_bytes: 2097152
+    # 是否捕获返回给用户的响应体，默认 false。开启会对每个 Write 做 hash 和缓存。
+    capture_response: false
+    # 异步写入队列容量，队列满时丢弃归档记录而不阻塞请求。
+    queue_size: 1024
   # OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
   openai_ws:
     # 新版 WS mode 路由（默认关闭）。关闭时保持当前 legacy 实现行为。

@@ -398,6 +398,15 @@
               </button>
               <button
                 v-if="row.status === 'active'"
+                @click="handleResetDailyQuota(row)"
+                :disabled="resettingQuota && resettingSubscription?.id === row.id"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-900/20 dark:hover:text-teal-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Icon name="sun" size="sm" />
+                <span class="text-xs">{{ t('admin.subscriptions.resetDailyQuota') }}</span>
+              </button>
+              <button
+                v-if="row.status === 'active'"
                 @click="handleRevoke(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
@@ -648,12 +657,12 @@
     <!-- Reset Quota Confirmation Dialog -->
     <ConfirmDialog
       :show="showResetQuotaConfirm"
-      :title="t('admin.subscriptions.resetQuotaTitle')"
-      :message="t('admin.subscriptions.resetQuotaConfirm', { user: resettingSubscription?.user?.email })"
-      :confirm-text="t('admin.subscriptions.resetQuota')"
+      :title="resetQuotaDialogTitle"
+      :message="resetQuotaDialogMessage"
+      :confirm-text="resetQuotaDialogConfirmText"
       :cancel-text="t('common.cancel')"
       @confirm="confirmResetQuota"
-      @cancel="showResetQuotaConfirm = false"
+      @cancel="closeResetQuotaConfirm"
     />
     <!-- Subscription Guide Modal -->
     <teleport to="body">
@@ -778,6 +787,7 @@ const showGuideModal = ref(false)
 const guideActionRows = computed(() => [
   { action: t('admin.subscriptions.guide.actions.adjust'), desc: t('admin.subscriptions.guide.actions.adjustDesc') },
   { action: t('admin.subscriptions.guide.actions.resetQuota'), desc: t('admin.subscriptions.guide.actions.resetQuotaDesc') },
+  { action: t('admin.subscriptions.guide.actions.resetDailyQuota'), desc: t('admin.subscriptions.guide.actions.resetDailyQuotaDesc') },
   { action: t('admin.subscriptions.guide.actions.revoke'), desc: t('admin.subscriptions.guide.actions.revokeDesc') }
 ])
 
@@ -944,8 +954,30 @@ const showResetQuotaConfirm = ref(false)
 const submitting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
+const resetQuotaMode = ref<'all' | 'daily'>('all')
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
+
+const resetQuotaDialogTitle = computed(() =>
+  resetQuotaMode.value === 'daily'
+    ? t('admin.subscriptions.resetDailyQuotaTitle')
+    : t('admin.subscriptions.resetQuotaTitle')
+)
+
+const resetQuotaDialogMessage = computed(() =>
+  t(
+    resetQuotaMode.value === 'daily'
+      ? 'admin.subscriptions.resetDailyQuotaConfirm'
+      : 'admin.subscriptions.resetQuotaConfirm',
+    { user: resettingSubscription.value?.user?.email }
+  )
+)
+
+const resetQuotaDialogConfirmText = computed(() =>
+  resetQuotaMode.value === 'daily'
+    ? t('admin.subscriptions.resetDailyQuota')
+    : t('admin.subscriptions.resetQuota')
+)
 
 const assignForm = reactive({
   user_id: null as number | null,
@@ -1262,19 +1294,34 @@ const confirmRevoke = async () => {
 }
 
 const handleResetQuota = (subscription: UserSubscription) => {
+  resetQuotaMode.value = 'all'
   resettingSubscription.value = subscription
   showResetQuotaConfirm.value = true
+}
+
+const handleResetDailyQuota = (subscription: UserSubscription) => {
+  resetQuotaMode.value = 'daily'
+  resettingSubscription.value = subscription
+  showResetQuotaConfirm.value = true
+}
+
+const closeResetQuotaConfirm = () => {
+  showResetQuotaConfirm.value = false
+  resettingSubscription.value = null
+  resetQuotaMode.value = 'all'
 }
 
 const confirmResetQuota = async () => {
   if (!resettingSubscription.value) return
   if (resettingQuota.value) return
   resettingQuota.value = true
+  const options = resetQuotaMode.value === 'daily'
+    ? { daily: true, weekly: false, monthly: false }
+    : { daily: true, weekly: true, monthly: true }
   try {
-    await adminAPI.subscriptions.resetQuota(resettingSubscription.value.id, { daily: true, weekly: true, monthly: true })
+    await adminAPI.subscriptions.resetQuota(resettingSubscription.value.id, options)
     appStore.showSuccess(t('admin.subscriptions.quotaResetSuccess'))
-    showResetQuotaConfirm.value = false
-    resettingSubscription.value = null
+    closeResetQuotaConfirm()
     await loadSubscriptions()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToResetQuota'))

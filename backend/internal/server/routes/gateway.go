@@ -23,7 +23,10 @@ func RegisterGatewayRoutes(
 	cfg *config.Config,
 ) {
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize)
-	requestArchive := middleware.RequestArchive(cfg.Gateway.RequestArchive)
+	requestArchive := middleware.RequestArchiveWithProvider(
+		cfg.Gateway.RequestArchive,
+		middleware.NewRequestArchiveConfigProvider(settingService),
+	)
 	requestInterceptRulesService := service.NewRequestInterceptRulesServiceFromSettingService(settingService)
 	requestIntercept := middleware.RequestInterceptWithProviders(
 		cfg.Gateway.RequestIntercept,

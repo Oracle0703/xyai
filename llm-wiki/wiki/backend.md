@@ -92,6 +92,13 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `RequestArchive`
 - `RequestIntercept`
 
+`RequestArchive`(`backend/internal/server/middleware/request_archive.go`)把网关请求/响应体写入本地 JSONL, 仅用于短期排障:
+
+- 默认关闭: `gateway.request_archive.enabled=false`, `capture_response=false`(与 `backend/internal/config/config.go` 默认一致)。
+- 开启后位于请求热路径, 会 `io.ReadAll` 完整请求体并缓存响应体, 高并发/大 body/流式会放大磁盘与尾延迟, 单日文件可达 GB 级。
+- 写入为异步有界队列(`gateway.request_archive.queue_size`, 默认 1024): 热路径只入队, 后台单 goroutine 持有当日文件句柄并按日期轮转, 队列满时丢弃记录不阻塞请求。
+- 管理后台 `/admin/settings` 的 Gateway 标签页可热切换 `enabled` 和 `capture_response`, 后端接口为 `GET/PUT /api/v1/admin/settings/request-archive`; `dir`, body 截断上限和 `queue_size` 仍由实际加载的 `config.yaml` 控制, 修改后需重启。
+
 端点归一化集中在 `backend/internal/handler/endpoint.go`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini 分流测试。
 
 ## 分层约定

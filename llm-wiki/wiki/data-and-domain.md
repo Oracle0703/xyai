@@ -113,6 +113,12 @@ go generate ./cmd/server
 - `backend/resources/model-pricing/model_prices_and_context_window.json`
 - `backend/resources/model-pricing/README.md`
 
+订阅配额重置:
+
+- 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
+- `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
+- 前端全量“重置配额”会同时传 `daily/weekly/monthly=true`; “重置日限”只传 `daily=true`, 周/月窗口保持不变。
+
 配置:
 
 - `pricing.remote_url`

@@ -219,11 +219,12 @@ func TestLoadDefaultGatewayRequestArchiveConfig(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 
-	require.True(t, cfg.Gateway.RequestArchive.Enabled)
+	require.False(t, cfg.Gateway.RequestArchive.Enabled)
 	require.Equal(t, "data/request-archive", cfg.Gateway.RequestArchive.Dir)
 	require.Equal(t, int64(8*1024*1024), cfg.Gateway.RequestArchive.MaxRequestBodyBytes)
 	require.Equal(t, int64(2*1024*1024), cfg.Gateway.RequestArchive.MaxResponseBodyBytes)
-	require.True(t, cfg.Gateway.RequestArchive.CaptureResponse)
+	require.False(t, cfg.Gateway.RequestArchive.CaptureResponse)
+	require.Equal(t, 1024, cfg.Gateway.RequestArchive.QueueSize)
 }
 
 func TestLoadDefaultGatewayLargeRequestConfig(t *testing.T) {

@@ -832,8 +832,10 @@ type GatewayRequestArchiveConfig struct {
 	MaxRequestBodyBytes int64 `mapstructure:"max_request_body_bytes"`
 	// MaxResponseBodyBytes: 单条响应体最多保存字节数，超出后截断。
 	MaxResponseBodyBytes int64 `mapstructure:"max_response_body_bytes"`
-	// CaptureResponse: 是否捕获返回给用户的响应体。
+	// CaptureResponse: 是否捕获返回给用户的响应体，默认关闭。
 	CaptureResponse bool `mapstructure:"capture_response"`
+	// QueueSize: 异步写入队列容量，队列满时丢弃归档记录而不阻塞请求。
+	QueueSize int `mapstructure:"queue_size"`
 }
 
 // GatewayRequestInterceptConfig 请求拦截配置。
@@ -1857,11 +1859,14 @@ func setDefaults() {
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
-	viper.SetDefault("gateway.request_archive.enabled", true)
+	// 默认关闭：归档位于请求热路径，仅用于短期排障，避免拖慢尾延迟与磁盘膨胀。
+	viper.SetDefault("gateway.request_archive.enabled", false)
 	viper.SetDefault("gateway.request_archive.dir", "data/request-archive")
 	viper.SetDefault("gateway.request_archive.max_request_body_bytes", int64(8*1024*1024))
 	viper.SetDefault("gateway.request_archive.max_response_body_bytes", int64(2*1024*1024))
-	viper.SetDefault("gateway.request_archive.capture_response", true)
+	// 默认关闭响应捕获：流式响应捕获额外增加 hash/缓存开销。
+	viper.SetDefault("gateway.request_archive.capture_response", false)
+	viper.SetDefault("gateway.request_archive.queue_size", 1024)
 	viper.SetDefault("gateway.request_intercept.enabled", true)
 	viper.SetDefault("gateway.request_intercept.rules_file", "config/request_intercept_rules.yaml")
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）

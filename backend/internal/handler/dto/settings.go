@@ -336,6 +336,16 @@ type RateLimit429CooldownSettings struct {
 	CooldownSeconds int  `json:"cooldown_seconds"`
 }
 
+// RequestArchiveSettings 网关请求归档配置 DTO
+type RequestArchiveSettings struct {
+	Enabled              bool   `json:"enabled"`
+	CaptureResponse      bool   `json:"capture_response"`
+	Dir                  string `json:"dir"`
+	MaxRequestBodyBytes  int64  `json:"max_request_body_bytes"`
+	MaxResponseBodyBytes int64  `json:"max_response_body_bytes"`
+	QueueSize            int    `json:"queue_size"`
+}
+
 // StreamTimeoutSettings 流超时处理配置 DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`

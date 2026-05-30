@@ -3102,8 +3102,11 @@ export default {
       adjusting: '调整中...',
       revoke: '撤销',
       resetQuota: '重置配额',
+      resetDailyQuota: '重置日限',
       resetQuotaTitle: '重置用量配额',
       resetQuotaConfirm: "确定要重置 '{user}' 的每日、每周和每月用量配额吗？用量将归零并从今天开始重新计算。",
+      resetDailyQuotaTitle: '重置单日用量',
+      resetDailyQuotaConfirm: "确定要只重置 '{user}' 的每日用量配额吗？月用量和周用量不会被修改。",
       quotaResetSuccess: '配额重置成功',
       failedToResetQuota: '重置配额失败',
       noSubscriptionsYet: '暂无订阅',
@@ -3146,6 +3149,8 @@ export default {
           adjustDesc: '延长或缩短订阅有效期',
           resetQuota: '重置配额',
           resetQuotaDesc: '将日/周/月用量归零，重新开始计算',
+          resetDailyQuota: '重置日限',
+          resetDailyQuotaDesc: '仅将每日用量归零，不修改周/月用量',
           revoke: '撤销',
           revokeDesc: '立即终止该用户的订阅，不可恢复'
         },
@@ -6438,6 +6443,19 @@ export default {
         cooldownSecondsHint: '默认回避持续时间（1-7200 秒）；上游返回明确 reset 时仍优先使用上游时间',
         saved: '429 默认回避设置保存成功',
         saveFailed: '保存 429 默认回避设置失败'
+      },
+      requestArchive: {
+        title: '请求归档',
+        description: '短期保存网关请求样本，用于排查上游兼容和异常请求问题',
+        enabled: '启用请求归档',
+        enabledHint: '开启后会归档网关 POST 请求，请仅在排障窗口内使用',
+        captureResponse: '捕获响应体',
+        captureResponseHint: '额外保存响应内容，会增加内存、磁盘和流式响应尾延迟风险',
+        dir: '归档目录',
+        queueSize: '队列容量',
+        warning: '请求归档可能记录敏感业务内容；排障完成后请关闭，并按数据保留策略清理归档文件。目录、队列容量和 body 截断上限仍由配置文件控制。',
+        saved: '请求归档设置保存成功',
+        saveFailed: '保存请求归档设置失败'
       },
       streamTimeout: {
         title: '流超时处理',

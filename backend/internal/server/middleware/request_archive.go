@@ -13,10 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -26,15 +28,68 @@ const (
 	defaultRequestArchiveDir              = "data/request-archive"
 	defaultRequestArchiveMaxRequestBytes  = int64(64 * 1024)
 	defaultRequestArchiveMaxResponseBytes = int64(64 * 1024)
+	defaultRequestArchiveQueueSize        = 1024
+)
+
+type RequestArchiveConfigProvider func(*gin.Context) (config.GatewayRequestArchiveConfig, error)
+
+var (
+	requestArchiveWriterMu       sync.Mutex
+	requestArchiveActiveWriters  []*asyncRequestArchiveWriter
+	requestArchiveRegisterWriter = registerRequestArchiveWriter
 )
 
 // RequestArchive records AI gateway request/response bodies to local JSONL files.
+//
+// 写入采用异步有界队列：请求热路径只做入队，后台 goroutine 持有文件句柄
+// 并按日期轮转。队列满时直接丢弃归档记录，不阻塞请求。
 func RequestArchive(cfg config.GatewayRequestArchiveConfig) gin.HandlerFunc {
-	cfg = normalizeRequestArchiveConfig(cfg)
-	writer := &requestArchiveFileWriter{dir: cfg.Dir}
+	return RequestArchiveWithProvider(cfg, nil)
+}
 
+func RequestArchiveWithProvider(cfg config.GatewayRequestArchiveConfig, provider RequestArchiveConfigProvider) gin.HandlerFunc {
+	cfg = normalizeRequestArchiveConfig(cfg)
+	if provider == nil && !cfg.Enabled {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+	writer := newAsyncRequestArchiveWriter(cfg.Dir, cfg.QueueSize)
+	return newRequestArchiveHandler(cfg, writer, provider)
+}
+
+func NewRequestArchiveConfigProvider(svc *service.SettingService) RequestArchiveConfigProvider {
+	if svc == nil {
+		return nil
+	}
+	return func(c *gin.Context) (config.GatewayRequestArchiveConfig, error) {
+		return svc.GetRequestArchiveRuntimeConfig(c.Request.Context()), nil
+	}
+}
+
+// archiveEnqueuer 抽象归档记录入队，便于测试注入可关闭的 writer。
+type archiveEnqueuer interface {
+	Enqueue(record requestArchiveRecord)
+}
+
+func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer archiveEnqueuer, provider RequestArchiveConfigProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !cfg.Enabled || !shouldArchiveGatewayRequest(c) {
+		if !shouldArchiveGatewayRequest(c) {
+			c.Next()
+			return
+		}
+
+		runtimeCfg := cfg
+		if provider != nil {
+			providedCfg, err := provider(c)
+			if err != nil {
+				logger.L().Warn("request_archive.load_runtime_config_failed", zap.Error(err))
+			} else {
+				runtimeCfg = mergeRequestArchiveRuntimeConfig(cfg, providedCfg)
+			}
+		}
+		runtimeCfg = normalizeRequestArchiveConfig(runtimeCfg)
+		if !runtimeCfg.Enabled {
 			c.Next()
 			return
 		}
@@ -53,16 +108,14 @@ func RequestArchive(cfg config.GatewayRequestArchiveConfig) gin.HandlerFunc {
 		c.Request.Body = io.NopCloser(bytes.NewReader(body))
 
 		requestRecord := buildArchiveRecord(c, archiveID, "request", startedAt)
-		requestRecord.Body, requestRecord.BodySize, requestRecord.BodySHA256, requestRecord.BodyTruncated = captureBytes(body, cfg.MaxRequestBodyBytes)
+		requestRecord.Body, requestRecord.BodySize, requestRecord.BodySHA256, requestRecord.BodyTruncated = captureBytes(body, runtimeCfg.MaxRequestBodyBytes)
 		requestRecord.Model = firstNonEmpty(requestRecord.Model, strings.TrimSpace(gjson.GetBytes(body, "model").String()))
-		if err := writer.Write(requestRecord); err != nil {
-			logger.L().Warn("request_archive.write_request_failed", zap.Error(err))
-		}
+		writer.Enqueue(requestRecord)
 
 		var captureWriter *requestArchiveResponseWriter
 		originalWriter := c.Writer
-		if cfg.CaptureResponse {
-			captureWriter = newRequestArchiveResponseWriter(c.Writer, cfg.MaxResponseBodyBytes)
+		if runtimeCfg.CaptureResponse {
+			captureWriter = newRequestArchiveResponseWriter(c.Writer, runtimeCfg.MaxResponseBodyBytes)
 			c.Writer = captureWriter
 			defer func() {
 				if c.Writer == captureWriter {
@@ -85,10 +138,24 @@ func RequestArchive(cfg config.GatewayRequestArchiveConfig) gin.HandlerFunc {
 			responseRecord.BodyTruncated = captureWriter.Truncated()
 			responseRecord.Stream = captureWriter.Stream()
 		}
-		if err := writer.Write(responseRecord); err != nil {
-			logger.L().Warn("request_archive.write_response_failed", zap.Error(err))
-		}
+		writer.Enqueue(responseRecord)
 	}
+}
+
+// mergeRequestArchiveRuntimeConfig 用运行态配置覆盖基础配置中真正"按请求生效"的字段。
+// 注意: Dir 与 QueueSize 在 asyncRequestArchiveWriter 构造时即固化, 运行态无法改变
+// 实际落盘目录与队列容量, 因此这里不合并这两个字段(避免产生"已生效"的错觉)。
+// 仅 Enabled / CaptureResponse / Max*BodyBytes 在请求热路径按运行态取值生效。
+func mergeRequestArchiveRuntimeConfig(base, runtime config.GatewayRequestArchiveConfig) config.GatewayRequestArchiveConfig {
+	runtime.Dir = base.Dir
+	runtime.QueueSize = base.QueueSize
+	if runtime.MaxRequestBodyBytes <= 0 {
+		runtime.MaxRequestBodyBytes = base.MaxRequestBodyBytes
+	}
+	if runtime.MaxResponseBodyBytes <= 0 {
+		runtime.MaxResponseBodyBytes = base.MaxResponseBodyBytes
+	}
+	return runtime
 }
 
 func shouldArchiveGatewayRequest(c *gin.Context) bool {
@@ -131,6 +198,9 @@ func normalizeRequestArchiveConfig(cfg config.GatewayRequestArchiveConfig) confi
 	}
 	if cfg.MaxResponseBodyBytes <= 0 {
 		cfg.MaxResponseBodyBytes = defaultRequestArchiveMaxResponseBytes
+	}
+	if cfg.QueueSize <= 0 {
+		cfg.QueueSize = defaultRequestArchiveQueueSize
 	}
 	return cfg
 }
@@ -236,34 +306,153 @@ func captureBytes(data []byte, limit int64) (string, int64, string, bool) {
 	return string(data), size, hex.EncodeToString(sum[:]), truncated
 }
 
-type requestArchiveFileWriter struct {
-	dir string
-	mu  sync.Mutex
+// asyncRequestArchiveWriter 以后台单 goroutine + 有界 channel 的方式写入归档。
+// 请求热路径只调用 Enqueue，永不阻塞；channel 满时直接丢弃并累计 dropped。
+// 后台 writer 持有当日文件句柄，跨天时关闭旧句柄并重新打开，避免每条记录 open/close。
+type asyncRequestArchiveWriter struct {
+	dir     string
+	ch      chan requestArchiveRecord
+	quit    chan struct{}
+	done    chan struct{}
+	closing atomic.Bool
+	dropped atomic.Int64
+
+	file     *os.File
+	fileDate string
 }
 
-func (w *requestArchiveFileWriter) Write(record requestArchiveRecord) error {
+func newAsyncRequestArchiveWriter(dir string, queueSize int) *asyncRequestArchiveWriter {
+	if queueSize <= 0 {
+		queueSize = defaultRequestArchiveQueueSize
+	}
+	w := &asyncRequestArchiveWriter{
+		dir:  dir,
+		ch:   make(chan requestArchiveRecord, queueSize),
+		quit: make(chan struct{}),
+		done: make(chan struct{}),
+	}
+	go w.run()
+	requestArchiveRegisterWriter(w)
+	return w
+}
+
+func registerRequestArchiveWriter(w *asyncRequestArchiveWriter) {
+	requestArchiveWriterMu.Lock()
+	requestArchiveActiveWriters = append(requestArchiveActiveWriters, w)
+	requestArchiveWriterMu.Unlock()
+}
+
+// CloseRequestArchiveWritersForTest drains and closes writers created by route-level tests.
+func CloseRequestArchiveWritersForTest() {
+	requestArchiveWriterMu.Lock()
+	writers := requestArchiveActiveWriters
+	requestArchiveActiveWriters = nil
+	requestArchiveWriterMu.Unlock()
+	for _, writer := range writers {
+		writer.Close()
+	}
+}
+
+// Enqueue 非阻塞入队；队列满时丢弃记录，避免拖慢请求尾延迟。
+func (w *asyncRequestArchiveWriter) Enqueue(record requestArchiveRecord) {
 	if w == nil {
-		return nil
+		return
 	}
-	if err := os.MkdirAll(w.dir, 0o700); err != nil {
-		return err
+	select {
+	case w.ch <- record:
+	default:
+		dropped := w.dropped.Add(1)
+		if dropped%256 == 1 {
+			logger.L().Warn("request_archive.queue_full_dropped",
+				zap.Int64("dropped_total", dropped),
+				zap.Int("queue_size", cap(w.ch)))
+		}
 	}
+}
+
+func (w *asyncRequestArchiveWriter) run() {
+	defer close(w.done)
+	defer func() {
+		if w.file != nil {
+			_ = w.file.Close()
+			w.file = nil
+		}
+	}()
+	for {
+		select {
+		case record := <-w.ch:
+			if err := w.writeRecord(record); err != nil {
+				logger.L().Warn("request_archive.write_failed", zap.Error(err))
+			}
+		case <-w.quit:
+			// 收到停止信号后尽力排空已入队记录, 再退出。
+			for {
+				select {
+				case record := <-w.ch:
+					if err := w.writeRecord(record); err != nil {
+						logger.L().Warn("request_archive.write_failed", zap.Error(err))
+					}
+				default:
+					return
+				}
+			}
+		}
+	}
+}
+
+// Close 停止后台 writer 并关闭文件句柄。
+// 通过关闭独立的 quit channel 发出停止信号, 不关闭数据 channel ch ——
+// 因为 ch 有多个并发发送者(Enqueue), 由非发送方关闭 ch 会触发
+// "send on closed channel" panic。改用 quit 信号后, Enqueue 永不 panic,
+// Close 可安全用于生产优雅停机。
+func (w *asyncRequestArchiveWriter) Close() {
+	if w == nil {
+		return
+	}
+	if !w.closing.CompareAndSwap(false, true) {
+		<-w.done
+		return
+	}
+	close(w.quit)
+	<-w.done
+}
+
+func (w *asyncRequestArchiveWriter) writeRecord(record requestArchiveRecord) error {
 	line, err := json.Marshal(record)
 	if err != nil {
 		return err
 	}
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	path := filepath.Join(w.dir, time.Now().Format("2006-01-02")+".jsonl")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := w.fileForToday()
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	if _, err := f.Write(append(line, '\n')); err != nil {
 		return err
 	}
 	return nil
+}
+
+// fileForToday 返回当日归档文件句柄，跨天时轮转。
+func (w *asyncRequestArchiveWriter) fileForToday() (*os.File, error) {
+	today := time.Now().Format("2006-01-02")
+	if w.file != nil && w.fileDate == today {
+		return w.file, nil
+	}
+	if w.file != nil {
+		_ = w.file.Close()
+		w.file = nil
+	}
+	if err := os.MkdirAll(w.dir, 0o700); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(w.dir, today+".jsonl")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	w.file = f
+	w.fileDate = today
+	return f, nil
 }
 
 type requestArchiveResponseWriter struct {

@@ -101,6 +101,12 @@ API 模块分布:
 - `frontend/src/types`: TS 类型。
 - `frontend/src/constants`: 常量。
 
+订阅管理:
+
+- 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
+- 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
+- 操作列的“重置日限”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: false, monthly: false })`, 只归零每日用量, 不修改周/月用量。
+
 项目已有组件 README:
 
 - `frontend/src/components/common/README.md`

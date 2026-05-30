@@ -142,6 +142,11 @@ type cachedOpenAIQuotaAutoPauseSettings struct {
 	expiresAt int64
 }
 
+type cachedRequestArchiveRuntimeConfig struct {
+	cfg       config.GatewayRequestArchiveConfig
+	expiresAt int64
+}
+
 const openAICodexUserAgentCacheTTL = 60 * time.Second
 const openAICodexUserAgentErrorTTL = 5 * time.Second
 const openAICodexUserAgentDBTimeout = 5 * time.Second
@@ -160,6 +165,11 @@ const openAIAllowCodexPluginDBTimeout = 5 * time.Second
 const openAIQuotaAutoPauseSettingsCacheTTL = 60 * time.Second
 const openAIQuotaAutoPauseSettingsErrorTTL = 5 * time.Second
 const openAIQuotaAutoPauseSettingsDBTimeout = 5 * time.Second
+
+const requestArchiveRuntimeCacheTTL = 5 * time.Second
+const requestArchiveRuntimeErrorTTL = time.Second
+const requestArchiveRuntimeDBTimeout = 2 * time.Second
+const requestArchiveRuntimeCacheKey = "request_archive_runtime_config"
 
 const openAIQuotaAutoPauseSettingsRefreshKey = "openai_quota_auto_pause_settings"
 
@@ -196,6 +206,8 @@ type SettingService struct {
 	// instance owns its own cache, no shared package-level state.
 	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
+	requestArchiveRuntimeCache        atomic.Value // *cachedRequestArchiveRuntimeConfig
+	requestArchiveRuntimeSF           singleflight.Group
 }
 
 // DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）
@@ -4091,6 +4103,157 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 //
 // 优先级：
 // - 若对应系统设置键存在，则覆盖 config.yaml/env 的值
+
+func (s *SettingService) defaultRequestArchiveSettings() *RequestArchiveSettings {
+	cfg := config.GatewayRequestArchiveConfig{}
+	if s != nil && s.cfg != nil {
+		cfg = s.cfg.Gateway.RequestArchive
+	}
+	if strings.TrimSpace(cfg.Dir) == "" {
+		cfg.Dir = "data/request-archive"
+	}
+	if cfg.MaxRequestBodyBytes <= 0 {
+		cfg.MaxRequestBodyBytes = int64(64 * 1024)
+	}
+	if cfg.MaxResponseBodyBytes <= 0 {
+		cfg.MaxResponseBodyBytes = int64(64 * 1024)
+	}
+	if cfg.QueueSize <= 0 {
+		cfg.QueueSize = 1024
+	}
+	return &RequestArchiveSettings{
+		Enabled:              cfg.Enabled,
+		CaptureResponse:      cfg.CaptureResponse,
+		Dir:                  cfg.Dir,
+		MaxRequestBodyBytes:  cfg.MaxRequestBodyBytes,
+		MaxResponseBodyBytes: cfg.MaxResponseBodyBytes,
+		QueueSize:            cfg.QueueSize,
+	}
+}
+
+func (s *SettingService) getRequestArchiveSettingsUncached(ctx context.Context) (*RequestArchiveSettings, error) {
+	if s == nil || s.settingRepo == nil {
+		return nil, fmt.Errorf("setting service is not configured")
+	}
+	settings := s.defaultRequestArchiveSettings()
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyRequestArchiveSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return settings, nil
+		}
+		return nil, fmt.Errorf("get request archive settings: %w", err)
+	}
+	if strings.TrimSpace(value) == "" {
+		return settings, nil
+	}
+	var stored persistedRequestArchiveSettings
+	if err := json.Unmarshal([]byte(value), &stored); err != nil {
+		slog.Warn("request archive settings unmarshal failed, falling back to config defaults", "error", err)
+		return settings, nil
+	}
+	settings.Enabled = stored.Enabled
+	settings.CaptureResponse = stored.CaptureResponse
+	return settings, nil
+}
+
+func (s *SettingService) requestArchiveSettingsToConfig(settings *RequestArchiveSettings) config.GatewayRequestArchiveConfig {
+	if settings == nil {
+		settings = s.defaultRequestArchiveSettings()
+	}
+	return config.GatewayRequestArchiveConfig{
+		Enabled:              settings.Enabled,
+		Dir:                  settings.Dir,
+		MaxRequestBodyBytes:  settings.MaxRequestBodyBytes,
+		CaptureResponse:      settings.CaptureResponse,
+		MaxResponseBodyBytes: settings.MaxResponseBodyBytes,
+		QueueSize:            settings.QueueSize,
+	}
+}
+
+func (s *SettingService) storeRequestArchiveRuntimeConfig(settings *RequestArchiveSettings, ttl time.Duration) config.GatewayRequestArchiveConfig {
+	cfg := s.requestArchiveSettingsToConfig(settings)
+	s.requestArchiveRuntimeCache.Store(&cachedRequestArchiveRuntimeConfig{
+		cfg:       cfg,
+		expiresAt: time.Now().Add(ttl).UnixNano(),
+	})
+	return cfg
+}
+
+func (s *SettingService) GetRequestArchiveSettings(ctx context.Context) (*RequestArchiveSettings, error) {
+	settings, err := s.getRequestArchiveSettingsUncached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.storeRequestArchiveRuntimeConfig(settings, requestArchiveRuntimeCacheTTL)
+	return settings, nil
+}
+
+func (s *SettingService) SetRequestArchiveSettings(ctx context.Context, settings *RequestArchiveSettings) error {
+	if s == nil || s.settingRepo == nil {
+		return fmt.Errorf("setting service is not configured")
+	}
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	stored := persistedRequestArchiveSettings{
+		Enabled:         settings.Enabled,
+		CaptureResponse: settings.CaptureResponse,
+	}
+	data, err := json.Marshal(stored)
+	if err != nil {
+		return fmt.Errorf("marshal request archive settings: %w", err)
+	}
+	if err := s.settingRepo.Set(ctx, SettingKeyRequestArchiveSettings, string(data)); err != nil {
+		return fmt.Errorf("save request archive settings: %w", err)
+	}
+	merged := s.defaultRequestArchiveSettings()
+	merged.Enabled = settings.Enabled
+	merged.CaptureResponse = settings.CaptureResponse
+	s.storeRequestArchiveRuntimeConfig(merged, requestArchiveRuntimeCacheTTL)
+	return nil
+}
+
+func (s *SettingService) GetRequestArchiveRuntimeConfig(ctx context.Context) config.GatewayRequestArchiveConfig {
+	if s == nil {
+		return config.GatewayRequestArchiveConfig{}
+	}
+	if s.settingRepo == nil {
+		return s.requestArchiveSettingsToConfig(s.defaultRequestArchiveSettings())
+	}
+	now := time.Now().UnixNano()
+	if cached, ok := s.requestArchiveRuntimeCache.Load().(*cachedRequestArchiveRuntimeConfig); ok && cached != nil && now < cached.expiresAt {
+		return cached.cfg
+	}
+	result, err, _ := s.requestArchiveRuntimeSF.Do(requestArchiveRuntimeCacheKey, func() (any, error) {
+		if cached, ok := s.requestArchiveRuntimeCache.Load().(*cachedRequestArchiveRuntimeConfig); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
+			return cached.cfg, nil
+		}
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestArchiveRuntimeDBTimeout)
+		defer cancel()
+		settings, loadErr := s.getRequestArchiveSettingsUncached(dbCtx)
+		if loadErr != nil {
+			if cached, ok := s.requestArchiveRuntimeCache.Load().(*cachedRequestArchiveRuntimeConfig); ok && cached != nil {
+				s.requestArchiveRuntimeCache.Store(&cachedRequestArchiveRuntimeConfig{
+					cfg:       cached.cfg,
+					expiresAt: time.Now().Add(requestArchiveRuntimeErrorTTL).UnixNano(),
+				})
+				return cached.cfg, nil
+			}
+			settings = s.defaultRequestArchiveSettings()
+			s.storeRequestArchiveRuntimeConfig(settings, requestArchiveRuntimeErrorTTL)
+			return s.requestArchiveSettingsToConfig(settings), nil
+		}
+		return s.storeRequestArchiveRuntimeConfig(settings, requestArchiveRuntimeCacheTTL), nil
+	})
+	if err != nil {
+		return s.requestArchiveSettingsToConfig(s.defaultRequestArchiveSettings())
+	}
+	if cfg, ok := result.(config.GatewayRequestArchiveConfig); ok {
+		return cfg
+	}
+	return s.requestArchiveSettingsToConfig(s.defaultRequestArchiveSettings())
+}
+
 // - 否则回退到 config.yaml/env 的值
 func (s *SettingService) GetOIDCConnectOAuthConfig(ctx context.Context) (config.OIDCConnectConfig, error) {
 	if s == nil || s.cfg == nil {

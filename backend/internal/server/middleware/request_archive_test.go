@@ -3,12 +3,15 @@ package middleware
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -20,7 +23,7 @@ func TestRequestArchiveWritesCorrelatedRequestAndResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	dir := t.TempDir()
 	router := gin.New()
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled:              true,
 		Dir:                  dir,
 		MaxRequestBodyBytes:  1024,
@@ -44,7 +47,7 @@ func TestRequestArchiveWritesCorrelatedRequestAndResponse(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	records := readArchiveRecords(t, dir)
+	records := readArchiveRecords(t, dir, 2)
 	require.Len(t, records, 2)
 	require.Equal(t, "request", records[0]["event"])
 	require.Equal(t, "response", records[1]["event"])
@@ -65,11 +68,17 @@ func TestRequestArchiveDisabledDoesNotWriteFiles(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	dir := t.TempDir()
 	router := gin.New()
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled: false,
 		Dir:     dir,
 	}))
+	var handlerBody string
+	var bodyReadOK bool
 	router.POST("/v1/messages", func(c *gin.Context) {
+		// disabled 时中间件不得提前读取 body，handler 仍能读到完整内容。
+		raw, err := io.ReadAll(c.Request.Body)
+		bodyReadOK = err == nil
+		handlerBody = string(raw)
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -79,16 +88,103 @@ func TestRequestArchiveDisabledDoesNotWriteFiles(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, bodyReadOK)
+	require.Equal(t, `{"model":"claude-3"}`, handlerBody)
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	require.Empty(t, entries)
+}
+
+func TestRequestArchiveRuntimeDisabledDoesNotReadBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	provider := func(*gin.Context) (config.GatewayRequestArchiveConfig, error) {
+		return config.GatewayRequestArchiveConfig{Enabled: false}, nil
+	}
+	router.Use(useRequestArchiveWithProvider(t, config.GatewayRequestArchiveConfig{
+		Enabled: true,
+		Dir:     dir,
+	}, provider))
+	var handlerBody string
+	router.POST("/v1/messages", func(c *gin.Context) {
+		raw, err := io.ReadAll(c.Request.Body)
+		require.NoError(t, err)
+		handlerBody = string(raw)
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-3"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, `{"model":"claude-3"}`, handlerBody)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Empty(t, entries)
+}
+
+func TestRequestArchiveCaptureResponseDisabledDoesNotWrapWriter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:         true,
+		Dir:             dir,
+		CaptureResponse: false,
+	}))
+	var wrapped bool
+	router.POST("/v1/messages", func(c *gin.Context) {
+		_, wrapped = c.Writer.(*requestArchiveResponseWriter)
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-3"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.False(t, wrapped, "capture_response=false 不应包装 ResponseWriter")
+
+	// 请求仍应被归档，但响应体不应被捕获（无 body）。
+	records := readArchiveRecords(t, dir, 2)
+	require.Len(t, records, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+}
+
+func TestAsyncRequestArchiveWriterDropsWhenQueueFull(t *testing.T) {
+	// 不启动后台 goroutine，使 channel 永不被消费，模拟队列满场景。
+	w := &asyncRequestArchiveWriter{
+		dir: t.TempDir(),
+		ch:  make(chan requestArchiveRecord, 2),
+	}
+	w.Enqueue(requestArchiveRecord{ArchiveID: "1"})
+	w.Enqueue(requestArchiveRecord{ArchiveID: "2"})
+
+	done := make(chan struct{})
+	go func() {
+		w.Enqueue(requestArchiveRecord{ArchiveID: "3"})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Enqueue blocked when queue was full")
+	}
+
+	require.Equal(t, int64(1), w.dropped.Load())
 }
 
 func TestRequestArchiveSkipsNonModelGatewayQueries(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	dir := t.TempDir()
 	router := gin.New()
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled: true,
 		Dir:     dir,
 	}))
@@ -111,7 +207,7 @@ func TestRequestArchiveTruncatesBodies(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	dir := t.TempDir()
 	router := gin.New()
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled:              true,
 		Dir:                  dir,
 		MaxRequestBodyBytes:  8,
@@ -128,7 +224,7 @@ func TestRequestArchiveTruncatesBodies(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	records := readArchiveRecords(t, dir)
+	records := readArchiveRecords(t, dir, 2)
 	require.Len(t, records, 2)
 	require.Equal(t, "request-", records[0]["body"])
 	require.Equal(t, true, records[0]["body_truncated"])
@@ -156,7 +252,7 @@ func TestRequestArchiveRestoresResponseWriterForOuterMiddleware(t *testing.T) {
 		c.Writer = w
 		c.Next()
 	})
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled:              true,
 		Dir:                  dir,
 		MaxRequestBodyBytes:  1024,
@@ -194,10 +290,51 @@ func (w *releasedOnReturnWriter) Written() bool {
 	return w.ResponseWriter.Written()
 }
 
-func readArchiveRecords(t *testing.T, dir string) []map[string]any {
+func useRequestArchive(t *testing.T, cfg config.GatewayRequestArchiveConfig) gin.HandlerFunc {
+	return useRequestArchiveWithProvider(t, cfg, nil)
+}
+
+func useRequestArchiveWithProvider(t *testing.T, cfg config.GatewayRequestArchiveConfig, provider RequestArchiveConfigProvider) gin.HandlerFunc {
+	t.Helper()
+	cfg = normalizeRequestArchiveConfig(cfg)
+	if provider == nil && !cfg.Enabled {
+		return RequestArchiveWithProvider(cfg, nil)
+	}
+	writer := newAsyncRequestArchiveWriter(cfg.Dir, cfg.QueueSize)
+	removeRequestArchiveWriterForTest(writer)
+	t.Cleanup(writer.Close)
+	return newRequestArchiveHandler(cfg, writer, provider)
+}
+
+func removeRequestArchiveWriterForTest(target *asyncRequestArchiveWriter) {
+	requestArchiveWriterMu.Lock()
+	defer requestArchiveWriterMu.Unlock()
+	for i, writer := range requestArchiveActiveWriters {
+		if writer == target {
+			requestArchiveActiveWriters = append(requestArchiveActiveWriters[:i], requestArchiveActiveWriters[i+1:]...)
+			return
+		}
+	}
+}
+
+func readArchiveRecords(t *testing.T, dir string, want int) []map[string]any {
+	t.Helper()
+
+	var records []map[string]any
+	require.Eventually(t, func() bool {
+		records = loadArchiveRecords(t, dir)
+		return len(records) >= want
+	}, 2*time.Second, 5*time.Millisecond, "expected at least %d archive records", want)
+	return records
+}
+
+func loadArchiveRecords(t *testing.T, dir string) []map[string]any {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	require.NoError(t, err)
+	if len(files) == 0 {
+		return nil
+	}
 	require.Len(t, files, 1)
 
 	f, err := os.Open(files[0])
@@ -206,6 +343,7 @@ func readArchiveRecords(t *testing.T, dir string) []map[string]any {
 
 	var records []map[string]any
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 8*1024*1024)
 	for scanner.Scan() {
 		var record map[string]any
 		require.NoError(t, json.Unmarshal(scanner.Bytes(), &record))
@@ -227,7 +365,7 @@ func TestRequestArchiveIncludesIdentityWhenAvailable(t *testing.T) {
 		c.Set("_gateway_selected_account_id", int64(40))
 		c.Next()
 	})
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled:              true,
 		Dir:                  dir,
 		MaxRequestBodyBytes:  1024,
@@ -243,7 +381,7 @@ func TestRequestArchiveIncludesIdentityWhenAvailable(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	records := readArchiveRecords(t, dir)
+	records := readArchiveRecords(t, dir, 2)
 	require.Equal(t, float64(20), records[0]["user_id"])
 	require.Equal(t, float64(10), records[0]["api_key_id"])
 	require.Equal(t, float64(30), records[0]["group_id"])
@@ -260,7 +398,7 @@ func TestRequestArchiveFallsBackToAPIKeyUserID(t *testing.T) {
 		c.Set(string(ContextKeyAPIKey), &service.APIKey{ID: 10, UserID: 55})
 		c.Next()
 	})
-	router.Use(RequestArchive(config.GatewayRequestArchiveConfig{
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
 		Enabled:              true,
 		Dir:                  dir,
 		MaxRequestBodyBytes:  1024,
@@ -276,7 +414,46 @@ func TestRequestArchiveFallsBackToAPIKeyUserID(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	records := readArchiveRecords(t, dir)
+	records := readArchiveRecords(t, dir, 2)
 	require.Equal(t, float64(55), records[0]["user_id"])
 	require.Equal(t, float64(10), records[0]["api_key_id"])
+}
+
+// TestAsyncWriterCloseDuringConcurrentEnqueueDoesNotPanic 守护 H1 修复:
+// Close() 通过 quit channel 发出停止信号, 不关闭数据 channel ch, 因此即使在
+// 大量并发 Enqueue 在途时调用 Close() 也不会触发 "send on closed channel" panic。
+// 若有人退回到 close(w.ch) 的实现, 本用例会以 panic 崩溃, 起到回归告警作用。
+func TestAsyncWriterCloseDuringConcurrentEnqueueDoesNotPanic(t *testing.T) {
+	w := newAsyncRequestArchiveWriter(t.TempDir(), 8)
+	removeRequestArchiveWriterForTest(w)
+
+	const goroutines = 16
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					w.Enqueue(requestArchiveRecord{ArchiveID: "concurrent"})
+				}
+			}
+		}()
+	}
+
+	time.Sleep(5 * time.Millisecond) // 让发送方持续在途
+	w.Close()                        // 必须安全返回, 不得 panic
+	close(stop)
+	wg.Wait()
+
+	// Close 后再次 Enqueue 也不得 panic(队列无人消费 -> 走 drop 分支)。
+	require.NotPanics(t, func() {
+		w.Enqueue(requestArchiveRecord{ArchiveID: "after-close"})
+	})
+	// 幂等 Close。
+	require.NotPanics(t, w.Close)
 }

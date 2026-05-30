@@ -3025,8 +3025,11 @@ export default {
       adjusting: 'Adjusting...',
       revoke: 'Revoke',
       resetQuota: 'Reset Quota',
+      resetDailyQuota: 'Reset Daily',
       resetQuotaTitle: 'Reset Usage Quota',
       resetQuotaConfirm: "Reset the daily, weekly, and monthly usage quota for '{user}'? Usage will be zeroed and windows restarted from today.",
+      resetDailyQuotaTitle: 'Reset Daily Usage',
+      resetDailyQuotaConfirm: "Reset only the daily usage quota for '{user}'? Weekly and monthly usage will not be changed.",
       quotaResetSuccess: 'Quota reset successfully',
       failedToResetQuota: 'Failed to reset quota',
       noSubscriptionsYet: 'No subscriptions yet',
@@ -3070,6 +3073,8 @@ export default {
           adjustDesc: 'Extend or shorten the subscription validity period',
           resetQuota: 'Reset Quota',
           resetQuotaDesc: 'Reset daily/weekly/monthly usage to zero',
+          resetDailyQuota: 'Reset Daily',
+          resetDailyQuotaDesc: 'Reset only daily usage; weekly/monthly usage stays unchanged',
           revoke: 'Revoke',
           revokeDesc: 'Immediately terminate the subscription (irreversible)'
         },
@@ -6284,6 +6289,19 @@ export default {
         cooldownSecondsHint: 'Default cooldown duration (1-7200 seconds); explicit upstream reset times still take precedence',
         saved: '429 default cooldown settings saved',
         saveFailed: 'Failed to save 429 default cooldown settings'
+      },
+      requestArchive: {
+        title: 'Request Archive',
+        description: 'Temporarily save gateway request samples for upstream compatibility and incident debugging',
+        enabled: 'Enable Request Archive',
+        enabledHint: 'Archives gateway POST requests when enabled. Use only during a debugging window',
+        captureResponse: 'Capture Response Body',
+        captureResponseHint: 'Also saves response content, increasing memory, disk, and streaming tail-latency risk',
+        dir: 'Archive Directory',
+        queueSize: 'Queue Size',
+        warning: 'Request archives may contain sensitive business content. Disable it after debugging and clean up files according to your retention policy. Directory, queue size, and body truncation limits are still controlled by the config file.',
+        saved: 'Request archive settings saved',
+        saveFailed: 'Failed to save request archive settings'
       },
       streamTimeout: {
         title: 'Stream Timeout Handling',

@@ -3127,6 +3127,65 @@ func (h *SettingHandler) UpdateRateLimit429CooldownSettings(c *gin.Context) {
 	})
 }
 
+// GetRequestArchiveSettings 获取网关请求归档配置
+// GET /api/v1/admin/settings/request-archive
+func (h *SettingHandler) GetRequestArchiveSettings(c *gin.Context) {
+	settings, err := h.settingService.GetRequestArchiveSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.RequestArchiveSettings{
+		Enabled:              settings.Enabled,
+		CaptureResponse:      settings.CaptureResponse,
+		Dir:                  settings.Dir,
+		MaxRequestBodyBytes:  settings.MaxRequestBodyBytes,
+		MaxResponseBodyBytes: settings.MaxResponseBodyBytes,
+		QueueSize:            settings.QueueSize,
+	})
+}
+
+// UpdateRequestArchiveSettingsRequest 更新网关请求归档配置请求
+type UpdateRequestArchiveSettingsRequest struct {
+	Enabled         bool `json:"enabled"`
+	CaptureResponse bool `json:"capture_response"`
+}
+
+// UpdateRequestArchiveSettings 更新网关请求归档配置
+// PUT /api/v1/admin/settings/request-archive
+func (h *SettingHandler) UpdateRequestArchiveSettings(c *gin.Context) {
+	var req UpdateRequestArchiveSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	settings := &service.RequestArchiveSettings{
+		Enabled:         req.Enabled,
+		CaptureResponse: req.CaptureResponse,
+	}
+	if err := h.settingService.SetRequestArchiveSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetRequestArchiveSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.RequestArchiveSettings{
+		Enabled:              updatedSettings.Enabled,
+		CaptureResponse:      updatedSettings.CaptureResponse,
+		Dir:                  updatedSettings.Dir,
+		MaxRequestBodyBytes:  updatedSettings.MaxRequestBodyBytes,
+		MaxResponseBodyBytes: updatedSettings.MaxResponseBodyBytes,
+		QueueSize:            updatedSettings.QueueSize,
+	})
+}
+
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {
