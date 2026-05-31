@@ -38,7 +38,7 @@ describe('UseKeyModal', () => {
     })
 
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
+    const configToml = codeBlocks.find((content) => content.includes('model_provider = "xunyou"'))
 
     expect(configToml).toBeDefined()
     expect(configToml).toContain('model = "gpt-5.5"')
