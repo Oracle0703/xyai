@@ -117,7 +117,7 @@ Major upstream changes included:
 | Merge base | `7321e4dea807` |
 | Upstream head merged | `635ad81cdcad` |
 | Upstream version | `0.1.134` |
-| Merge commit | `d1ae927c` |
+| Merge commit | `8d34a467` |
 | Conflict files | `backend/cmd/server/wire.go`, `backend/cmd/server/wire_gen.go`, `backend/cmd/server/wire_gen_test.go`, `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`, `backend/internal/service/openai_gateway_service.go`, `frontend/src/components/account/CreateAccountModal.vue` |
 
 ### Summary
