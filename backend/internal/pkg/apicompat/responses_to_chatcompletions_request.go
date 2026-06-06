@@ -27,8 +27,14 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 		return nil, fmt.Errorf("nil responses request")
 	}
 
+	messages, err := responsesInputToChatMessages(req.Instructions, req.Input)
+	if err != nil {
+		return nil, err
+	}
+
 	out := &ChatCompletionsRequest{
 		Model:       req.Model,
+		Messages:    messages,
 		TopP:        req.TopP,
 		Stream:      req.Stream,
 		ToolChoice:  responsesToolChoiceToChatToolChoice(req.ToolChoice),
@@ -49,24 +55,8 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 		out.ReasoningEffort = strings.TrimSpace(req.Reasoning.Effort)
 	}
 	if len(req.Tools) > 0 {
-		out.Tools = convertResponsesToolsToChat(req.Tools)
+		out.Tools = responsesToolsToChatTools(req.Tools)
 	}
-
-	messages, err := convertResponsesInputToChatMessages(req.Input)
-	if err != nil {
-		return nil, err
-	}
-	if instructions := strings.TrimSpace(req.Instructions); instructions != "" {
-		systemContent, err := json.Marshal(instructions)
-		if err != nil {
-			return nil, err
-		}
-		messages = append([]ChatMessage{{
-			Role:    "system",
-			Content: systemContent,
-		}}, messages...)
-	}
-	out.Messages = messages
 
 	return out, nil
 }

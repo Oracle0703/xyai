@@ -34,7 +34,8 @@ func TestOpenAIGatewayServiceHandleAnthropicStreamingResponse_TopLevelUsageCache
 	}
 
 	svc := &OpenAIGatewayService{}
-	result, err := svc.handleAnthropicStreamingResponse(resp, c, "gpt-5.5", "gpt-5.5", "gpt-5.5", time.Now())
+	account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	result, err := svc.handleAnthropicStreamingResponse(resp, c, account, "gpt-5.5", "gpt-5.5", "gpt-5.5", time.Now())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

@@ -105,3 +105,67 @@ Major upstream changes included:
 | `go test ./internal/pkg/apicompat -run "TestResponsesToChatCompletions\|TestResponsesToChatCompletionsRequest\|TestResponsesEventToChatChunks"` | Passed |
 | `go test ./internal/server/routes -run Test` | Passed |
 | `go test ./internal/handler ./internal/pkg/apicompat ./internal/server/routes ./internal/service` | Failed before conflict follow-up; exposed concurrency cache error classification mismatch, then fixed and covered with focused tests. |
+
+## 2026-06-07
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0706_合并1.134版本` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `upstream/main` |
+| Base before merge | `dff279f267eb` |
+| Merge base | `7321e4dea807` |
+| Upstream head merged | `635ad81cdcad` |
+| Upstream version | `0.1.134` |
+| Merge commit | `d1ae927c` |
+| Conflict files | `backend/cmd/server/wire.go`, `backend/cmd/server/wire_gen.go`, `backend/cmd/server/wire_gen_test.go`, `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`, `backend/internal/service/openai_gateway_service.go`, `frontend/src/components/account/CreateAccountModal.vue` |
+
+### Summary
+
+Merged Wei-Shaw/sub2api updates through upstream `v0.1.134`.
+
+Major upstream changes included:
+
+| Area | Notes |
+|---|---|
+| OpenAI / Codex gateway | Added a redesigned Responses <-> Chat Completions bridge, stricter stream lifecycle validation, Responses sticky account binding, OpenAI WS HTTP bridge for large initial payloads, and Codex / Claude Code behavior alignment. |
+| Gateway reliability | Added multi-instance background-job leader lock, scheduler sticky escape, stream field validation, upstream `response.failed` passthrough, missing terminal event failover, image rate-limit cooldown failover, and real image upstream error passthrough. |
+| Usage, ops, and audit | Added failed request recording and user/admin error views, TTFT sample weighting, deleted API key audit lookup, deleted user lookup support, and usage search/cache improvements. |
+| Billing and quota | Added image token billing, user x platform quota flusher, shorter quota sentinel TTL, and quota window normalization fixes. |
+| Security and auth | Added Linux DO pending-flow fixes, admin moderation auto-ban exemption, API key name XSS escaping, and unauthorized key lookup 404 behavior to reduce key-oracle leakage. |
+| Build and docs | Bumped Go patch version to `1.26.4`, updated CI/deploy Docker images, README files, and partner assets. |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/cmd/server/wire.go` | Kept local `promptMetrics *promptmetrics.Extension` cleanup and added upstream `quotaFlusher *service.UserPlatformQuotaUsageFlusher` cleanup. |
+| `backend/cmd/server/wire_gen.go` | Regenerated with `go generate ./cmd/server` after resolving provider and cleanup signatures. |
+| `backend/cmd/server/wire_gen_test.go` | Updated `provideCleanup` tests to pass both `nil // promptMetrics` and `nil // quotaFlusher`. |
+| `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go` | Adopted upstream stream lifecycle bridge and removed duplicate request conversion helpers already kept in `responses_to_chatcompletions_request.go`. |
+| `backend/internal/pkg/apicompat/responses_to_chatcompletions_request.go` | Kept local `ResponsesToChatCompletionsRequestWithOptions`, but routed it through the upstream `responsesInputToChatMessages` pipeline and `responsesToolsToChatTools`. |
+| `backend/internal/pkg/apicompat/types.go` | Removed duplicate old `ResponsesStreamEvent.MarshalJSON` / stream item definitions and used upstream `responses_stream_event_wire.go`. |
+| `backend/internal/service/openai_gateway_service.go` | Kept local OpenAI official endpoint `thinking` filtering, changed it to patch request-view bodies, and only materialized maps with `ensureReqBody()` when needed to avoid nil map writes. |
+| `frontend/src/components/account/CreateAccountModal.vue` | Kept local `openAICompatibleProvider` preset behavior and added upstream `syncPreviewCredentials` flow. |
+| `backend/internal/service/openai_gateway_responses_compat_test.go` | Updated local fallback stream test to assert dynamic Responses item IDs are consistent across SSE events instead of the old hard-coded `item_msg_0` contract. |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `go generate ./cmd/server` | Passed |
+| `pnpm --dir frontend run typecheck` | Passed |
+| `go test ./cmd/server -run Wire` | Passed |
+| `go test ./internal/pkg/apicompat -run "TestResponsesToChatCompletions\|TestResponsesToChatCompletionsRequest\|TestChatCompletionsToResponses\|Test.*ResponsesStream"` | Passed |
+| `go test ./internal/service -run "TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount\|TestGetOpenAIRequestBodyMap_IgnoresLegacyContextCache"` | Passed |
+| `go test ./internal/service -run TestOpenAIGatewayService_ResponsesStreamFallsBackToRawChatCompletionsForOpenAICompatibleAPIKey -v` | Passed after updating the local test assertion to the new dynamic item-id stream contract |
+| `go test ./internal/service -run "Test(OpenAI\|Responses\|ChatCompletions\|Codex\|GetOpenAIRequestBodyMap\|Sanitize\|Gateway\|UserConcurrencyPreset).*"` | Passed |
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames <merge-commit>
+git show --cc <merge-commit> -- backend/cmd/server/wire.go backend/cmd/server/wire_gen.go backend/cmd/server/wire_gen_test.go backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go backend/internal/service/openai_gateway_service.go frontend/src/components/account/CreateAccountModal.vue
+git diff --stat dff279f267eb..<merge-commit>
+git diff --name-only dff279f267eb..<merge-commit>
+```

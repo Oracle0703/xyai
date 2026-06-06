@@ -2,7 +2,7 @@
 
 ## 技术栈与入口
 
-- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.3`。
+- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.4`。
 - HTTP 框架: Gin。
 - ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。
 - 依赖注入: Google Wire, 入口在 `backend/cmd/server/wire.go`, 生成文件 `wire_gen.go`。
@@ -40,7 +40,7 @@
 - `handler.ProviderSet`
 - `server.ProviderSet`
 
-很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, channel monitor runner。新增后台服务时要同时考虑 Wire 注入, 启动时机和 `provideCleanup` 停止逻辑。
+很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, channel monitor runner 和 user platform quota flusher。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
 
 ## HTTP Server 与路由
 
@@ -81,6 +81,14 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `/v1/chat/completions` raw 直转路径删除 top-level `thinking`, 保留官方 `reasoning_effort`。
 - Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
 - OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens` 等缓存 token 字段。
+
+OpenAI/Codex 兼容桥:
+
+- `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go` 负责 Chat Completions 与 Responses 双向桥接; streaming bridge 会按 Responses 生命周期发出 `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta/done`, `response.output_item.done`, `response.completed`。
+- Chat -> Responses 流式 message item id 是动态生成的, 但同一条消息在 added/done/completed output 中必须保持一致; 测试不应断言固定 `item_msg_0`。
+- Reasoning-only Chat stream 会先输出 reasoning item, 必要时合成可见 message 文本; tool call stream 必须补齐 `function_call_arguments.done` 和 `output_item.done`, 否则 Codex 客户端不会执行工具。
+- `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
+- OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
 
 网关链路常见中间件:
 

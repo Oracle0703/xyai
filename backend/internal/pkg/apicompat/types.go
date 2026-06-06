@@ -410,11 +410,6 @@ type ResponsesStreamEvent struct {
 	// response.content_part.added / response.content_part.done
 	Part *ResponsesContentPart `json:"part,omitempty"`
 
-	// StreamItem and StreamPart override Item/Part JSON for lifecycle events
-	// that need empty arrays or empty strings preserved.
-	StreamItem *ResponsesStreamOutputItem  `json:"-"`
-	StreamPart *ResponsesStreamContentPart `json:"-"`
-
 	// response.output_text.delta / response.output_text.done
 	OutputIndex  int    `json:"output_index"`
 	ContentIndex int    `json:"content_index"`
@@ -437,61 +432,6 @@ type ResponsesStreamEvent struct {
 
 	// Sequence number for ordering events
 	SequenceNumber int `json:"sequence_number,omitempty"`
-}
-
-func (e ResponsesStreamEvent) MarshalJSON() ([]byte, error) {
-	type responsesStreamEventJSON struct {
-		Type string `json:"type"`
-
-		Response *ResponsesResponse `json:"response,omitempty"`
-		Item     any                `json:"item,omitempty"`
-		Part     any                `json:"part,omitempty"`
-
-		OutputIndex  int    `json:"output_index"`
-		ContentIndex int    `json:"content_index"`
-		Delta        string `json:"delta,omitempty"`
-		Text         string `json:"text,omitempty"`
-		ItemID       string `json:"item_id,omitempty"`
-
-		CallID    string `json:"call_id,omitempty"`
-		Name      string `json:"name,omitempty"`
-		Arguments string `json:"arguments,omitempty"`
-
-		SummaryIndex int `json:"summary_index,omitempty"`
-
-		Code  string `json:"code,omitempty"`
-		Param string `json:"param,omitempty"`
-
-		SequenceNumber int `json:"sequence_number,omitempty"`
-	}
-
-	item := any(e.Item)
-	if e.StreamItem != nil {
-		item = e.StreamItem
-	}
-	part := any(e.Part)
-	if e.StreamPart != nil {
-		part = e.StreamPart
-	}
-
-	return json.Marshal(responsesStreamEventJSON{
-		Type:           e.Type,
-		Response:       e.Response,
-		Item:           item,
-		Part:           part,
-		OutputIndex:    e.OutputIndex,
-		ContentIndex:   e.ContentIndex,
-		Delta:          e.Delta,
-		Text:           e.Text,
-		ItemID:         e.ItemID,
-		CallID:         e.CallID,
-		Name:           e.Name,
-		Arguments:      e.Arguments,
-		SummaryIndex:   e.SummaryIndex,
-		Code:           e.Code,
-		Param:          e.Param,
-		SequenceNumber: e.SequenceNumber,
-	})
 }
 
 // ---------------------------------------------------------------------------
