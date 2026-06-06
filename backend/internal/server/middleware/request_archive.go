@@ -132,11 +132,11 @@ func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer arc
 			responseRecord.Status = c.Writer.Status()
 		}
 		if captureWriter != nil {
-			responseRecord.Body = captureWriter.Body()
 			responseRecord.BodySize = captureWriter.BodySize()
 			responseRecord.BodySHA256 = captureWriter.BodySHA256()
 			responseRecord.BodyTruncated = captureWriter.Truncated()
 			responseRecord.Stream = captureWriter.Stream()
+			responseRecord.Usage = captureWriter.Usage()
 		}
 		writer.Enqueue(responseRecord)
 	}
@@ -227,6 +227,7 @@ type requestArchiveRecord struct {
 	BodySize      int64          `json:"body_size"`
 	BodySHA256    string         `json:"body_sha256,omitempty"`
 	BodyTruncated bool           `json:"body_truncated,omitempty"`
+	Usage         map[string]any `json:"usage,omitempty"`
 }
 
 func buildArchiveRecord(c *gin.Context, archiveID, event string, ts time.Time) requestArchiveRecord {
@@ -457,12 +458,14 @@ func (w *asyncRequestArchiveWriter) fileForToday() (*os.File, error) {
 
 type requestArchiveResponseWriter struct {
 	gin.ResponseWriter
-	buf       bytes.Buffer
 	hasher    hashAccumulator
 	limit     int64
 	size      int64
 	truncated bool
 	stream    bool
+	usage     map[string]any
+	sseBuffer string
+	jsonTail  []byte
 }
 
 func newRequestArchiveResponseWriter(w gin.ResponseWriter, limit int64) *requestArchiveResponseWriter {
@@ -507,23 +510,16 @@ func (w *requestArchiveResponseWriter) capture(data []byte) {
 	w.size += int64(len(data))
 	if w.limit == 0 {
 		w.truncated = true
-		return
-	}
-	remaining := w.limit - int64(w.buf.Len())
-	if remaining <= 0 {
+	} else if w.limit > 0 && w.size > w.limit {
 		w.truncated = true
-		return
 	}
-	if int64(len(data)) > remaining {
-		w.buf.Write(data[:remaining])
-		w.truncated = true
-		return
-	}
-	w.buf.Write(data)
-}
 
-func (w *requestArchiveResponseWriter) Body() string {
-	return w.buf.String()
+	if w.isEventStream() {
+		w.stream = true
+		w.captureSSEUsage(data)
+		return
+	}
+	w.appendJSONTail(data)
 }
 
 func (w *requestArchiveResponseWriter) BodySize() int64 {
@@ -542,7 +538,187 @@ func (w *requestArchiveResponseWriter) Truncated() bool {
 }
 
 func (w *requestArchiveResponseWriter) Stream() bool {
-	return w.stream || strings.Contains(strings.ToLower(w.Header().Get("Content-Type")), "text/event-stream")
+	return w.stream || w.isEventStream()
+}
+
+// Usage 在请求结束后调用一次, 此时才做 usage 提取:
+// SSE 路径先冲洗可能缺少结尾换行的最后一行; 非流式路径只在这里
+// 对尾部窗口解析一次, 避免在 Write 热路径上对窗口做重复扫描。
+func (w *requestArchiveResponseWriter) Usage() map[string]any {
+	if w.sseBuffer != "" {
+		w.captureSSELineUsage(w.sseBuffer)
+		w.sseBuffer = ""
+	}
+	if w.usage == nil && len(w.jsonTail) > 0 {
+		if usage := extractArchiveUsageFromJSON(w.jsonTail); usage != nil {
+			w.usage = usage
+		} else if usage := extractArchiveUsageFromFragment(string(w.jsonTail)); usage != nil {
+			w.usage = usage
+		}
+	}
+	if len(w.usage) == 0 {
+		return nil
+	}
+	return w.usage
+}
+
+func (w *requestArchiveResponseWriter) isEventStream() bool {
+	return strings.Contains(strings.ToLower(w.Header().Get("Content-Type")), "text/event-stream")
+}
+
+// appendJSONTail 维护非流式响应的尾部解析窗口。usage 在所有受支持协议中
+// 都位于响应末尾, 因此只保留最后 maxJSONTailBytes 字节, 提取推迟到 Usage()。
+func (w *requestArchiveResponseWriter) appendJSONTail(data []byte) {
+	const maxJSONTailBytes = 256 * 1024
+	if len(data) >= maxJSONTailBytes {
+		w.jsonTail = append(w.jsonTail[:0], data[len(data)-maxJSONTailBytes:]...)
+		return
+	}
+	w.jsonTail = append(w.jsonTail, data...)
+	if len(w.jsonTail) > maxJSONTailBytes {
+		excess := len(w.jsonTail) - maxJSONTailBytes
+		copy(w.jsonTail, w.jsonTail[excess:])
+		w.jsonTail = w.jsonTail[:maxJSONTailBytes]
+	}
+}
+
+func (w *requestArchiveResponseWriter) captureSSEUsage(data []byte) {
+	w.sseBuffer += string(data)
+	const maxSSEBufferBytes = 256 * 1024
+	if len(w.sseBuffer) > maxSSEBufferBytes {
+		w.sseBuffer = w.sseBuffer[len(w.sseBuffer)-maxSSEBufferBytes:]
+	}
+	for {
+		idx := strings.IndexByte(w.sseBuffer, '\n')
+		if idx < 0 {
+			return
+		}
+		line := strings.TrimRight(w.sseBuffer[:idx], "\r")
+		w.sseBuffer = w.sseBuffer[idx+1:]
+		w.captureSSELineUsage(line)
+	}
+}
+
+func (w *requestArchiveResponseWriter) captureSSELineUsage(line string) {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "data:") {
+		// 单个 data: 行超过 sseBuffer 上限时, 裁剪会砍掉行首前缀, 该行
+		// 会以碎片形态走到这里(典型如 Responses 协议体积巨大的
+		// response.completed 终止事件)。对仍带 usage 标记的碎片降级做
+		// fragment 提取, 避免 usage 静默丢失; 普通 event:/注释/空行因
+		// 不含标记而被 Contains 快速跳过。
+		if strings.Contains(line, `"usage"`) || strings.Contains(line, `"usageMetadata"`) {
+			if usage := extractArchiveUsageFromFragment(line); usage != nil {
+				w.usage = usage
+			}
+		}
+		return
+	}
+	payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+	if payload == "" || payload == "[DONE]" {
+		return
+	}
+	if usage := extractArchiveUsageFromJSON([]byte(payload)); usage != nil {
+		w.usage = usage
+	}
+}
+
+// archiveUsageJSONPaths 覆盖 OpenAI Chat/Responses(`usage` / `response.usage`)、
+// Anthropic Messages(`usage`)和 Gemini(`usageMetadata`)。
+// `message.usage` 兜底 Anthropic SSE 流死在 message_delta 之前的情况:
+// 此时只有 message_start 携带嵌套 usage(input/cache tokens), 放在最后
+// 以免抢占 message_delta 顶层 usage(累计全量值)的覆盖优先级。
+var archiveUsageJSONPaths = []string{"usage", "response.usage", "usageMetadata", "message.usage"}
+
+func extractArchiveUsageFromJSON(data []byte) map[string]any {
+	for _, path := range archiveUsageJSONPaths {
+		result := gjson.GetBytes(data, path)
+		if !result.Exists() || !result.IsObject() {
+			continue
+		}
+		var usage map[string]any
+		if err := json.Unmarshal([]byte(result.Raw), &usage); err == nil && len(usage) > 0 {
+			return usage
+		}
+	}
+	return nil
+}
+
+// extractArchiveUsageFromFragment 处理尾部窗口不是完整 JSON 文档的情况
+// (响应超过窗口被截掉头部, 或 Gemini 非 SSE 流式的 JSON 数组分片):
+// 取窗口内最后一次出现的 usage 键, 用括号平衡截取对象后解析。
+func extractArchiveUsageFromFragment(fragment string) map[string]any {
+	for _, marker := range []string{`"usage"`, `"usageMetadata"`} {
+		if usage := extractArchiveUsageAfterMarker(fragment, marker); usage != nil {
+			return usage
+		}
+	}
+	return nil
+}
+
+func extractArchiveUsageAfterMarker(fragment, marker string) map[string]any {
+	idx := strings.LastIndex(fragment, marker)
+	if idx < 0 {
+		return nil
+	}
+	colon := strings.IndexByte(fragment[idx+len(marker):], ':')
+	if colon < 0 {
+		return nil
+	}
+	start := idx + len(marker) + colon + 1
+	for start < len(fragment) && (fragment[start] == ' ' || fragment[start] == '\t' || fragment[start] == '\r' || fragment[start] == '\n') {
+		start++
+	}
+	if start >= len(fragment) || fragment[start] != '{' {
+		return nil
+	}
+	raw := balancedJSONObject(fragment[start:])
+	if raw == "" {
+		return nil
+	}
+	var usage map[string]any
+	if err := json.Unmarshal([]byte(raw), &usage); err == nil && len(usage) > 0 {
+		return usage
+	}
+	return nil
+}
+
+func balancedJSONObject(s string) string {
+	if s == "" || s[0] != '{' {
+		return ""
+	}
+	depth := 0
+	inString := false
+	escaped := false
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[:i+1]
+			}
+		}
+	}
+	return ""
 }
 
 type hashAccumulator interface {

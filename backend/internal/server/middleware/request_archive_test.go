@@ -54,7 +54,9 @@ func TestRequestArchiveWritesCorrelatedRequestAndResponse(t *testing.T) {
 	require.NotEmpty(t, records[0]["archive_id"])
 	require.Equal(t, records[0]["archive_id"], records[1]["archive_id"])
 	require.Contains(t, records[0]["body"], `"content":"hello"`)
-	require.Contains(t, records[1]["body"], `"echo"`)
+	require.NotContains(t, records[1], "body")
+	require.Greater(t, records[1]["body_size"], float64(0))
+	require.NotEmpty(t, records[1]["body_sha256"])
 	require.Equal(t, "archive-test-client/1.0", records[0]["user_agent"])
 
 	headers, ok := records[0]["headers"].(map[string]any)
@@ -156,6 +158,273 @@ func TestRequestArchiveCaptureResponseDisabledDoesNotWrapWriter(t *testing.T) {
 	require.NotContains(t, records[1], "body")
 }
 
+func TestRequestArchiveCaptureResponseStoresUsageWithoutResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"id":      "chatcmpl-1",
+			"object":  "chat.completion",
+			"choices": []gin.H{{"message": gin.H{"role": "assistant", "content": strings.Repeat("large-response-", 20)}}},
+			"usage": gin.H{
+				"prompt_tokens":     11,
+				"completion_tokens": 7,
+				"total_tokens":      18,
+			},
+		})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-4.1","messages":[{"role":"user","content":"hello"}]}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(11), usage["prompt_tokens"])
+	require.Equal(t, float64(7), usage["completion_tokens"])
+	require.Equal(t, float64(18), usage["total_tokens"])
+	require.Greater(t, records[1]["body_size"], float64(0))
+	require.NotEmpty(t, records[1]["body_sha256"])
+}
+
+func TestRequestArchiveCaptureResponseExtractsSSEUsageWithoutResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1/responses", func(c *gin.Context) {
+		c.Header("Content-Type", "text/event-stream")
+		_, _ = c.Writer.WriteString("data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n")
+		_, _ = c.Writer.WriteString("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":13,\"output_tokens\":5,\"total_tokens\":18}}}\n\n")
+		_, _ = c.Writer.WriteString("data: [DONE]\n\n")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-4.1","input":"hello"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	require.Equal(t, true, records[1]["stream"])
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(13), usage["input_tokens"])
+	require.Equal(t, float64(5), usage["output_tokens"])
+	require.Equal(t, float64(18), usage["total_tokens"])
+}
+
+func TestRequestArchiveCaptureResponseExtractsSSEUsageWithoutTrailingNewline(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1/responses", func(c *gin.Context) {
+		c.Header("Content-Type", "text/event-stream")
+		_, _ = c.Writer.WriteString("data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n")
+		// 最后一个事件没有结尾换行, 模拟上游在终止事件后立即断开。
+		_, _ = c.Writer.WriteString("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":13,\"output_tokens\":5,\"total_tokens\":18}}}")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-4.1","input":"hello"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(13), usage["input_tokens"])
+	require.Equal(t, float64(5), usage["output_tokens"])
+	require.Equal(t, float64(18), usage["total_tokens"])
+}
+
+func TestRequestArchiveCaptureResponseExtractsGeminiUsageMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1beta/models/gemini-pro:generateContent", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"candidates": []gin.H{{"content": gin.H{"parts": []gin.H{{"text": "hello"}}}}},
+			"usageMetadata": gin.H{
+				"promptTokenCount":     17,
+				"candidatesTokenCount": 6,
+				"totalTokenCount":      23,
+			},
+		})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-pro:generateContent", strings.NewReader(`{"contents":[{"parts":[{"text":"hello"}]}]}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(17), usage["promptTokenCount"])
+	require.Equal(t, float64(6), usage["candidatesTokenCount"])
+	require.Equal(t, float64(23), usage["totalTokenCount"])
+}
+
+func TestRequestArchiveCaptureResponseExtractsAnthropicMessageStartUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1/messages", func(c *gin.Context) {
+		c.Header("Content-Type", "text/event-stream")
+		// 流在 message_delta 之前中断: 只有 message_start 携带嵌套在
+		// message.usage 下的 input/cache tokens。
+		_, _ = c.Writer.WriteString("event: message_start\n")
+		_, _ = c.Writer.WriteString("data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"usage\":{\"input_tokens\":120,\"cache_read_input_tokens\":80,\"output_tokens\":1}}}\n\n")
+		_, _ = c.Writer.WriteString("event: content_block_start\n")
+		_, _ = c.Writer.WriteString("data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(120), usage["input_tokens"])
+	require.Equal(t, float64(80), usage["cache_read_input_tokens"])
+	require.Equal(t, float64(1), usage["output_tokens"])
+}
+
+func TestRequestArchiveCaptureResponseExtractsUsageFromOversizedSSELine(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 1024,
+		CaptureResponse:      true,
+	}))
+	// 构造单个超过 256KB sseBuffer 上限的 data: 行(模拟 Responses 协议
+	// 巨大的 response.completed 终止事件), 裁剪会砍掉行首的 "data:" 前缀,
+	// 验证碎片行降级 fragment 提取仍能拿到 usage。
+	giant := "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"text\":\"" +
+		strings.Repeat("x", 280*1024) +
+		"\"}],\"usage\":{\"input_tokens\":7,\"output_tokens\":3,\"total_tokens\":10}}}\n\n"
+	router.POST("/v1/responses", func(c *gin.Context) {
+		c.Header("Content-Type", "text/event-stream")
+		_, _ = c.Writer.WriteString("data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"usage\":null}}\n\n")
+		for off := 0; off < len(giant); off += 32 * 1024 {
+			end := off + 32*1024
+			if end > len(giant) {
+				end = len(giant)
+			}
+			_, _ = c.Writer.WriteString(giant[off:end])
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-4.1","input":"hello"}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	require.Equal(t, true, records[1]["body_truncated"])
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(7), usage["input_tokens"])
+	require.Equal(t, float64(3), usage["output_tokens"])
+	require.Equal(t, float64(10), usage["total_tokens"])
+}
+
+func TestRequestArchiveCaptureResponseExtractsUsageAfterTruncatedPrefix(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{
+		Enabled:              true,
+		Dir:                  dir,
+		MaxRequestBodyBytes:  1024,
+		MaxResponseBodyBytes: 32,
+		CaptureResponse:      true,
+	}))
+	router.POST("/v1/chat/completions", func(c *gin.Context) {
+		c.Header("Content-Type", "application/json")
+		_, _ = c.Writer.WriteString(`{"choices":[{"message":{"content":"`)
+		_, _ = c.Writer.WriteString(strings.Repeat("large-response-", 20))
+		_, _ = c.Writer.WriteString(`"}}],"usage":{"prompt_tokens":21,"completion_tokens":9,"total_tokens":30}}`)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-4.1","messages":[{"role":"user","content":"hello"}]}`))
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	records := readArchiveRecords(t, dir, 2)
+	require.Equal(t, "response", records[1]["event"])
+	require.NotContains(t, records[1], "body")
+	require.Equal(t, true, records[1]["body_truncated"])
+	usage, ok := records[1]["usage"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(21), usage["prompt_tokens"])
+	require.Equal(t, float64(9), usage["completion_tokens"])
+	require.Equal(t, float64(30), usage["total_tokens"])
+}
+
 func TestAsyncRequestArchiveWriterDropsWhenQueueFull(t *testing.T) {
 	// 不启动后台 goroutine，使 channel 永不被消费，模拟队列满场景。
 	w := &asyncRequestArchiveWriter{
@@ -228,8 +497,10 @@ func TestRequestArchiveTruncatesBodies(t *testing.T) {
 	require.Len(t, records, 2)
 	require.Equal(t, "request-", records[0]["body"])
 	require.Equal(t, true, records[0]["body_truncated"])
-	require.Equal(t, "response-", records[1]["body"])
+	require.NotContains(t, records[1], "body")
 	require.Equal(t, true, records[1]["body_truncated"])
+	require.Equal(t, float64(len("response-body-is-long")), records[1]["body_size"])
+	require.NotEmpty(t, records[1]["body_sha256"])
 }
 
 func TestRequestArchiveRestoresResponseWriterForOuterMiddleware(t *testing.T) {
