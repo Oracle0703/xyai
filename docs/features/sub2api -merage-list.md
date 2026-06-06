@@ -169,3 +169,36 @@ git show --cc <merge-commit> -- backend/cmd/server/wire.go backend/cmd/server/wi
 git diff --stat dff279f267eb..<merge-commit>
 git diff --name-only dff279f267eb..<merge-commit>
 ```
+
+### Post-merge Review (2026-06-07)
+
+合并提交 `8d34a467` 完成后做了一次完整三方审查(merge-base 三分类 + `git merge-tree` 自动合并树对比 + 全量测试)。
+
+发现并修复的遗漏:
+
+| Item | Value |
+|---|---|
+| 问题 | 上游为 `service.UserRepository` 接口新增 `GetByIDIncludeDeleted` 方法后, `backend/internal/handler/admin/user_concurrency_preset_handler_test.go` 中的 `handlerPresetUserRepoStub` 未补该方法, 导致 `go test ./internal/handler/admin/` 编译失败(合并时只修了 service 侧同类 stub, 验证命令未覆盖该包) |
+| 修复 | 为 `handlerPresetUserRepoStub` 补 `GetByIDIncludeDeleted`, 委托 `GetByID`, 与 service 侧 `userConcurrencyPresetUserRepoStub` 的修法一致 |
+| 修复提交 | 见本备注所在提交 |
+
+已确认无问题的事项:
+
+- 6 个冲突文件的解决方案均同时保留本地与上游修改(wire 注入链/cleanup 顺序、apicompat 桥接取舍、thinking 过滤全路径、前端双边功能)。
+- 35 个双边修改的自动合并文件语义正确(设置项前后端贯通、路由/配置/i18n 无缺漏)。
+- 合并期间的额外编辑均为必要适配(上游接口/签名变更引起的本地测试调整、llm-wiki 文档同步)。
+
+遗留小瑕疵(不影响正确性, 可后续清理):
+
+- `backend/internal/pkg/apicompat/responses_to_chatcompletions_request.go` 中旧的 `convertResponsesToolsToChat` / `convertResponsesInputToChatMessages` 已无调用方, 为死代码。
+- 上游 `responsesToolsToChatTools` 较本地旧实现少 `strings.TrimSpace` 防御, 边界场景极低风险。
+
+补充验证:
+
+| Command | Result |
+|---|---|
+| `go build ./...` | Passed |
+| `go test ./...`(全量) | Passed(修复 stub 后; 首轮 6 个包因 Windows 文件锁误报, `-p 1` 串行重跑全部通过) |
+| `pnpm --dir frontend run typecheck` | Passed |
+
+经验教训: 合并后应执行全量 `go test ./...` 验证, 而非仅运行冲突相关包, 否则接口扩展引起的测试桩编译错误会漏检。

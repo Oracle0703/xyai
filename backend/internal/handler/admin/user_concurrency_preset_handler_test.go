@@ -143,6 +143,10 @@ func (s *handlerPresetUserRepoStub) GetByID(_ context.Context, id int64) (*servi
 	return s.users[id], nil
 }
 
+func (s *handlerPresetUserRepoStub) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+	return s.GetByID(ctx, id)
+}
+
 func (s *handlerPresetUserRepoStub) BatchSetConcurrency(_ context.Context, userIDs []int64, value int) (int, error) {
 	s.batchSetValue = value
 	return len(userIDs), nil
