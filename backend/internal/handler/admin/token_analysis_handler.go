@@ -18,6 +18,7 @@ type tokenAnalysisService interface {
 	ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error)
 	GetUserInput(ctx context.Context, archiveID string) (*service.TokenAnalysisUserInput, error)
+	ListArchiveFiles(ctx context.Context) ([]service.TokenAnalysisArchiveFile, error)
 	GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error)
 	IndexRange(ctx context.Context, req service.TokenAnalysisIndexRequest) (*service.TokenAnalysisIndexResult, error)
 }
@@ -138,6 +139,16 @@ func (h *TokenAnalysisHandler) TriggerIndex(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+// ArchiveFiles 列出归档目录 JSONL 文件与索引水位, 已入库完成的文件打可删除标签。
+func (h *TokenAnalysisHandler) ArchiveFiles(c *gin.Context) {
+	files, err := h.service.ListArchiveFiles(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, files)
 }
 
 func (h *TokenAnalysisHandler) IndexStatus(c *gin.Context) {

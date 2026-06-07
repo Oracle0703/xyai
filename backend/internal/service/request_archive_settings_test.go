@@ -149,6 +149,24 @@ func TestTokenAnalysisIndexerFollowsRuntimeArchiveDir(t *testing.T) {
 	require.Equal(t, "rt1", repo.upserts[0].ArchiveID)
 }
 
+func TestTokenAnalysisListArchiveFilesFollowsRuntimeDir(t *testing.T) {
+	configDir := t.TempDir()
+	customDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(customDir, "2026-01-01.jsonl"), []byte("x"), 0o600))
+
+	settingRepo := newMockSettingRepo()
+	cfg := &config.Config{Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: configDir}}}
+	settingSvc := NewSettingService(settingRepo, cfg)
+	require.NoError(t, settingSvc.SetRequestArchiveSettings(context.Background(), &RequestArchiveSettings{Dir: customDir}))
+
+	svc := NewTokenAnalysisService(&tokenAnalysisRepoStub{}, cfg, settingSvc)
+
+	files, err := svc.ListArchiveFiles(context.Background())
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	require.Equal(t, "2026-01-01.jsonl", files[0].Name)
+}
+
 func TestSetRequestArchiveSettingsRejectsInvalidDir(t *testing.T) {
 	repo := newMockSettingRepo()
 	svc := NewSettingService(repo, &config.Config{})

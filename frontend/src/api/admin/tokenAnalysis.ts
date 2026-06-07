@@ -176,6 +176,19 @@ export interface TokenAnalysisIndexStatus {
   updated_at?: string
 }
 
+export type TokenAnalysisArchiveFileStatus = 'writing' | 'indexing' | 'deletable' | 'attention' | 'compressed'
+
+export interface TokenAnalysisArchiveFile {
+  name: string
+  size_bytes: number
+  mod_time: string
+  indexed_offset: number
+  processed_rows: number
+  failed_rows: number
+  last_error: string
+  status: TokenAnalysisArchiveFileStatus
+}
+
 async function getSummary(params: TokenAnalysisQueryParams): Promise<TokenAnalysisSummary> {
   const { data } = await apiClient.get<TokenAnalysisSummary>('/admin/token-analysis/summary', { params })
   return data
@@ -234,6 +247,11 @@ async function getIndexStatus(): Promise<TokenAnalysisIndexStatus> {
   return data
 }
 
+async function listArchiveFiles(): Promise<TokenAnalysisArchiveFile[]> {
+  const { data } = await apiClient.get<TokenAnalysisArchiveFile[]>('/admin/token-analysis/archive-files')
+  return data
+}
+
 export const tokenAnalysisAPI = {
   getSummary,
   listUsers,
@@ -241,7 +259,8 @@ export const tokenAnalysisAPI = {
   listRequests,
   getRequestInput,
   triggerIndex,
-  getIndexStatus
+  getIndexStatus,
+  listArchiveFiles
 }
 
 export default tokenAnalysisAPI

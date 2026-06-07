@@ -133,6 +133,44 @@
       </div>
 
       <div class="card p-4">
+        <div class="mb-1 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.archiveFiles') }}</h2>
+          <span class="text-xs text-gray-500">{{ archiveFiles.length }}</span>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.archiveFilesHint') }}</p>
+        <div class="overflow-x-auto">
+          <table class="table text-xs">
+            <thead>
+              <tr>
+                <th>{{ t('admin.tokenAnalysis.file') }}</th>
+                <th>{{ t('admin.tokenAnalysis.fileSize') }}</th>
+                <th>{{ t('admin.tokenAnalysis.indexProgress') }}</th>
+                <th>{{ t('admin.tokenAnalysis.processed') }} / {{ t('admin.tokenAnalysis.failed') }}</th>
+                <th>{{ t('admin.tokenAnalysis.fileStatus') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="file in archiveFiles" :key="file.name">
+                <td class="font-medium">{{ file.name }}</td>
+                <td>{{ formatBytes(file.size_bytes) }}</td>
+                <td>{{ archiveFileProgress(file) }}</td>
+                <td>{{ formatNumber(file.processed_rows) }} / {{ formatNumber(file.failed_rows) }}</td>
+                <td>
+                  <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="archiveFileStatusClass(file.status)">
+                    {{ t(`admin.tokenAnalysis.archiveFileStatus.${file.status}`) }}
+                  </span>
+                  <div v-if="file.last_error" class="mt-1 max-w-[280px] truncate text-xs text-red-500" :title="file.last_error">{{ file.last_error }}</div>
+                </td>
+              </tr>
+              <tr v-if="archiveFiles.length === 0">
+                <td colspan="5" class="py-4 text-center text-gray-500">{{ t('common.noData') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-4">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.projectRanking') }}</h2>
           <span class="text-xs text-gray-500">{{ projectsPagination.total }}</span>
@@ -364,6 +402,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type {
+  TokenAnalysisArchiveFile,
+  TokenAnalysisArchiveFileStatus,
   TokenAnalysisIndexStatus,
   TokenAnalysisProjectUsage,
   TokenAnalysisQueryParams,
@@ -375,7 +415,7 @@ import type {
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
-import { formatDateTime } from '@/utils/format'
+import { formatBytes, formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -395,6 +435,7 @@ const users = ref<TokenAnalysisUserUsage[]>([])
 const projects = ref<TokenAnalysisProjectUsage[]>([])
 const requests = ref<TokenAnalysisRequestItem[]>([])
 const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
+const archiveFiles = ref<TokenAnalysisArchiveFile[]>([])
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
 const requestSort = ref<'event_time' | 'risk_score'>('event_time')
 const requestInput = ref<TokenAnalysisRequestInput | null>(null)
@@ -561,11 +602,36 @@ async function loadIndexStatus() {
   indexStatus.value = await adminAPI.tokenAnalysis.getIndexStatus()
 }
 
+async function loadArchiveFiles() {
+  archiveFiles.value = await adminAPI.tokenAnalysis.listArchiveFiles()
+}
+
+// 索引水位 / 文件大小, 两者相等即"已全部入库"。
+function archiveFileProgress(file: TokenAnalysisArchiveFile): string {
+  if (file.status === 'compressed') return '-'
+  return `${formatBytes(file.indexed_offset)} / ${formatBytes(file.size_bytes)}`
+}
+
+function archiveFileStatusClass(status: TokenAnalysisArchiveFileStatus): string {
+  switch (status) {
+    case 'deletable':
+      return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+    case 'writing':
+      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+    case 'indexing':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    case 'attention':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
+  }
+}
+
 async function reloadAll() {
   requestsPagination.page = 1
   projectsPagination.page = 1
   try {
-    await Promise.all([loadSummary(), loadUsers(), loadProjects(), loadRequests(), loadIndexStatus()])
+    await Promise.all([loadSummary(), loadUsers(), loadProjects(), loadRequests(), loadIndexStatus(), loadArchiveFiles()])
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }

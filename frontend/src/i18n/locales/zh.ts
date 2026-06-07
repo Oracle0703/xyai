@@ -1493,6 +1493,18 @@ export default {
       file: '文件',
       offset: '偏移',
       updated: '更新时间',
+      archiveFiles: '归档文件',
+      archiveFilesHint: '「可删除」= 已全部入库, 可在服务器上 gzip/删除(删除为手动操作); 今日文件正在写入不可删; 「有失败行」删除前请先确认失败原因。',
+      fileSize: '大小',
+      indexProgress: '索引水位 / 大小',
+      fileStatus: '状态',
+      archiveFileStatus: {
+        writing: '写入中',
+        indexing: '待索引',
+        deletable: '可删除',
+        attention: '有失败行',
+        compressed: '已压缩'
+      },
       summary: {
         totalTokens: '总 Token',
         totalCost: '总费用',

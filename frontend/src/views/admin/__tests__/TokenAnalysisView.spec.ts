@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   listRequests: vi.fn(),
   getRequestInput: vi.fn(),
   getIndexStatus: vi.fn(),
+  listArchiveFiles: vi.fn(),
   triggerIndex: vi.fn()
 }))
 
@@ -43,8 +44,21 @@ describe('TokenAnalysisView', () => {
     api.listRequests.mockReset()
     api.getRequestInput.mockReset()
     api.getIndexStatus.mockReset()
+    api.listArchiveFiles.mockReset()
     api.triggerIndex.mockReset()
     api.listProjects.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    api.listArchiveFiles.mockResolvedValue([
+      {
+        name: '2026-05-20.jsonl',
+        size_bytes: 1024,
+        mod_time: '2026-05-20T23:59:00Z',
+        indexed_offset: 1024,
+        processed_rows: 10,
+        failed_rows: 0,
+        last_error: '',
+        status: 'deletable'
+      }
+    ])
     api.getRequestInput.mockResolvedValue({
       id: 1,
       archive_id: 'arch-1',
@@ -131,6 +145,9 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('16.7%')
     expect(wrapper.text()).toContain('huge_input_tiny_output')
     expect(wrapper.text()).toContain('2026-05-21.jsonl')
+    // 归档文件卡片: 已入库文件带可删除标签。
+    expect(wrapper.text()).toContain('2026-05-20.jsonl')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.archiveFileStatus.deletable')
   })
 
   it('lazy loads full user input when a request row is opened', async () => {

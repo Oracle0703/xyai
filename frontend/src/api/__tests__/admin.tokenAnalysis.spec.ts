@@ -102,6 +102,29 @@ describe('admin tokenAnalysis API', () => {
     expect(result.truncated).toBe(false)
   })
 
+  it('lists archive files with deletable status', async () => {
+    get.mockResolvedValue({
+      data: [
+        {
+          name: '2026-05-20.jsonl',
+          size_bytes: 2048,
+          mod_time: '2026-05-20T23:59:00Z',
+          indexed_offset: 2048,
+          processed_rows: 20,
+          failed_rows: 0,
+          last_error: '',
+          status: 'deletable'
+        }
+      ]
+    })
+
+    const files = await tokenAnalysisAPI.listArchiveFiles()
+
+    expect(get).toHaveBeenCalledWith('/admin/token-analysis/archive-files')
+    expect(files[0]?.status).toBe('deletable')
+    expect(files[0]?.indexed_offset).toBe(2048)
+  })
+
   it('triggers index with date range', async () => {
     post.mockResolvedValue({ data: { indexed_rows: 1, failed_rows: 0 } })
 

@@ -104,6 +104,10 @@ func (s *tokenAnalysisServiceStub) GetUserInput(ctx context.Context, archiveID s
 	return s.userInput, nil
 }
 
+func (s *tokenAnalysisServiceStub) ListArchiveFiles(ctx context.Context) ([]service.TokenAnalysisArchiveFile, error) {
+	return []service.TokenAnalysisArchiveFile{}, nil
+}
+
 func (s *tokenAnalysisServiceStub) GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error) {
 	return &service.TokenAnalysisIndexStatus{}, nil
 }

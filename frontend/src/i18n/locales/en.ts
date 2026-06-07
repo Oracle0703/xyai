@@ -1472,6 +1472,18 @@ export default {
       file: 'File',
       offset: 'Offset',
       updated: 'Updated',
+      archiveFiles: 'Archive Files',
+      archiveFilesHint: '"Deletable" = fully indexed into DB; safe to gzip/delete on the server (deletion is manual). Today\'s file is being written. Check failures before deleting "Has failures" files.',
+      fileSize: 'Size',
+      indexProgress: 'Indexed / Size',
+      fileStatus: 'Status',
+      archiveFileStatus: {
+        writing: 'Writing',
+        indexing: 'Pending index',
+        deletable: 'Deletable',
+        attention: 'Has failures',
+        compressed: 'Compressed'
+      },
       summary: {
         totalTokens: 'Total Tokens',
         totalCost: 'Total Cost',
