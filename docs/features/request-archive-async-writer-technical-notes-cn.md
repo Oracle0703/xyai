@@ -53,6 +53,7 @@ QueueSize int `mapstructure:"queue_size"`
 5. `capture_response` 为独立开关; 为 `false` 时不包装 `ResponseWriter`; 为 `true` 时只记录响应大小、hash、流式标记和 token usage, 不保存响应正文。
 6. 响应 usage 从非流式 JSON 的 `usage` / `response.usage` / `usageMetadata`(Gemini)/ `message.usage`(Anthropic `message_start` 兜底)提取; 流式 SSE 从 `data:` JSON 事件中提取最后一次非空 usage, 请求结束时冲洗残留行 buffer 兜底无尾换行的终止事件; 单行超过 256KB 被裁剪后以碎片行降级 fragment 提取兜底。非流式大响应仅保留 256KB 尾部解析窗口, usage 提取推迟到请求结束执行一次, Write 热路径只做窗口追加, 不写入归档正文。
 7. 保留对外层中间件 `ResponseWriter` 的还原逻辑 (defer 恢复 `c.Writer`)。
+8. 归档目录支持后台热切换: writer 的 `dir` 为 `atomic.Value`, 中间件每请求以运行态配置调用 `SetDir`(值未变化时一次原子读即返回); `fileForToday` 在跨天或目录变化时轮转句柄, 切换后下一条记录写入新目录。自定义目录持久化于 settings(`request_archive_settings` 的 `dir` 字段), 保存前经磁盘存在/可写校验, 历史文件不自动迁移。详见 `docs/features/request-archive-dir-runtime-config-design-cn.md`。
 
 ### 关键类型
 

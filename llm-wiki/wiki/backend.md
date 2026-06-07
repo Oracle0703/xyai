@@ -99,7 +99,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - 开启后位于请求热路径, 会 `io.ReadAll` 完整请求体; `capture_response=true` 时只记录响应大小、hash、流式标记和 token `usage`, 不保存响应正文, 以降低归档体积。
 - 响应 usage 支持从非流式 JSON 的 `usage` / `response.usage` / `usageMetadata`(Gemini)/ `message.usage`(Anthropic `message_start` 兜底)读取, 也会从 SSE `data:` JSON 事件中提取最后一次非空 usage(含无尾换行的终止事件兜底; 单行超 256KB 被裁剪后碎片行降级 fragment 提取); 非流式只保留 256KB 尾部窗口, 提取在请求结束后执行一次。
 - 写入为异步有界队列(`gateway.request_archive.queue_size`, 默认 1024): 热路径只入队, 后台单 goroutine 持有当日文件句柄并按日期轮转, 队列满时丢弃记录不阻塞请求。
-- 管理后台 `/admin/settings` 的 Gateway 标签页可热切换 `enabled` 和 `capture_response`, 后端接口为 `GET/PUT /api/v1/admin/settings/request-archive`; `dir`, body 截断上限和 `queue_size` 仍由实际加载的 `config.yaml` 控制, 修改后需重启。
+- 管理后台 `/admin/settings` 的 Gateway 标签页可热切换 `enabled`、`capture_response` 和归档目录 `dir`(后端接口 `GET/PUT /api/v1/admin/settings/request-archive`)。自定义 dir 必须为绝对路径, 保存时校验磁盘存在/目录可创建/可写(`internal/service/request_archive_dir.go`), 响应附带磁盘容量(`internal/pkg/diskspace`); 写入端经 `writer.SetDir` 在下一条记录生效, token_analysis 索引器同源跟随; 历史文件不自动迁移。body 截断上限和 `queue_size` 仍由实际加载的 `config.yaml` 控制, 修改后需重启。
 - Token Analysis 索引(`internal/service/token_analysis_indexer.go`)读取归档 request 行时会做项目归因(`internal/service/project_attribution.go`): 从 Claude Code system prompt / Codex `<cwd>` / Copilot 附件路径提取工作目录与项目名, 写入 `token_analysis_request_summaries.client_workdir/client_project/client_branch/attribution_source`; 已知仓库根持久化在 `token_analysis_project_roots`, 供 Copilot 路径前缀匹配跨天累积。聚合接口 `GET /api/v1/admin/token-analysis/projects` 按"项目 × 成员"汇总 token 消耗, 未归因请求显式归入 `unattributed`。设计与实测命中率见 `docs/features/token-analysis-project-attribution-design-cn.md`。
 
 端点归一化集中在 `backend/internal/handler/endpoint.go`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini 分流测试。

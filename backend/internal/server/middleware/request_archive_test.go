@@ -425,12 +425,52 @@ func TestRequestArchiveCaptureResponseExtractsUsageAfterTruncatedPrefix(t *testi
 	require.Equal(t, float64(30), usage["total_tokens"])
 }
 
+func TestRequestArchiveHotSwitchesDirViaRuntimeConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+	var mu sync.Mutex
+	activeDir := dirA
+	provider := func(c *gin.Context) (config.GatewayRequestArchiveConfig, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return config.GatewayRequestArchiveConfig{Enabled: true, Dir: activeDir}, nil
+	}
+	router := gin.New()
+	router.Use(useRequestArchiveWithProvider(t, config.GatewayRequestArchiveConfig{
+		Enabled:             true,
+		Dir:                 dirA,
+		MaxRequestBodyBytes: 1024,
+	}, provider))
+	router.POST("/v1/messages", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	send := func() {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-3"}`))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+
+	send()
+	readArchiveRecords(t, dirA, 2)
+
+	// 后台热切换归档目录: 下一条记录应写入新目录, 旧目录不再增长。
+	mu.Lock()
+	activeDir = dirB
+	mu.Unlock()
+	send()
+	readArchiveRecords(t, dirB, 2)
+	require.Len(t, readArchiveRecords(t, dirA, 2), 2)
+}
+
 func TestAsyncRequestArchiveWriterDropsWhenQueueFull(t *testing.T) {
 	// 不启动后台 goroutine，使 channel 永不被消费，模拟队列满场景。
 	w := &asyncRequestArchiveWriter{
-		dir: t.TempDir(),
-		ch:  make(chan requestArchiveRecord, 2),
+		ch: make(chan requestArchiveRecord, 2),
 	}
+	w.dir.Store(t.TempDir())
 	w.Enqueue(requestArchiveRecord{ArchiveID: "1"})
 	w.Enqueue(requestArchiveRecord{ArchiveID: "2"})
 

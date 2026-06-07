@@ -28,7 +28,7 @@ func TestTokenAnalysisIndexerIndexesOnlyRequestEvents(t *testing.T) {
 		TokenAnalysis: config.TokenAnalysisConfig{
 			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
 		},
-	})
+	}, nil)
 
 	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{
 		StartDate: "2026-05-19",
@@ -60,7 +60,7 @@ func TestTokenAnalysisIndexerResumesFromStoredOffset(t *testing.T) {
 	svc := NewTokenAnalysisService(repo, &config.Config{
 		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
 		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
-	})
+	}, nil)
 
 	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-05-19", EndDate: "2026-05-19"})
 
@@ -85,7 +85,7 @@ func TestTokenAnalysisIndexerSkipsIncompleteTrailingJSONLine(t *testing.T) {
 	svc := NewTokenAnalysisService(repo, &config.Config{
 		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
 		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
-	})
+	}, nil)
 
 	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-05-21", EndDate: "2026-05-21"})
 
@@ -112,7 +112,7 @@ func TestTokenAnalysisIndexerExtractsProjectAttribution(t *testing.T) {
 	svc := NewTokenAnalysisService(repo, &config.Config{
 		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
 		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
-	})
+	}, nil)
 
 	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-05", EndDate: "2026-06-05"})
 

@@ -70,6 +70,8 @@ func NewRequestArchiveConfigProvider(svc *service.SettingService) RequestArchive
 // archiveEnqueuer 抽象归档记录入队，便于测试注入可关闭的 writer。
 type archiveEnqueuer interface {
 	Enqueue(record requestArchiveRecord)
+	// SetDir 同步运行态归档目录(后台热切换), 值未变化时应为近零成本。
+	SetDir(dir string)
 }
 
 func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer archiveEnqueuer, provider RequestArchiveConfigProvider) gin.HandlerFunc {
@@ -93,6 +95,8 @@ func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer arc
 			c.Next()
 			return
 		}
+		// 同步运行态归档目录: 后台修改后下一条记录即写入新目录, 无需重启。
+		writer.SetDir(runtimeCfg.Dir)
 
 		startedAt := time.Now()
 		archiveID := newArchiveID()
@@ -143,11 +147,14 @@ func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer arc
 }
 
 // mergeRequestArchiveRuntimeConfig 用运行态配置覆盖基础配置中真正"按请求生效"的字段。
-// 注意: Dir 与 QueueSize 在 asyncRequestArchiveWriter 构造时即固化, 运行态无法改变
-// 实际落盘目录与队列容量, 因此这里不合并这两个字段(避免产生"已生效"的错觉)。
-// 仅 Enabled / CaptureResponse / Max*BodyBytes 在请求热路径按运行态取值生效。
+// Enabled / CaptureResponse / Max*BodyBytes / Dir 按运行态取值生效;
+// Dir 经 writer.SetDir 热切换实际落盘目录(后台修改归档目录无需重启)。
+// 注意: QueueSize 在 asyncRequestArchiveWriter 构造时即固化, 运行态无法改变
+// 队列容量, 因此不合并该字段(避免产生"已生效"的错觉)。
 func mergeRequestArchiveRuntimeConfig(base, runtime config.GatewayRequestArchiveConfig) config.GatewayRequestArchiveConfig {
-	runtime.Dir = base.Dir
+	if strings.TrimSpace(runtime.Dir) == "" {
+		runtime.Dir = base.Dir
+	}
 	runtime.QueueSize = base.QueueSize
 	if runtime.MaxRequestBodyBytes <= 0 {
 		runtime.MaxRequestBodyBytes = base.MaxRequestBodyBytes
@@ -309,9 +316,12 @@ func captureBytes(data []byte, limit int64) (string, int64, string, bool) {
 
 // asyncRequestArchiveWriter 以后台单 goroutine + 有界 channel 的方式写入归档。
 // 请求热路径只调用 Enqueue，永不阻塞；channel 满时直接丢弃并累计 dropped。
-// 后台 writer 持有当日文件句柄，跨天时关闭旧句柄并重新打开，避免每条记录 open/close。
+// 后台 writer 持有当日文件句柄，跨天或目录被后台热切换时关闭旧句柄并重新打开,
+// 避免每条记录 open/close。
 type asyncRequestArchiveWriter struct {
-	dir     string
+	// dir 为当前生效的归档目录, 支持运行时通过 SetDir 热切换
+	// (管理后台修改归档目录后无需重启)。仅 run goroutine 在轮转时读取。
+	dir     atomic.Value // string
 	ch      chan requestArchiveRecord
 	quit    chan struct{}
 	done    chan struct{}
@@ -320,6 +330,8 @@ type asyncRequestArchiveWriter struct {
 
 	file     *os.File
 	fileDate string
+	// fileDir 当前句柄所属目录, 与 dir 不一致时触发轮转。
+	fileDir string
 }
 
 func newAsyncRequestArchiveWriter(dir string, queueSize int) *asyncRequestArchiveWriter {
@@ -327,14 +339,31 @@ func newAsyncRequestArchiveWriter(dir string, queueSize int) *asyncRequestArchiv
 		queueSize = defaultRequestArchiveQueueSize
 	}
 	w := &asyncRequestArchiveWriter{
-		dir:  dir,
 		ch:   make(chan requestArchiveRecord, queueSize),
 		quit: make(chan struct{}),
 		done: make(chan struct{}),
 	}
+	w.dir.Store(dir)
 	go w.run()
 	requestArchiveRegisterWriter(w)
 	return w
+}
+
+// SetDir 热切换归档目录。中间件在每个请求上以运行态配置调用; 值未变化时
+// 仅一次原子读即返回。历史文件不迁移, 切换只影响后续写入。
+func (w *asyncRequestArchiveWriter) SetDir(dir string) {
+	if w == nil || strings.TrimSpace(dir) == "" {
+		return
+	}
+	if cur, _ := w.dir.Load().(string); cur == dir {
+		return
+	}
+	w.dir.Store(dir)
+}
+
+func (w *asyncRequestArchiveWriter) currentDir() string {
+	dir, _ := w.dir.Load().(string)
+	return dir
 }
 
 func registerRequestArchiveWriter(w *asyncRequestArchiveWriter) {
@@ -433,26 +462,28 @@ func (w *asyncRequestArchiveWriter) writeRecord(record requestArchiveRecord) err
 	return nil
 }
 
-// fileForToday 返回当日归档文件句柄，跨天时轮转。
+// fileForToday 返回当日归档文件句柄，跨天或归档目录被热切换时轮转。
 func (w *asyncRequestArchiveWriter) fileForToday() (*os.File, error) {
 	today := time.Now().Format("2006-01-02")
-	if w.file != nil && w.fileDate == today {
+	dir := w.currentDir()
+	if w.file != nil && w.fileDate == today && w.fileDir == dir {
 		return w.file, nil
 	}
 	if w.file != nil {
 		_ = w.file.Close()
 		w.file = nil
 	}
-	if err := os.MkdirAll(w.dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	path := filepath.Join(w.dir, today+".jsonl")
+	path := filepath.Join(dir, today+".jsonl")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, err
 	}
 	w.file = f
 	w.fileDate = today
+	w.fileDir = dir
 	return f, nil
 }
 

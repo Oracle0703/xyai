@@ -11,17 +11,19 @@ import (
 )
 
 type TokenAnalysisService struct {
-	repo    TokenAnalysisRepository
-	cfg     *config.Config
-	mu      sync.Mutex
-	running bool
+	repo TokenAnalysisRepository
+	cfg  *config.Config
+	// settings 用于读取运行态归档目录(后台可热切换); nil 时回退 config。
+	settings *SettingService
+	mu       sync.Mutex
+	running  bool
 }
 
-func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config) *TokenAnalysisService {
+func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	return &TokenAnalysisService{repo: repo, cfg: cfg}
+	return &TokenAnalysisService{repo: repo, cfg: cfg, settings: settings}
 }
 
 func (s *TokenAnalysisService) GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error) {

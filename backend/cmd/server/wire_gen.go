@@ -225,7 +225,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	usageCleanupService := service.ProvideUsageCleanupService(usageCleanupRepository, timingWheelService, dashboardAggregationService, configConfig)
 	adminUsageHandler := admin.NewUsageHandler(usageService, apiKeyService, adminService, usageCleanupService)
 	tokenAnalysisRepository := repository.NewTokenAnalysisRepository(db)
-	tokenAnalysisService := service.NewTokenAnalysisService(tokenAnalysisRepository, configConfig)
+	tokenAnalysisService := service.NewTokenAnalysisService(tokenAnalysisRepository, configConfig, settingService)
 	tokenAnalysisHandler := admin.NewTokenAnalysisHandler(tokenAnalysisService)
 	extension := promptmetrics.NewExtension(configConfig, db)
 	userAttributeHandler := admin.NewUserAttributeHandler(userAttributeService)

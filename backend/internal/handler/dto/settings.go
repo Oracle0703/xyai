@@ -338,9 +338,17 @@ type RateLimit429CooldownSettings struct {
 
 // RequestArchiveSettings 网关请求归档配置 DTO
 type RequestArchiveSettings struct {
-	Enabled              bool   `json:"enabled"`
-	CaptureResponse      bool   `json:"capture_response"`
-	Dir                  string `json:"dir"`
+	Enabled         bool `json:"enabled"`
+	CaptureResponse bool `json:"capture_response"`
+	// Dir 当前生效目录(后台自定义优先, 否则为 config 默认)。
+	Dir string `json:"dir"`
+	// DefaultDir config.yaml(含内置默认)目录, 供"恢复默认"展示。
+	DefaultDir string `json:"default_dir"`
+	// DirCustomized Dir 是否来自后台自定义。
+	DirCustomized bool `json:"dir_customized"`
+	// DiskTotalBytes/DiskFreeBytes 当前生效目录所在磁盘容量信息, 获取失败时为 0。
+	DiskTotalBytes       uint64 `json:"disk_total_bytes"`
+	DiskFreeBytes        uint64 `json:"disk_free_bytes"`
 	MaxRequestBodyBytes  int64  `json:"max_request_body_bytes"`
 	MaxResponseBodyBytes int64  `json:"max_response_body_bytes"`
 	QueueSize            int    `json:"queue_size"`

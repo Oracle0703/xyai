@@ -30,11 +30,12 @@ func (s *TokenAnalysisService) indexRange(ctx context.Context, req TokenAnalysis
 		return nil, err
 	}
 	result := &TokenAnalysisIndexResult{}
+	archiveDir := s.archiveDir(ctx)
 	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		file := filepath.Join(tokenAnalysisArchiveDir(s.cfg), day.Format("2006-01-02")+".jsonl")
+		file := filepath.Join(archiveDir, day.Format("2006-01-02")+".jsonl")
 		fileResult, err := s.indexArchiveFile(ctx, file, roots)
 		if err != nil {
 			if flushErr := roots.flush(ctx, s.repo); flushErr != nil {
@@ -348,6 +349,17 @@ func tokenAnalysisIndexDates(req TokenAnalysisIndexRequest) (time.Time, time.Tim
 		return time.Time{}, time.Time{}, fmt.Errorf("end_date must be on or after start_date")
 	}
 	return start, end, nil
+}
+
+// archiveDir 返回归档目录: 优先运行态设置(后台可热切换, 与写入端同源),
+// 未注入设置服务或取值为空时回退 config.yaml。
+func (s *TokenAnalysisService) archiveDir(ctx context.Context) string {
+	if s != nil && s.settings != nil {
+		if dir := strings.TrimSpace(s.settings.GetRequestArchiveRuntimeConfig(ctx).Dir); dir != "" {
+			return dir
+		}
+	}
+	return tokenAnalysisArchiveDir(s.cfg)
 }
 
 func tokenAnalysisArchiveDir(cfg *config.Config) string {

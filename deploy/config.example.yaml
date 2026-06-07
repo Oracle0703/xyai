@@ -251,7 +251,8 @@ gateway:
   request_archive:
     # 是否启用归档，默认 false（关闭）。
     enabled: false
-    # JSONL 输出目录。
+    # JSONL 输出目录（默认值）。管理后台 Settings 可配置自定义绝对路径并热切换
+    # 写入磁盘（保存时校验磁盘存在/目录可写，无需重启）；后台自定义值优先于本配置。
     dir: "data/request-archive"
     # 单条请求体最多保存字节数，超出截断。
     max_request_body_bytes: 8388608
