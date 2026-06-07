@@ -17,13 +17,17 @@ type TokenAnalysisService struct {
 	settings *SettingService
 	mu       sync.Mutex
 	running  bool
+	// 自动索引循环(token_analysis_auto_index.go)的生命周期控制。
+	autoIndexStop     chan struct{}
+	autoIndexStopOnce sync.Once
+	autoIndexWG       sync.WaitGroup
 }
 
 func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	return &TokenAnalysisService{repo: repo, cfg: cfg, settings: settings}
+	return &TokenAnalysisService{repo: repo, cfg: cfg, settings: settings, autoIndexStop: make(chan struct{})}
 }
 
 func (s *TokenAnalysisService) GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error) {
