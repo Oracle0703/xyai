@@ -3,6 +3,8 @@ package service
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -317,7 +319,32 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	if err := s.repo.UpsertRequestSummary(ctx, summary); err != nil {
 		return 0, 0, 0, archiveID, err
 	}
+	// 净输入留存: 原始 JSONL 按保留期删除后, 全文仍可供"输入是否符合标准"类
+	// 分析回溯; 质量字段由后续评估任务回填, 这里只存原料。
+	if maxChars := tokenAnalysisInputStoreMaxChars(s.cfg); maxChars > 0 && strings.TrimSpace(bodySummary.LastUserText) != "" {
+		content, truncated := SanitizeTokenAnalysisInputText(bodySummary.LastUserText, maxChars)
+		// sha256 对脱敏前原文计算, 同一人类输入跨 agent 轮次/跨截断稳定。
+		rawSum := sha256.Sum256([]byte(strings.TrimSpace(bodySummary.LastUserText)))
+		if err := s.repo.UpsertUserInput(ctx, &TokenAnalysisUserInput{
+			ArchiveID:     event.ArchiveID,
+			EventTime:     eventTime,
+			UserID:        event.UserID,
+			Content:       content,
+			ContentSHA256: hex.EncodeToString(rawSum[:]),
+			Chars:         len([]rune(content)),
+			Truncated:     truncated,
+		}); err != nil {
+			return 0, 0, 0, archiveID, err
+		}
+	}
 	return 1, 0, 0, archiveID, nil
+}
+
+func tokenAnalysisInputStoreMaxChars(cfg *config.Config) int {
+	if cfg == nil {
+		return 0
+	}
+	return cfg.TokenAnalysis.InputStoreMaxChars
 }
 
 func tokenAnalysisIndexDates(req TokenAnalysisIndexRequest) (time.Time, time.Time, error) {

@@ -113,6 +113,7 @@ func registerTokenAnalysisRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		tokenAnalysis.GET("/users", h.Admin.TokenAnalysis.Users)
 		tokenAnalysis.GET("/projects", h.Admin.TokenAnalysis.Projects)
 		tokenAnalysis.GET("/requests", h.Admin.TokenAnalysis.Requests)
+		tokenAnalysis.GET("/requests/input", h.Admin.TokenAnalysis.RequestInput)
 		tokenAnalysis.POST("/index", h.Admin.TokenAnalysis.TriggerIndex)
 		tokenAnalysis.GET("/index/status", h.Admin.TokenAnalysis.IndexStatus)
 	}

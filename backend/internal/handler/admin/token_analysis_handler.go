@@ -17,6 +17,7 @@ type tokenAnalysisService interface {
 	ListUserUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisUserUsage, *pagination.PaginationResult, error)
 	ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error)
+	GetUserInput(ctx context.Context, archiveID string) (*service.TokenAnalysisUserInput, error)
 	GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error)
 	IndexRange(ctx context.Context, req service.TokenAnalysisIndexRequest) (*service.TokenAnalysisIndexResult, error)
 }
@@ -108,6 +109,21 @@ func (h *TokenAnalysisHandler) Requests(c *gin.Context) {
 		return
 	}
 	response.Paginated(c, items, result.Total, result.Page, result.PageSize)
+}
+
+// RequestInput 按 archive_id 返回留存的用户净输入全文(列表只带预览, 全文懒加载)。
+func (h *TokenAnalysisHandler) RequestInput(c *gin.Context) {
+	archiveID := strings.TrimSpace(c.Query("archive_id"))
+	if archiveID == "" {
+		response.BadRequest(c, "archive_id is required")
+		return
+	}
+	input, err := h.service.GetUserInput(c.Request.Context(), archiveID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, input)
 }
 
 func (h *TokenAnalysisHandler) TriggerIndex(c *gin.Context) {

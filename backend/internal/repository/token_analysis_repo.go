@@ -468,11 +468,13 @@ SELECT
     s.summary_json, s.risk_score, s.risk_reasons,
     s.client_workdir, s.client_project, s.client_branch, s.attribution_source,
     COALESCE(ul.input_tokens, 0), COALESCE(ul.output_tokens, 0), COALESCE(ul.cache_read_tokens, 0), COALESCE(ul.cache_creation_tokens, 0),
-    COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens, 0), COALESCE(ul.actual_cost, 0)
+    COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens, 0), COALESCE(ul.actual_cost, 0),
+    ui.archive_id IS NOT NULL AS has_input, COALESCE(ui.truncated, FALSE), ui.quality_score
 FROM token_analysis_request_summaries s
 LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 LEFT JOIN users u ON u.id = s.user_id
 LEFT JOIN api_keys k ON k.id = s.api_key_id
+LEFT JOIN token_analysis_user_inputs ui ON ui.archive_id = s.archive_id
 ` + whereSQL + `
 ORDER BY ` + orderBy + `
 LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
@@ -640,6 +642,82 @@ ON CONFLICT (root) DO UPDATE SET
 	return nil
 }
 
+func (r *tokenAnalysisRepository) UpsertUserInput(ctx context.Context, input *service.TokenAnalysisUserInput) error {
+	if input == nil {
+		return nil
+	}
+	// 冲突时只刷新内容字段, quality_* 由评估任务回填, 重建索引不得覆盖。
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO token_analysis_user_inputs (
+    archive_id, event_time, user_id, content, content_sha256, chars, truncated
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+)
+ON CONFLICT (archive_id) DO UPDATE SET
+    event_time = EXCLUDED.event_time,
+    user_id = EXCLUDED.user_id,
+    content = EXCLUDED.content,
+    content_sha256 = EXCLUDED.content_sha256,
+    chars = EXCLUDED.chars,
+    truncated = EXCLUDED.truncated,
+    updated_at = NOW()`,
+		input.ArchiveID,
+		input.EventTime,
+		nullableInt64(input.UserID),
+		input.Content,
+		input.ContentSHA256,
+		input.Chars,
+		input.Truncated,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert token analysis user input: %w", err)
+	}
+	return nil
+}
+
+func (r *tokenAnalysisRepository) GetUserInput(ctx context.Context, archiveID string) (*service.TokenAnalysisUserInput, error) {
+	var input service.TokenAnalysisUserInput
+	var userID sql.NullInt64
+	var qualityScore sql.NullInt16
+	var findingsRaw []byte
+	err := r.db.QueryRowContext(ctx, `
+SELECT id, archive_id, event_time, user_id, content, content_sha256, chars, truncated,
+       quality_score, quality_findings, quality_version, evaluated_at
+FROM token_analysis_user_inputs
+WHERE archive_id = $1`, archiveID).Scan(
+		&input.ID,
+		&input.ArchiveID,
+		&input.EventTime,
+		&userID,
+		&input.Content,
+		&input.ContentSHA256,
+		&input.Chars,
+		&input.Truncated,
+		&qualityScore,
+		&findingsRaw,
+		&input.QualityVersion,
+		&input.EvaluatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get token analysis user input: %w", err)
+	}
+	if userID.Valid {
+		input.UserID = &userID.Int64
+	}
+	if qualityScore.Valid {
+		v := qualityScore.Int16
+		input.QualityScore = &v
+	}
+	if len(findingsRaw) > 0 {
+		input.QualityFindings = map[string]any{}
+		_ = json.Unmarshal(findingsRaw, &input.QualityFindings)
+	}
+	return &input, nil
+}
+
 type tokenAnalysisRowsScanner interface {
 	Scan(dest ...any) error
 }
@@ -647,6 +725,7 @@ type tokenAnalysisRowsScanner interface {
 func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenAnalysisRequestItem, error) {
 	var item service.TokenAnalysisRequestItem
 	var usageLogID, userID, apiKeyID, accountID, groupID sql.NullInt64
+	var qualityScore sql.NullInt16
 	var summaryRaw, reasonsRaw []byte
 	if err := rows.Scan(
 		&item.ID,
@@ -684,8 +763,15 @@ func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenA
 		&item.CacheCreationTokens,
 		&item.TotalTokens,
 		&item.ActualCost,
+		&item.HasInput,
+		&item.InputTruncated,
+		&qualityScore,
 	); err != nil {
 		return item, fmt.Errorf("scan token analysis request: %w", err)
+	}
+	if qualityScore.Valid {
+		v := qualityScore.Int16
+		item.QualityScore = &v
 	}
 	if usageLogID.Valid {
 		item.UsageLogID = &usageLogID.Int64

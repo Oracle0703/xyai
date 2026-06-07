@@ -45,6 +45,8 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 		summary.Model = tokenAnalysisModelFromEndpoint(endpoint)
 	}
 	summary.ToolsCount += tokenAnalysisToolCount(root)
+	// sanitize 之前 LastUserPreview 即原始全文, 留一份给净输入留存。
+	summary.LastUserText = summary.LastUserPreview
 	summary.LastUserPreview = SanitizeTokenAnalysisPreview(summary.LastUserPreview, maxPreviewChars)
 	summary.SummaryJSON["shape"] = tokenAnalysisShape(root)
 	summary.SummaryJSON["endpoint"] = strings.TrimSpace(endpoint)
@@ -73,6 +75,23 @@ func SanitizeTokenAnalysisPreview(input string, maxChars int) string {
 		return out
 	}
 	return string(runes[:maxChars])
+}
+
+// SanitizeTokenAnalysisInputText 为净输入留存做脱敏与截断:
+// 与预览不同, 保留换行/缩进等原始排版(后续按标准评估时格式本身就是信号)。
+func SanitizeTokenAnalysisInputText(input string, maxChars int) (string, bool) {
+	out := strings.TrimSpace(input)
+	for _, re := range tokenAnalysisRedactions {
+		out = re.ReplaceAllString(out, "[redacted]")
+	}
+	if maxChars <= 0 {
+		return out, false
+	}
+	runes := []rune(out)
+	if len(runes) <= maxChars {
+		return out, false
+	}
+	return string(runes[:maxChars]), true
 }
 
 func summaryMessagesRequest(root map[string]any, summary *TokenAnalysisBodySummary) {

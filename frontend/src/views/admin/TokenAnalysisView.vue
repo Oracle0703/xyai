@@ -230,42 +230,60 @@
 
         <div class="card p-4 xl:col-span-2">
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.suspiciousRequests') }}</h2>
-            <span class="text-xs text-gray-500">{{ requestsPagination.total }}</span>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.requestDetails') }}</h2>
+            <div class="flex items-center gap-2">
+              <select v-model="requestSort" class="input h-8 w-auto text-xs" @change="changeRequestSort">
+                <option value="event_time">{{ t('admin.tokenAnalysis.sortByTime') }}</option>
+                <option value="risk_score">{{ t('admin.tokenAnalysis.sortByRisk') }}</option>
+              </select>
+              <span class="text-xs text-gray-500">{{ requestsPagination.total }}</span>
+            </div>
           </div>
           <div class="overflow-x-auto">
             <table class="table text-sm">
               <thead>
                 <tr>
-                  <th>{{ t('admin.tokenAnalysis.risk') }}</th>
+                  <th>{{ t('admin.tokenAnalysis.time') }}</th>
                   <th>{{ t('admin.tokenAnalysis.user') }}</th>
                   <th>Model</th>
+                  <th>{{ t('admin.tokenAnalysis.project') }}</th>
                   <th>{{ t('admin.tokenAnalysis.usage') }}</th>
+                  <th>{{ t('admin.tokenAnalysis.quality') }}</th>
                   <th>{{ t('admin.tokenAnalysis.preview') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in requests" :key="item.id" class="cursor-pointer" @click="selectedRequest = item">
+                <tr v-for="item in requests" :key="item.id" class="cursor-pointer" @click="selectRequest(item)">
+                  <td class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{{ formatDateTime(item.event_time) }}</td>
                   <td>
-                    <span class="inline-flex min-w-10 justify-center rounded-full px-2 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
-                      {{ item.risk_score }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="max-w-[180px] truncate font-medium">{{ item.user_email || '-' }}</div>
+                    <div class="max-w-[160px] truncate font-medium">{{ item.user_email || '-' }}</div>
                     <div class="text-xs text-gray-500">{{ item.api_key_name || '-' }}</div>
                   </td>
                   <td>
-                    <div class="max-w-[180px] truncate">{{ item.model }}</div>
+                    <div class="max-w-[160px] truncate">{{ item.model }}</div>
                     <div class="text-xs text-gray-500">{{ item.endpoint }}</div>
+                  </td>
+                  <td>
+                    <div class="max-w-[150px] truncate">{{ item.client_project || t('admin.tokenAnalysis.unattributed') }}</div>
+                    <div class="max-w-[150px] truncate text-xs text-gray-500">{{ item.client_branch || '-' }}</div>
                   </td>
                   <td>
                     <div>{{ formatNumber(item.input_tokens + item.output_tokens + item.cache_read_tokens + item.cache_creation_tokens) }}</div>
                     <div class="text-xs text-gray-500">{{ formatCost(item.actual_cost) }}</div>
                   </td>
                   <td>
-                    <div class="max-w-[360px] truncate">{{ item.last_user_preview }}</div>
-                    <div class="mt-1 flex flex-wrap gap-1">
+                    <span v-if="item.quality_score !== undefined && item.quality_score !== null" class="inline-flex min-w-10 justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      {{ item.quality_score }}
+                    </span>
+                    <span v-else-if="item.has_input" class="text-xs text-gray-400">{{ t('admin.tokenAnalysis.qualityNotEvaluated') }}</span>
+                    <span v-else class="text-xs text-gray-400">-</span>
+                  </td>
+                  <td>
+                    <div class="max-w-[300px] truncate">{{ item.last_user_preview }}</div>
+                    <div class="mt-1 flex flex-wrap items-center gap-1">
+                      <span v-if="item.risk_score > 0" class="inline-flex min-w-8 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
+                        {{ item.risk_score }}
+                      </span>
                       <span v-for="reason in item.risk_reasons || []" :key="reason.code" class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
                         {{ reason.code }}
                       </span>
@@ -273,7 +291,7 @@
                   </td>
                 </tr>
                 <tr v-if="!requestsLoading && requests.length === 0">
-                  <td colspan="5" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
+                  <td colspan="7" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
                 </tr>
               </tbody>
             </table>
@@ -307,9 +325,34 @@
         </template>
       </dl>
       <div class="mt-5">
-        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.preview') }}</div>
-        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">
-          {{ selectedRequest.last_user_preview || '-' }}
+        <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+          <span>{{ t('admin.tokenAnalysis.inputFull') }}</span>
+          <span v-if="requestInput?.truncated" class="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            {{ t('admin.tokenAnalysis.inputTruncatedNote') }}
+          </span>
+        </div>
+        <div v-if="requestInputLoading" class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800">
+          {{ t('common.loading') }}
+        </div>
+        <div v-else-if="requestInput" class="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">{{ requestInput.content }}</div>
+        <div v-else class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">
+          {{ selectedRequest.last_user_preview || t('admin.tokenAnalysis.noInputStored') }}
+        </div>
+      </div>
+      <div class="mt-5">
+        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.quality') }}</div>
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-dark-700 dark:bg-dark-800">
+          <template v-if="requestInput && requestInput.quality_score !== undefined && requestInput.quality_score !== null">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex min-w-10 justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                {{ requestInput.quality_score }}
+              </span>
+              <span v-if="requestInput.quality_version" class="text-xs text-gray-500">{{ requestInput.quality_version }}</span>
+              <span v-if="requestInput.evaluated_at" class="text-xs text-gray-500">{{ formatDateTime(requestInput.evaluated_at) }}</span>
+            </div>
+            <pre v-if="requestInput.quality_findings && Object.keys(requestInput.quality_findings).length > 0" class="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-gray-600 dark:text-gray-300">{{ JSON.stringify(requestInput.quality_findings, null, 2) }}</pre>
+          </template>
+          <span v-else class="text-gray-500">{{ t('admin.tokenAnalysis.qualityNotEvaluated') }}</span>
         </div>
       </div>
     </aside>
@@ -324,6 +367,7 @@ import type {
   TokenAnalysisIndexStatus,
   TokenAnalysisProjectUsage,
   TokenAnalysisQueryParams,
+  TokenAnalysisRequestInput,
   TokenAnalysisRequestItem,
   TokenAnalysisSummary,
   TokenAnalysisUserUsage
@@ -331,6 +375,7 @@ import type {
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
+import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -340,7 +385,8 @@ const filters = reactive<TokenAnalysisQueryParams>({
   start_date: today,
   end_date: today,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  risk_min: 20,
+  // 请求明细默认展示全部请求(风险排查时再调高风险分过滤)。
+  risk_min: 0,
   include_unmatched: false
 })
 
@@ -350,6 +396,9 @@ const projects = ref<TokenAnalysisProjectUsage[]>([])
 const requests = ref<TokenAnalysisRequestItem[]>([])
 const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
+const requestSort = ref<'event_time' | 'risk_score'>('event_time')
+const requestInput = ref<TokenAnalysisRequestInput | null>(null)
+const requestInputLoading = ref(false)
 const usersLoading = ref(false)
 const projectsLoading = ref(false)
 const requestsLoading = ref(false)
@@ -470,7 +519,7 @@ async function loadRequests() {
       ...cleanFilters.value,
       page: requestsPagination.page,
       page_size: requestsPagination.page_size,
-      sort_by: 'risk_score',
+      sort_by: requestSort.value,
       sort_order: 'desc'
     })
     requests.value = result.items
@@ -480,6 +529,32 @@ async function loadRequests() {
   } finally {
     requestsLoading.value = false
   }
+}
+
+function changeRequestSort() {
+  requestsPagination.page = 1
+  void loadRequests()
+}
+
+// 点行打开抽屉并懒加载净输入全文(列表只带 300 字预览)。
+function selectRequest(item: TokenAnalysisRequestItem) {
+  selectedRequest.value = item
+  requestInput.value = null
+  if (!item.has_input) return
+  requestInputLoading.value = true
+  adminAPI.tokenAnalysis
+    .getRequestInput(item.archive_id)
+    .then((input) => {
+      if (selectedRequest.value?.archive_id === item.archive_id) {
+        requestInput.value = input
+      }
+    })
+    .catch(() => {
+      // 全文加载失败时抽屉回退展示预览, 不打断查看。
+    })
+    .finally(() => {
+      requestInputLoading.value = false
+    })
 }
 
 async function loadIndexStatus() {

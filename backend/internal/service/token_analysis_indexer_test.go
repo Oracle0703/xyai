@@ -141,6 +141,7 @@ type tokenAnalysisRepoStub struct {
 	indexStates  map[string]TokenAnalysisIndexState
 	projectRoots map[string]string
 	rootUpserts  []map[string]string
+	userInputs   []TokenAnalysisUserInput
 }
 
 func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
@@ -212,6 +213,24 @@ func (r *tokenAnalysisRepoStub) LoadProjectRoots(ctx context.Context) (map[strin
 	return roots, nil
 }
 
+func (r *tokenAnalysisRepoStub) UpsertUserInput(ctx context.Context, input *TokenAnalysisUserInput) error {
+	if input == nil {
+		return nil
+	}
+	r.userInputs = append(r.userInputs, *input)
+	return nil
+}
+
+func (r *tokenAnalysisRepoStub) GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error) {
+	for i := len(r.userInputs) - 1; i >= 0; i-- {
+		if r.userInputs[i].ArchiveID == archiveID {
+			input := r.userInputs[i]
+			return &input, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *tokenAnalysisRepoStub) UpsertProjectRoots(ctx context.Context, roots map[string]string) error {
 	copied := make(map[string]string, len(roots))
 	for k, v := range roots {
@@ -225,4 +244,68 @@ func (r *tokenAnalysisRepoStub) UpsertProjectRoots(ctx context.Context, roots ma
 		r.projectRoots[k] = v
 	}
 	return nil
+}
+
+func TestTokenAnalysisIndexerStoresUserInput(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-07.jsonl")
+	// 用户输入含换行, 留存内容必须保留排版; maxChars=5 触发截断。
+	line := `{"archive_id":"in1","event":"request","timestamp":"2026-06-07T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\\nworld\"}]}","body_size":64,"body_sha256":"hash-in1"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+			InputStoreMaxChars: 5,
+		},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-07", EndDate: "2026-06-07"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Len(t, repo.userInputs, 1)
+	input := repo.userInputs[0]
+	require.Equal(t, "in1", input.ArchiveID)
+	require.Equal(t, "hello", input.Content)
+	require.True(t, input.Truncated)
+	require.Equal(t, 5, input.Chars)
+	// 哈希对脱敏前原文计算, 跨截断稳定。
+	require.Len(t, input.ContentSHA256, 64)
+	require.Equal(t, int64(7), *input.UserID)
+}
+
+func TestTokenAnalysisIndexerSkipsUserInputWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-07.jsonl")
+	line := `{"archive_id":"in2","event":"request","timestamp":"2026-06-07T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash-in2"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	// InputStoreMaxChars 0 = 不留存全文, 只写摘要。
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+		},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-07", EndDate: "2026-06-07"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Len(t, repo.upserts, 1)
+	require.Empty(t, repo.userInputs)
+}
+
+func TestTokenAnalysisServiceGetUserInputNotFound(t *testing.T) {
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{}, nil)
+
+	_, err := svc.GetUserInput(context.Background(), "missing")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
 }

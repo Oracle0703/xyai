@@ -122,6 +122,24 @@ export interface TokenAnalysisRequestItem {
   actual_cost: number
   risk_score: number
   risk_reasons: TokenAnalysisRiskReason[]
+  has_input: boolean
+  input_truncated: boolean
+  quality_score?: number
+}
+
+export interface TokenAnalysisRequestInput {
+  id: number
+  archive_id: string
+  event_time: string
+  user_id?: number
+  content: string
+  content_sha256: string
+  chars: number
+  truncated: boolean
+  quality_score?: number
+  quality_findings?: Record<string, unknown>
+  quality_version: string
+  evaluated_at?: string
 }
 
 export interface TokenAnalysisIndexRequest {
@@ -199,6 +217,13 @@ async function listRequests(
   return data
 }
 
+async function getRequestInput(archiveId: string): Promise<TokenAnalysisRequestInput> {
+  const { data } = await apiClient.get<TokenAnalysisRequestInput>('/admin/token-analysis/requests/input', {
+    params: { archive_id: archiveId }
+  })
+  return data
+}
+
 async function triggerIndex(payload: TokenAnalysisIndexRequest): Promise<TokenAnalysisIndexResult> {
   const { data } = await apiClient.post<TokenAnalysisIndexResult>('/admin/token-analysis/index', payload)
   return data
@@ -214,6 +239,7 @@ export const tokenAnalysisAPI = {
   listUsers,
   listProjects,
   listRequests,
+  getRequestInput,
   triggerIndex,
   getIndexStatus
 }

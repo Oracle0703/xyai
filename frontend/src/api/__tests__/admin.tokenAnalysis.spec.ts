@@ -79,6 +79,29 @@ describe('admin tokenAnalysis API', () => {
     expect(result.items[0]?.total_tokens).toBe(5000)
   })
 
+  it('loads full user input by archive id', async () => {
+    get.mockResolvedValue({
+      data: {
+        id: 1,
+        archive_id: 'arch-1',
+        event_time: '2026-06-07T01:00:00Z',
+        content: 'line one\nline two',
+        content_sha256: 'abc',
+        chars: 17,
+        truncated: false,
+        quality_version: ''
+      }
+    })
+
+    const result = await tokenAnalysisAPI.getRequestInput('arch-1')
+
+    expect(get).toHaveBeenCalledWith('/admin/token-analysis/requests/input', {
+      params: { archive_id: 'arch-1' }
+    })
+    expect(result.content).toContain('line two')
+    expect(result.truncated).toBe(false)
+  })
+
   it('triggers index with date range', async () => {
     post.mockResolvedValue({ data: { indexed_rows: 1, failed_rows: 0 } })
 

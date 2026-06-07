@@ -5,7 +5,9 @@ import TokenAnalysisView from '../TokenAnalysisView.vue'
 const api = vi.hoisted(() => ({
   getSummary: vi.fn(),
   listUsers: vi.fn(),
+  listProjects: vi.fn(),
   listRequests: vi.fn(),
+  getRequestInput: vi.fn(),
   getIndexStatus: vi.fn(),
   triggerIndex: vi.fn()
 }))
@@ -37,9 +39,22 @@ describe('TokenAnalysisView', () => {
   beforeEach(() => {
     api.getSummary.mockReset()
     api.listUsers.mockReset()
+    api.listProjects.mockReset()
     api.listRequests.mockReset()
+    api.getRequestInput.mockReset()
     api.getIndexStatus.mockReset()
     api.triggerIndex.mockReset()
+    api.listProjects.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    api.getRequestInput.mockResolvedValue({
+      id: 1,
+      archive_id: 'arch-1',
+      event_time: '2026-05-19T01:00:00Z',
+      content: 'full input line one\nline two',
+      content_sha256: 'abc',
+      chars: 28,
+      truncated: false,
+      quality_version: ''
+    })
     api.getSummary.mockResolvedValue({
       total_requests: 12,
       matched_requests: 10,
@@ -73,7 +88,11 @@ describe('TokenAnalysisView', () => {
           risk_score: 45,
           risk_reasons: [{ code: 'huge_input_tiny_output', message: 'large input tiny output', score: 45 }],
           last_user_preview: 'hello',
-          match_confidence: 3
+          match_confidence: 3,
+          client_project: 'lag-killer',
+          client_branch: 'main',
+          has_input: true,
+          input_truncated: false
         }
       ],
       total: 1,
@@ -96,7 +115,7 @@ describe('TokenAnalysisView', () => {
     })
   })
 
-  it('renders summary and suspicious request rows', async () => {
+  it('renders summary and request detail rows', async () => {
     const wrapper = mount(TokenAnalysisView, {
       global: { stubs: { AppLayout: AppLayoutStub } }
     })
@@ -107,8 +126,25 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('user@example.com')
     expect(wrapper.text()).toContain('gpt-4.1')
     expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('lag-killer')
+    expect(wrapper.text()).toContain('main')
     expect(wrapper.text()).toContain('16.7%')
     expect(wrapper.text()).toContain('huge_input_tiny_output')
     expect(wrapper.text()).toContain('2026-05-21.jsonl')
+  })
+
+  it('lazy loads full user input when a request row is opened', async () => {
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const row = wrapper.findAll('tbody tr').find((r) => r.text().includes('user@example.com'))
+    expect(row).toBeTruthy()
+    await row!.trigger('click')
+    await flushPromises()
+
+    expect(api.getRequestInput).toHaveBeenCalledWith('arch-1')
+    expect(wrapper.text()).toContain('full input line one')
   })
 })

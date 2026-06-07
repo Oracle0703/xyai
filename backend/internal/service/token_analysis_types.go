@@ -62,17 +62,37 @@ type TokenAnalysisRequestSummary struct {
 }
 
 type TokenAnalysisBodySummary struct {
-	Model              string         `json:"model"`
-	MessageCount       int            `json:"message_count"`
-	SystemChars        int            `json:"system_chars"`
-	UserChars          int            `json:"user_chars"`
-	LastUserPreview    string         `json:"last_user_preview"`
+	Model           string `json:"model"`
+	MessageCount    int    `json:"message_count"`
+	SystemChars     int    `json:"system_chars"`
+	UserChars       int    `json:"user_chars"`
+	LastUserPreview string `json:"last_user_preview"`
+	// LastUserText 是最后一条用户输入的原始全文(未脱敏未截断),
+	// 仅供索引器经 SanitizeTokenAnalysisInputText 处理后留存, 不直接外发。
+	LastUserText       string         `json:"-"`
 	ToolsCount         int            `json:"tools_count"`
 	ImageCount         int            `json:"image_count"`
 	ToolMessageCount   int            `json:"tool_message_count"`
 	ToolOutputBytes    int64          `json:"tool_output_bytes"`
 	MaxToolOutputBytes int64          `json:"max_tool_output_bytes"`
 	SummaryJSON        map[string]any `json:"summary_json"`
+}
+
+// TokenAnalysisUserInput 是单次请求提取出的用户净输入全文留存行;
+// 质量字段为占位, 评价标准确定后由评估任务回填, 重建索引不覆盖。
+type TokenAnalysisUserInput struct {
+	ID              int64          `json:"id"`
+	ArchiveID       string         `json:"archive_id"`
+	EventTime       time.Time      `json:"event_time"`
+	UserID          *int64         `json:"user_id,omitempty"`
+	Content         string         `json:"content"`
+	ContentSHA256   string         `json:"content_sha256"`
+	Chars           int            `json:"chars"`
+	Truncated       bool           `json:"truncated"`
+	QualityScore    *int16         `json:"quality_score,omitempty"`
+	QualityFindings map[string]any `json:"quality_findings,omitempty"`
+	QualityVersion  string         `json:"quality_version"`
+	EvaluatedAt     *time.Time     `json:"evaluated_at,omitempty"`
 }
 
 type TokenAnalysisUsageSignals struct {
@@ -200,6 +220,11 @@ type TokenAnalysisRequestItem struct {
 	ActualCost           float64                   `json:"actual_cost"`
 	RiskScore            int                       `json:"risk_score"`
 	RiskReasons          []TokenAnalysisRiskReason `json:"risk_reasons"`
+	// HasInput/InputTruncated/QualityScore 来自 token_analysis_user_inputs LEFT JOIN;
+	// 全文不进列表 payload, 经 GetUserInput 懒加载。
+	HasInput       bool   `json:"has_input"`
+	InputTruncated bool   `json:"input_truncated"`
+	QualityScore   *int16 `json:"quality_score,omitempty"`
 }
 
 type TokenAnalysisUsageMatch struct {
@@ -273,6 +298,10 @@ type TokenAnalysisRepository interface {
 	LoadProjectRoots(ctx context.Context) (map[string]string, error)
 	// UpsertProjectRoots 批量学习仓库根, 已存在时仅刷新 last_seen。
 	UpsertProjectRoots(ctx context.Context, roots map[string]string) error
+	// UpsertUserInput 留存用户净输入全文; 冲突时只更新内容字段, 不触碰 quality_*。
+	UpsertUserInput(ctx context.Context, input *TokenAnalysisUserInput) error
+	// GetUserInput 按 archive_id 取单条净输入(无记录返回 nil, nil)。
+	GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error)
 }
 
 type tokenAnalysisArchiveEvent struct {

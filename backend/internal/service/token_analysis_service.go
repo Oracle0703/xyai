@@ -54,6 +54,20 @@ func (s *TokenAnalysisService) ListRequests(ctx context.Context, filters TokenAn
 	return s.repo.ListRequests(ctx, filters, params)
 }
 
+func (s *TokenAnalysisService) GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("token analysis service is not configured")
+	}
+	input, err := s.repo.GetUserInput(ctx, archiveID)
+	if err != nil {
+		return nil, err
+	}
+	if input == nil {
+		return nil, infraerrors.NotFound("TOKEN_ANALYSIS_INPUT_NOT_FOUND", "user input not found for archive id")
+	}
+	return input, nil
+}
+
 func (s *TokenAnalysisService) GetIndexStatus(ctx context.Context) (*TokenAnalysisIndexStatus, error) {
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("token analysis service is not configured")
