@@ -24,17 +24,21 @@ func (s *TokenAnalysisService) startAutoIndexWithInterval(interval time.Duration
 	if s == nil || s.repo == nil || interval <= 0 {
 		return
 	}
+	// baseCtx 在 Stop 时取消, 让正在执行的索引轮次尽快经 repo 调用报错退出,
+	// 避免大文件回扫拖住优雅停机(codex 审查中等3)。
+	baseCtx, cancel := context.WithCancel(context.Background())
+	s.autoIndexCancel = cancel
 	s.autoIndexWG.Add(1)
 	go func() {
 		defer s.autoIndexWG.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
-		s.autoIndexOnce()
+		s.autoIndexOnce(baseCtx)
 		for {
 			select {
 			case <-ticker.C:
-				s.autoIndexOnce()
+				s.autoIndexOnce(baseCtx)
 			case <-s.autoIndexStop:
 				return
 			}
@@ -42,19 +46,23 @@ func (s *TokenAnalysisService) startAutoIndexWithInterval(interval time.Duration
 	}()
 }
 
-// StopAutoIndex 停止自动索引循环并等待退出(幂等, 未启动时安全)。
+// StopAutoIndex 停止自动索引循环并等待退出(幂等, 未启动时安全);
+// 先取消进行中的轮次再等待, 停机不会被长索引拖住。
 func (s *TokenAnalysisService) StopAutoIndex() {
 	if s == nil {
 		return
 	}
 	s.autoIndexStopOnce.Do(func() {
+		if s.autoIndexCancel != nil {
+			s.autoIndexCancel()
+		}
 		close(s.autoIndexStop)
 	})
 	s.autoIndexWG.Wait()
 }
 
-func (s *TokenAnalysisService) autoIndexOnce() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+func (s *TokenAnalysisService) autoIndexOnce(baseCtx context.Context) {
+	ctx, cancel := context.WithTimeout(baseCtx, 10*time.Minute)
 	defer cancel()
 
 	// 起点取昨天: 跨天瞬间昨日文件尾部可能还有未索引行, offset 续读使重扫近零成本。
@@ -65,8 +73,8 @@ func (s *TokenAnalysisService) autoIndexOnce() {
 	}
 	result, err := s.IndexRange(ctx, req)
 	if err != nil {
-		// 与手动触发撞车(已在运行)属预期, 静默跳过本轮。
-		if infraerrors.Code(err) == http.StatusConflict {
+		// 与手动触发撞车(已在运行)属预期; 停机取消的报错也无需告警。
+		if infraerrors.Code(err) == http.StatusConflict || ctx.Err() != nil {
 			return
 		}
 		log.Printf("[TokenAnalysisAutoIndex] index range failed: %v", err)

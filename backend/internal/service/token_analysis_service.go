@@ -21,6 +21,7 @@ type TokenAnalysisService struct {
 	autoIndexStop     chan struct{}
 	autoIndexStopOnce sync.Once
 	autoIndexWG       sync.WaitGroup
+	autoIndexCancel   context.CancelFunc
 }
 
 func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {

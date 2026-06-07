@@ -67,3 +67,14 @@
 | P1 | 修复前端抽屉 loading 竞态。 |
 | P2 | 在 TokenAnalysis 页面补充当前归档目录/历史目录切换说明, 或支持旧目录索引。 |
 
+## 处理结果(2026-06-08, Claude)
+
+| 严重级别 | 问题 | 处理 |
+| --- | --- | --- |
+| 重要1 | `content_sha256` 对脱敏前原文计算, secret 留可验证指纹 | **已采纳修复**: 哈希改为对**脱敏后未截断**文本计算(`RedactTokenAnalysisInputText` 拆分自 sanitize), 去重语义保留(同输入→同脱敏文本→同哈希, 跨截断配置仍稳定); 新增测试断言含 secret 输入的 `content_sha256` ≠ 原文 SHA256 且 = 脱敏文本 SHA256; 设计文档同步。未采用 HMAC(密钥管理成本高于收益, 脱敏后哈希已消除指纹风险) |
+| 重要2 | 示例配置缺 `token_analysis` 段, 默认开启不可见 | **采纳文档部分**: `config.example.yaml` 新增完整 `token_analysis` 段, 注明敏感数据留存影响与关闭方式(`auto_index_interval_seconds: 0` / `input_store_max_chars: 0`)。**不采纳"默认改 0"**: 本 fork 为公司内部部署, 净输入默认留存正是该特性的需求本身(标准未定先存原料), 改 0 等于默认关闭特性; 隐私边界已在示例配置/设计文档/llm-wiki 三处标注 |
+| 中等3 | StopAutoIndex 不能取消进行中轮次, 停机可拖 10 分钟 | **已采纳修复**: worker 持有可取消的 baseCtx, `StopAutoIndex` 先 cancel 再等待(进行中轮次经 repo 调用的 ctx 报错快速退出); 取消产生的报错不再告警; 新增测试: repo 阻塞在 usage 匹配时 Stop 3 秒内返回 |
+| 中等4 | 抽屉 `requestInputLoading` 全局布尔竞态 | **已采纳修复**: finally 中同样校验 `selectedRequest.archive_id === item.archive_id` 才收起 loading(与 then 对称), 旧请求不再影响新记录状态 |
+| 中等5 | 切换目录后索引/文件清单只看当前目录, 页面无说明 | **采纳文案版**: 归档文件卡片提示语补"仅列出当前生效归档目录, 切换后旧目录文件需手动迁移"(zh/en)。多目录索引/source dir 参数维持上轮决策不做(从简 + 手动迁移产品口径) |
+| 轻微6 | Project 过滤精确匹配无说明 | **已采纳**: 筛选框占位文案改为"项目名(精确匹配) / unattributed"(zh/en); ILIKE 模糊搜索暂不引入(常用路径是从项目排行点击下钻, 手输为辅) |
+

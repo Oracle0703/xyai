@@ -322,15 +322,17 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	// 净输入留存: 原始 JSONL 按保留期删除后, 全文仍可供"输入是否符合标准"类
 	// 分析回溯; 质量字段由后续评估任务回填, 这里只存原料。
 	if maxChars := tokenAnalysisInputStoreMaxChars(s.cfg); maxChars > 0 && strings.TrimSpace(bodySummary.LastUserText) != "" {
-		content, truncated := SanitizeTokenAnalysisInputText(bodySummary.LastUserText, maxChars)
-		// sha256 对脱敏前原文计算, 同一人类输入跨 agent 轮次/跨截断稳定。
-		rawSum := sha256.Sum256([]byte(strings.TrimSpace(bodySummary.LastUserText)))
+		// sha256 对"脱敏后未截断"文本计算: 同一人类输入跨 agent 轮次/跨截断配置
+		// 稳定, 且不构成 secret 原文的可验证指纹(不可拿候选 secret 离线比对)。
+		redacted := RedactTokenAnalysisInputText(bodySummary.LastUserText)
+		redactedSum := sha256.Sum256([]byte(redacted))
+		content, truncated := truncateTokenAnalysisRunes(redacted, maxChars)
 		if err := s.repo.UpsertUserInput(ctx, &TokenAnalysisUserInput{
 			ArchiveID:     event.ArchiveID,
 			EventTime:     eventTime,
 			UserID:        event.UserID,
 			Content:       content,
-			ContentSHA256: hex.EncodeToString(rawSum[:]),
+			ContentSHA256: hex.EncodeToString(redactedSum[:]),
 			Chars:         len([]rune(content)),
 			Truncated:     truncated,
 		}); err != nil {

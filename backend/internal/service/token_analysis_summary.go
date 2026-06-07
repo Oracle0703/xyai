@@ -80,10 +80,20 @@ func SanitizeTokenAnalysisPreview(input string, maxChars int) string {
 // SanitizeTokenAnalysisInputText 为净输入留存做脱敏与截断:
 // 与预览不同, 保留换行/缩进等原始排版(后续按标准评估时格式本身就是信号)。
 func SanitizeTokenAnalysisInputText(input string, maxChars int) (string, bool) {
+	return truncateTokenAnalysisRunes(RedactTokenAnalysisInputText(input), maxChars)
+}
+
+// RedactTokenAnalysisInputText 只做脱敏不截断, 供留存哈希计算使用:
+// 哈希必须对脱敏后文本计算, 否则 secret 会留下可离线比对的原文指纹(codex 审查重要1)。
+func RedactTokenAnalysisInputText(input string) string {
 	out := strings.TrimSpace(input)
 	for _, re := range tokenAnalysisRedactions {
 		out = re.ReplaceAllString(out, "[redacted]")
 	}
+	return out
+}
+
+func truncateTokenAnalysisRunes(out string, maxChars int) (string, bool) {
 	if maxChars <= 0 {
 		return out, false
 	}

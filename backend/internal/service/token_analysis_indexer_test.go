@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -275,6 +277,37 @@ func TestTokenAnalysisIndexerStoresUserInput(t *testing.T) {
 	// 哈希对脱敏前原文计算, 跨截断稳定。
 	require.Len(t, input.ContentSHA256, 64)
 	require.Equal(t, int64(7), *input.UserID)
+}
+
+func TestTokenAnalysisIndexerUserInputHashNotRawFingerprint(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-08.jsonl")
+	// 输入含 secret: content 必须脱敏, 且 content_sha256 不得等于原文 SHA256
+	// (否则拿候选 secret 可离线比对确认其出现过, codex 审查重要1)。
+	line := `{"archive_id":"sec1","event":"request","timestamp":"2026-06-08T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"use sk-secret-1234567890 please\"}]}","body_size":64,"body_sha256":"hash-sec1"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+			InputStoreMaxChars: 8000,
+		},
+	}, nil)
+
+	_, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-08", EndDate: "2026-06-08"})
+
+	require.NoError(t, err)
+	require.Len(t, repo.userInputs, 1)
+	input := repo.userInputs[0]
+	require.NotContains(t, input.Content, "sk-secret")
+	require.Contains(t, input.Content, "[redacted]")
+	rawSum := sha256.Sum256([]byte("use sk-secret-1234567890 please"))
+	require.NotEqual(t, hex.EncodeToString(rawSum[:]), input.ContentSHA256)
+	// 哈希与脱敏后文本一致, 去重语义保留。
+	redactedSum := sha256.Sum256([]byte(input.Content))
+	require.Equal(t, hex.EncodeToString(redactedSum[:]), input.ContentSHA256)
 }
 
 func TestTokenAnalysisIndexerSkipsUserInputWhenDisabled(t *testing.T) {

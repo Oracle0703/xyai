@@ -26,7 +26,7 @@
 
 ## 存储(migration 146)
 
-`token_analysis_user_inputs`: `archive_id` UNIQUE 与 summaries 同键幂等; `content` 为脱敏+截断后的最后一条用户输入全文; `content_sha256` 对脱敏前原文(TrimSpace)计算, 跨截断稳定; `truncated` 标记防止误判短输入。独立表而非加列到 summaries: 大文本不进聚合热表, 质量字段与输入同生命周期, 后续可独立清理。
+`token_analysis_user_inputs`: `archive_id` UNIQUE 与 summaries 同键幂等; `content` 为脱敏+截断后的最后一条用户输入全文; `content_sha256` 对**脱敏后未截断**文本计算——跨 agent 轮次/跨截断配置稳定, 且不构成 secret 原文的可验证指纹(拿候选 secret 无法离线比对确认其出现过, codex 审查重要1 的修正); `truncated` 标记防止误判短输入。独立表而非加列到 summaries: 大文本不进聚合热表, 质量字段与输入同生命周期, 后续可独立清理。
 
 Upsert 冲突时只更新内容字段, **不触碰 `quality_*` 四列**——重建索引不会冲掉评估结果; 标准改版重评时按 `quality_version` 区分是哪一版标准打的分。
 

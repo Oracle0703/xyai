@@ -594,7 +594,11 @@ function selectRequest(item: TokenAnalysisRequestItem) {
       // 全文加载失败时抽屉回退展示预览, 不打断查看。
     })
     .finally(() => {
-      requestInputLoading.value = false
+      // 仅当抽屉仍停留在本条记录时才收起 loading,
+      // 避免旧请求的 finally 提前关掉新记录的 loading(竞态)。
+      if (selectedRequest.value?.archive_id === item.archive_id) {
+        requestInputLoading.value = false
+      }
     })
 }
 
