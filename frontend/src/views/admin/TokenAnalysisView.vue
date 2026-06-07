@@ -24,6 +24,10 @@
             <input v-model.trim="filters.model" class="input h-9 text-sm" @keyup.enter="reloadAll" />
           </label>
           <label class="space-y-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.project') }}</span>
+            <input v-model.trim="filters.project" class="input h-9 text-sm" :placeholder="t('admin.tokenAnalysis.projectFilterHint')" @keyup.enter="reloadAll" />
+          </label>
+          <label class="space-y-1">
             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.riskMin') }}</span>
             <select v-model.number="filters.risk_min" class="input h-9 text-sm" @change="reloadAll">
               <option :value="0">0</option>
@@ -126,6 +130,68 @@
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.projectRanking') }}</h2>
+          <span class="text-xs text-gray-500">{{ projectsPagination.total }}</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="table text-sm">
+            <thead>
+              <tr>
+                <th>{{ t('admin.tokenAnalysis.project') }}</th>
+                <th>{{ t('admin.tokenAnalysis.user') }}</th>
+                <th>{{ t('admin.tokenAnalysis.requests') }}</th>
+                <th>{{ t('admin.tokenAnalysis.tokens') }}</th>
+                <th>Input / Output</th>
+                <th>{{ t('admin.tokenAnalysis.cacheTokens') }}</th>
+                <th>{{ t('admin.tokenAnalysis.cost') }}</th>
+                <th>{{ t('admin.tokenAnalysis.lastActive') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in projects" :key="`${row.project}-${row.user_id || 0}`">
+                <td>
+                  <button
+                    type="button"
+                    class="max-w-[200px] truncate font-medium hover:text-primary-600"
+                    :class="row.project === 'unattributed' ? 'italic text-gray-400' : ''"
+                    :title="row.project"
+                    @click="toggleProjectFilter(row.project)"
+                  >
+                    {{ row.project === 'unattributed' ? t('admin.tokenAnalysis.unattributed') : row.project }}
+                  </button>
+                </td>
+                <td>
+                  <div class="max-w-[180px] truncate">{{ row.user_email || '-' }}</div>
+                </td>
+                <td>
+                  <div>{{ formatNumber(row.request_count) }}</div>
+                  <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.matched') }} {{ formatNumber(row.matched_request_count) }}</div>
+                </td>
+                <td class="font-medium">{{ formatNumber(row.total_tokens) }}</td>
+                <td class="text-xs text-gray-500">{{ formatNumber(row.input_tokens) }} / {{ formatNumber(row.output_tokens) }}</td>
+                <td class="text-xs text-gray-500">{{ formatNumber(row.cache_read_tokens + row.cache_creation_tokens) }}</td>
+                <td>{{ formatCost(row.actual_cost) }}</td>
+                <td class="text-xs text-gray-500">{{ row.last_event_time || '-' }}</td>
+              </tr>
+              <tr v-if="!projectsLoading && projects.length === 0">
+                <td colspan="8" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          v-if="projectsPagination.total > 0"
+          :page="projectsPagination.page"
+          :page-size="projectsPagination.page_size"
+          :total="projectsPagination.total"
+          class="mt-3"
+          @update:page="changeProjectPage"
+          @update:pageSize="changeProjectPageSize"
+        />
       </div>
 
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -256,6 +322,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type {
   TokenAnalysisIndexStatus,
+  TokenAnalysisProjectUsage,
   TokenAnalysisQueryParams,
   TokenAnalysisRequestItem,
   TokenAnalysisSummary,
@@ -279,14 +346,17 @@ const filters = reactive<TokenAnalysisQueryParams>({
 
 const summary = ref<TokenAnalysisSummary | null>(null)
 const users = ref<TokenAnalysisUserUsage[]>([])
+const projects = ref<TokenAnalysisProjectUsage[]>([])
 const requests = ref<TokenAnalysisRequestItem[]>([])
 const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
 const usersLoading = ref(false)
+const projectsLoading = ref(false)
 const requestsLoading = ref(false)
 const indexing = ref(false)
 
 const usersPagination = reactive({ page: 1, page_size: 20, total: 0 })
+const projectsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const requestsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 
 const cleanFilters = computed(() => {
@@ -329,7 +399,11 @@ const detailFields = computed(() => {
     { label: 'Input tokens', value: formatNumber(item.input_tokens ?? 0) },
     { label: 'Output tokens', value: formatNumber(item.output_tokens ?? 0) },
     { label: 'Cache read', value: formatNumber(item.cache_read_tokens ?? 0) },
-    { label: 'Cost', value: formatCost(item.actual_cost ?? 0) }
+    { label: 'Cost', value: formatCost(item.actual_cost ?? 0) },
+    { label: t('admin.tokenAnalysis.project'), value: item.client_project || '-' },
+    { label: t('admin.tokenAnalysis.workdir'), value: item.client_workdir || '-' },
+    { label: t('admin.tokenAnalysis.branch'), value: item.client_branch || '-' },
+    { label: t('admin.tokenAnalysis.attributionSource'), value: item.attribution_source || '-' }
   ]
 })
 
@@ -372,6 +446,23 @@ async function loadUsers() {
   }
 }
 
+async function loadProjects() {
+  projectsLoading.value = true
+  try {
+    const result = await adminAPI.tokenAnalysis.listProjects({
+      ...cleanFilters.value,
+      page: projectsPagination.page,
+      page_size: projectsPagination.page_size
+    })
+    projects.value = result.items
+    projectsPagination.total = result.total
+    projectsPagination.page = result.page
+    projectsPagination.page_size = result.page_size
+  } finally {
+    projectsLoading.value = false
+  }
+}
+
 async function loadRequests() {
   requestsLoading.value = true
   try {
@@ -397,8 +488,9 @@ async function loadIndexStatus() {
 
 async function reloadAll() {
   requestsPagination.page = 1
+  projectsPagination.page = 1
   try {
-    await Promise.all([loadSummary(), loadUsers(), loadRequests(), loadIndexStatus()])
+    await Promise.all([loadSummary(), loadUsers(), loadProjects(), loadRequests(), loadIndexStatus()])
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
@@ -434,6 +526,22 @@ function changeRequestPageSize(pageSize: number) {
 
 function toggleRiskReason(code: string) {
   filters.risk_reason = filters.risk_reason === code ? undefined : code
+  void reloadAll()
+}
+
+function changeProjectPage(page: number) {
+  projectsPagination.page = page
+  void loadProjects()
+}
+
+function changeProjectPageSize(pageSize: number) {
+  projectsPagination.page_size = pageSize
+  projectsPagination.page = 1
+  void loadProjects()
+}
+
+function toggleProjectFilter(project: string) {
+  filters.project = filters.project === project ? undefined : project
   void reloadAll()
 }
 

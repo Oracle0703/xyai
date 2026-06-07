@@ -38,6 +38,13 @@ func (s *TokenAnalysisService) ListUserUsage(ctx context.Context, filters TokenA
 	return s.repo.ListUserUsage(ctx, filters, params)
 }
 
+func (s *TokenAnalysisService) ListProjectUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisProjectUsage, *pagination.PaginationResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil, fmt.Errorf("token analysis service is not configured")
+	}
+	return s.repo.ListProjectUsage(ctx, filters, params)
+}
+
 func (s *TokenAnalysisService) ListRequests(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
 	if s == nil || s.repo == nil {
 		return nil, nil, fmt.Errorf("token analysis service is not configured")

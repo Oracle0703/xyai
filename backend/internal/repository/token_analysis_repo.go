@@ -39,14 +39,16 @@ INSERT INTO token_analysis_request_summaries (
     model, endpoint, method,
     request_body_size, request_body_truncated, body_sha256,
     message_count, system_chars, user_chars, last_user_preview, tools_count, image_count,
-    summary_json, risk_score, risk_reasons, source_file, source_offset
+    summary_json, risk_score, risk_reasons, source_file, source_offset,
+    client_workdir, client_project, client_branch, attribution_source
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8,
     $9, $10, $11,
     $12, $13, $14,
     $15, $16, $17, $18, $19, $20,
-    $21::jsonb, $22, $23::jsonb, $24, $25
+    $21::jsonb, $22, $23::jsonb, $24, $25,
+    $26, $27, $28, $29
 )
 ON CONFLICT (archive_id) DO UPDATE SET
     usage_log_id = EXCLUDED.usage_log_id,
@@ -73,7 +75,11 @@ ON CONFLICT (archive_id) DO UPDATE SET
     risk_reasons = EXCLUDED.risk_reasons,
     indexed_at = NOW(),
     source_file = EXCLUDED.source_file,
-    source_offset = EXCLUDED.source_offset`,
+    source_offset = EXCLUDED.source_offset,
+    client_workdir = EXCLUDED.client_workdir,
+    client_project = EXCLUDED.client_project,
+    client_branch = EXCLUDED.client_branch,
+    attribution_source = EXCLUDED.attribution_source`,
 		summary.ArchiveID,
 		nullableInt64(summary.UsageLogID),
 		summary.MatchConfidence,
@@ -99,6 +105,10 @@ ON CONFLICT (archive_id) DO UPDATE SET
 		string(riskReasons),
 		summary.SourceFile,
 		nullableInt64(summary.SourceOffset),
+		summary.ClientWorkdir,
+		summary.ClientProject,
+		summary.ClientBranch,
+		summary.AttributionSource,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert token analysis request summary: %w", err)
@@ -352,6 +362,89 @@ LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs
 	return items, paginationResultFromTotal(total, params), nil
 }
 
+// ListProjectUsage 按 "项目 × 成员" 聚合 token 消耗。client_project 为空的行
+// 归入 unattributed 桶, 在结果中显式呈现而不是悄悄丢弃。
+func (r *tokenAnalysisRepository) ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error) {
+	where, args := buildTokenAnalysisWhere(filters, "s")
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+	countQuery := `
+SELECT COUNT(*) FROM (
+    SELECT s.client_project, s.user_id
+    FROM token_analysis_request_summaries s
+    LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+    ` + whereSQL + `
+    GROUP BY s.client_project, s.user_id
+) grouped`
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, nil, fmt.Errorf("count token analysis project usage: %w", err)
+	}
+
+	queryArgs := append([]any{}, args...)
+	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	query := `
+SELECT
+    CASE WHEN s.client_project = '' THEN 'unattributed' ELSE s.client_project END AS project,
+    s.user_id,
+    COALESCE(u.email, '') AS user_email,
+    COUNT(*) AS request_count,
+    COUNT(s.usage_log_id) AS matched_request_count,
+    COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens), 0) AS total_tokens,
+    COALESCE(SUM(ul.input_tokens), 0) AS input_tokens,
+    COALESCE(SUM(ul.output_tokens), 0) AS output_tokens,
+    COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+    COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens,
+    COALESCE(SUM(ul.actual_cost), 0) AS actual_cost,
+    MAX(s.event_time) AS last_event_time
+FROM token_analysis_request_summaries s
+LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+LEFT JOIN users u ON u.id = s.user_id
+` + whereSQL + `
+GROUP BY s.client_project, s.user_id, u.email
+ORDER BY total_tokens DESC, actual_cost DESC, request_count DESC
+LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
+
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list token analysis project usage: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]service.TokenAnalysisProjectUsage, 0)
+	for rows.Next() {
+		var item service.TokenAnalysisProjectUsage
+		var userID sql.NullInt64
+		var lastEvent sql.NullTime
+		if err := rows.Scan(
+			&item.Project,
+			&userID,
+			&item.UserEmail,
+			&item.RequestCount,
+			&item.MatchedRequestCount,
+			&item.TotalTokens,
+			&item.InputTokens,
+			&item.OutputTokens,
+			&item.CacheReadTokens,
+			&item.CacheCreationTokens,
+			&item.ActualCost,
+			&lastEvent,
+		); err != nil {
+			return nil, nil, fmt.Errorf("scan token analysis project usage: %w", err)
+		}
+		if userID.Valid {
+			item.UserID = &userID.Int64
+		}
+		if lastEvent.Valid {
+			item.LastEventTime = &lastEvent.Time
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, fmt.Errorf("iterate token analysis project usage: %w", err)
+	}
+	return items, paginationResultFromTotal(total, params), nil
+}
+
 func (r *tokenAnalysisRepository) ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
 	where, args := buildTokenAnalysisWhere(filters, "s")
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
@@ -373,6 +466,7 @@ SELECT
     s.request_body_size, s.request_body_truncated,
     s.message_count, s.system_chars, s.user_chars, s.last_user_preview, s.tools_count, s.image_count,
     s.summary_json, s.risk_score, s.risk_reasons,
+    s.client_workdir, s.client_project, s.client_branch, s.attribution_source,
     COALESCE(ul.input_tokens, 0), COALESCE(ul.output_tokens, 0), COALESCE(ul.cache_read_tokens, 0), COALESCE(ul.cache_creation_tokens, 0),
     COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens, 0), COALESCE(ul.actual_cost, 0)
 FROM token_analysis_request_summaries s
@@ -506,6 +600,46 @@ ON CONFLICT (source_file) DO UPDATE SET
 	return nil
 }
 
+func (r *tokenAnalysisRepository) LoadProjectRoots(ctx context.Context) (map[string]string, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT root, project FROM token_analysis_project_roots`)
+	if err != nil {
+		return nil, fmt.Errorf("load token analysis project roots: %w", err)
+	}
+	defer rows.Close()
+	roots := make(map[string]string)
+	for rows.Next() {
+		var root, project string
+		if err := rows.Scan(&root, &project); err != nil {
+			return nil, fmt.Errorf("scan token analysis project root: %w", err)
+		}
+		roots[root] = project
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate token analysis project roots: %w", err)
+	}
+	return roots, nil
+}
+
+func (r *tokenAnalysisRepository) UpsertProjectRoots(ctx context.Context, roots map[string]string) error {
+	if len(roots) == 0 {
+		return nil
+	}
+	for root, project := range roots {
+		if strings.TrimSpace(root) == "" {
+			continue
+		}
+		if _, err := r.db.ExecContext(ctx, `
+INSERT INTO token_analysis_project_roots (root, project)
+VALUES ($1, $2)
+ON CONFLICT (root) DO UPDATE SET
+    project = EXCLUDED.project,
+    last_seen = NOW()`, root, project); err != nil {
+			return fmt.Errorf("upsert token analysis project root: %w", err)
+		}
+	}
+	return nil
+}
+
 type tokenAnalysisRowsScanner interface {
 	Scan(dest ...any) error
 }
@@ -540,6 +674,10 @@ func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenA
 		&summaryRaw,
 		&item.RiskScore,
 		&reasonsRaw,
+		&item.ClientWorkdir,
+		&item.ClientProject,
+		&item.ClientBranch,
+		&item.AttributionSource,
 		&item.InputTokens,
 		&item.OutputTokens,
 		&item.CacheReadTokens,
@@ -611,6 +749,13 @@ func buildTokenAnalysisWhere(filters service.TokenAnalysisFilters, alias string)
 	}
 	if reason := strings.TrimSpace(filters.RiskReason); reason != "" {
 		add(prefix+"risk_reasons @> $%d::jsonb", `[{"code":"`+escapeJSONString(reason)+`"}]`)
+	}
+	if project := strings.TrimSpace(filters.Project); project != "" {
+		if project == "unattributed" {
+			where = append(where, prefix+"client_project = ''")
+		} else {
+			add(prefix+"client_project = $%d", project)
+		}
 	}
 	if !filters.IncludeUnmatched {
 		where = append(where, prefix+"usage_log_id IS NOT NULL")

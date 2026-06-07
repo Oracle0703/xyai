@@ -37,6 +37,48 @@ describe('admin tokenAnalysis API', () => {
     })
   })
 
+  it('loads project usage with project filter', async () => {
+    get.mockResolvedValue({
+      data: {
+        items: [
+          {
+            project: 'lag-killer',
+            user_id: 7,
+            user_email: 'dev@example.com',
+            request_count: 12,
+            matched_request_count: 11,
+            total_tokens: 5000,
+            input_tokens: 3000,
+            output_tokens: 1000,
+            cache_read_tokens: 800,
+            cache_creation_tokens: 200,
+            actual_cost: 0.5
+          }
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20
+      }
+    })
+
+    const result = await tokenAnalysisAPI.listProjects({
+      start_date: '2026-06-05',
+      end_date: '2026-06-05',
+      project: 'lag-killer'
+    })
+
+    expect(get).toHaveBeenCalledWith('/admin/token-analysis/projects', {
+      params: {
+        start_date: '2026-06-05',
+        end_date: '2026-06-05',
+        project: 'lag-killer'
+      },
+      signal: undefined
+    })
+    expect(result.items[0]?.project).toBe('lag-killer')
+    expect(result.items[0]?.total_tokens).toBe(5000)
+  })
+
   it('triggers index with date range', async () => {
     post.mockResolvedValue({ data: { indexed_rows: 1, failed_rows: 0 } })
 

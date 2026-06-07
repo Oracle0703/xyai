@@ -13,6 +13,7 @@ export interface TokenAnalysisQueryParams {
   endpoint?: string
   risk_min?: number
   risk_reason?: string
+  project?: string
   include_unmatched?: boolean
   page?: number
   page_size?: number
@@ -70,6 +71,21 @@ export interface TokenAnalysisUserUsage {
   last_event_time?: string
 }
 
+export interface TokenAnalysisProjectUsage {
+  project: string
+  user_id?: number
+  user_email: string
+  request_count: number
+  matched_request_count: number
+  total_tokens: number
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+  actual_cost: number
+  last_event_time?: string
+}
+
 export interface TokenAnalysisRequestItem {
   id: number
   archive_id: string
@@ -94,6 +110,10 @@ export interface TokenAnalysisRequestItem {
   tools_count: number
   image_count: number
   summary_json?: Record<string, unknown>
+  client_workdir?: string
+  client_project?: string
+  client_branch?: string
+  attribution_source?: string
   input_tokens: number
   output_tokens: number
   cache_read_tokens: number
@@ -154,6 +174,20 @@ async function listUsers(
   return data
 }
 
+async function listProjects(
+  params: TokenAnalysisQueryParams,
+  options?: { signal?: AbortSignal }
+): Promise<PaginatedResponse<TokenAnalysisProjectUsage>> {
+  const { data } = await apiClient.get<PaginatedResponse<TokenAnalysisProjectUsage>>(
+    '/admin/token-analysis/projects',
+    {
+      params,
+      signal: options?.signal
+    }
+  )
+  return data
+}
+
 async function listRequests(
   params: TokenAnalysisQueryParams,
   options?: { signal?: AbortSignal }
@@ -178,6 +212,7 @@ async function getIndexStatus(): Promise<TokenAnalysisIndexStatus> {
 export const tokenAnalysisAPI = {
   getSummary,
   listUsers,
+  listProjects,
   listRequests,
   triggerIndex,
   getIndexStatus

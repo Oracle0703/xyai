@@ -53,6 +53,11 @@ func (s *tokenAnalysisServiceStub) ListUserUsage(ctx context.Context, filters se
 	return []service.TokenAnalysisUserUsage{}, &pagination.PaginationResult{Page: params.Page, PageSize: params.PageSize}, nil
 }
 
+func (s *tokenAnalysisServiceStub) ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error) {
+	s.lastFilters = filters
+	return []service.TokenAnalysisProjectUsage{}, &pagination.PaginationResult{Page: params.Page, PageSize: params.PageSize}, nil
+}
+
 func (s *tokenAnalysisServiceStub) ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
 	s.lastFilters = filters
 	return []service.TokenAnalysisRequestItem{}, &pagination.PaginationResult{Page: params.Page, PageSize: params.PageSize}, nil

@@ -99,10 +99,48 @@ func TestTokenAnalysisIndexerSkipsIncompleteTrailingJSONLine(t *testing.T) {
 	require.Equal(t, int64(len(`{"archive_id":"a1","event":"request","timestamp":"2026-05-21T01:02:03Z","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"input\":\"hello\"}","body_size":64,"body_sha256":"hash1"}`+"\n")), repo.states[len(repo.states)-1].LastOffset)
 }
 
+func TestTokenAnalysisIndexerExtractsProjectAttribution(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-05.jsonl")
+	// 第一条 Codex 请求直接命中 cwd 并学习仓库根; 第二条 Copilot 请求
+	// 自身无 cwd, 依赖附件路径 × 已知根前缀匹配归因。
+	codexLine := `{"archive_id":"cx1","event":"request","timestamp":"2026-06-05T01:02:03Z","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-5.4","user_agent":"Codex Desktop/0.136.0","body":"{\"model\":\"gpt-5.4\",\"input\":[{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"<environment_context><cwd>E:\\\\code\\\\lag-killer</cwd></environment_context>\"}]}]}","body_size":120,"body_sha256":"hash-cx"}` + "\n"
+	copilotLine := `{"archive_id":"cp1","event":"request","timestamp":"2026-06-05T01:05:00Z","method":"POST","endpoint":"/v1/chat/completions","user_id":8,"api_key_id":10,"model":"xy-gpt-5.5","user_agent":"GitHubCopilotChat/0.51.0","body":"{\"model\":\"xy-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"<attachment filePath=\\\"E:\\\\\\\\code\\\\\\\\lag-killer\\\\\\\\src\\\\\\\\main.cpp\\\">code</attachment>\"}]}","body_size":140,"body_sha256":"hash-cp"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(codexLine+copilotLine), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	})
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-05", EndDate: "2026-06-05"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), result.IndexedRows)
+	require.Len(t, repo.upserts, 2)
+
+	codex := repo.upserts[0]
+	require.Equal(t, "E:/code/lag-killer", codex.ClientWorkdir)
+	require.Equal(t, "lag-killer", codex.ClientProject)
+	require.Equal(t, "env-context", codex.AttributionSource)
+
+	copilot := repo.upserts[1]
+	require.Equal(t, "lag-killer", copilot.ClientProject)
+	require.Equal(t, ProjectAttributionSourceKnownRoot, copilot.AttributionSource)
+	require.Equal(t, "e:/code/lag-killer", copilot.ClientWorkdir)
+
+	// 学到的仓库根在索引结束时落库。
+	require.NotEmpty(t, repo.rootUpserts)
+	require.Equal(t, "lag-killer", repo.projectRoots["e:/code/lag-killer"])
+}
+
 type tokenAnalysisRepoStub struct {
-	upserts     []TokenAnalysisRequestSummary
-	states      []TokenAnalysisIndexState
-	indexStates map[string]TokenAnalysisIndexState
+	upserts      []TokenAnalysisRequestSummary
+	states       []TokenAnalysisIndexState
+	indexStates  map[string]TokenAnalysisIndexState
+	projectRoots map[string]string
+	rootUpserts  []map[string]string
 }
 
 func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
@@ -159,5 +197,32 @@ func (r *tokenAnalysisRepoStub) GetIndexState(ctx context.Context, sourceFile st
 
 func (r *tokenAnalysisRepoStub) UpdateIndexState(ctx context.Context, state TokenAnalysisIndexState) error {
 	r.states = append(r.states, state)
+	return nil
+}
+
+func (r *tokenAnalysisRepoStub) ListProjectUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisProjectUsage, *pagination.PaginationResult, error) {
+	return []TokenAnalysisProjectUsage{}, &pagination.PaginationResult{}, nil
+}
+
+func (r *tokenAnalysisRepoStub) LoadProjectRoots(ctx context.Context) (map[string]string, error) {
+	roots := make(map[string]string, len(r.projectRoots))
+	for k, v := range r.projectRoots {
+		roots[k] = v
+	}
+	return roots, nil
+}
+
+func (r *tokenAnalysisRepoStub) UpsertProjectRoots(ctx context.Context, roots map[string]string) error {
+	copied := make(map[string]string, len(roots))
+	for k, v := range roots {
+		copied[k] = v
+	}
+	r.rootUpserts = append(r.rootUpserts, copied)
+	if r.projectRoots == nil {
+		r.projectRoots = map[string]string{}
+	}
+	for k, v := range copied {
+		r.projectRoots[k] = v
+	}
 	return nil
 }

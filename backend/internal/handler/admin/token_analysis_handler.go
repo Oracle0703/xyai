@@ -15,6 +15,7 @@ import (
 type tokenAnalysisService interface {
 	GetSummary(ctx context.Context, filters service.TokenAnalysisFilters) (*service.TokenAnalysisSummary, error)
 	ListUserUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisUserUsage, *pagination.PaginationResult, error)
+	ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error)
 	GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error)
 	IndexRange(ctx context.Context, req service.TokenAnalysisIndexRequest) (*service.TokenAnalysisIndexResult, error)
@@ -54,6 +55,27 @@ func (h *TokenAnalysisHandler) Users(c *gin.Context) {
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	items, result, err := h.service.ListUserUsage(c.Request.Context(), filters, params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, result.Total, result.Page, result.PageSize)
+}
+
+// Projects 返回"项目 × 成员"维度的 token 消耗聚合。
+func (h *TokenAnalysisHandler) Projects(c *gin.Context) {
+	filters, ok := h.parseFilters(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	params := pagination.PaginationParams{
+		Page:      page,
+		PageSize:  pageSize,
+		SortBy:    c.DefaultQuery("sort_by", "total_tokens"),
+		SortOrder: c.DefaultQuery("sort_order", "desc"),
+	}
+	items, result, err := h.service.ListProjectUsage(c.Request.Context(), filters, params)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -140,6 +162,7 @@ func (h *TokenAnalysisHandler) parseFilters(c *gin.Context) (service.TokenAnalys
 	filters.Model = strings.TrimSpace(c.Query("model"))
 	filters.Endpoint = strings.TrimSpace(c.Query("endpoint"))
 	filters.RiskReason = strings.TrimSpace(c.Query("risk_reason"))
+	filters.Project = strings.TrimSpace(c.Query("project"))
 	if raw := strings.TrimSpace(c.Query("risk_min")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || v < 0 || v > 100 {
