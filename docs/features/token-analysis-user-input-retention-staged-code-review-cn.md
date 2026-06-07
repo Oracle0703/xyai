@@ -1,5 +1,7 @@
 # 代码审查报告: Token Analysis 用户输入留存分析
 
+> **历史审查记录**: 本报告的"总体结论/问题清单"反映审查当时(`e3ad2fa7`)的状态, 所列 3 个合并前风险已全部被后续提交修复, 处理明细见文末"处理结果"。最新合并前结论以 `token-analysis-user-input-retention-main-merge-review-cn.md` 为准。
+
 审查时间: 2026-06-08
 
 审查对象: 当前本地分支 `feature/hy/0607_用户输入留存分析` 相对 `origin/main` 的差异。
@@ -77,4 +79,3 @@
 | 中等4 | 抽屉 `requestInputLoading` 全局布尔竞态 | **已采纳修复**: finally 中同样校验 `selectedRequest.archive_id === item.archive_id` 才收起 loading(与 then 对称), 旧请求不再影响新记录状态 |
 | 中等5 | 切换目录后索引/文件清单只看当前目录, 页面无说明 | **采纳文案版**: 归档文件卡片提示语补"仅列出当前生效归档目录, 切换后旧目录文件需手动迁移"(zh/en)。多目录索引/source dir 参数维持上轮决策不做(从简 + 手动迁移产品口径) |
 | 轻微6 | Project 过滤精确匹配无说明 | **已采纳**: 筛选框占位文案改为"项目名(精确匹配) / unattributed"(zh/en); ILIKE 模糊搜索暂不引入(常用路径是从项目排行点击下钻, 手输为辅) |
-

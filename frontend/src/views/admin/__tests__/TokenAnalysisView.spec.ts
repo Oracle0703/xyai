@@ -164,4 +164,87 @@ describe('TokenAnalysisView', () => {
     expect(api.getRequestInput).toHaveBeenCalledWith('arch-1')
     expect(wrapper.text()).toContain('full input line one')
   })
+
+  it('keeps loading state for the newly opened request when an older input request resolves late', async () => {
+    // 竞态回归: 连续点击 A→B, A 的旧 promise 晚到时不得关闭 B 的 loading,
+    // 更不能把 A 的全文展示在 B 的抽屉里。
+    const resolvers = new Map<string, (input: unknown) => void>()
+    api.getRequestInput.mockImplementation(
+      (archiveId: string) =>
+        new Promise((resolve) => {
+          resolvers.set(archiveId, resolve)
+        })
+    )
+    const baseItem = {
+      id: 1,
+      event_time: '2026-05-19T01:00:00Z',
+      api_key_name: 'dev',
+      model: 'gpt-4.1',
+      input_tokens: 1000,
+      output_tokens: 32,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      actual_cost: 0.1,
+      risk_score: 0,
+      risk_reasons: [],
+      last_user_preview: 'preview',
+      match_confidence: 3,
+      client_project: 'lag-killer',
+      client_branch: 'main',
+      has_input: true,
+      input_truncated: false
+    }
+    api.listRequests.mockResolvedValue({
+      items: [
+        { ...baseItem, id: 1, archive_id: 'arch-1', user_email: 'user@example.com' },
+        { ...baseItem, id: 2, archive_id: 'arch-2', user_email: 'second@example.com' }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20
+    })
+
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const rows = wrapper.findAll('tbody tr')
+    const rowA = rows.find((r) => r.text().includes('user@example.com'))
+    const rowB = rows.find((r) => r.text().includes('second@example.com'))
+    expect(rowA).toBeTruthy()
+    expect(rowB).toBeTruthy()
+    await rowA!.trigger('click')
+    await rowB!.trigger('click')
+
+    // 旧请求 A 先返回: B 的抽屉应继续 loading, 不显示 A 的内容。
+    resolvers.get('arch-1')!({
+      id: 1,
+      archive_id: 'arch-1',
+      event_time: '2026-05-19T01:00:00Z',
+      content: 'stale input from A',
+      content_sha256: 'aaa',
+      chars: 18,
+      truncated: false,
+      quality_version: ''
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('common.loading')
+    expect(wrapper.text()).not.toContain('stale input from A')
+
+    // B 自己的响应到达后正常展示。
+    resolvers.get('arch-2')!({
+      id: 2,
+      archive_id: 'arch-2',
+      event_time: '2026-05-19T01:00:00Z',
+      content: 'fresh input from B',
+      content_sha256: 'bbb',
+      chars: 18,
+      truncated: false,
+      quality_version: ''
+    })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('common.loading')
+    expect(wrapper.text()).toContain('fresh input from B')
+  })
 })

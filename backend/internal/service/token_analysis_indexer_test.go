@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -246,6 +247,45 @@ func (r *tokenAnalysisRepoStub) UpsertProjectRoots(ctx context.Context, roots ma
 		r.projectRoots[k] = v
 	}
 	return nil
+}
+
+// cancelOnUpsertRepoStub 在首条 summary 落库后取消 ctx, 模拟扫描进行中触发停机。
+type cancelOnUpsertRepoStub struct {
+	tokenAnalysisRepoStub
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnUpsertRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
+	if err := r.tokenAnalysisRepoStub.UpsertRequestSummary(ctx, summary); err != nil {
+		return err
+	}
+	if r.cancel != nil {
+		r.cancel()
+	}
+	return nil
+}
+
+func TestTokenAnalysisIndexerStopsScanningSkippedLinesAfterCancel(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-08.jsonl")
+	// 1 条 request + 大量跳过行(response 事件不经过任何 repo 调用):
+	// 取消后若循环不检查 ctx.Err(), 文件会被扫完并返回成功(回归场景)。
+	requestLine := `{"archive_id":"a1","event":"request","timestamp":"2026-06-08T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash1"}` + "\n"
+	skipLine := `{"archive_id":"a1","event":"response","timestamp":"2026-06-08T01:02:04Z","status":200,"body":"{\"ok\":true}"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(requestLine+strings.Repeat(skipLine, 5000)), 0o600))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	repo := &cancelOnUpsertRepoStub{cancel: cancel}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	_, err := svc.IndexRange(ctx, TokenAnalysisIndexRequest{StartDate: "2026-06-08", EndDate: "2026-06-08"})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.Len(t, repo.upserts, 1)
 }
 
 func TestTokenAnalysisIndexerStoresUserInput(t *testing.T) {

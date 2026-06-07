@@ -147,4 +147,4 @@ Go 版 instructions-md 层(多重反斜杠完全折叠)优于 Python 版, Copilo
 ## 运行前提(运维侧)
 
 - `gateway.request_archive.enabled=true` 需常态开启(请求体是归因数据源); 响应正文已不落盘(瘦身改造), 磁盘大头是请求体, 需配套保留期清理。
-- token_analysis 索引按现有触发方式运行(管理端 `POST /token-analysis/index`), 建议配合日常排班每日执行前一天文件。
+- token_analysis 索引默认随服务启动自动运行: 每 `token_analysis.auto_index_interval_seconds`(默认 300)秒对 [昨天, 今天] 做一次增量索引(offset 续读, 幂等), **无需外部 cron 排班**。`auto_index_interval_seconds: 0` 或 `index_enabled: false` 时退化为仅手动; 管理端 `POST /token-analysis/index` 保留, 用于补索引历史日期。注意自动索引意味着开启 request_archive 后归因与净输入留存会自动落库, 敏感数据影响见 `token-analysis-user-input-store-design-cn.md`。

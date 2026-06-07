@@ -170,6 +170,11 @@ func (s *TokenAnalysisService) indexArchiveFile(ctx context.Context, file string
 
 	reader := bufio.NewReader(f)
 	for {
+		// 跳过行(空行/无效 JSON/非 request 事件)不经过任何 repo 调用,
+		// 必须在循环顶部显式检查取消, 否则停机时大文件仍会扫完(codex 审查)。
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		line, readErr := reader.ReadBytes('\n')
 		if len(line) > 0 {
 			lineOffset := offset + int64(len(line))
