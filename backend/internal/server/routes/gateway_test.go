@@ -165,7 +165,11 @@ rules:
 	require.Len(t, records, 2)
 	require.Equal(t, "request", records[0]["event"])
 	require.Equal(t, "response", records[1]["event"])
-	require.Contains(t, records[1]["body"], "迅游AI")
+	// 响应归档已瘦身为 usage 摘要(6dbec443): 不再写响应正文,
+	// 拦截回复经捕获器只留 body_size/body_sha256。
+	require.NotContains(t, records[1], "body")
+	require.Greater(t, records[1]["body_size"], float64(0))
+	require.NotEmpty(t, records[1]["body_sha256"])
 }
 
 func readGatewayRouteArchiveRecords(t *testing.T, dir string) []map[string]any {

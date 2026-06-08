@@ -79,3 +79,31 @@ func TestTokenAnalysisSummarizeGeminiContents(t *testing.T) {
 	require.Equal(t, 1, got.ImageCount)
 	require.Equal(t, 1, got.ToolsCount)
 }
+
+func TestTokenAnalysisSummarizeKeepsRawLastUserText(t *testing.T) {
+	body := []byte(`{"model":"gpt-4.1","messages":[{"role":"user","content":"line one\nline two with sk-secret-1234567890"}]}`)
+
+	got, err := SummarizeTokenAnalysisRequest("/v1/chat/completions", body, 20)
+
+	require.NoError(t, err)
+	// LastUserText 保留原文(未脱敏未截断), 供净输入留存自行脱敏。
+	require.Equal(t, "line one\nline two with sk-secret-1234567890", got.LastUserText)
+	require.NotContains(t, got.LastUserPreview, "sk-secret")
+	require.LessOrEqual(t, len([]rune(got.LastUserPreview)), 20)
+}
+
+func TestSanitizeTokenAnalysisInputTextPreservesFormatting(t *testing.T) {
+	text := "第一行\n  indented code\n\nBearer sk-secret-1234567890"
+
+	out, truncated := SanitizeTokenAnalysisInputText(text, 8000)
+
+	require.False(t, truncated)
+	// 与预览不同, 保留换行与缩进。
+	require.Contains(t, out, "第一行\n  indented code\n\n")
+	require.NotContains(t, out, "sk-secret")
+	require.Contains(t, out, "[redacted]")
+
+	short, shortTruncated := SanitizeTokenAnalysisInputText("abcdef", 3)
+	require.True(t, shortTruncated)
+	require.Equal(t, "abc", short)
+}

@@ -11,17 +11,24 @@ import (
 )
 
 type TokenAnalysisService struct {
-	repo    TokenAnalysisRepository
-	cfg     *config.Config
-	mu      sync.Mutex
-	running bool
+	repo TokenAnalysisRepository
+	cfg  *config.Config
+	// settings 用于读取运行态归档目录(后台可热切换); nil 时回退 config。
+	settings *SettingService
+	mu       sync.Mutex
+	running  bool
+	// 自动索引循环(token_analysis_auto_index.go)的生命周期控制。
+	autoIndexStop     chan struct{}
+	autoIndexStopOnce sync.Once
+	autoIndexWG       sync.WaitGroup
+	autoIndexCancel   context.CancelFunc
 }
 
-func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config) *TokenAnalysisService {
+func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
 	if cfg == nil {
 		cfg = &config.Config{}
 	}
-	return &TokenAnalysisService{repo: repo, cfg: cfg}
+	return &TokenAnalysisService{repo: repo, cfg: cfg, settings: settings, autoIndexStop: make(chan struct{})}
 }
 
 func (s *TokenAnalysisService) GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error) {
@@ -38,11 +45,32 @@ func (s *TokenAnalysisService) ListUserUsage(ctx context.Context, filters TokenA
 	return s.repo.ListUserUsage(ctx, filters, params)
 }
 
+func (s *TokenAnalysisService) ListProjectUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisProjectUsage, *pagination.PaginationResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, nil, fmt.Errorf("token analysis service is not configured")
+	}
+	return s.repo.ListProjectUsage(ctx, filters, params)
+}
+
 func (s *TokenAnalysisService) ListRequests(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
 	if s == nil || s.repo == nil {
 		return nil, nil, fmt.Errorf("token analysis service is not configured")
 	}
 	return s.repo.ListRequests(ctx, filters, params)
+}
+
+func (s *TokenAnalysisService) GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("token analysis service is not configured")
+	}
+	input, err := s.repo.GetUserInput(ctx, archiveID)
+	if err != nil {
+		return nil, err
+	}
+	if input == nil {
+		return nil, infraerrors.NotFound("TOKEN_ANALYSIS_INPUT_NOT_FOUND", "user input not found for archive id")
+	}
+	return input, nil
 }
 
 func (s *TokenAnalysisService) GetIndexStatus(ctx context.Context) (*TokenAnalysisIndexStatus, error) {

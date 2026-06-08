@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/diskspace"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -3136,20 +3137,16 @@ func (h *SettingHandler) GetRequestArchiveSettings(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.RequestArchiveSettings{
-		Enabled:              settings.Enabled,
-		CaptureResponse:      settings.CaptureResponse,
-		Dir:                  settings.Dir,
-		MaxRequestBodyBytes:  settings.MaxRequestBodyBytes,
-		MaxResponseBodyBytes: settings.MaxResponseBodyBytes,
-		QueueSize:            settings.QueueSize,
-	})
+	response.Success(c, requestArchiveSettingsToDTO(settings))
 }
 
 // UpdateRequestArchiveSettingsRequest 更新网关请求归档配置请求
 type UpdateRequestArchiveSettingsRequest struct {
 	Enabled         bool `json:"enabled"`
 	CaptureResponse bool `json:"capture_response"`
+	// Dir 归档目录: nil 表示不修改; 空串表示恢复 config 默认; 非空为自定义
+	// 绝对路径, 保存时做磁盘存在/目录可创建/可写校验。
+	Dir *string `json:"dir"`
 }
 
 // UpdateRequestArchiveSettings 更新网关请求归档配置
@@ -3165,8 +3162,21 @@ func (h *SettingHandler) UpdateRequestArchiveSettings(c *gin.Context) {
 		Enabled:         req.Enabled,
 		CaptureResponse: req.CaptureResponse,
 	}
+	if req.Dir != nil {
+		settings.Dir = *req.Dir
+	} else {
+		// 请求未携带 dir 时保持现状: 自定义值原样回传给 Set。
+		current, err := h.settingService.GetRequestArchiveSettings(c.Request.Context())
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		if current.DirCustomized {
+			settings.Dir = current.Dir
+		}
+	}
 	if err := h.settingService.SetRequestArchiveSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ErrorFrom(c, err)
 		return
 	}
 
@@ -3176,14 +3186,27 @@ func (h *SettingHandler) UpdateRequestArchiveSettings(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.RequestArchiveSettings{
-		Enabled:              updatedSettings.Enabled,
-		CaptureResponse:      updatedSettings.CaptureResponse,
-		Dir:                  updatedSettings.Dir,
-		MaxRequestBodyBytes:  updatedSettings.MaxRequestBodyBytes,
-		MaxResponseBodyBytes: updatedSettings.MaxResponseBodyBytes,
-		QueueSize:            updatedSettings.QueueSize,
-	})
+	response.Success(c, requestArchiveSettingsToDTO(updatedSettings))
+}
+
+// requestArchiveSettingsToDTO 组装归档配置视图, 并尽力附带当前生效目录所在
+// 磁盘的容量信息(目录不存在或查询失败时为 0, 不阻塞接口)。
+func requestArchiveSettingsToDTO(settings *service.RequestArchiveSettings) dto.RequestArchiveSettings {
+	out := dto.RequestArchiveSettings{
+		Enabled:              settings.Enabled,
+		CaptureResponse:      settings.CaptureResponse,
+		Dir:                  settings.Dir,
+		DefaultDir:           settings.DefaultDir,
+		DirCustomized:        settings.DirCustomized,
+		MaxRequestBodyBytes:  settings.MaxRequestBodyBytes,
+		MaxResponseBodyBytes: settings.MaxResponseBodyBytes,
+		QueueSize:            settings.QueueSize,
+	}
+	if total, free, err := diskspace.Usage(settings.Dir); err == nil {
+		out.DiskTotalBytes = total
+		out.DiskFreeBytes = free
+	}
+	return out
 }
 
 // GetStreamTimeoutSettings 获取流超时处理配置

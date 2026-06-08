@@ -1129,10 +1129,25 @@ export async function updateRateLimit429CooldownSettings(
 export interface RequestArchiveSettings {
   enabled: boolean;
   capture_response: boolean;
+  /** 当前生效目录(后台自定义优先, 否则为 config 默认) */
   dir: string;
+  /** config.yaml(含内置默认)目录, 供"恢复默认"展示 */
+  default_dir: string;
+  /** dir 是否来自后台自定义 */
+  dir_customized: boolean;
+  /** 当前生效目录所在磁盘容量, 获取失败时为 0 */
+  disk_total_bytes: number;
+  disk_free_bytes: number;
   max_request_body_bytes: number;
   max_response_body_bytes: number;
   queue_size: number;
+}
+
+export interface UpdateRequestArchiveSettingsRequest {
+  enabled: boolean;
+  capture_response: boolean;
+  /** 归档目录: 省略表示不修改; 空串恢复 config 默认; 非空为自定义绝对路径 */
+  dir?: string;
 }
 
 export async function getRequestArchiveSettings(): Promise<RequestArchiveSettings> {
@@ -1143,7 +1158,7 @@ export async function getRequestArchiveSettings(): Promise<RequestArchiveSetting
 }
 
 export async function updateRequestArchiveSettings(
-  settings: Pick<RequestArchiveSettings, "enabled" | "capture_response">,
+  settings: UpdateRequestArchiveSettingsRequest,
 ): Promise<RequestArchiveSettings> {
   const { data } = await apiClient.put<RequestArchiveSettings>(
     "/admin/settings/request-archive",

@@ -457,17 +457,24 @@ type RateLimit429CooldownSettings struct {
 
 // RequestArchiveSettings 网关请求归档运行态配置。
 type RequestArchiveSettings struct {
-	Enabled              bool   `json:"enabled"`
-	CaptureResponse      bool   `json:"capture_response"`
-	Dir                  string `json:"dir"`
-	MaxRequestBodyBytes  int64  `json:"max_request_body_bytes"`
-	MaxResponseBodyBytes int64  `json:"max_response_body_bytes"`
-	QueueSize            int    `json:"queue_size"`
+	Enabled         bool `json:"enabled"`
+	CaptureResponse bool `json:"capture_response"`
+	// Dir 当前生效的归档目录: 后台自定义值优先, 否则为 config.yaml 默认值。
+	Dir string `json:"dir"`
+	// DefaultDir 为 config.yaml(含内置默认)的目录, 供前端"恢复默认"展示。
+	DefaultDir string `json:"default_dir"`
+	// DirCustomized 表示 Dir 是否来自后台自定义(而非 config 默认)。
+	DirCustomized        bool  `json:"dir_customized"`
+	MaxRequestBodyBytes  int64 `json:"max_request_body_bytes"`
+	MaxResponseBodyBytes int64 `json:"max_response_body_bytes"`
+	QueueSize            int   `json:"queue_size"`
 }
 
 type persistedRequestArchiveSettings struct {
 	Enabled         bool `json:"enabled"`
 	CaptureResponse bool `json:"capture_response"`
+	// Dir 后台自定义归档目录; 空表示沿用 config.yaml 默认值。
+	Dir string `json:"dir,omitempty"`
 }
 
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）

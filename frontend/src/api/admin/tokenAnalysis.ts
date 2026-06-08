@@ -13,6 +13,7 @@ export interface TokenAnalysisQueryParams {
   endpoint?: string
   risk_min?: number
   risk_reason?: string
+  project?: string
   include_unmatched?: boolean
   page?: number
   page_size?: number
@@ -70,6 +71,21 @@ export interface TokenAnalysisUserUsage {
   last_event_time?: string
 }
 
+export interface TokenAnalysisProjectUsage {
+  project: string
+  user_id?: number
+  user_email: string
+  request_count: number
+  matched_request_count: number
+  total_tokens: number
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+  actual_cost: number
+  last_event_time?: string
+}
+
 export interface TokenAnalysisRequestItem {
   id: number
   archive_id: string
@@ -94,6 +110,10 @@ export interface TokenAnalysisRequestItem {
   tools_count: number
   image_count: number
   summary_json?: Record<string, unknown>
+  client_workdir?: string
+  client_project?: string
+  client_branch?: string
+  attribution_source?: string
   input_tokens: number
   output_tokens: number
   cache_read_tokens: number
@@ -102,6 +122,24 @@ export interface TokenAnalysisRequestItem {
   actual_cost: number
   risk_score: number
   risk_reasons: TokenAnalysisRiskReason[]
+  has_input: boolean
+  input_truncated: boolean
+  quality_score?: number
+}
+
+export interface TokenAnalysisRequestInput {
+  id: number
+  archive_id: string
+  event_time: string
+  user_id?: number
+  content: string
+  content_sha256: string
+  chars: number
+  truncated: boolean
+  quality_score?: number
+  quality_findings?: Record<string, unknown>
+  quality_version: string
+  evaluated_at?: string
 }
 
 export interface TokenAnalysisIndexRequest {
@@ -138,6 +176,19 @@ export interface TokenAnalysisIndexStatus {
   updated_at?: string
 }
 
+export type TokenAnalysisArchiveFileStatus = 'writing' | 'indexing' | 'deletable' | 'attention' | 'compressed'
+
+export interface TokenAnalysisArchiveFile {
+  name: string
+  size_bytes: number
+  mod_time: string
+  indexed_offset: number
+  processed_rows: number
+  failed_rows: number
+  last_error: string
+  status: TokenAnalysisArchiveFileStatus
+}
+
 async function getSummary(params: TokenAnalysisQueryParams): Promise<TokenAnalysisSummary> {
   const { data } = await apiClient.get<TokenAnalysisSummary>('/admin/token-analysis/summary', { params })
   return data
@@ -154,6 +205,20 @@ async function listUsers(
   return data
 }
 
+async function listProjects(
+  params: TokenAnalysisQueryParams,
+  options?: { signal?: AbortSignal }
+): Promise<PaginatedResponse<TokenAnalysisProjectUsage>> {
+  const { data } = await apiClient.get<PaginatedResponse<TokenAnalysisProjectUsage>>(
+    '/admin/token-analysis/projects',
+    {
+      params,
+      signal: options?.signal
+    }
+  )
+  return data
+}
+
 async function listRequests(
   params: TokenAnalysisQueryParams,
   options?: { signal?: AbortSignal }
@@ -161,6 +226,13 @@ async function listRequests(
   const { data } = await apiClient.get<PaginatedResponse<TokenAnalysisRequestItem>>('/admin/token-analysis/requests', {
     params,
     signal: options?.signal
+  })
+  return data
+}
+
+async function getRequestInput(archiveId: string): Promise<TokenAnalysisRequestInput> {
+  const { data } = await apiClient.get<TokenAnalysisRequestInput>('/admin/token-analysis/requests/input', {
+    params: { archive_id: archiveId }
   })
   return data
 }
@@ -175,12 +247,20 @@ async function getIndexStatus(): Promise<TokenAnalysisIndexStatus> {
   return data
 }
 
+async function listArchiveFiles(): Promise<TokenAnalysisArchiveFile[]> {
+  const { data } = await apiClient.get<TokenAnalysisArchiveFile[]>('/admin/token-analysis/archive-files')
+  return data
+}
+
 export const tokenAnalysisAPI = {
   getSummary,
   listUsers,
+  listProjects,
   listRequests,
+  getRequestInput,
   triggerIndex,
-  getIndexStatus
+  getIndexStatus,
+  listArchiveFiles
 }
 
 export default tokenAnalysisAPI

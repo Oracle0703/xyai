@@ -50,23 +50,49 @@ type TokenAnalysisRequestSummary struct {
 	SummaryJSON          map[string]any            `json:"summary_json"`
 	RiskScore            int                       `json:"risk_score"`
 	RiskReasons          []TokenAnalysisRiskReason `json:"risk_reasons"`
-	IndexedAt            time.Time                 `json:"indexed_at"`
-	SourceFile           string                    `json:"source_file"`
-	SourceOffset         *int64                    `json:"source_offset,omitempty"`
+	// ClientWorkdir/ClientProject/ClientBranch/AttributionSource 为离线提取的
+	// 项目归因字段, 见 docs/features/token-analysis-project-attribution-design-cn.md。
+	ClientWorkdir     string    `json:"client_workdir"`
+	ClientProject     string    `json:"client_project"`
+	ClientBranch      string    `json:"client_branch"`
+	AttributionSource string    `json:"attribution_source"`
+	IndexedAt         time.Time `json:"indexed_at"`
+	SourceFile        string    `json:"source_file"`
+	SourceOffset      *int64    `json:"source_offset,omitempty"`
 }
 
 type TokenAnalysisBodySummary struct {
-	Model              string         `json:"model"`
-	MessageCount       int            `json:"message_count"`
-	SystemChars        int            `json:"system_chars"`
-	UserChars          int            `json:"user_chars"`
-	LastUserPreview    string         `json:"last_user_preview"`
+	Model           string `json:"model"`
+	MessageCount    int    `json:"message_count"`
+	SystemChars     int    `json:"system_chars"`
+	UserChars       int    `json:"user_chars"`
+	LastUserPreview string `json:"last_user_preview"`
+	// LastUserText 是最后一条用户输入的原始全文(未脱敏未截断),
+	// 仅供索引器经 SanitizeTokenAnalysisInputText 处理后留存, 不直接外发。
+	LastUserText       string         `json:"-"`
 	ToolsCount         int            `json:"tools_count"`
 	ImageCount         int            `json:"image_count"`
 	ToolMessageCount   int            `json:"tool_message_count"`
 	ToolOutputBytes    int64          `json:"tool_output_bytes"`
 	MaxToolOutputBytes int64          `json:"max_tool_output_bytes"`
 	SummaryJSON        map[string]any `json:"summary_json"`
+}
+
+// TokenAnalysisUserInput 是单次请求提取出的用户净输入全文留存行;
+// 质量字段为占位, 评价标准确定后由评估任务回填, 重建索引不覆盖。
+type TokenAnalysisUserInput struct {
+	ID              int64          `json:"id"`
+	ArchiveID       string         `json:"archive_id"`
+	EventTime       time.Time      `json:"event_time"`
+	UserID          *int64         `json:"user_id,omitempty"`
+	Content         string         `json:"content"`
+	ContentSHA256   string         `json:"content_sha256"`
+	Chars           int            `json:"chars"`
+	Truncated       bool           `json:"truncated"`
+	QualityScore    *int16         `json:"quality_score,omitempty"`
+	QualityFindings map[string]any `json:"quality_findings,omitempty"`
+	QualityVersion  string         `json:"quality_version"`
+	EvaluatedAt     *time.Time     `json:"evaluated_at,omitempty"`
 }
 
 type TokenAnalysisUsageSignals struct {
@@ -95,6 +121,8 @@ type TokenAnalysisFilters struct {
 	RiskMin          int64      `json:"risk_min,omitempty"`
 	RiskReason       string     `json:"risk_reason,omitempty"`
 	IncludeUnmatched bool       `json:"include_unmatched,omitempty"`
+	// Project 按客户端项目过滤; 特殊值 "unattributed" 表示未归因(client_project 为空)。
+	Project string `json:"project,omitempty"`
 }
 
 type TokenAnalysisSummary struct {
@@ -140,6 +168,22 @@ type TokenAnalysisUserUsage struct {
 	LastEventTime       *time.Time `json:"last_event_time,omitempty"`
 }
 
+// TokenAnalysisProjectUsage 是"成员 × 项目"维度的 token 消耗聚合行。
+type TokenAnalysisProjectUsage struct {
+	Project             string     `json:"project"`
+	UserID              *int64     `json:"user_id,omitempty"`
+	UserEmail           string     `json:"user_email"`
+	RequestCount        int64      `json:"request_count"`
+	MatchedRequestCount int64      `json:"matched_request_count"`
+	TotalTokens         int64      `json:"total_tokens"`
+	InputTokens         int64      `json:"input_tokens"`
+	OutputTokens        int64      `json:"output_tokens"`
+	CacheReadTokens     int64      `json:"cache_read_tokens"`
+	CacheCreationTokens int64      `json:"cache_creation_tokens"`
+	ActualCost          float64    `json:"actual_cost"`
+	LastEventTime       *time.Time `json:"last_event_time,omitempty"`
+}
+
 type TokenAnalysisRequestItem struct {
 	ID                   int64                     `json:"id"`
 	ArchiveID            string                    `json:"archive_id"`
@@ -164,6 +208,10 @@ type TokenAnalysisRequestItem struct {
 	ToolsCount           int                       `json:"tools_count"`
 	ImageCount           int                       `json:"image_count"`
 	SummaryJSON          map[string]any            `json:"summary_json"`
+	ClientWorkdir        string                    `json:"client_workdir"`
+	ClientProject        string                    `json:"client_project"`
+	ClientBranch         string                    `json:"client_branch"`
+	AttributionSource    string                    `json:"attribution_source"`
 	InputTokens          int64                     `json:"input_tokens"`
 	OutputTokens         int64                     `json:"output_tokens"`
 	CacheReadTokens      int64                     `json:"cache_read_tokens"`
@@ -172,6 +220,11 @@ type TokenAnalysisRequestItem struct {
 	ActualCost           float64                   `json:"actual_cost"`
 	RiskScore            int                       `json:"risk_score"`
 	RiskReasons          []TokenAnalysisRiskReason `json:"risk_reasons"`
+	// HasInput/InputTruncated/QualityScore 来自 token_analysis_user_inputs LEFT JOIN;
+	// 全文不进列表 payload, 经 GetUserInput 懒加载。
+	HasInput       bool   `json:"has_input"`
+	InputTruncated bool   `json:"input_truncated"`
+	QualityScore   *int16 `json:"quality_score,omitempty"`
 }
 
 type TokenAnalysisUsageMatch struct {
@@ -236,10 +289,19 @@ type TokenAnalysisRepository interface {
 	CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error)
 	GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error)
 	ListUserUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisUserUsage, *pagination.PaginationResult, error)
+	ListProjectUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisProjectUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisRequestItem, *pagination.PaginationResult, error)
 	GetIndexStatus(ctx context.Context) (*TokenAnalysisIndexStatus, error)
 	GetIndexState(ctx context.Context, sourceFile string) (*TokenAnalysisIndexState, error)
 	UpdateIndexState(ctx context.Context, state TokenAnalysisIndexState) error
+	// LoadProjectRoots 加载全部已知仓库根(root -> project)。
+	LoadProjectRoots(ctx context.Context) (map[string]string, error)
+	// UpsertProjectRoots 批量学习仓库根, 已存在时仅刷新 last_seen。
+	UpsertProjectRoots(ctx context.Context, roots map[string]string) error
+	// UpsertUserInput 留存用户净输入全文; 冲突时只更新内容字段, 不触碰 quality_*。
+	UpsertUserInput(ctx context.Context, input *TokenAnalysisUserInput) error
+	// GetUserInput 按 archive_id 取单条净输入(无记录返回 nil, nil)。
+	GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error)
 }
 
 type tokenAnalysisArchiveEvent struct {
@@ -254,6 +316,7 @@ type tokenAnalysisArchiveEvent struct {
 	GroupID       *int64 `json:"group_id"`
 	AccountID     *int64 `json:"account_id"`
 	Model         string `json:"model"`
+	UserAgent     string `json:"user_agent"`
 	Body          string `json:"body"`
 	BodySize      int64  `json:"body_size"`
 	BodySHA256    string `json:"body_sha256"`

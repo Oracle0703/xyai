@@ -24,6 +24,10 @@
             <input v-model.trim="filters.model" class="input h-9 text-sm" @keyup.enter="reloadAll" />
           </label>
           <label class="space-y-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.project') }}</span>
+            <input v-model.trim="filters.project" class="input h-9 text-sm" :placeholder="t('admin.tokenAnalysis.projectFilterHint')" @keyup.enter="reloadAll" />
+          </label>
+          <label class="space-y-1">
             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.riskMin') }}</span>
             <select v-model.number="filters.risk_min" class="input h-9 text-sm" @change="reloadAll">
               <option :value="0">0</option>
@@ -128,6 +132,106 @@
         </div>
       </div>
 
+      <div class="card p-4">
+        <div class="mb-1 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.archiveFiles') }}</h2>
+          <span class="text-xs text-gray-500">{{ archiveFiles.length }}</span>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.archiveFilesHint') }}</p>
+        <div class="overflow-x-auto">
+          <table class="table text-xs">
+            <thead>
+              <tr>
+                <th>{{ t('admin.tokenAnalysis.file') }}</th>
+                <th>{{ t('admin.tokenAnalysis.fileSize') }}</th>
+                <th>{{ t('admin.tokenAnalysis.indexProgress') }}</th>
+                <th>{{ t('admin.tokenAnalysis.processed') }} / {{ t('admin.tokenAnalysis.failed') }}</th>
+                <th>{{ t('admin.tokenAnalysis.fileStatus') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="file in archiveFiles" :key="file.name">
+                <td class="font-medium">{{ file.name }}</td>
+                <td>{{ formatBytes(file.size_bytes) }}</td>
+                <td>{{ archiveFileProgress(file) }}</td>
+                <td>{{ formatNumber(file.processed_rows) }} / {{ formatNumber(file.failed_rows) }}</td>
+                <td>
+                  <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="archiveFileStatusClass(file.status)">
+                    {{ t(`admin.tokenAnalysis.archiveFileStatus.${file.status}`) }}
+                  </span>
+                  <div v-if="file.last_error" class="mt-1 max-w-[280px] truncate text-xs text-red-500" :title="file.last_error">{{ file.last_error }}</div>
+                </td>
+              </tr>
+              <tr v-if="archiveFiles.length === 0">
+                <td colspan="5" class="py-4 text-center text-gray-500">{{ t('common.noData') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.projectRanking') }}</h2>
+          <span class="text-xs text-gray-500">{{ projectsPagination.total }}</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="table text-sm">
+            <thead>
+              <tr>
+                <th>{{ t('admin.tokenAnalysis.project') }}</th>
+                <th>{{ t('admin.tokenAnalysis.user') }}</th>
+                <th>{{ t('admin.tokenAnalysis.requests') }}</th>
+                <th>{{ t('admin.tokenAnalysis.tokens') }}</th>
+                <th>Input / Output</th>
+                <th>{{ t('admin.tokenAnalysis.cacheTokens') }}</th>
+                <th>{{ t('admin.tokenAnalysis.cost') }}</th>
+                <th>{{ t('admin.tokenAnalysis.lastActive') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in projects" :key="`${row.project}-${row.user_id || 0}`">
+                <td>
+                  <button
+                    type="button"
+                    class="max-w-[200px] truncate font-medium hover:text-primary-600"
+                    :class="row.project === 'unattributed' ? 'italic text-gray-400' : ''"
+                    :title="row.project"
+                    @click="toggleProjectFilter(row.project)"
+                  >
+                    {{ row.project === 'unattributed' ? t('admin.tokenAnalysis.unattributed') : row.project }}
+                  </button>
+                </td>
+                <td>
+                  <div class="max-w-[180px] truncate">{{ row.user_email || '-' }}</div>
+                </td>
+                <td>
+                  <div>{{ formatNumber(row.request_count) }}</div>
+                  <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.matched') }} {{ formatNumber(row.matched_request_count) }}</div>
+                </td>
+                <td class="font-medium">{{ formatNumber(row.total_tokens) }}</td>
+                <td class="text-xs text-gray-500">{{ formatNumber(row.input_tokens) }} / {{ formatNumber(row.output_tokens) }}</td>
+                <td class="text-xs text-gray-500">{{ formatNumber(row.cache_read_tokens + row.cache_creation_tokens) }}</td>
+                <td>{{ formatCost(row.actual_cost) }}</td>
+                <td class="text-xs text-gray-500">{{ row.last_event_time || '-' }}</td>
+              </tr>
+              <tr v-if="!projectsLoading && projects.length === 0">
+                <td colspan="8" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          v-if="projectsPagination.total > 0"
+          :page="projectsPagination.page"
+          :page-size="projectsPagination.page_size"
+          :total="projectsPagination.total"
+          class="mt-3"
+          @update:page="changeProjectPage"
+          @update:pageSize="changeProjectPageSize"
+        />
+      </div>
+
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div class="card p-4 xl:col-span-1">
           <div class="mb-3 flex items-center justify-between">
@@ -164,42 +268,60 @@
 
         <div class="card p-4 xl:col-span-2">
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.suspiciousRequests') }}</h2>
-            <span class="text-xs text-gray-500">{{ requestsPagination.total }}</span>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.requestDetails') }}</h2>
+            <div class="flex items-center gap-2">
+              <select v-model="requestSort" class="input h-8 w-auto text-xs" @change="changeRequestSort">
+                <option value="event_time">{{ t('admin.tokenAnalysis.sortByTime') }}</option>
+                <option value="risk_score">{{ t('admin.tokenAnalysis.sortByRisk') }}</option>
+              </select>
+              <span class="text-xs text-gray-500">{{ requestsPagination.total }}</span>
+            </div>
           </div>
           <div class="overflow-x-auto">
             <table class="table text-sm">
               <thead>
                 <tr>
-                  <th>{{ t('admin.tokenAnalysis.risk') }}</th>
+                  <th>{{ t('admin.tokenAnalysis.time') }}</th>
                   <th>{{ t('admin.tokenAnalysis.user') }}</th>
                   <th>Model</th>
+                  <th>{{ t('admin.tokenAnalysis.project') }}</th>
                   <th>{{ t('admin.tokenAnalysis.usage') }}</th>
+                  <th>{{ t('admin.tokenAnalysis.quality') }}</th>
                   <th>{{ t('admin.tokenAnalysis.preview') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in requests" :key="item.id" class="cursor-pointer" @click="selectedRequest = item">
+                <tr v-for="item in requests" :key="item.id" class="cursor-pointer" @click="selectRequest(item)">
+                  <td class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{{ formatDateTime(item.event_time) }}</td>
                   <td>
-                    <span class="inline-flex min-w-10 justify-center rounded-full px-2 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
-                      {{ item.risk_score }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="max-w-[180px] truncate font-medium">{{ item.user_email || '-' }}</div>
+                    <div class="max-w-[160px] truncate font-medium">{{ item.user_email || '-' }}</div>
                     <div class="text-xs text-gray-500">{{ item.api_key_name || '-' }}</div>
                   </td>
                   <td>
-                    <div class="max-w-[180px] truncate">{{ item.model }}</div>
+                    <div class="max-w-[160px] truncate">{{ item.model }}</div>
                     <div class="text-xs text-gray-500">{{ item.endpoint }}</div>
+                  </td>
+                  <td>
+                    <div class="max-w-[150px] truncate">{{ item.client_project || t('admin.tokenAnalysis.unattributed') }}</div>
+                    <div class="max-w-[150px] truncate text-xs text-gray-500">{{ item.client_branch || '-' }}</div>
                   </td>
                   <td>
                     <div>{{ formatNumber(item.input_tokens + item.output_tokens + item.cache_read_tokens + item.cache_creation_tokens) }}</div>
                     <div class="text-xs text-gray-500">{{ formatCost(item.actual_cost) }}</div>
                   </td>
                   <td>
-                    <div class="max-w-[360px] truncate">{{ item.last_user_preview }}</div>
-                    <div class="mt-1 flex flex-wrap gap-1">
+                    <span v-if="item.quality_score !== undefined && item.quality_score !== null" class="inline-flex min-w-10 justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                      {{ item.quality_score }}
+                    </span>
+                    <span v-else-if="item.has_input" class="text-xs text-gray-400">{{ t('admin.tokenAnalysis.qualityNotEvaluated') }}</span>
+                    <span v-else class="text-xs text-gray-400">-</span>
+                  </td>
+                  <td>
+                    <div class="max-w-[300px] truncate">{{ item.last_user_preview }}</div>
+                    <div class="mt-1 flex flex-wrap items-center gap-1">
+                      <span v-if="item.risk_score > 0" class="inline-flex min-w-8 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
+                        {{ item.risk_score }}
+                      </span>
                       <span v-for="reason in item.risk_reasons || []" :key="reason.code" class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
                         {{ reason.code }}
                       </span>
@@ -207,7 +329,7 @@
                   </td>
                 </tr>
                 <tr v-if="!requestsLoading && requests.length === 0">
-                  <td colspan="5" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
+                  <td colspan="7" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
                 </tr>
               </tbody>
             </table>
@@ -241,9 +363,34 @@
         </template>
       </dl>
       <div class="mt-5">
-        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.preview') }}</div>
-        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">
-          {{ selectedRequest.last_user_preview || '-' }}
+        <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+          <span>{{ t('admin.tokenAnalysis.inputFull') }}</span>
+          <span v-if="requestInput?.truncated" class="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            {{ t('admin.tokenAnalysis.inputTruncatedNote') }}
+          </span>
+        </div>
+        <div v-if="requestInputLoading" class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800">
+          {{ t('common.loading') }}
+        </div>
+        <div v-else-if="requestInput" class="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">{{ requestInput.content }}</div>
+        <div v-else class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">
+          {{ selectedRequest.last_user_preview || t('admin.tokenAnalysis.noInputStored') }}
+        </div>
+      </div>
+      <div class="mt-5">
+        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.quality') }}</div>
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-dark-700 dark:bg-dark-800">
+          <template v-if="requestInput && requestInput.quality_score !== undefined && requestInput.quality_score !== null">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex min-w-10 justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                {{ requestInput.quality_score }}
+              </span>
+              <span v-if="requestInput.quality_version" class="text-xs text-gray-500">{{ requestInput.quality_version }}</span>
+              <span v-if="requestInput.evaluated_at" class="text-xs text-gray-500">{{ formatDateTime(requestInput.evaluated_at) }}</span>
+            </div>
+            <pre v-if="requestInput.quality_findings && Object.keys(requestInput.quality_findings).length > 0" class="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-gray-600 dark:text-gray-300">{{ JSON.stringify(requestInput.quality_findings, null, 2) }}</pre>
+          </template>
+          <span v-else class="text-gray-500">{{ t('admin.tokenAnalysis.qualityNotEvaluated') }}</span>
         </div>
       </div>
     </aside>
@@ -255,8 +402,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type {
+  TokenAnalysisArchiveFile,
+  TokenAnalysisArchiveFileStatus,
   TokenAnalysisIndexStatus,
+  TokenAnalysisProjectUsage,
   TokenAnalysisQueryParams,
+  TokenAnalysisRequestInput,
   TokenAnalysisRequestItem,
   TokenAnalysisSummary,
   TokenAnalysisUserUsage
@@ -264,6 +415,7 @@ import type {
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
+import { formatBytes, formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -273,20 +425,28 @@ const filters = reactive<TokenAnalysisQueryParams>({
   start_date: today,
   end_date: today,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  risk_min: 20,
+  // 请求明细默认展示全部请求(风险排查时再调高风险分过滤)。
+  risk_min: 0,
   include_unmatched: false
 })
 
 const summary = ref<TokenAnalysisSummary | null>(null)
 const users = ref<TokenAnalysisUserUsage[]>([])
+const projects = ref<TokenAnalysisProjectUsage[]>([])
 const requests = ref<TokenAnalysisRequestItem[]>([])
 const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
+const archiveFiles = ref<TokenAnalysisArchiveFile[]>([])
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
+const requestSort = ref<'event_time' | 'risk_score'>('event_time')
+const requestInput = ref<TokenAnalysisRequestInput | null>(null)
+const requestInputLoading = ref(false)
 const usersLoading = ref(false)
+const projectsLoading = ref(false)
 const requestsLoading = ref(false)
 const indexing = ref(false)
 
 const usersPagination = reactive({ page: 1, page_size: 20, total: 0 })
+const projectsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const requestsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 
 const cleanFilters = computed(() => {
@@ -329,7 +489,11 @@ const detailFields = computed(() => {
     { label: 'Input tokens', value: formatNumber(item.input_tokens ?? 0) },
     { label: 'Output tokens', value: formatNumber(item.output_tokens ?? 0) },
     { label: 'Cache read', value: formatNumber(item.cache_read_tokens ?? 0) },
-    { label: 'Cost', value: formatCost(item.actual_cost ?? 0) }
+    { label: 'Cost', value: formatCost(item.actual_cost ?? 0) },
+    { label: t('admin.tokenAnalysis.project'), value: item.client_project || '-' },
+    { label: t('admin.tokenAnalysis.workdir'), value: item.client_workdir || '-' },
+    { label: t('admin.tokenAnalysis.branch'), value: item.client_branch || '-' },
+    { label: t('admin.tokenAnalysis.attributionSource'), value: item.attribution_source || '-' }
   ]
 })
 
@@ -372,6 +536,23 @@ async function loadUsers() {
   }
 }
 
+async function loadProjects() {
+  projectsLoading.value = true
+  try {
+    const result = await adminAPI.tokenAnalysis.listProjects({
+      ...cleanFilters.value,
+      page: projectsPagination.page,
+      page_size: projectsPagination.page_size
+    })
+    projects.value = result.items
+    projectsPagination.total = result.total
+    projectsPagination.page = result.page
+    projectsPagination.page_size = result.page_size
+  } finally {
+    projectsLoading.value = false
+  }
+}
+
 async function loadRequests() {
   requestsLoading.value = true
   try {
@@ -379,7 +560,7 @@ async function loadRequests() {
       ...cleanFilters.value,
       page: requestsPagination.page,
       page_size: requestsPagination.page_size,
-      sort_by: 'risk_score',
+      sort_by: requestSort.value,
       sort_order: 'desc'
     })
     requests.value = result.items
@@ -391,14 +572,70 @@ async function loadRequests() {
   }
 }
 
+function changeRequestSort() {
+  requestsPagination.page = 1
+  void loadRequests()
+}
+
+// 点行打开抽屉并懒加载净输入全文(列表只带 300 字预览)。
+function selectRequest(item: TokenAnalysisRequestItem) {
+  selectedRequest.value = item
+  requestInput.value = null
+  if (!item.has_input) return
+  requestInputLoading.value = true
+  adminAPI.tokenAnalysis
+    .getRequestInput(item.archive_id)
+    .then((input) => {
+      if (selectedRequest.value?.archive_id === item.archive_id) {
+        requestInput.value = input
+      }
+    })
+    .catch(() => {
+      // 全文加载失败时抽屉回退展示预览, 不打断查看。
+    })
+    .finally(() => {
+      // 仅当抽屉仍停留在本条记录时才收起 loading,
+      // 避免旧请求的 finally 提前关掉新记录的 loading(竞态)。
+      if (selectedRequest.value?.archive_id === item.archive_id) {
+        requestInputLoading.value = false
+      }
+    })
+}
+
 async function loadIndexStatus() {
   indexStatus.value = await adminAPI.tokenAnalysis.getIndexStatus()
 }
 
+async function loadArchiveFiles() {
+  archiveFiles.value = await adminAPI.tokenAnalysis.listArchiveFiles()
+}
+
+// 索引水位 / 文件大小, 两者相等即"已全部入库"。
+function archiveFileProgress(file: TokenAnalysisArchiveFile): string {
+  if (file.status === 'compressed') return '-'
+  return `${formatBytes(file.indexed_offset)} / ${formatBytes(file.size_bytes)}`
+}
+
+function archiveFileStatusClass(status: TokenAnalysisArchiveFileStatus): string {
+  switch (status) {
+    case 'deletable':
+      return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+    case 'writing':
+      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+    case 'indexing':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    case 'attention':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
+  }
+}
+
 async function reloadAll() {
   requestsPagination.page = 1
+  projectsPagination.page = 1
   try {
-    await Promise.all([loadSummary(), loadUsers(), loadRequests(), loadIndexStatus()])
+    await Promise.all([loadSummary(), loadUsers(), loadProjects(), loadRequests(), loadIndexStatus(), loadArchiveFiles()])
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
@@ -434,6 +671,22 @@ function changeRequestPageSize(pageSize: number) {
 
 function toggleRiskReason(code: string) {
   filters.risk_reason = filters.risk_reason === code ? undefined : code
+  void reloadAll()
+}
+
+function changeProjectPage(page: number) {
+  projectsPagination.page = page
+  void loadProjects()
+}
+
+function changeProjectPageSize(pageSize: number) {
+  projectsPagination.page_size = pageSize
+  projectsPagination.page = 1
+  void loadProjects()
+}
+
+function toggleProjectFilter(project: string) {
+  filters.project = filters.project === project ? undefined : project
   void reloadAll()
 }
 

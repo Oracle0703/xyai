@@ -152,6 +152,14 @@ func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpirySe
 	return svc
 }
 
+// ProvideTokenAnalysisService 创建 TokenAnalysisService 并启动自动索引循环
+// (token_analysis.auto_index_interval_seconds, 0=仅手动)。
+func ProvideTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
+	svc := NewTokenAnalysisService(repo, cfg, settings)
+	svc.StartAutoIndex()
+	return svc
+}
+
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
 func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, settingRepo SettingRepository, notificationEmailService *NotificationEmailService) *SubscriptionExpiryService {
 	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
@@ -508,7 +516,7 @@ var ProviderSet = wire.NewSet(
 	NewRedeemService,
 	NewPromoService,
 	NewUsageService,
-	NewTokenAnalysisService,
+	ProvideTokenAnalysisService,
 	NewDashboardService,
 	ProvidePricingService,
 	NewBillingService,

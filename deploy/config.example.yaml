@@ -242,22 +242,23 @@ gateway:
   # OpenAI 透传模式是否放行客户端超时头（如 x-stainless-timeout）
   # 默认 false：过滤超时头，降低上游提前断流风险。
   openai_passthrough_allow_timeout_headers: false
-  # 本地请求/响应归档：把网关请求与响应体写入本地 JSONL 文件。
+  # 本地请求归档：把网关请求体与响应元信息写入本地 JSONL 文件。
   # 警告：仅用于短期排障，不要长期开启。归档位于请求热路径，
-  # 会读取完整请求体、按字节缓存响应并落盘，高并发/大 body/流式场景
-  # 会放大磁盘占用与尾延迟（单日文件可达 GB 级）。排障结束后请关闭。
+  # 会读取完整请求体；capture_response 开启时只记录响应大小、hash、流式标记和 token usage，
+  # 不保存响应正文。高并发/大 body 场景仍会增加磁盘占用与尾延迟，排障结束后请关闭。
   # 操作入口：管理后台 /admin/settings 的 Gateway 标签页可热切换 enabled 和 capture_response。
   # dir、body 截断上限和 queue_size 仍由配置文件控制，修改后需重启服务。
   request_archive:
     # 是否启用归档，默认 false（关闭）。
     enabled: false
-    # JSONL 输出目录。
+    # JSONL 输出目录（默认值）。管理后台 Settings 可配置自定义绝对路径并热切换
+    # 写入磁盘（保存时校验磁盘存在/目录可写，无需重启）；后台自定义值优先于本配置。
     dir: "data/request-archive"
     # 单条请求体最多保存字节数，超出截断。
     max_request_body_bytes: 8388608
-    # 单条响应体最多保存字节数，超出截断。
+    # 响应大小超过该值时归档记录标记 body_truncated；响应正文不会写入归档。
     max_response_body_bytes: 2097152
-    # 是否捕获返回给用户的响应体，默认 false。开启会对每个 Write 做 hash 和缓存。
+    # 是否捕获响应元信息和 token usage，默认 false；不保存响应正文。
     capture_response: false
     # 异步写入队列容量，队列满时丢弃归档记录而不阻塞请求。
     queue_size: 1024
@@ -742,6 +743,28 @@ usage_cleanup:
   # Task execution timeout (seconds)
   # 单次任务最大执行时长（秒）
   task_timeout_seconds: 1800
+
+# =============================================================================
+# Token Analysis 配置（重启生效）
+# 基于 request_archive JSONL 的离线 token 消耗分析：摘要/风险分/项目归因/
+# 用户净输入留存。注意：以下默认值意味着只要 request_archive 开启，
+# 服务就会每 5 分钟自动索引归档，并把用户净输入（脱敏后全文，截断到
+# input_store_max_chars）长期存入数据库 —— 属敏感数据留存，请按公司
+# 合规要求决定是否开启。
+# =============================================================================
+token_analysis:
+  # 是否允许索引（false = 自动索引与页面手动触发全部禁用）
+  index_enabled: true
+  # 自动索引轮询间隔（秒），每轮增量索引 [昨天, 今天]；0 = 仅页面手动触发
+  auto_index_interval_seconds: 300
+  # 用户净输入全文留存上限（字符，脱敏后截断）；0 = 不留存全文（仅 300 字符预览）
+  input_store_max_chars: 8000
+  # 单批索引行数
+  index_batch_size: 1000
+  # 请求预览截断（字符，脱敏 + 压平空白）
+  max_preview_chars: 300
+  # usage_logs 匹配窗口（秒）
+  usage_match_window_seconds: 10
 
 # =============================================================================
 # HTTP 写接口幂等配置

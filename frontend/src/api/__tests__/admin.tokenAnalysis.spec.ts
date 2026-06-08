@@ -37,6 +37,94 @@ describe('admin tokenAnalysis API', () => {
     })
   })
 
+  it('loads project usage with project filter', async () => {
+    get.mockResolvedValue({
+      data: {
+        items: [
+          {
+            project: 'lag-killer',
+            user_id: 7,
+            user_email: 'dev@example.com',
+            request_count: 12,
+            matched_request_count: 11,
+            total_tokens: 5000,
+            input_tokens: 3000,
+            output_tokens: 1000,
+            cache_read_tokens: 800,
+            cache_creation_tokens: 200,
+            actual_cost: 0.5
+          }
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20
+      }
+    })
+
+    const result = await tokenAnalysisAPI.listProjects({
+      start_date: '2026-06-05',
+      end_date: '2026-06-05',
+      project: 'lag-killer'
+    })
+
+    expect(get).toHaveBeenCalledWith('/admin/token-analysis/projects', {
+      params: {
+        start_date: '2026-06-05',
+        end_date: '2026-06-05',
+        project: 'lag-killer'
+      },
+      signal: undefined
+    })
+    expect(result.items[0]?.project).toBe('lag-killer')
+    expect(result.items[0]?.total_tokens).toBe(5000)
+  })
+
+  it('loads full user input by archive id', async () => {
+    get.mockResolvedValue({
+      data: {
+        id: 1,
+        archive_id: 'arch-1',
+        event_time: '2026-06-07T01:00:00Z',
+        content: 'line one\nline two',
+        content_sha256: 'abc',
+        chars: 17,
+        truncated: false,
+        quality_version: ''
+      }
+    })
+
+    const result = await tokenAnalysisAPI.getRequestInput('arch-1')
+
+    expect(get).toHaveBeenCalledWith('/admin/token-analysis/requests/input', {
+      params: { archive_id: 'arch-1' }
+    })
+    expect(result.content).toContain('line two')
+    expect(result.truncated).toBe(false)
+  })
+
+  it('lists archive files with deletable status', async () => {
+    get.mockResolvedValue({
+      data: [
+        {
+          name: '2026-05-20.jsonl',
+          size_bytes: 2048,
+          mod_time: '2026-05-20T23:59:00Z',
+          indexed_offset: 2048,
+          processed_rows: 20,
+          failed_rows: 0,
+          last_error: '',
+          status: 'deletable'
+        }
+      ]
+    })
+
+    const files = await tokenAnalysisAPI.listArchiveFiles()
+
+    expect(get).toHaveBeenCalledWith('/admin/token-analysis/archive-files')
+    expect(files[0]?.status).toBe('deletable')
+    expect(files[0]?.indexed_offset).toBe(2048)
+  })
+
   it('triggers index with date range', async () => {
     post.mockResolvedValue({ data: { indexed_rows: 1, failed_rows: 0 } })
 

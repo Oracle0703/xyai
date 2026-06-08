@@ -447,6 +447,55 @@
                   <Toggle v-model="requestArchiveForm.enabled" />
                 </div>
 
+                <!-- 目录配置不依赖 enabled: 推荐流程是"先关闭归档→切换目录→
+                     再开启", 关闭状态下也必须能修改目录。 -->
+                <div
+                  class="space-y-2 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.requestArchive.dir")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.requestArchive.dirHint") }}
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <input
+                      v-model.trim="requestArchiveForm.dir"
+                      type="text"
+                      class="input h-9 flex-1 text-sm"
+                      :placeholder="requestArchiveForm.default_dir"
+                      spellcheck="false"
+                    />
+                    <button
+                      v-if="
+                        requestArchiveForm.dir_customized ||
+                        requestArchiveForm.dir !== requestArchiveForm.default_dir
+                      "
+                      type="button"
+                      class="btn btn-secondary btn-sm whitespace-nowrap"
+                      @click="resetRequestArchiveDir"
+                    >
+                      {{ t("admin.settings.requestArchive.dirReset") }}
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.requestArchive.dirDefault") }}:
+                    <span class="break-all font-mono">{{
+                      requestArchiveForm.default_dir || "-"
+                    }}</span>
+                    <template v-if="requestArchiveForm.disk_total_bytes > 0">
+                      · {{ t("admin.settings.requestArchive.diskFree") }}
+                      <span class="font-medium text-gray-700 dark:text-gray-200">
+                        {{ formatBytes(requestArchiveForm.disk_free_bytes) }}
+                      </span>
+                      / {{ formatBytes(requestArchiveForm.disk_total_bytes) }}
+                    </template>
+                  </p>
+                  <p class="text-xs text-amber-700 dark:text-amber-300">
+                    {{ t("admin.settings.requestArchive.dirSwitchWarning") }}
+                  </p>
+                </div>
+
                 <div
                   v-if="requestArchiveForm.enabled"
                   class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -470,14 +519,6 @@
                   <dl
                     class="grid gap-3 rounded-md bg-gray-50 p-4 text-sm dark:bg-dark-800 sm:grid-cols-2"
                   >
-                    <div>
-                      <dt class="text-gray-500 dark:text-gray-400">
-                        {{ t("admin.settings.requestArchive.dir") }}
-                      </dt>
-                      <dd class="mt-1 break-all font-medium text-gray-900 dark:text-white">
-                        {{ requestArchiveForm.dir || "-" }}
-                      </dd>
-                    </div>
                     <div>
                       <dt class="text-gray-500 dark:text-gray-400">
                         {{ t("admin.settings.requestArchive.queueSize") }}
@@ -6789,6 +6830,7 @@
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { adminAPI } from "@/api";
+import { formatBytes } from "@/utils/format";
 import {
   appendAuthSourceDefaultsToUpdateRequest,
   buildAuthSourceDefaultsState,
@@ -6983,6 +7025,10 @@ const requestArchiveForm = reactive({
   enabled: false,
   capture_response: false,
   dir: "",
+  default_dir: "",
+  dir_customized: false,
+  disk_total_bytes: 0,
+  disk_free_bytes: 0,
   max_request_body_bytes: 65536,
   max_response_body_bytes: 65536,
   queue_size: 1024,
@@ -8780,12 +8826,23 @@ async function loadRequestArchiveSettings() {
   }
 }
 
+function resetRequestArchiveDir() {
+  // 置空提交即恢复 config 默认目录; 先回填默认值便于预览。
+  requestArchiveForm.dir = "";
+}
+
 async function saveRequestArchiveSettings() {
   requestArchiveSaving.value = true;
   try {
+    // dir 与默认值一致时按"恢复默认"提交空串, 避免把默认值固化为自定义。
+    const dir =
+      requestArchiveForm.dir === requestArchiveForm.default_dir
+        ? ""
+        : requestArchiveForm.dir;
     const updated = await adminAPI.settings.updateRequestArchiveSettings({
       enabled: requestArchiveForm.enabled,
       capture_response: requestArchiveForm.capture_response,
+      dir,
     });
     Object.assign(requestArchiveForm, updated);
     appStore.showSuccess(t("admin.settings.requestArchive.saved"));

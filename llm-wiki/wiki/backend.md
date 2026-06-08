@@ -93,12 +93,17 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `RequestArchive`
 - `RequestIntercept`
 
-`RequestArchive`(`backend/internal/server/middleware/request_archive.go`)把网关请求/响应体写入本地 JSONL, 仅用于短期排障:
+`RequestArchive`(`backend/internal/server/middleware/request_archive.go`)把网关请求体和响应元信息写入本地 JSONL, 仅用于短期排障:
 
 - 默认关闭: `gateway.request_archive.enabled=false`, `capture_response=false`(与 `backend/internal/config/config.go` 默认一致)。
-- 开启后位于请求热路径, 会 `io.ReadAll` 完整请求体并缓存响应体, 高并发/大 body/流式会放大磁盘与尾延迟, 单日文件可达 GB 级。
+- 开启后位于请求热路径, 会 `io.ReadAll` 完整请求体; `capture_response=true` 时只记录响应大小、hash、流式标记和 token `usage`, 不保存响应正文, 以降低归档体积。
+- 响应 usage 支持从非流式 JSON 的 `usage` / `response.usage` / `usageMetadata`(Gemini)/ `message.usage`(Anthropic `message_start` 兜底)读取, 也会从 SSE `data:` JSON 事件中提取最后一次非空 usage(含无尾换行的终止事件兜底; 单行超 256KB 被裁剪后碎片行降级 fragment 提取); 非流式只保留 256KB 尾部窗口, 提取在请求结束后执行一次。
 - 写入为异步有界队列(`gateway.request_archive.queue_size`, 默认 1024): 热路径只入队, 后台单 goroutine 持有当日文件句柄并按日期轮转, 队列满时丢弃记录不阻塞请求。
-- 管理后台 `/admin/settings` 的 Gateway 标签页可热切换 `enabled` 和 `capture_response`, 后端接口为 `GET/PUT /api/v1/admin/settings/request-archive`; `dir`, body 截断上限和 `queue_size` 仍由实际加载的 `config.yaml` 控制, 修改后需重启。
+- 管理后台 `/admin/settings` 的 Gateway 标签页可热切换 `enabled`、`capture_response` 和归档目录 `dir`(后端接口 `GET/PUT /api/v1/admin/settings/request-archive`)。自定义 dir 必须为绝对路径, 保存时校验磁盘存在/目录可创建/可写(`internal/service/request_archive_dir.go`), 响应附带磁盘容量(`internal/pkg/diskspace`); 写入端经 `writer.SetDir` 在下一条记录生效, token_analysis 索引器同源跟随; 历史文件不自动迁移。body 截断上限和 `queue_size` 仍由实际加载的 `config.yaml` 控制, 修改后需重启。
+- Token Analysis 索引(`internal/service/token_analysis_indexer.go`)读取归档 request 行时会做项目归因(`internal/service/project_attribution.go`): 从 Claude Code system prompt / Codex `<cwd>` / Copilot 附件路径提取工作目录与项目名, 写入 `token_analysis_request_summaries.client_workdir/client_project/client_branch/attribution_source`; 已知仓库根持久化在 `token_analysis_project_roots`, 供 Copilot 路径前缀匹配跨天累积。聚合接口 `GET /api/v1/admin/token-analysis/projects` 按"项目 × 成员"汇总 token 消耗, 未归因请求显式归入 `unattributed`。设计与实测命中率见 `docs/features/token-analysis-project-attribution-design-cn.md`。
+- 索引时还会留存用户净输入全文(最后一条用户消息, 脱敏保留排版, `token_analysis.input_store_max_chars` 截断, 默认 8000, 0=关闭)到 `token_analysis_user_inputs`(键 `archive_id`, 含 `content_sha256` 去重哈希与 `quality_*` 占位字段, 重建索引不覆盖质量结果); 全文经 `GET /api/v1/admin/token-analysis/requests/input?archive_id=` 懒加载, 列表 LEFT JOIN 只带 `has_input/quality_score`。原始 JSONL 按保留期删除后输入分析仍可回溯。注意与在线采集的 `user_prompt_events`(prompt metrics)并存, 见 `docs/features/token-analysis-user-input-store-design-cn.md`。
+- 索引触发: 服务启动即跑自动索引循环(`token_analysis_auto_index.go`, 间隔 `token_analysis.auto_index_interval_seconds` 默认 300 秒, 0=仅手动), 每轮对 [昨天, 今天] 增量索引(offset 续读, 跨天补拽昨日文件尾部); 与页面「索引当前范围」(`POST /api/v1/admin/token-analysis/index`)共用 running 互斥, 撞车时自动轮静默跳过, 手动触发保留用于补历史日期。
+- JSONL 生命周期: `GET /api/v1/admin/token-analysis/archive-files`(`token_analysis_archive_files.go`)列出当前归档目录文件并按索引水位打标签 — 今日写入中 / 待索引 / 可删除(水位追平且无失败行)/ 有失败行(谨慎)/ 已压缩(.gz 不参与索引); 页面 Token 分析「归档文件」卡片展示, 删除本身由运维在服务器手动执行(索引器对已删文件静默跳过)。
 
 端点归一化集中在 `backend/internal/handler/endpoint.go`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini 分流测试。
 

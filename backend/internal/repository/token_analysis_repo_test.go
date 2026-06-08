@@ -29,6 +29,7 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 			int64(1200), false, "abc",
 			2, 10, 20, "hello", 1, 0,
 			sqlmock.AnyArg(), 50, sqlmock.AnyArg(), "2026-05-19.jsonl", sqlmock.AnyArg(),
+			"e:/code/demo", "demo", "main", "cc_system_prompt",
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -39,6 +40,7 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 		UserChars: 20, LastUserPreview: "hello", ToolsCount: 1, RiskScore: 50,
 		RiskReasons: []service.TokenAnalysisRiskReason{{Code: "x", Message: "y", Score: 50}},
 		SummaryJSON: map[string]any{"shape": "chat"}, SourceFile: "2026-05-19.jsonl",
+		ClientWorkdir: "e:/code/demo", ClientProject: "demo", ClientBranch: "main", AttributionSource: "cc_system_prompt",
 	})
 
 	require.NoError(t, err)
@@ -143,5 +145,67 @@ func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *tes
 	require.Len(t, got.RiskReasons, 2)
 	require.Equal(t, "huge_input_tiny_output", got.RiskReasons[0].Code)
 	require.Equal(t, int64(3), got.RiskReasons[0].Count)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	userID := int64(7)
+	now := time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC)
+
+	// 冲突更新只触内容字段, 不应出现 quality_ 列。
+	mock.ExpectExec(`INSERT INTO token_analysis_user_inputs[\s\S]*ON CONFLICT \(archive_id\) DO UPDATE SET[\s\S]*truncated = EXCLUDED\.truncated`).
+		WithArgs("arch-1", now, userID, "line one\nline two", "deadbeef", 17, false).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.UpsertUserInput(context.Background(), &service.TokenAnalysisUserInput{
+		ArchiveID: "arch-1", EventTime: now, UserID: &userID,
+		Content: "line one\nline two", ContentSHA256: "deadbeef", Chars: 17,
+	})
+
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryGetUserInput(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	now := time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC)
+	score := int16(85)
+
+	mock.ExpectQuery("FROM token_analysis_user_inputs").
+		WithArgs("arch-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "archive_id", "event_time", "user_id", "content", "content_sha256", "chars", "truncated",
+			"quality_score", "quality_findings", "quality_version", "evaluated_at",
+		}).AddRow(int64(1), "arch-1", now, int64(7), "hello", "deadbeef", 5, false, score, []byte(`{"clarity":"ok"}`), "v1", now))
+
+	got, err := repo.GetUserInput(context.Background(), "arch-1")
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Equal(t, "hello", got.Content)
+	require.Equal(t, int16(85), *got.QualityScore)
+	require.Equal(t, "v1", got.QualityVersion)
+	require.Equal(t, "ok", got.QualityFindings["clarity"])
+
+	// 无记录返回 nil, nil。
+	mock.ExpectQuery("FROM token_analysis_user_inputs").
+		WithArgs("missing").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "archive_id", "event_time", "user_id", "content", "content_sha256", "chars", "truncated",
+			"quality_score", "quality_findings", "quality_version", "evaluated_at",
+		}))
+
+	missing, err := repo.GetUserInput(context.Background(), "missing")
+	require.NoError(t, err)
+	require.Nil(t, missing)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

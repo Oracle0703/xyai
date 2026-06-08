@@ -1367,6 +1367,8 @@ type TokenAnalysisConfig struct {
 	MaxPreviewChars          int  `mapstructure:"max_preview_chars"`
 	AutoIndexIntervalSeconds int  `mapstructure:"auto_index_interval_seconds"`
 	UsageMatchWindowSeconds  int  `mapstructure:"usage_match_window_seconds"`
+	// InputStoreMaxChars: 用户净输入全文留存的最大字符数(脱敏后截断), 0 = 不留存全文。
+	InputStoreMaxChars int `mapstructure:"input_store_max_chars"`
 }
 
 type PromptMetricsConfig struct {
@@ -1830,6 +1832,7 @@ func setDefaults() {
 	viper.SetDefault("token_analysis.max_preview_chars", 300)
 	viper.SetDefault("token_analysis.auto_index_interval_seconds", 300)
 	viper.SetDefault("token_analysis.usage_match_window_seconds", 10)
+	viper.SetDefault("token_analysis.input_store_max_chars", 8000)
 	viper.SetDefault("prompt_metrics.enabled", true)
 	viper.SetDefault("prompt_metrics.store_full_text", false)
 	viper.SetDefault("prompt_metrics.max_prompt_bytes", int64(256*1024))
@@ -2484,6 +2487,9 @@ func (c *Config) Validate() error {
 	}
 	if c.TokenAnalysis.UsageMatchWindowSeconds <= 0 || c.TokenAnalysis.UsageMatchWindowSeconds > 120 {
 		return fmt.Errorf("token_analysis.usage_match_window_seconds must be between 1 and 120")
+	}
+	if c.TokenAnalysis.InputStoreMaxChars < 0 {
+		return fmt.Errorf("token_analysis.input_store_max_chars must be non-negative")
 	}
 	if c.PromptMetrics.MaxPromptBytes <= 0 {
 		return fmt.Errorf("prompt_metrics.max_prompt_bytes must be positive")

@@ -1,7 +1,7 @@
 # Request Archive 异步写入改造技术留底
 
 > 适用目的: 在 sub2api 上游 main 大版本升级后, 能快速迁移本次改造, 或按同一方案重新实现.
-> 当前实现形态: `默认关闭 + 异步有界队列 + 后台单 writer 持久文件句柄 + 按日期轮转`.
+> 当前实现形态: `默认关闭 + 异步有界队列 + 后台单 writer 持久文件句柄 + 按日期轮转 + 响应不落正文`.
 
 ## 1. 背景与问题
 
@@ -50,8 +50,10 @@ QueueSize int `mapstructure:"queue_size"`
    - 从 channel 取记录, `json.Marshal` 后写盘。
    - `fileForToday()` 持有当日文件句柄, 跨天时关闭旧句柄重开新文件, 避免每条记录 open/close。
    - channel 关闭时收尾关闭文件句柄。
-5. `capture_response` 为独立开关; 为 `false` 时不包装 `ResponseWriter`, 不缓存响应体。
-6. 保留对外层中间件 `ResponseWriter` 的还原逻辑 (defer 恢复 `c.Writer`)。
+5. `capture_response` 为独立开关; 为 `false` 时不包装 `ResponseWriter`; 为 `true` 时只记录响应大小、hash、流式标记和 token usage, 不保存响应正文。
+6. 响应 usage 从非流式 JSON 的 `usage` / `response.usage` / `usageMetadata`(Gemini)/ `message.usage`(Anthropic `message_start` 兜底)提取; 流式 SSE 从 `data:` JSON 事件中提取最后一次非空 usage, 请求结束时冲洗残留行 buffer 兜底无尾换行的终止事件; 单行超过 256KB 被裁剪后以碎片行降级 fragment 提取兜底。非流式大响应仅保留 256KB 尾部解析窗口, usage 提取推迟到请求结束执行一次, Write 热路径只做窗口追加, 不写入归档正文。
+7. 保留对外层中间件 `ResponseWriter` 的还原逻辑 (defer 恢复 `c.Writer`)。
+8. 归档目录支持后台热切换: writer 的 `dir` 为 `atomic.Value`, 中间件每请求以运行态配置调用 `SetDir`(值未变化时一次原子读即返回); `fileForToday` 在跨天或目录变化时轮转句柄, 切换后下一条记录写入新目录。自定义目录持久化于 settings(`request_archive_settings` 的 `dir` 字段), 保存前经磁盘存在/可写校验, 历史文件不自动迁移。详见 `docs/features/request-archive-dir-runtime-config-design-cn.md`。
 
 ### 关键类型
 
@@ -70,7 +72,7 @@ QueueSize int `mapstructure:"queue_size"`
 | 写入方式 | 同步 + 全局锁 + 每条 open/close | 异步有界队列 + 单 writer 持久句柄 | 消除热路径锁竞争与同步 IO 阻塞 |
 | 队列满策略 | 不适用 | 丢弃 + 采样告警 | 排障数据非关键, 优先保证请求不阻塞 |
 | 文件句柄 | 每条 open/close | 后台常驻句柄按日期轮转 | 减少 syscall 与目录创建开销 |
-| response 捕获 | 跟随 enabled | 独立开关默认关闭 | 流式响应捕获开销大, 默认不付出 |
+| response 捕获 | 跟随 enabled 且保存正文 | 独立开关默认关闭, 开启后只存元信息和 usage | 降低磁盘占用, 保留 token 排障信号 |
 
 ### 为什么队列满选择 drop 而非阻塞
 
@@ -82,6 +84,12 @@ QueueSize int `mapstructure:"queue_size"`
 
 - `TestRequestArchiveDisabledDoesNotWriteFiles`: disabled 时不读 body(handler 仍能读完整 body), 不写文件。
 - `TestRequestArchiveCaptureResponseDisabledDoesNotWrapWriter`: `capture_response=false` 时不包装 `ResponseWriter`, response 记录无 body。
+- `TestRequestArchiveCaptureResponseStoresUsageWithoutResponseBody`: 非流式 JSON response 提取 `usage`, 但不写响应 `body`。
+- `TestRequestArchiveCaptureResponseExtractsSSEUsageWithoutResponseBody`: SSE `data:` response 提取 `response.usage`, 但不写响应 `body`。
+- `TestRequestArchiveCaptureResponseExtractsSSEUsageWithoutTrailingNewline`: 终止事件缺少结尾换行时仍能提取 usage。
+- `TestRequestArchiveCaptureResponseExtractsGeminiUsageMetadata`: Gemini 响应从 `usageMetadata` 提取 usage。
+- `TestRequestArchiveCaptureResponseExtractsAnthropicMessageStartUsage`: 流死在 `message_delta` 前时从 `message_start` 的 `message.usage` 兜底提取。
+- `TestRequestArchiveCaptureResponseExtractsUsageFromOversizedSSELine`: 单个 `data:` 行超过 256KB 缓冲上限被裁剪后, 碎片行降级 fragment 提取仍能拿到 usage。
 - `TestAsyncRequestArchiveWriterDropsWhenQueueFull`: 队列满时 `Enqueue` 不阻塞且 `dropped` 累计。
 - 既有用例适配异步写入(`readArchiveRecords` 改为 `require.Eventually` 轮询), 覆盖关联写入 / 截断 / 身份关联 / 跳过非模型请求 / 外层 writer 还原。
 

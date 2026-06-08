@@ -15,7 +15,10 @@ import (
 type tokenAnalysisService interface {
 	GetSummary(ctx context.Context, filters service.TokenAnalysisFilters) (*service.TokenAnalysisSummary, error)
 	ListUserUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisUserUsage, *pagination.PaginationResult, error)
+	ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error)
+	GetUserInput(ctx context.Context, archiveID string) (*service.TokenAnalysisUserInput, error)
+	ListArchiveFiles(ctx context.Context) ([]service.TokenAnalysisArchiveFile, error)
 	GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error)
 	IndexRange(ctx context.Context, req service.TokenAnalysisIndexRequest) (*service.TokenAnalysisIndexResult, error)
 }
@@ -61,6 +64,27 @@ func (h *TokenAnalysisHandler) Users(c *gin.Context) {
 	response.Paginated(c, items, result.Total, result.Page, result.PageSize)
 }
 
+// Projects 返回"项目 × 成员"维度的 token 消耗聚合。
+func (h *TokenAnalysisHandler) Projects(c *gin.Context) {
+	filters, ok := h.parseFilters(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	params := pagination.PaginationParams{
+		Page:      page,
+		PageSize:  pageSize,
+		SortBy:    c.DefaultQuery("sort_by", "total_tokens"),
+		SortOrder: c.DefaultQuery("sort_order", "desc"),
+	}
+	items, result, err := h.service.ListProjectUsage(c.Request.Context(), filters, params)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, result.Total, result.Page, result.PageSize)
+}
+
 func (h *TokenAnalysisHandler) Requests(c *gin.Context) {
 	filters, ok := h.parseFilters(c)
 	if !ok {
@@ -88,6 +112,21 @@ func (h *TokenAnalysisHandler) Requests(c *gin.Context) {
 	response.Paginated(c, items, result.Total, result.Page, result.PageSize)
 }
 
+// RequestInput 按 archive_id 返回留存的用户净输入全文(列表只带预览, 全文懒加载)。
+func (h *TokenAnalysisHandler) RequestInput(c *gin.Context) {
+	archiveID := strings.TrimSpace(c.Query("archive_id"))
+	if archiveID == "" {
+		response.BadRequest(c, "archive_id is required")
+		return
+	}
+	input, err := h.service.GetUserInput(c.Request.Context(), archiveID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, input)
+}
+
 func (h *TokenAnalysisHandler) TriggerIndex(c *gin.Context) {
 	var req service.TokenAnalysisIndexRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -100,6 +139,16 @@ func (h *TokenAnalysisHandler) TriggerIndex(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+// ArchiveFiles 列出归档目录 JSONL 文件与索引水位, 已入库完成的文件打可删除标签。
+func (h *TokenAnalysisHandler) ArchiveFiles(c *gin.Context) {
+	files, err := h.service.ListArchiveFiles(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, files)
 }
 
 func (h *TokenAnalysisHandler) IndexStatus(c *gin.Context) {
@@ -140,6 +189,7 @@ func (h *TokenAnalysisHandler) parseFilters(c *gin.Context) (service.TokenAnalys
 	filters.Model = strings.TrimSpace(c.Query("model"))
 	filters.Endpoint = strings.TrimSpace(c.Query("endpoint"))
 	filters.RiskReason = strings.TrimSpace(c.Query("risk_reason"))
+	filters.Project = strings.TrimSpace(c.Query("project"))
 	if raw := strings.TrimSpace(c.Query("risk_min")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || v < 0 || v > 100 {

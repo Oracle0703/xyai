@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -4125,6 +4126,7 @@ func (s *SettingService) defaultRequestArchiveSettings() *RequestArchiveSettings
 		Enabled:              cfg.Enabled,
 		CaptureResponse:      cfg.CaptureResponse,
 		Dir:                  cfg.Dir,
+		DefaultDir:           cfg.Dir,
 		MaxRequestBodyBytes:  cfg.MaxRequestBodyBytes,
 		MaxResponseBodyBytes: cfg.MaxResponseBodyBytes,
 		QueueSize:            cfg.QueueSize,
@@ -4153,6 +4155,10 @@ func (s *SettingService) getRequestArchiveSettingsUncached(ctx context.Context) 
 	}
 	settings.Enabled = stored.Enabled
 	settings.CaptureResponse = stored.CaptureResponse
+	if dir := strings.TrimSpace(stored.Dir); dir != "" {
+		settings.Dir = dir
+		settings.DirCustomized = true
+	}
 	return settings, nil
 }
 
@@ -4195,9 +4201,26 @@ func (s *SettingService) SetRequestArchiveSettings(ctx context.Context, settings
 	if settings == nil {
 		return fmt.Errorf("settings cannot be nil")
 	}
+	// Dir 语义: 空 = 沿用 config.yaml 默认(清除自定义); 非空 = 自定义目录,
+	// 持久化前做磁盘/目录/可写校验, 校验失败不落库。
+	// Clean 归一化尾斜杠/冗余分隔符, Windows 下大小写不敏感比较,
+	// 避免等价于默认值的输入被固化为自定义。
+	customDir := strings.TrimSpace(settings.Dir)
+	if customDir != "" {
+		customDir = filepath.Clean(customDir)
+		if requestArchiveDirEquals(customDir, s.defaultRequestArchiveSettings().DefaultDir) {
+			customDir = ""
+		}
+	}
+	if customDir != "" {
+		if err := ValidateRequestArchiveDir(customDir); err != nil {
+			return err
+		}
+	}
 	stored := persistedRequestArchiveSettings{
 		Enabled:         settings.Enabled,
 		CaptureResponse: settings.CaptureResponse,
+		Dir:             customDir,
 	}
 	data, err := json.Marshal(stored)
 	if err != nil {
@@ -4209,6 +4232,10 @@ func (s *SettingService) SetRequestArchiveSettings(ctx context.Context, settings
 	merged := s.defaultRequestArchiveSettings()
 	merged.Enabled = settings.Enabled
 	merged.CaptureResponse = settings.CaptureResponse
+	if customDir != "" {
+		merged.Dir = customDir
+		merged.DirCustomized = true
+	}
 	s.storeRequestArchiveRuntimeConfig(merged, requestArchiveRuntimeCacheTTL)
 	return nil
 }
