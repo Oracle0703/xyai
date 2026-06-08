@@ -125,6 +125,8 @@ export interface TokenAnalysisRequestItem {
   has_input: boolean
   input_truncated: boolean
   quality_score?: number
+  // 当前筛选范围内净输入相同的请求数; >1 表示同一输入在 agent 轮次/重试里重发。
+  duplicate_count?: number
 }
 
 export interface TokenAnalysisRequestInput {

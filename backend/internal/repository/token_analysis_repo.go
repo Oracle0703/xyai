@@ -469,7 +469,8 @@ SELECT
     s.client_workdir, s.client_project, s.client_branch, s.attribution_source,
     COALESCE(ul.input_tokens, 0), COALESCE(ul.output_tokens, 0), COALESCE(ul.cache_read_tokens, 0), COALESCE(ul.cache_creation_tokens, 0),
     COALESCE(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens, 0), COALESCE(ul.actual_cost, 0),
-    ui.archive_id IS NOT NULL AS has_input, COALESCE(ui.truncated, FALSE), ui.quality_score
+    ui.archive_id IS NOT NULL AS has_input, COALESCE(ui.truncated, FALSE), ui.quality_score,
+    COUNT(*) OVER (PARTITION BY COALESCE(ui.content_sha256, s.archive_id)) AS duplicate_count
 FROM token_analysis_request_summaries s
 LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 LEFT JOIN users u ON u.id = s.user_id
@@ -766,6 +767,7 @@ func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenA
 		&item.HasInput,
 		&item.InputTruncated,
 		&qualityScore,
+		&item.DuplicateCount,
 	); err != nil {
 		return item, fmt.Errorf("scan token analysis request: %w", err)
 	}
