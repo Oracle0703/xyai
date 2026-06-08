@@ -20,6 +20,14 @@
             <input v-model.number="filters.api_key_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
           </label>
           <label class="space-y-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Account ID</span>
+            <input v-model.number="filters.account_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
+          </label>
+          <label class="space-y-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Group ID</span>
+            <input v-model.number="filters.group_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
+          </label>
+          <label class="space-y-1">
             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Model</span>
             <input v-model.trim="filters.model" class="input h-9 text-sm" @keyup.enter="reloadAll" />
           </label>
@@ -319,6 +327,20 @@
                   <td>
                     <div class="max-w-[300px] truncate">{{ item.last_user_preview }}</div>
                     <div class="mt-1 flex flex-wrap items-center gap-1">
+                      <span
+                        v-if="(item.duplicate_count ?? 0) > 1"
+                        class="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                        :title="t('admin.tokenAnalysis.duplicateHint')"
+                      >
+                        ×{{ item.duplicate_count }}
+                      </span>
+                      <span
+                        v-if="item.request_body_truncated"
+                        class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                        :title="t('admin.tokenAnalysis.bodyTruncatedHint')"
+                      >
+                        {{ t('admin.tokenAnalysis.bodyTruncated') }}
+                      </span>
                       <span v-if="item.risk_score > 0" class="inline-flex min-w-8 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
                         {{ item.risk_score }}
                       </span>
@@ -363,11 +385,12 @@
         </template>
       </dl>
       <div class="mt-5">
-        <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+        <div class="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
           <span>{{ t('admin.tokenAnalysis.inputFull') }}</span>
           <span v-if="requestInput?.truncated" class="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
             {{ t('admin.tokenAnalysis.inputTruncatedNote') }}
           </span>
+          <span v-if="requestInput" class="text-xs font-normal text-gray-500">{{ formatNumber(requestInput.chars) }} {{ t('admin.tokenAnalysis.chars') }}</span>
         </div>
         <div v-if="requestInputLoading" class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800">
           {{ t('common.loading') }}
@@ -375,6 +398,13 @@
         <div v-else-if="requestInput" class="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">{{ requestInput.content }}</div>
         <div v-else class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">
           {{ selectedRequest.last_user_preview || t('admin.tokenAnalysis.noInputStored') }}
+        </div>
+        <div
+          v-if="requestInput?.content_sha256"
+          class="mt-1.5 break-all font-mono text-xs text-gray-400 dark:text-gray-500"
+          :title="t('admin.tokenAnalysis.contentHashHint')"
+        >
+          {{ t('admin.tokenAnalysis.contentHash') }}: {{ requestInput.content_sha256 }}
         </div>
       </div>
       <div class="mt-5">
@@ -460,7 +490,10 @@ const cleanFilters = computed(() => {
 })
 
 const summaryCards = computed(() => [
+  { label: t('admin.tokenAnalysis.summary.totalRequests'), value: formatNumber(summary.value?.total_requests ?? 0) },
   { label: t('admin.tokenAnalysis.summary.totalTokens'), value: formatNumber(summary.value?.total_tokens ?? 0) },
+  { label: t('admin.tokenAnalysis.summary.inputTokens'), value: formatNumber(summary.value?.total_input_tokens ?? 0) },
+  { label: t('admin.tokenAnalysis.summary.outputTokens'), value: formatNumber(summary.value?.total_output_tokens ?? 0) },
   { label: t('admin.tokenAnalysis.summary.totalCost'), value: formatCost(summary.value?.total_actual_cost ?? 0) },
   { label: t('admin.tokenAnalysis.summary.cacheRead'), value: formatNumber(summary.value?.cache_read_tokens ?? 0) },
   { label: t('admin.tokenAnalysis.summary.cacheHitRate'), value: percent(summary.value?.cache_hit_rate ?? 0) },
@@ -489,11 +522,15 @@ const detailFields = computed(() => {
     { label: 'Input tokens', value: formatNumber(item.input_tokens ?? 0) },
     { label: 'Output tokens', value: formatNumber(item.output_tokens ?? 0) },
     { label: 'Cache read', value: formatNumber(item.cache_read_tokens ?? 0) },
+    { label: 'Cache creation', value: formatNumber(item.cache_creation_tokens ?? 0) },
     { label: 'Cost', value: formatCost(item.actual_cost ?? 0) },
     { label: t('admin.tokenAnalysis.project'), value: item.client_project || '-' },
     { label: t('admin.tokenAnalysis.workdir'), value: item.client_workdir || '-' },
     { label: t('admin.tokenAnalysis.branch'), value: item.client_branch || '-' },
-    { label: t('admin.tokenAnalysis.attributionSource'), value: item.attribution_source || '-' }
+    { label: t('admin.tokenAnalysis.attributionSource'), value: item.attribution_source || '-' },
+    { label: t('admin.tokenAnalysis.duplicateCount'), value: formatNumber(item.duplicate_count ?? 1) },
+    { label: 'Body size', value: formatBytes(item.request_body_size ?? 0) },
+    { label: t('admin.tokenAnalysis.bodyTruncated'), value: item.request_body_truncated ? t('common.yes') : t('common.no') }
   ]
 })
 

@@ -20,8 +20,10 @@
 | 输入字符数 | `user_chars` | 已有 |
 | 客户端来源 | `attribution_source` | 已有 |
 | 风险分 | `risk_score` / `risk_reasons` | 已有 |
+| 归档截断标记 | `request_body_truncated`(归档时请求体被截断, 归因/全文可能不全) | 已有字段, 本次展示 |
 | **用户输入全文** | `token_analysis_user_inputs.content` | **本次新增** |
 | **内容哈希** | `content_sha256`(同一人类输入跨 agent 轮次去重) | **本次新增** |
+| 重复计数 | 当前筛选范围内 `content_sha256` 相同的请求数(`COUNT(*) OVER`) | 派生展示(2026-06-08) |
 | **质量占位** | `quality_score/quality_findings/quality_version/evaluated_at` | **本次新增(空)** |
 
 ## 存储(migration 146)
@@ -41,6 +43,18 @@ Upsert 冲突时只更新内容字段, **不触碰 `quality_*` 四列**——重
 - 列表 `GET /admin/token-analysis/requests` LEFT JOIN user_inputs, item 增加 `has_input/input_truncated/quality_score`(全文不进列表 payload)。
 - 全文懒加载 `GET /admin/token-analysis/requests/input?archive_id=`, 404 当无记录。
 - TokenAnalysisView "可疑请求" → "请求明细": 列为 时间/成员/模型/项目+分支/用量/质量/预览(风险徽标并入预览列), 排序切换 按时间(默认)/按风险; 默认 `risk_min` 由 20 改为 0(明细定位展示全部请求, 风险排查时手动调高)。抽屉新增"用户输入全文"(pre-wrap, 截断提示)与"质量"区块(未评估占位)。
+
+### 展示增强(2026-06-08)
+
+把若干已有数据但此前未暴露的字段补到请求明细页, 便于核对输入真实性与数据可信度:
+
+- **重复计数**: 预览旁 `×N` 徽标(N>1 才显示)。后端 `ListRequests` 以 `COUNT(*) OVER (PARTITION BY COALESCE(ui.content_sha256, s.archive_id))` 在当前筛选集内统计——agent 轮次/重试重发同一净输入时一眼可辨, 无留存输入的行恒为 1。选**计数徽标而非折叠分组**: 不改行结构、零风险, 折叠为后续可选项。
+- **归档截断**: `request_body_truncated` 为真时主表与抽屉给出"归档截断"标记——数据可信度信号, 截断时离线归因与净输入全文可能不完整。
+- **概览卡片**: 增 总请求数 / 输入 Token / 输出 Token(原仅总 Token)。
+- **筛选**: 增 Account ID / Group ID(后端早支持, 补前端入口)。
+- **抽屉**: 增 Cache creation(写缓存)、内容哈希(`content_sha256`)、字符数。
+
+均为前端展示 + 一处后端窗口函数, 无 schema 变更; 内容哈希展示沿用脱敏后指纹语义, 不暴露原文。
 
 ## 质量评估回填约定(后续)
 

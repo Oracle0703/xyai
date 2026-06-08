@@ -225,6 +225,9 @@ type TokenAnalysisRequestItem struct {
 	HasInput       bool   `json:"has_input"`
 	InputTruncated bool   `json:"input_truncated"`
 	QualityScore   *int16 `json:"quality_score,omitempty"`
+	// DuplicateCount 为当前筛选范围内净输入(content_sha256)相同的请求数,
+	// >1 表示同一人类输入在 agent 轮次/重试里重发; 无留存输入时恒为 1。
+	DuplicateCount int64 `json:"duplicate_count"`
 }
 
 type TokenAnalysisUsageMatch struct {

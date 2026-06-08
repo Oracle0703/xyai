@@ -73,6 +73,8 @@ describe('TokenAnalysisView', () => {
       total_requests: 12,
       matched_requests: 10,
       unmatched_requests: 2,
+      total_input_tokens: 5000,
+      total_output_tokens: 3000,
       total_tokens: 9000,
       total_actual_cost: 1.23,
       cache_read_tokens: 4000,
@@ -106,7 +108,9 @@ describe('TokenAnalysisView', () => {
           client_project: 'lag-killer',
           client_branch: 'main',
           has_input: true,
-          input_truncated: false
+          input_truncated: false,
+          request_body_truncated: true,
+          duplicate_count: 3
         }
       ],
       total: 1,
@@ -148,6 +152,12 @@ describe('TokenAnalysisView', () => {
     // 归档文件卡片: 已入库文件带可删除标签。
     expect(wrapper.text()).toContain('2026-05-20.jsonl')
     expect(wrapper.text()).toContain('admin.tokenAnalysis.archiveFileStatus.deletable')
+    // 新增展示: 重复计数徽标 ×N、归档截断徽标、概览 input/output 拆分卡。
+    expect(wrapper.text()).toContain('×3')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.bodyTruncated')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.totalRequests')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.inputTokens')
+    expect(wrapper.text()).toContain('5,000')
   })
 
   it('lazy loads full user input when a request row is opened', async () => {
@@ -163,6 +173,9 @@ describe('TokenAnalysisView', () => {
 
     expect(api.getRequestInput).toHaveBeenCalledWith('arch-1')
     expect(wrapper.text()).toContain('full input line one')
+    // 抽屉新增: 内容哈希行 + 字符数。
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.contentHash')
+    expect(wrapper.text()).toContain('abc')
   })
 
   it('keeps loading state for the newly opened request when an older input request resolves late', async () => {
