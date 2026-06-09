@@ -130,6 +130,8 @@ go generate ./cmd/server
 
 计费相关修改要同时检查用量写入, dashboard aggregation, subscription progress, billing cache 和前端展示。
 
+用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(缓存创建)与 `cache_read_tokens`(缓存命中), 前端 i18n 增加缓存创建/命中/命中率文案。修改用量聚合或展示时要保持两者分别统计。
+
 User x platform quota:
 
 - 读取路径使用 billing cache 和 sentinel entry 缓存无 limit 场景; sentinel TTL 由 `billing.user_platform_quota_sentinel_ttl_seconds` 控制, 默认短于正常 quota cache TTL。
@@ -153,3 +155,13 @@ User x platform quota:
 - channel pricing 和 model default pricing。
 - OpenAI/Codex responses, chat completions, embeddings, images 路径。
 - Gemini v1beta 路径。
+
+## 代理有效期与失败回退
+
+数据模型(migration `149_proxy_expiry_fallback.sql`, 自上游 v0.1.135):
+
+- `proxies` 新增 `expires_at`(有效期)、`fallback_mode`(`none` / `proxy` / `direct`)、`backup_proxy_id`(自引用备用代理, `ON DELETE SET NULL`)、`expiry_warn_days`(默认 7, 临期提醒天数)。
+- `accounts` 新增 `proxy_fallback_origin_id`, 记录手动回切来源。
+- 后台逻辑见 `backend.md` 的"代理有效期与失败回退"。
+
+> 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2。
