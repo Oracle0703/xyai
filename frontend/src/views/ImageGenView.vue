@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-gray-100">
-    <header class="border-b border-gray-200 bg-white/90 px-6 py-4 dark:border-dark-800 dark:bg-dark-950/90">
+  <component :is="wrapperComponent">
+    <header v-if="!embedded" class="border-b border-gray-200 bg-white/90 px-6 py-4 dark:border-dark-800 dark:bg-dark-950/90">
       <nav class="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <router-link to="/home" class="flex min-w-0 items-center gap-3">
           <div class="h-9 w-9 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
@@ -24,7 +24,7 @@
       </nav>
     </header>
 
-    <main class="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)] lg:px-6">
+    <div :class="mainGridClass">
       <section class="space-y-4">
         <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-800 dark:bg-dark-900">
           <div class="mb-5 flex items-start justify-between gap-4">
@@ -303,14 +303,29 @@
           </div>
         </div>
       </section>
-    </main>
-  </div>
+    </div>
+  </component>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useAppStore } from '@/stores'
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useAppStore, useAuthStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
+import AppLayout from '@/components/layout/AppLayout.vue'
+
+// 未登录访客（或后端模式下的非管理员）直接访问 /image-gen 时，渲染独立整页工具，
+// 用这个轻量外壳提供整屏背景；登录用户走 AppLayout，保留左侧边栏 + 右侧内容区。
+const StandaloneShell = defineComponent({
+  name: 'ImageGenStandaloneShell',
+  setup(_, { slots }) {
+    return () =>
+      h(
+        'div',
+        { class: 'min-h-screen bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-gray-100' },
+        slots.default?.()
+      )
+  },
+})
 
 const HISTORY_STORAGE_KEY = 'image-gen-history-v1'
 const MAX_HISTORY_ITEMS = 20
@@ -349,9 +364,24 @@ interface ImagesResponse {
 }
 
 const appStore = useAppStore()
+const authStore = useAuthStore()
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+
+// 是否嵌入平台布局展示。登录后的普通用户与管理员（即“我的账户”菜单的受众）都嵌入，
+// 这样从侧边栏进入时停留在右侧内容区；后端模式下的非管理员（没有该菜单）与未登录访客
+// 仍是独立整页工具，行为不变。
+const embedded = computed(
+  () => authStore.isAuthenticated && !(appStore.backendModeEnabled && !authStore.isAdmin)
+)
+const wrapperComponent = computed(() => (embedded.value ? AppLayout : StandaloneShell))
+// 嵌入时铺满 AppLayout 内容区；独立页时居中限宽并自带内边距（与原整页布局一致）。
+const mainGridClass = computed(() =>
+  embedded.value
+    ? 'grid gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]'
+    : 'mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)] lg:px-6'
+)
 
 const sizeOptions = [
   { value: '1024x1024', label: '1024 x 1024' },

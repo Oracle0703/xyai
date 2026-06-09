@@ -4,8 +4,9 @@ import { nextTick } from 'vue'
 
 import ImageGenView from '../ImageGenView.vue'
 
-const { fetchPublicSettings } = vi.hoisted(() => ({
+const { fetchPublicSettings, authState } = vi.hoisted(() => ({
   fetchPublicSettings: vi.fn(),
+  authState: { isAuthenticated: false, isAdmin: false },
 }))
 
 vi.mock('@/stores', () => ({
@@ -15,13 +16,25 @@ vi.mock('@/stores', () => ({
     siteLogo: '',
     docUrl: '',
     publicSettingsLoaded: true,
+    backendModeEnabled: false,
     fetchPublicSettings,
   }),
+  useAuthStore: () => authState,
+}))
+
+// 用轻量桩替换平台布局，避免拉起侧边栏/引导等重依赖；仅验证是否被包裹。
+vi.mock('@/components/layout/AppLayout.vue', () => ({
+  default: {
+    name: 'AppLayout',
+    template: '<div data-test="app-layout"><slot /></div>',
+  },
 }))
 
 describe('ImageGenView', () => {
   beforeEach(() => {
     fetchPublicSettings.mockReset()
+    authState.isAuthenticated = false
+    authState.isAdmin = false
     localStorage.clear()
 
     Object.defineProperty(window, 'matchMedia', {
@@ -214,6 +227,45 @@ describe('ImageGenView', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/v1/images/edits')
     expect(body).toBeInstanceOf(FormData)
     expect(body.get('image')).toBe(pastedImage)
+
+    wrapper.unmount()
+  })
+
+  it('renders standalone (no app layout) for unauthenticated visitors', () => {
+    const wrapper = mount(ImageGenView, {
+      global: {
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          Icon: true,
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-test="app-layout"]').exists()).toBe(false)
+    // 独立页保留自带的头部标题
+    expect(wrapper.text()).toContain('图片生成工具')
+    expect(wrapper.find('[data-test="api-key-input"]').exists()).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('embeds in the app layout for authenticated users', () => {
+    authState.isAuthenticated = true
+
+    const wrapper = mount(ImageGenView, {
+      global: {
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          Icon: true,
+        },
+      },
+    })
+
+    // 嵌入平台布局（侧边栏 + 右侧内容区），不再渲染独立整页头部
+    expect(wrapper.find('[data-test="app-layout"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('图片生成工具')
+    // 生成器本体仍然渲染在内容区
+    expect(wrapper.find('[data-test="api-key-input"]').exists()).toBe(true)
 
     wrapper.unmount()
   })
