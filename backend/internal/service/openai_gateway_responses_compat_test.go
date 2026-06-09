@@ -252,14 +252,84 @@ func TestOpenAIGatewayService_ResponsesStreamFallsBackToRawChatCompletionsForOpe
 	require.Contains(t, rec.Body.String(), `event: response.content_part.done`)
 	require.Contains(t, rec.Body.String(), `event: response.output_item.done`)
 	require.Contains(t, rec.Body.String(), `event: response.completed`)
-	require.Contains(t, rec.Body.String(), `"output_index":0`)
-	require.Contains(t, rec.Body.String(), `"content_index":0`)
-	require.Contains(t, rec.Body.String(), `"item":{"type":"message","id":"item_msg_0","role":"assistant","content":[],"status":"in_progress"}`)
-	require.Contains(t, rec.Body.String(), `"part":{"type":"output_text","text":""}`)
-	require.Contains(t, rec.Body.String(), `"item_id":"item_`)
-	require.Contains(t, rec.Body.String(), `"item":{"type":"message","id":"item_msg_0","role":"assistant","content":[{"type":"output_text","text":"hello"}],"status":"completed"}`)
-	require.Contains(t, rec.Body.String(), `"output":[{"type":"message","id":"item_msg_0","role":"assistant","content":[{"type":"output_text","text":"hello"}],"status":"completed"}]`)
+
+	frames := parseTestOpenAIResponsesSSEFrames(rec.Body.String())
+	added := findTestOpenAIResponsesSSEFrame(t, frames, "response.output_item.added")
+	addedData := gjson.Parse(added.data)
+	messageID := addedData.Get("item.id").String()
+	require.NotEmpty(t, messageID)
+	require.Equal(t, "message", addedData.Get("item.type").String())
+	require.Equal(t, "assistant", addedData.Get("item.role").String())
+	require.Equal(t, "in_progress", addedData.Get("item.status").String())
+	require.Equal(t, int64(0), addedData.Get("output_index").Int())
+	require.Equal(t, "output_text", addedData.Get("item.content.0.type").String())
+
+	partAdded := gjson.Parse(findTestOpenAIResponsesSSEFrame(t, frames, "response.content_part.added").data)
+	require.Equal(t, messageID, partAdded.Get("item_id").String())
+	require.Equal(t, int64(0), partAdded.Get("content_index").Int())
+	require.Equal(t, "output_text", partAdded.Get("part.type").String())
+	require.Equal(t, "", partAdded.Get("part.text").String())
+
+	textDelta := gjson.Parse(findTestOpenAIResponsesSSEFrame(t, frames, "response.output_text.delta").data)
+	require.Equal(t, messageID, textDelta.Get("item_id").String())
+	require.Equal(t, "hello", textDelta.Get("delta").String())
+
+	textDone := gjson.Parse(findTestOpenAIResponsesSSEFrame(t, frames, "response.output_text.done").data)
+	require.Equal(t, messageID, textDone.Get("item_id").String())
+	require.Equal(t, "hello", textDone.Get("text").String())
+
+	partDone := gjson.Parse(findTestOpenAIResponsesSSEFrame(t, frames, "response.content_part.done").data)
+	require.Equal(t, messageID, partDone.Get("item_id").String())
+	require.Equal(t, "hello", partDone.Get("part.text").String())
+
+	itemDone := gjson.Parse(findTestOpenAIResponsesSSEFrame(t, frames, "response.output_item.done").data)
+	require.Equal(t, messageID, itemDone.Get("item.id").String())
+	require.Equal(t, "completed", itemDone.Get("item.status").String())
+	require.Equal(t, "hello", itemDone.Get("item.content.0.text").String())
+
+	completed := gjson.Parse(findTestOpenAIResponsesSSEFrame(t, frames, "response.completed").data)
+	require.Equal(t, messageID, completed.Get("response.output.0.id").String())
+	require.Equal(t, "hello", completed.Get("response.output.0.content.0.text").String())
 	require.Contains(t, rec.Body.String(), `data: [DONE]`)
 	require.Equal(t, 4, result.Usage.InputTokens)
 	require.Equal(t, 2, result.Usage.OutputTokens)
+}
+
+type testOpenAIResponsesSSEFrame struct {
+	event string
+	data  string
+}
+
+func parseTestOpenAIResponsesSSEFrames(body string) []testOpenAIResponsesSSEFrame {
+	blocks := strings.Split(body, "\n\n")
+	frames := make([]testOpenAIResponsesSSEFrame, 0, len(blocks))
+	for _, block := range blocks {
+		var frame testOpenAIResponsesSSEFrame
+		for _, line := range strings.Split(block, "\n") {
+			line = strings.TrimSpace(line)
+			if event, ok := extractOpenAISSEEventLine(line); ok {
+				frame.event = event
+				continue
+			}
+			if data, ok := extractOpenAISSEDataLine(line); ok {
+				frame.data = strings.TrimSpace(data)
+			}
+		}
+		if frame.event != "" || frame.data != "" {
+			frames = append(frames, frame)
+		}
+	}
+	return frames
+}
+
+func findTestOpenAIResponsesSSEFrame(t *testing.T, frames []testOpenAIResponsesSSEFrame, event string) testOpenAIResponsesSSEFrame {
+	t.Helper()
+	for _, frame := range frames {
+		if frame.event == event {
+			require.NotEmpty(t, frame.data)
+			return frame
+		}
+	}
+	require.Failf(t, "missing SSE event", "event %q not found in frames: %#v", event, frames)
+	return testOpenAIResponsesSSEFrame{}
 }

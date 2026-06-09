@@ -130,6 +130,18 @@ go generate ./cmd/server
 
 计费相关修改要同时检查用量写入, dashboard aggregation, subscription progress, billing cache 和前端展示。
 
+User x platform quota:
+
+- 读取路径使用 billing cache 和 sentinel entry 缓存无 limit 场景; sentinel TTL 由 `billing.user_platform_quota_sentinel_ttl_seconds` 控制, 默认短于正常 quota cache TTL。
+- 写入路径可启用 `UserPlatformQuotaUsageFlusher`, 将 user x platform quota usage 聚合后批量刷入数据库; 配置在 `database.user_platform_quota_flusher_enabled`, `database.user_platform_quota_flush_interval_ms`, `database.user_platform_quota_flush_batch_size`。
+- 多实例部署时 quota flusher 属于后台写任务, 必须结合 leader lock 或等价单主约束, 避免重复刷写。
+
+失败请求与删除审计:
+
+- `OpsErrorLog` 可向用户侧和管理侧展示失败请求, 用户侧视图必须走脱敏 DTO 和可见性开关。
+- 删除用户/API Key 后仍需要支持错误日志归因和审计查询; 相关 migration 包含 deleted API key audit、ops error log api key prefix、user time index 等。
+- 图片生成计费包含 image token/metadata 路径; 修改图片用量展示或计费时同时检查 `imageUsage` 前端工具、usage log 写入和 rate-limit cooldown/failover 逻辑。
+
 ## 模型与平台
 
 网关支持多平台调度, 常见 platform 包括 Claude/Anthropic, OpenAI, Gemini, Antigravity。Group 的 platform 决定部分路由行为和协议兼容分流。

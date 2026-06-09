@@ -116,7 +116,9 @@ func newUserConcurrencyPresetUserRepoStub(users ...*User) *userConcurrencyPreset
 	return out
 }
 
-func (s *userConcurrencyPresetUserRepoStub) Create(context.Context, *User) error { panic("unexpected Create") }
+func (s *userConcurrencyPresetUserRepoStub) Create(context.Context, *User) error {
+	panic("unexpected Create")
+}
 func (s *userConcurrencyPresetUserRepoStub) GetByID(_ context.Context, id int64) (*User, error) {
 	user := s.users[id]
 	if user == nil {
@@ -125,14 +127,21 @@ func (s *userConcurrencyPresetUserRepoStub) GetByID(_ context.Context, id int64)
 	clone := *user
 	return &clone, nil
 }
+func (s *userConcurrencyPresetUserRepoStub) GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}
 func (s *userConcurrencyPresetUserRepoStub) GetByEmail(context.Context, string) (*User, error) {
 	panic("unexpected GetByEmail")
 }
 func (s *userConcurrencyPresetUserRepoStub) GetFirstAdmin(context.Context) (*User, error) {
 	panic("unexpected GetFirstAdmin")
 }
-func (s *userConcurrencyPresetUserRepoStub) Update(context.Context, *User) error { panic("unexpected Update") }
-func (s *userConcurrencyPresetUserRepoStub) Delete(context.Context, int64) error { panic("unexpected Delete") }
+func (s *userConcurrencyPresetUserRepoStub) Update(context.Context, *User) error {
+	panic("unexpected Update")
+}
+func (s *userConcurrencyPresetUserRepoStub) Delete(context.Context, int64) error {
+	panic("unexpected Delete")
+}
 func (s *userConcurrencyPresetUserRepoStub) GetUserAvatar(context.Context, int64) (*UserAvatar, error) {
 	panic("unexpected GetUserAvatar")
 }

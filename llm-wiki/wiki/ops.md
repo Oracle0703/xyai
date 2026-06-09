@@ -90,7 +90,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.9`, working-directory `backend`
-- Go 版本校验: `go1.26.3`
+- Go 版本校验: `go1.26.4`
 
 `.github/workflows/security-scan.yml`:
 
@@ -111,7 +111,10 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback。
 - `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。
+- `gateway.openai_scheduler`: OpenAI sticky session 逃逸配置; 默认开启, 可按 TTFT/error rate 跳过劣化 sticky 账号。
+- `gateway.openai_ws`: OpenAI Responses WebSocket v2 和 HTTP bridge 配置; 首包较大时可保持客户端 WS, 改用 HTTP Responses 上游。
 - `database`: PostgreSQL 连接池。
+- `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
 - `redis`: Redis 连接池和 TLS。
 - `ops`: 运维监控开关。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
@@ -138,3 +141,4 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 高风险接口新增写操作时要考虑 `Idempotency-Key`。
 - 修改网关 body/stream 逻辑要验证流式和非流式两类请求。
 - 更改 OpenAI WS 或调度配置要检查 fallback, sticky session 和连接池策略。
+- 修改 Wire provider 或后台服务启动/清理逻辑后运行 `cd backend && go generate ./cmd/server` 与 `go test ./cmd/server -run Wire`。

@@ -37,6 +37,7 @@
 - User concurrency 和 account concurrency。
 - RPM cache: user/group/account 维度。
 - Gateway scheduling: sticky session wait, fallback wait, snapshot/outbox, slot cleanup。
+- OpenAI scheduler sticky escape: 当 sticky 账号 TTFT EWMA 或错误率劣化到阈值以上时可临时跳过 sticky, 配置位于 `gateway.openai_scheduler`。
 - User message queue 可选串行/节流。
 - 并发 slot 获取失败由 `backend/internal/handler/concurrency_error_response.go` 统一映射; `ConcurrencyCacheError` 必须返回 503 和明确的 service-unavailable 文案, 不应被归类为普通 429 限流。
 
@@ -121,7 +122,18 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - 上游错误体截断。
 - client disconnect。
 - OpenAI Responses WebSocket fallback。
+- Chat Completions -> Responses bridge 的 item 生命周期完整性, 包括动态 item id 一致性、reasoning item、content part 和 tool call done 事件。
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
+
+后台任务可靠性:
+
+- 多实例周期性后台任务应通过 `LeaderLock`/`leader_lock_cache` 取得单主执行权; 新增会写数据库或刷新全局缓存的 runner/flusher 时, 必须明确是否需要 leader lock。
+- user platform quota flusher 默认关闭, 开启后按批聚合写库; shutdown cleanup 必须 flush/stop, Wire `provideCleanup` 测试要覆盖。
+
+用户可见错误:
+
+- 用户侧失败请求视图由配置开关控制并 fail-closed; 后端返回前必须脱敏, 前端隐藏不是唯一保护。
+- API Key name 等用户可控展示字段要进行 HTML 转义, 未授权 key 访问应避免泄露存在性。
 
 ## 日志与监控
 
