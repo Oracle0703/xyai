@@ -1485,6 +1485,10 @@ export default {
       processed: '已处理',
       failed: '失败',
       indexed: '已索引',
+      indexStarted: '索引已在后台启动, 完成后自动刷新',
+      indexRunning: '索引进行中…',
+      indexDone: '索引完成',
+      indexAlreadyRunning: '已有索引任务在运行, 正在跟进其进度',
       userRanking: '用户 / API Key 排行',
       projectRanking: '项目消耗排行(成员 × 项目)',
       project: '项目',
@@ -1530,8 +1534,10 @@ export default {
       archiveFiles: '归档文件',
       archiveFilesHint: '仅列出当前生效归档目录(切换目录后旧目录文件需手动迁移)。「可删除」= 已全部入库, 可在服务器上 gzip/删除(删除为手动操作); 今日文件正在写入不可删; 「有失败行」删除前请先确认失败原因。',
       fileSize: '大小',
-      indexProgress: '索引水位 / 大小',
+      indexProgress: '读取进度',
       fileStatus: '状态',
+      fullyRead: '已读完',
+      requestRowsTotal: '合计 {n} 请求行',
       archiveFileStatus: {
         writing: '写入中',
         indexing: '待索引',
@@ -1539,8 +1545,17 @@ export default {
         attention: '有失败行',
         compressed: '已压缩'
       },
+      archiveFileStatusHint: {
+        writing: '今日文件写入端正持有句柄, 不可删除',
+        indexing: '索引水位尚未追平文件大小, 等待自动索引或手动触发',
+        deletable: '已全部读完入库且无失败行, 可在服务器上安全压缩/删除',
+        attention: '文件已全部读完, 但有失败行未入库; 失败行不会自动重试, 删除文件即放弃重灌机会',
+        compressed: '已压缩文件, 不参与索引'
+      },
       summary: {
-        totalRequests: '总请求数',
+        totalRequests: '已归档请求数',
+        billedRequests: '同期计费请求数',
+        archiveCoverage: '归档覆盖率',
         totalTokens: '总 Token',
         inputTokens: '输入 Token',
         outputTokens: '输出 Token',
@@ -6565,8 +6580,10 @@ export default {
         dirReset: '恢复默认',
         diskFree: '当前生效目录所在磁盘剩余',
         dirSwitchWarning: '切换目录不会迁移历史归档文件；建议低峰期先关闭归档再切换，旧文件如需继续索引请手动移动到新目录。',
+        maxRequestBody: '请求体截断上限',
+        maxRequestBodyHint: '单条请求体最多归档的字节数，超出部分截断。被截断的请求 token 分析只能降级为元数据入库（无消息统计与全文），如失败行集中出现可适当调大。保存后立即生效，无需重启',
         queueSize: '队列容量',
-        warning: '请求归档可能记录敏感业务内容；排障完成后请关闭，并按数据保留策略清理归档文件。队列容量和 body 截断上限仍由配置文件控制。',
+        warning: '请求归档可能记录敏感业务内容；排障完成后请关闭，并按数据保留策略清理归档文件。队列容量仍由配置文件控制。',
         saved: '请求归档设置保存成功',
         saveFailed: '保存请求归档设置失败'
       },

@@ -1,11 +1,41 @@
 package service
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+func TestTokenAnalysisGetSummaryForcesUnmatchedAndComputesCoverage(t *testing.T) {
+	repo := &tokenAnalysisRepoStub{
+		summary:        &TokenAnalysisSummary{TotalRequests: 12, MatchedRequests: 9},
+		billedRequests: 18,
+	}
+	svc := NewTokenAnalysisService(repo, &config.Config{}, nil)
+
+	got, err := svc.GetSummary(context.Background(), TokenAnalysisFilters{IncludeUnmatched: false})
+
+	require.NoError(t, err)
+	// 概览口径固定含未匹配行, 不随页面 include_unmatched 勾选变化。
+	require.NotNil(t, repo.summaryFilters)
+	require.True(t, repo.summaryFilters.IncludeUnmatched)
+	require.Equal(t, int64(18), got.BilledRequests)
+	require.InDelta(t, 0.5, got.ArchiveCoverage, 1e-9)
+}
+
+func TestTokenAnalysisGetSummaryZeroBilledRequestsKeepsCoverageZero(t *testing.T) {
+	repo := &tokenAnalysisRepoStub{summary: &TokenAnalysisSummary{MatchedRequests: 3}}
+	svc := NewTokenAnalysisService(repo, &config.Config{}, nil)
+
+	got, err := svc.GetSummary(context.Background(), TokenAnalysisFilters{})
+
+	require.NoError(t, err)
+	require.Zero(t, got.BilledRequests)
+	require.Zero(t, got.ArchiveCoverage)
+}
 
 func TestTokenAnalysisSummarizeChatCompletionsSanitizesPreview(t *testing.T) {
 	body := []byte(`{

@@ -1906,7 +1906,9 @@ func setDefaults() {
 	// 默认关闭：归档位于请求热路径，仅用于短期排障，避免拖慢尾延迟与磁盘膨胀。
 	viper.SetDefault("gateway.request_archive.enabled", false)
 	viper.SetDefault("gateway.request_archive.dir", "data/request-archive")
-	viper.SetDefault("gateway.request_archive.max_request_body_bytes", int64(8*1024*1024))
+	// 16MB: 生产观测到 Codex 大上下文请求达 10.7MB, 8MB 截断导致 token 分析
+	// 索引器只能降级入库; 后台 Settings 可热改覆盖此默认。
+	viper.SetDefault("gateway.request_archive.max_request_body_bytes", int64(16*1024*1024))
 	viper.SetDefault("gateway.request_archive.max_response_body_bytes", int64(2*1024*1024))
 	// 默认关闭响应捕获：流式响应捕获额外增加 hash/缓存开销。
 	viper.SetDefault("gateway.request_archive.capture_response", false)

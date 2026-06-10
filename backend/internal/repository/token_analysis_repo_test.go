@@ -118,6 +118,51 @@ func TestTokenAnalysisRepositoryGetIndexState(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+
+	// 空 last_error 不得清掉已有错误(成功行/收尾更新都传空),
+	// 否则诊断信息在一轮索引结束后必然丢失。
+	mock.ExpectExec(`INSERT INTO token_analysis_index_state[\s\S]*last_error = COALESCE\(NULLIF\(EXCLUDED\.last_error, ''\), token_analysis_index_state\.last_error\)`).
+		WithArgs("2026-06-09.jsonl", int64(100), "arch-1", int64(1), int64(0), "", nil, nil).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.UpdateIndexState(context.Background(), service.TokenAnalysisIndexState{
+		SourceFile: "2026-06-09.jsonl", LastOffset: 100, LastArchiveID: "arch-1", ProcessedRows: 1,
+	})
+
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+
+	// 中断过的轮次留下 started_at 非空、finished_at 为空的行,
+	// 不得据此判定 Running(否则状态永久卡在运行中, 轮询停不下来)。
+	mock.ExpectQuery("FROM token_analysis_index_state").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"source_file", "last_offset", "last_archive_id", "processed_rows", "failed_rows", "last_error", "started_at", "finished_at", "updated_at",
+		}).AddRow("2026-06-02.jsonl", int64(10), "a1", int64(5), int64(1), "boom", now, nil, now))
+
+	status, err := repo.GetIndexStatus(context.Background())
+
+	require.NoError(t, err)
+	require.False(t, status.Running)
+	require.Equal(t, "boom", status.LastError)
+	require.Equal(t, int64(1), status.FailedRows)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
@@ -145,6 +190,32 @@ func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *tes
 	require.Len(t, got.RiskReasons, 2)
 	require.Equal(t, "huge_input_tiny_output", got.RiskReasons[0].Code)
 	require.Equal(t, int64(3), got.RiskReasons[0].Count)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryCountBilledRequests(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	start := time.Date(2026, 6, 9, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+	userID := int64(22)
+
+	// 模型过滤与 FindNearestUsageLog 同口径: model/requested_model/upstream_model 任一命中。
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM usage_logs WHERE[\s\S]*\(model = \$4 OR requested_model = \$4 OR upstream_model = \$4\)`).
+		WithArgs(start, end, userID, "gpt-5.5").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(42)))
+
+	got, err := repo.CountBilledRequests(context.Background(), service.TokenAnalysisFilters{
+		StartTime: &start, EndTime: &end, UserID: &userID, Model: "gpt-5.5",
+		// 归档侧维度不应进入 usage_logs 查询条件。
+		Endpoint: "/v1/responses", RiskMin: 50, Project: "demo", IncludeUnmatched: true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(42), got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

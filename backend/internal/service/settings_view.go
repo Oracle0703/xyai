@@ -481,6 +481,8 @@ type persistedRequestArchiveSettings struct {
 	CaptureResponse bool `json:"capture_response"`
 	// Dir 后台自定义归档目录; 空表示沿用 config.yaml 默认值。
 	Dir string `json:"dir,omitempty"`
+	// MaxRequestBodyBytes 后台自定义请求体截断上限; 0 表示沿用 config.yaml 默认值。
+	MaxRequestBodyBytes int64 `json:"max_request_body_bytes,omitempty"`
 }
 
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）

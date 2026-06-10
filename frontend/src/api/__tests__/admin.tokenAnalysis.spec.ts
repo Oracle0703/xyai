@@ -126,15 +126,15 @@ describe('admin tokenAnalysis API', () => {
   })
 
   it('triggers index with date range', async () => {
-    post.mockResolvedValue({ data: { indexed_rows: 1, failed_rows: 0 } })
+    // 后端 202 无结果体: 索引在后台执行, 结果由状态轮询呈现。
+    post.mockResolvedValue({ data: null })
 
-    const result = await tokenAnalysisAPI.triggerIndex({ start_date: '2026-05-19', end_date: '2026-05-19' })
+    await tokenAnalysisAPI.triggerIndex({ start_date: '2026-05-19', end_date: '2026-05-19' })
 
     expect(post).toHaveBeenCalledWith('/admin/token-analysis/index', {
       start_date: '2026-05-19',
       end_date: '2026-05-19'
     })
-    expect(result.indexed_rows).toBe(1)
   })
 
   it('loads summary risk distribution', async () => {

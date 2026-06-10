@@ -3158,6 +3158,9 @@ type UpdateRequestArchiveSettingsRequest struct {
 	// Dir 归档目录: nil 表示不修改; 空串表示恢复 config 默认; 非空为自定义
 	// 绝对路径, 保存时做磁盘存在/目录可创建/可写校验。
 	Dir *string `json:"dir"`
+	// MaxRequestBodyBytes 请求体截断上限: nil 表示不修改; 0 表示恢复 config
+	// 默认; >0 为自定义字节数, 保存时校验合法区间。
+	MaxRequestBodyBytes *int64 `json:"max_request_body_bytes"`
 }
 
 // UpdateRequestArchiveSettings 更新网关请求归档配置
@@ -3173,18 +3176,26 @@ func (h *SettingHandler) UpdateRequestArchiveSettings(c *gin.Context) {
 		Enabled:         req.Enabled,
 		CaptureResponse: req.CaptureResponse,
 	}
-	if req.Dir != nil {
-		settings.Dir = *req.Dir
-	} else {
-		// 请求未携带 dir 时保持现状: 自定义值原样回传给 Set。
+	if req.Dir == nil || req.MaxRequestBodyBytes == nil {
+		// 请求未携带的字段保持现状: 自定义值原样回传给 Set。
 		current, err := h.settingService.GetRequestArchiveSettings(c.Request.Context())
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return
 		}
-		if current.DirCustomized {
+		if req.Dir == nil && current.DirCustomized {
 			settings.Dir = current.Dir
 		}
+		if req.MaxRequestBodyBytes == nil {
+			// 等于 config 默认的值在 Set 内会归一为"未自定义", 直接回传即可。
+			settings.MaxRequestBodyBytes = current.MaxRequestBodyBytes
+		}
+	}
+	if req.Dir != nil {
+		settings.Dir = *req.Dir
+	}
+	if req.MaxRequestBodyBytes != nil {
+		settings.MaxRequestBodyBytes = *req.MaxRequestBodyBytes
 	}
 	if err := h.settingService.SetRequestArchiveSettings(c.Request.Context(), settings); err != nil {
 		response.ErrorFrom(c, err)

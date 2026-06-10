@@ -246,16 +246,18 @@ gateway:
   # 警告：仅用于短期排障，不要长期开启。归档位于请求热路径，
   # 会读取完整请求体；capture_response 开启时只记录响应大小、hash、流式标记和 token usage，
   # 不保存响应正文。高并发/大 body 场景仍会增加磁盘占用与尾延迟，排障结束后请关闭。
-  # 操作入口：管理后台 /admin/settings 的 Gateway 标签页可热切换 enabled 和 capture_response。
-  # dir、body 截断上限和 queue_size 仍由配置文件控制，修改后需重启服务。
+  # 操作入口：管理后台 /admin/settings 的 Gateway 标签页可热切换 enabled、
+  # capture_response 和 max_request_body_bytes。
+  # max_response_body_bytes 和 queue_size 仍由配置文件控制，修改后需重启服务。
   request_archive:
     # 是否启用归档，默认 false（关闭）。
     enabled: false
     # JSONL 输出目录（默认值）。管理后台 Settings 可配置自定义绝对路径并热切换
     # 写入磁盘（保存时校验磁盘存在/目录可写，无需重启）；后台自定义值优先于本配置。
     dir: "data/request-archive"
-    # 单条请求体最多保存字节数，超出截断。
-    max_request_body_bytes: 8388608
+    # 单条请求体最多保存字节数，超出截断（默认 16MB）。被截断的请求体无法被
+    # token 分析索引器解析，只能降级为元数据入库。管理后台可热改，后台自定义值优先。
+    max_request_body_bytes: 16777216
     # 响应大小超过该值时归档记录标记 body_truncated；响应正文不会写入归档。
     max_response_body_bytes: 2097152
     # 是否捕获响应元信息和 token usage，默认 false；不保存响应正文。

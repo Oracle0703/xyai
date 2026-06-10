@@ -1464,6 +1464,10 @@ export default {
       processed: 'Processed',
       failed: 'Failed',
       indexed: 'Indexed',
+      indexStarted: 'Indexing started in the background; the page refreshes when it finishes',
+      indexRunning: 'Indexing…',
+      indexDone: 'Indexing finished',
+      indexAlreadyRunning: 'An indexing run is already in progress; following its progress',
       userRanking: 'User / API Key Ranking',
       projectRanking: 'Project Usage (Member x Project)',
       project: 'Project',
@@ -1509,8 +1513,10 @@ export default {
       archiveFiles: 'Archive Files',
       archiveFilesHint: 'Only the effective archive dir is listed (move legacy-dir files manually after switching). "Deletable" = fully indexed into DB; safe to gzip/delete on the server (deletion is manual). Today\'s file is being written. Check failures before deleting "Has failures" files.',
       fileSize: 'Size',
-      indexProgress: 'Indexed / Size',
+      indexProgress: 'Read Progress',
       fileStatus: 'Status',
+      fullyRead: 'fully read',
+      requestRowsTotal: '{n} request rows total',
       archiveFileStatus: {
         writing: 'Writing',
         indexing: 'Pending index',
@@ -1518,8 +1524,17 @@ export default {
         attention: 'Has failures',
         compressed: 'Compressed'
       },
+      archiveFileStatusHint: {
+        writing: "Today's file is still being written; do not delete",
+        indexing: 'Index watermark has not caught up with the file size yet; wait for auto index or trigger manually',
+        deletable: 'Fully read and indexed with no failed rows; safe to compress/delete on the server',
+        attention: 'File fully read, but some rows failed to index; failed rows are not retried automatically — deleting the file forfeits re-indexing',
+        compressed: 'Compressed file; not indexed'
+      },
       summary: {
-        totalRequests: 'Total Requests',
+        totalRequests: 'Archived Requests',
+        billedRequests: 'Billed Requests (same period)',
+        archiveCoverage: 'Archive Coverage',
         totalTokens: 'Total Tokens',
         inputTokens: 'Input Tokens',
         outputTokens: 'Output Tokens',
@@ -6411,8 +6426,10 @@ export default {
         dirReset: 'Reset to default',
         diskFree: 'Disk free (current effective dir)',
         dirSwitchWarning: 'Switching the directory does not migrate historical archive files. Prefer switching during off-peak hours with archiving disabled first; move old files manually if they still need indexing.',
+        maxRequestBody: 'Request Body Truncation Limit',
+        maxRequestBodyHint: 'Maximum bytes archived per request body; the excess is truncated. Truncated requests can only be indexed as metadata by token analysis (no message stats or full text) — raise this if failed rows pile up. Takes effect immediately without restart',
         queueSize: 'Queue Size',
-        warning: 'Request archives may contain sensitive business content. Disable it after debugging and clean up files according to your retention policy. Queue size and body truncation limits are still controlled by the config file.',
+        warning: 'Request archives may contain sensitive business content. Disable it after debugging and clean up files according to your retention policy. Queue size is still controlled by the config file.',
         saved: 'Request archive settings saved',
         saveFailed: 'Failed to save request archive settings'
       },

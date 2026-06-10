@@ -142,6 +142,12 @@ type TokenAnalysisSummary struct {
 	UnmatchedRate       float64                          `json:"unmatched_rate"`
 	RiskRequestRate     float64                          `json:"risk_request_rate"`
 	RiskReasons         []TokenAnalysisRiskReasonSummary `json:"risk_reasons"`
+	// BilledRequests 为同期 usage_logs 计费请求数(只应用时间/用户/密钥/账号/
+	// 分组/模型过滤, endpoint/风险分/项目归因是归档侧维度不参与);
+	// ArchiveCoverage = MatchedRequests / BilledRequests, 用于呈现归档样本
+	// 相对真实计费请求的覆盖程度。
+	BilledRequests  int64   `json:"billed_requests"`
+	ArchiveCoverage float64 `json:"archive_coverage"`
 }
 
 type TokenAnalysisRiskReasonSummary struct {
@@ -291,6 +297,8 @@ type TokenAnalysisRepository interface {
 	FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*TokenAnalysisUsageMatch, error)
 	CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error)
 	GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error)
+	// CountBilledRequests 统计同期 usage_logs 计费请求数(覆盖率分母)。
+	CountBilledRequests(ctx context.Context, filters TokenAnalysisFilters) (int64, error)
 	ListUserUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisUserUsage, *pagination.PaginationResult, error)
 	ListProjectUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisProjectUsage, *pagination.PaginationResult, error)
 	ListRequests(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisRequestItem, *pagination.PaginationResult, error)

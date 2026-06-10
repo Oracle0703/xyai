@@ -145,6 +145,13 @@ type tokenAnalysisRepoStub struct {
 	projectRoots map[string]string
 	rootUpserts  []map[string]string
 	userInputs   []TokenAnalysisUserInput
+	// summary/billedRequests 供 GetSummary 口径测试注入返回值;
+	// summaryFilters 记录 repo 实际收到的过滤条件。
+	summary        *TokenAnalysisSummary
+	billedRequests int64
+	summaryFilters *TokenAnalysisFilters
+	// usageLookups 记录 FindNearestUsageLog 调用次数(count_tokens 行不得匹配)。
+	usageLookups int
 }
 
 func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
@@ -156,6 +163,7 @@ func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summar
 }
 
 func (r *tokenAnalysisRepoStub) FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*TokenAnalysisUsageMatch, error) {
+	r.usageLookups++
 	return &TokenAnalysisUsageMatch{
 		UsageLogID:          123,
 		MatchConfidence:     3,
@@ -173,7 +181,16 @@ func (r *tokenAnalysisRepoStub) CountSameBodyRecent(ctx context.Context, bodySHA
 }
 
 func (r *tokenAnalysisRepoStub) GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error) {
+	r.summaryFilters = &filters
+	if r.summary != nil {
+		copied := *r.summary
+		return &copied, nil
+	}
 	return &TokenAnalysisSummary{}, nil
+}
+
+func (r *tokenAnalysisRepoStub) CountBilledRequests(ctx context.Context, filters TokenAnalysisFilters) (int64, error) {
+	return r.billedRequests, nil
 }
 
 func (r *tokenAnalysisRepoStub) ListUserUsage(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisUserUsage, *pagination.PaginationResult, error) {
@@ -371,6 +388,97 @@ func TestTokenAnalysisIndexerSkipsUserInputWhenDisabled(t *testing.T) {
 	require.Equal(t, int64(1), result.IndexedRows)
 	require.Len(t, repo.upserts, 1)
 	require.Empty(t, repo.userInputs)
+}
+
+func TestTokenAnalysisIndexerDegradesTruncatedBodyToMetadata(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-09.jsonl")
+	// 归档端按 max_request_body_bytes 截断后 body 不是完整 JSON:
+	// 行本身合法 + body_truncated=true, 应降级为元数据入库而非失败行。
+	line := `{"archive_id":"tr1","event":"request","timestamp":"2026-06-09T01:02:03Z","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-5.5","body":"{\"model\":\"gpt-5.5\",\"input\":[{\"type\":\"mess","body_size":9299897,"body_sha256":"hash-tr1","body_truncated":true}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-09", EndDate: "2026-06-09"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Len(t, repo.upserts, 1)
+	summary := repo.upserts[0]
+	require.Equal(t, "tr1", summary.ArchiveID)
+	require.True(t, summary.RequestBodyTruncated)
+	require.Equal(t, "gpt-5.5", summary.Model)
+	require.Equal(t, int64(9299897), summary.RequestBodySize)
+	require.Equal(t, "body_truncated", summary.SummaryJSON["degraded"])
+	for _, state := range repo.states {
+		require.Empty(t, state.LastError)
+		require.Zero(t, state.FailedRows)
+	}
+}
+
+func TestTokenAnalysisIndexerSkipsUsageMatchForCountTokens(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-09.jsonl")
+	// count_tokens 探测不计费, 不得做用量匹配(否则与紧邻真实请求匹配到同一条
+	// usage_logs, 概览把 token 累加两次); endpoint 还原 /count_tokens 后缀,
+	// 库内才能与真实 messages 请求区分。
+	line := `{"archive_id":"ct1","event":"request","timestamp":"2026-06-09T01:02:03Z","method":"POST","path":"/antigravity/v1/messages/count_tokens","endpoint":"/v1/messages","user_id":7,"api_key_id":9,"model":"claude-sonnet-4-6","body":"{\"model\":\"claude-sonnet-4-6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}","body_size":72,"body_sha256":"hash-ct1"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-09", EndDate: "2026-06-09"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Zero(t, repo.usageLookups)
+	require.Len(t, repo.upserts, 1)
+	summary := repo.upserts[0]
+	require.Nil(t, summary.UsageLogID)
+	require.Equal(t, int16(0), summary.MatchConfidence)
+	require.Equal(t, "/v1/messages/count_tokens", summary.Endpoint)
+}
+
+func TestTokenAnalysisIndexerCountsUntruncatedBadBodyAsFailed(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-09.jsonl")
+	// 未截断却解析不了的 body 是真异常: 维持计失败行 + 记录 last_error。
+	line := `{"archive_id":"bad1","event":"request","timestamp":"2026-06-09T01:02:03Z","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-5.5","body":"not-json","body_size":8,"body_sha256":"hash-bad1"}` + "\n"
+	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-09", EndDate: "2026-06-09"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(0), result.IndexedRows)
+	require.Equal(t, int64(1), result.FailedRows)
+	require.Empty(t, repo.upserts)
+	var lastError string
+	var failedRows int64
+	for _, state := range repo.states {
+		if state.LastError != "" {
+			lastError = state.LastError
+		}
+		failedRows += state.FailedRows
+	}
+	require.Contains(t, lastError, "parse request body")
+	require.Equal(t, int64(1), failedRows)
 }
 
 func TestTokenAnalysisServiceGetUserInputNotFound(t *testing.T) {

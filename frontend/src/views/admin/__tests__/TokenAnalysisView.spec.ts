@@ -84,7 +84,9 @@ describe('TokenAnalysisView', () => {
       risky_cost: 0.6,
       unmatched_rate: 0.1667,
       risk_request_rate: 0.1667,
-      risk_reasons: [{ code: 'huge_input_tiny_output', count: 2 }]
+      risk_reasons: [{ code: 'huge_input_tiny_output', count: 2 }],
+      billed_requests: 48,
+      archive_coverage: 0.421
     })
     api.listUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
     api.listRequests.mockResolvedValue({
@@ -158,6 +160,14 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.totalRequests')
     expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.inputTokens')
     expect(wrapper.text()).toContain('5,000')
+    // 口径卡片: 同期计费请求数 + 归档覆盖率(matched/billed)。
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.billedRequests')
+    expect(wrapper.text()).toContain('48')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.archiveCoverage')
+    expect(wrapper.text()).toContain('42.1%')
+    // 归档文件: 水位追平的文件进度显示"已读完", 并标注请求行合计。
+    expect(wrapper.text()).toContain('100% · admin.tokenAnalysis.fullyRead')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
   })
 
   it('lazy loads full user input when a request row is opened', async () => {
@@ -259,5 +269,73 @@ describe('TokenAnalysisView', () => {
     await flushPromises()
     expect(wrapper.text()).not.toContain('common.loading')
     expect(wrapper.text()).toContain('fresh input from B')
+  })
+
+  it('triggers index asynchronously and polls status until finished', async () => {
+    // 索引触发已改异步(202): POST 立即返回, 之后每 3s 轮询状态,
+    // running 翻 false 时停止轮询并刷新页面数据。
+    vi.useFakeTimers()
+    try {
+      api.triggerIndex.mockResolvedValue(undefined)
+      const wrapper = mount(TokenAnalysisView, {
+        global: { stubs: { AppLayout: AppLayoutStub } }
+      })
+      await flushPromises()
+      const mountCalls = api.getIndexStatus.mock.calls.length
+
+      const button = wrapper.findAll('button').find((b) => b.text().includes('admin.tokenAnalysis.indexNow'))
+      expect(button).toBeTruthy()
+
+      // 第一轮轮询返回 running=true, 之后回落到默认 mock(running=false)。
+      api.getIndexStatus.mockResolvedValueOnce({ running: true, processed_rows: 0, failed_rows: 0, files: [] })
+      await button!.trigger('click')
+      await flushPromises()
+      expect(api.triggerIndex).toHaveBeenCalledTimes(1)
+      // 轮询期间按钮保持禁用。
+      expect(button!.attributes('disabled')).toBeDefined()
+
+      await vi.advanceTimersByTimeAsync(3000)
+      await flushPromises()
+      expect(api.getIndexStatus.mock.calls.length).toBe(mountCalls + 1)
+      expect(button!.attributes('disabled')).toBeDefined()
+
+      // 第二轮 running=false: 停止轮询并 reloadAll(其中再拉一次状态)。
+      await vi.advanceTimersByTimeAsync(3000)
+      await flushPromises()
+      expect(button!.attributes('disabled')).toBeUndefined()
+
+      const settled = api.getIndexStatus.mock.calls.length
+      await vi.advanceTimersByTimeAsync(15000)
+      await flushPromises()
+      expect(api.getIndexStatus.mock.calls.length).toBe(settled)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('follows an already running index on mount and stops polling on unmount', async () => {
+    vi.useFakeTimers()
+    try {
+      api.getIndexStatus.mockResolvedValue({ running: true, processed_rows: 0, failed_rows: 0, files: [] })
+      const wrapper = mount(TokenAnalysisView, {
+        global: { stubs: { AppLayout: AppLayoutStub } }
+      })
+      await flushPromises()
+      const mountCalls = api.getIndexStatus.mock.calls.length
+
+      // 进页面时已有索引在跑(如自动索引): 自动开始轮询。
+      await vi.advanceTimersByTimeAsync(3000)
+      await flushPromises()
+      expect(api.getIndexStatus.mock.calls.length).toBe(mountCalls + 1)
+
+      // 卸载后定时器必须清理, 不再发请求。
+      wrapper.unmount()
+      const settled = api.getIndexStatus.mock.calls.length
+      await vi.advanceTimersByTimeAsync(15000)
+      await flushPromises()
+      expect(api.getIndexStatus.mock.calls.length).toBe(settled)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -45,6 +45,10 @@ export interface TokenAnalysisSummary {
   unmatched_rate?: number
   risk_request_rate?: number
   risk_reasons?: TokenAnalysisRiskReasonSummary[]
+  // 同期 usage_logs 计费请求数与归档覆盖率(matched/billed);
+  // 概览口径固定含未匹配行, 不随 include_unmatched 勾选变化。
+  billed_requests?: number
+  archive_coverage?: number
 }
 
 export interface TokenAnalysisRiskReasonSummary {
@@ -150,13 +154,6 @@ export interface TokenAnalysisIndexRequest {
   timezone?: string
 }
 
-export interface TokenAnalysisIndexResult {
-  indexed_rows: number
-  skipped_rows?: number
-  failed_rows: number
-  files?: number
-}
-
 export interface TokenAnalysisIndexState {
   source_file: string
   last_offset: number
@@ -239,9 +236,9 @@ async function getRequestInput(archiveId: string): Promise<TokenAnalysisRequestI
   return data
 }
 
-async function triggerIndex(payload: TokenAnalysisIndexRequest): Promise<TokenAnalysisIndexResult> {
-  const { data } = await apiClient.post<TokenAnalysisIndexResult>('/admin/token-analysis/index', payload)
-  return data
+// 异步触发: 后端校验通过即返回 202, 索引在后台执行, 进度轮询 getIndexStatus。
+async function triggerIndex(payload: TokenAnalysisIndexRequest): Promise<void> {
+  await apiClient.post('/admin/token-analysis/index', payload)
 }
 
 async function getIndexStatus(): Promise<TokenAnalysisIndexStatus> {

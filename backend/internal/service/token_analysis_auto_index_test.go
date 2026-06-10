@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -104,6 +106,72 @@ func TestTokenAnalysisAutoIndexStopCancelsRunningRound(t *testing.T) {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("StopAutoIndex did not return after cancelling running round")
+	}
+}
+
+func TestTokenAnalysisIndexRangeAsyncRunsInBackground(t *testing.T) {
+	dir := t.TempDir()
+	line := `{"archive_id":"async1","event":"request","timestamp":"2026-06-09T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash-async1"}` + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "2026-06-09.jsonl"), []byte(line), 0o600))
+
+	repo := &lockedTokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+		},
+	}, nil)
+
+	// 非法日期同步报 400, 不会吞进后台。
+	err := svc.IndexRangeAsync(TokenAnalysisIndexRequest{StartDate: "not-a-date"})
+	require.Error(t, err)
+	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+
+	require.NoError(t, svc.IndexRangeAsync(TokenAnalysisIndexRequest{StartDate: "2026-06-09", EndDate: "2026-06-09"}))
+	require.Eventually(t, func() bool {
+		return repo.upsertCount() >= 1
+	}, 3*time.Second, 10*time.Millisecond)
+
+	// Stop 等待后台 goroutine 退出后再读, 避免与 worker 写并发。
+	svc.StopAutoIndex()
+	require.Equal(t, "async1", repo.upserts[0].ArchiveID)
+}
+
+func TestTokenAnalysisIndexRangeAsyncConflictsWhileRunning(t *testing.T) {
+	dir := t.TempDir()
+	line := `{"archive_id":"blk2","event":"request","timestamp":"2026-06-09T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash-blk2"}` + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "2026-06-09.jsonl"), []byte(line), 0o600))
+
+	repo := &blockingTokenAnalysisRepoStub{entered: make(chan struct{}, 1)}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+		},
+	}, nil)
+
+	require.NoError(t, svc.IndexRangeAsync(TokenAnalysisIndexRequest{StartDate: "2026-06-09", EndDate: "2026-06-09"}))
+	select {
+	case <-repo.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("async index run did not start")
+	}
+
+	// 运行期间再次触发: 同步 409。
+	err := svc.IndexRangeAsync(TokenAnalysisIndexRequest{StartDate: "2026-06-09", EndDate: "2026-06-09"})
+	require.Error(t, err)
+	require.Equal(t, http.StatusConflict, infraerrors.Code(err))
+
+	// Stop 取消进行中的手动轮次并快速返回。
+	done := make(chan struct{})
+	go func() {
+		svc.StopAutoIndex()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("StopAutoIndex did not return after cancelling manual run")
 	}
 }
 

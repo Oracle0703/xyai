@@ -497,6 +497,27 @@
                 </div>
 
                 <div
+                  class="space-y-2 border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.requestArchive.maxRequestBody")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.requestArchive.maxRequestBodyHint") }}
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <input
+                      v-model.number="requestArchiveMaxRequestBodyMB"
+                      type="number"
+                      min="1"
+                      step="1"
+                      class="input h-9 w-32 text-sm"
+                    />
+                    <span class="text-sm text-gray-500 dark:text-gray-400">MB</span>
+                  </div>
+                </div>
+
+                <div
                   v-if="requestArchiveForm.enabled"
                   class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700"
                 >
@@ -7063,6 +7084,18 @@ const requestArchiveForm = reactive({
   queue_size: 1024,
 });
 
+// 截断阈值按 MB 编辑(字节数对人不友好), 提交时换算回字节。
+const requestArchiveMaxRequestBodyMB = computed({
+  get: () =>
+    Math.round((requestArchiveForm.max_request_body_bytes / (1024 * 1024)) * 10) /
+    10,
+  set: (mb: number) => {
+    requestArchiveForm.max_request_body_bytes = Math.round(
+      (Number(mb) || 0) * 1024 * 1024,
+    );
+  },
+});
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true);
 const streamTimeoutSaving = ref(false);
@@ -8875,6 +8908,8 @@ async function saveRequestArchiveSettings() {
       enabled: requestArchiveForm.enabled,
       capture_response: requestArchiveForm.capture_response,
       dir,
+      // 等于 config 默认的值后端会归一为"未自定义", 直接提交当前值即可。
+      max_request_body_bytes: requestArchiveForm.max_request_body_bytes,
     });
     Object.assign(requestArchiveForm, updated);
     appStore.showSuccess(t("admin.settings.requestArchive.saved"));

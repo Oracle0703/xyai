@@ -228,6 +228,13 @@ func (s *TokenAnalysisService) indexArchiveFile(ctx context.Context, file string
 	return result, nil
 }
 
+// tokenAnalysisIsCountTokensPath 判定原始请求路径是否为 count_tokens 探测。
+// 必须用原始 path 判断: 归档记录的 endpoint 字段已被 NormalizeInboundEndpoint
+// 折叠成 /v1/messages, 看不出 count_tokens。
+func tokenAnalysisIsCountTokensPath(path string) bool {
+	return strings.HasSuffix(strings.TrimRight(strings.TrimSpace(path), "/"), "/count_tokens")
+}
+
 func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string, offset int64, line []byte, eof bool, roots *tokenAnalysisProjectRoots) (indexed int64, skipped int64, failed int64, archiveID string, err error) {
 	trimmed := strings.TrimSpace(string(line))
 	if trimmed == "" {
@@ -250,15 +257,32 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	}
 	bodySummary, err := SummarizeTokenAnalysisRequest(event.Endpoint, []byte(event.Body), tokenAnalysisMaxPreviewChars(s.cfg))
 	if err != nil {
-		return 0, 0, 0, archiveID, err
+		// 归档端按 max_request_body_bytes 截断过的 body 必然解析失败, 这是
+		// 写入端的预期行为而非坏数据: 降级为仅元数据入库, 不计失败行。
+		if !event.BodyTruncated {
+			return 0, 0, 0, archiveID, err
+		}
+		bodySummary = TokenAnalysisBodySummary{SummaryJSON: map[string]any{"degraded": "body_truncated"}}
 	}
 	if bodySummary.Model == "" {
 		bodySummary.Model = event.Model
 	}
 
-	match, err := s.repo.FindNearestUsageLog(ctx, eventTime, event.UserID, event.APIKeyID, firstNonEmptyTokenAnalysisString(bodySummary.Model, event.Model), tokenAnalysisUsageMatchWindow(s.cfg))
-	if err != nil {
-		return 0, 0, 0, archiveID, err
+	// count_tokens 是不计费的探测请求, 不参与用量匹配: 它与紧邻的真实请求
+	// 用户/密钥/模型/时间几乎相同, 会匹配到同一条 usage_logs, 概览和用户/
+	// 项目聚合会把该条计费 token 累加两次。入库 endpoint 还原 /count_tokens
+	// 后缀 -- 归一化会把它折叠成 /v1/messages, 否则库内无法与真实请求区分。
+	endpoint := firstNonEmptyTokenAnalysisString(event.Endpoint, event.Path)
+	isCountTokens := tokenAnalysisIsCountTokensPath(firstNonEmptyTokenAnalysisString(event.Path, event.Endpoint))
+	if isCountTokens && !strings.HasSuffix(strings.TrimRight(endpoint, "/"), "/count_tokens") {
+		endpoint = strings.TrimRight(endpoint, "/") + "/count_tokens"
+	}
+	var match *TokenAnalysisUsageMatch
+	if !isCountTokens {
+		match, err = s.repo.FindNearestUsageLog(ctx, eventTime, event.UserID, event.APIKeyID, firstNonEmptyTokenAnalysisString(bodySummary.Model, event.Model), tokenAnalysisUsageMatchWindow(s.cfg))
+		if err != nil {
+			return 0, 0, 0, archiveID, err
+		}
 	}
 	usage := TokenAnalysisUsageSignals{}
 	var usageLogID *int64
@@ -299,7 +323,7 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 		AccountID:            event.AccountID,
 		GroupID:              event.GroupID,
 		Model:                firstNonEmptyTokenAnalysisString(bodySummary.Model, event.Model),
-		Endpoint:             firstNonEmptyTokenAnalysisString(event.Endpoint, event.Path),
+		Endpoint:             endpoint,
 		Method:               event.Method,
 		RequestBodySize:      event.BodySize,
 		RequestBodyTruncated: event.BodyTruncated,

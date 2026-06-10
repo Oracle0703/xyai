@@ -161,10 +161,19 @@
               <tr v-for="file in archiveFiles" :key="file.name">
                 <td class="font-medium">{{ file.name }}</td>
                 <td>{{ formatBytes(file.size_bytes) }}</td>
-                <td>{{ archiveFileProgress(file) }}</td>
-                <td>{{ formatNumber(file.processed_rows) }} / {{ formatNumber(file.failed_rows) }}</td>
+                <td :title="archiveFileProgressDetail(file)">{{ archiveFileProgress(file) }}</td>
                 <td>
-                  <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="archiveFileStatusClass(file.status)">
+                  {{ formatNumber(file.processed_rows) }} / {{ formatNumber(file.failed_rows) }}
+                  <span v-if="archiveFileFullyRead(file)" class="text-gray-400">
+                    · {{ t('admin.tokenAnalysis.requestRowsTotal', { n: formatNumber(file.processed_rows + file.failed_rows) }) }}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold"
+                    :class="archiveFileStatusClass(file.status)"
+                    :title="t(`admin.tokenAnalysis.archiveFileStatusHint.${file.status}`)"
+                  >
                     {{ t(`admin.tokenAnalysis.archiveFileStatus.${file.status}`) }}
                   </span>
                   <div v-if="file.last_error" class="mt-1 max-w-[280px] truncate text-xs text-red-500" :title="file.last_error">{{ file.last_error }}</div>
@@ -428,7 +437,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type {
@@ -491,6 +500,10 @@ const cleanFilters = computed(() => {
 
 const summaryCards = computed(() => [
   { label: t('admin.tokenAnalysis.summary.totalRequests'), value: formatNumber(summary.value?.total_requests ?? 0) },
+  // 同期计费请求数(usage_logs)与归档覆盖率: 直观呈现归档样本与真实
+  // 计费请求量的差距, 避免把"已归档请求数"误读为全量请求数。
+  { label: t('admin.tokenAnalysis.summary.billedRequests'), value: formatNumber(summary.value?.billed_requests ?? 0) },
+  { label: t('admin.tokenAnalysis.summary.archiveCoverage'), value: percent(summary.value?.archive_coverage ?? 0) },
   { label: t('admin.tokenAnalysis.summary.totalTokens'), value: formatNumber(summary.value?.total_tokens ?? 0) },
   { label: t('admin.tokenAnalysis.summary.inputTokens'), value: formatNumber(summary.value?.total_input_tokens ?? 0) },
   { label: t('admin.tokenAnalysis.summary.outputTokens'), value: formatNumber(summary.value?.total_output_tokens ?? 0) },
@@ -502,7 +515,7 @@ const summaryCards = computed(() => [
 ])
 
 const indexStatusText = computed(() => {
-  if (indexStatus.value?.running) return t('common.loading')
+  if (indexStatus.value?.running) return t('admin.tokenAnalysis.indexRunning')
   if (indexStatus.value?.last_error) return indexStatus.value.last_error
   return indexStatus.value?.updated_at || '-'
 })
@@ -647,9 +660,20 @@ async function loadArchiveFiles() {
   archiveFiles.value = await adminAPI.tokenAnalysis.listArchiveFiles()
 }
 
-// 索引水位 / 文件大小, 两者相等即"已全部入库"。
+// 文件是否已被索引器读完(字节水位追平文件大小)。"有失败行"状态也意味着
+// 已读完 -- 只是其中部分行未入库, 这层语义靠进度列和状态提示显式说出来。
+function archiveFileFullyRead(file: TokenAnalysisArchiveFile): boolean {
+  return file.status !== 'compressed' && file.size_bytes > 0 && file.indexed_offset >= file.size_bytes
+}
+
+// 进度展示为百分比, 直观回答"处理完没有"; 字节明细放 title 悬浮提示。
 function archiveFileProgress(file: TokenAnalysisArchiveFile): string {
-  if (file.status === 'compressed') return '-'
+  if (file.status === 'compressed' || file.size_bytes <= 0) return '-'
+  if (archiveFileFullyRead(file)) return `100% · ${t('admin.tokenAnalysis.fullyRead')}`
+  return `${(Math.min(file.indexed_offset / file.size_bytes, 1) * 100).toFixed(1)}%`
+}
+
+function archiveFileProgressDetail(file: TokenAnalysisArchiveFile): string {
   return `${formatBytes(file.indexed_offset)} / ${formatBytes(file.size_bytes)}`
 }
 
@@ -678,19 +702,59 @@ async function reloadAll() {
   }
 }
 
+// 索引触发已改异步(后端立即返回 202): 大范围回扫可达分钟级, 同步等待会撞
+// axios 30s 超时报"网络错误"。触发后轮询索引状态, running 翻 false 即完成。
+const INDEX_POLL_INTERVAL_MS = 3000
+let indexPollTimer: ReturnType<typeof setTimeout> | null = null
+
+function stopIndexPolling() {
+  if (indexPollTimer !== null) {
+    clearTimeout(indexPollTimer)
+    indexPollTimer = null
+  }
+}
+
+function scheduleIndexPoll() {
+  stopIndexPolling()
+  indexing.value = true
+  indexPollTimer = setTimeout(() => void pollIndexStatus(), INDEX_POLL_INTERVAL_MS)
+}
+
+async function pollIndexStatus() {
+  indexPollTimer = null
+  try {
+    await Promise.all([loadIndexStatus(), loadArchiveFiles()])
+  } catch {
+    // 单次轮询失败不终止(可能是瞬时网络抖动), 下一轮重试。
+  }
+  if (indexStatus.value?.running) {
+    scheduleIndexPoll()
+    return
+  }
+  indexing.value = false
+  appStore.showSuccess(t('admin.tokenAnalysis.indexDone'))
+  void reloadAll()
+}
+
 async function triggerIndex() {
   indexing.value = true
   try {
-    const result = await adminAPI.tokenAnalysis.triggerIndex({
+    await adminAPI.tokenAnalysis.triggerIndex({
       start_date: filters.start_date,
       end_date: filters.end_date,
       timezone: filters.timezone
     })
-    appStore.showSuccess(`${t('admin.tokenAnalysis.indexed')}: ${result.indexed_rows}`)
-    await reloadAll()
+    appStore.showSuccess(t('admin.tokenAnalysis.indexStarted'))
+    scheduleIndexPoll()
   } catch (error) {
-    appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
-  } finally {
+    const err = error as { reason?: string; message?: string }
+    if (err?.reason === 'TOKEN_ANALYSIS_INDEX_RUNNING') {
+      // 自动索引或他人触发的轮次在跑: 跟进其进度而非报错收场。
+      appStore.showError(t('admin.tokenAnalysis.indexAlreadyRunning'))
+      scheduleIndexPoll()
+      return
+    }
+    appStore.showError(err?.message || t('errors.networkError'))
     indexing.value = false
   }
 }
@@ -728,6 +792,15 @@ function toggleProjectFilter(project: string) {
 }
 
 onMounted(() => {
-  void reloadAll()
+  void reloadAll().then(() => {
+    // 进页面时已有索引在跑(自动索引或他人触发): 直接跟进进度。
+    if (indexStatus.value?.running) {
+      scheduleIndexPoll()
+    }
+  })
+})
+
+onUnmounted(() => {
+  stopIndexPolling()
 })
 </script>

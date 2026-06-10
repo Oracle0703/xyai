@@ -123,6 +123,46 @@ func TestSetRequestArchiveSettingsEmptyDirRestoresDefault(t *testing.T) {
 	require.Equal(t, "data/request-archive", svc.GetRequestArchiveRuntimeConfig(context.Background()).Dir)
 }
 
+func TestSetRequestArchiveSettingsPersistsCustomMaxRequestBodyBytes(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.SetRequestArchiveSettings(context.Background(), &RequestArchiveSettings{
+		Enabled:             true,
+		MaxRequestBodyBytes: 16 * 1024 * 1024,
+	})
+	require.NoError(t, err)
+
+	settings, err := svc.GetRequestArchiveSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(16*1024*1024), settings.MaxRequestBodyBytes)
+	// 归档写入端读运行态配置, 必须跟随自定义截断上限(热生效)。
+	require.Equal(t, int64(16*1024*1024), svc.GetRequestArchiveRuntimeConfig(context.Background()).MaxRequestBodyBytes)
+
+	// 0 = 恢复 config 默认(空 config 时为 64KB 兜底)。
+	require.NoError(t, svc.SetRequestArchiveSettings(context.Background(), &RequestArchiveSettings{MaxRequestBodyBytes: 0}))
+	settings, err = svc.GetRequestArchiveSettings(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(64*1024), settings.MaxRequestBodyBytes)
+}
+
+func TestSetRequestArchiveSettingsRejectsInvalidMaxRequestBodyBytes(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := NewSettingService(repo, &config.Config{})
+
+	// 低于 64KB 下限。
+	err := svc.SetRequestArchiveSettings(context.Background(), &RequestArchiveSettings{MaxRequestBodyBytes: 1024})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "max request body bytes")
+
+	// 高于 512MB 上限。
+	err = svc.SetRequestArchiveSettings(context.Background(), &RequestArchiveSettings{MaxRequestBodyBytes: 1024 * 1024 * 1024})
+	require.Error(t, err)
+
+	// 校验失败不得污染运行态。
+	require.Equal(t, int64(64*1024), svc.GetRequestArchiveRuntimeConfig(context.Background()).MaxRequestBodyBytes)
+}
+
 func TestTokenAnalysisIndexerFollowsRuntimeArchiveDir(t *testing.T) {
 	// config 默认目录留空目录, 后台自定义目录里放 JSONL:
 	// 索引器必须跟随运行态目录(与写入端同源), 而不是 config 值。

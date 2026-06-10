@@ -20,7 +20,7 @@ type tokenAnalysisService interface {
 	GetUserInput(ctx context.Context, archiveID string) (*service.TokenAnalysisUserInput, error)
 	ListArchiveFiles(ctx context.Context) ([]service.TokenAnalysisArchiveFile, error)
 	GetIndexStatus(ctx context.Context) (*service.TokenAnalysisIndexStatus, error)
-	IndexRange(ctx context.Context, req service.TokenAnalysisIndexRequest) (*service.TokenAnalysisIndexResult, error)
+	IndexRangeAsync(req service.TokenAnalysisIndexRequest) error
 }
 
 type TokenAnalysisHandler struct {
@@ -127,18 +127,19 @@ func (h *TokenAnalysisHandler) RequestInput(c *gin.Context) {
 	response.Success(c, input)
 }
 
+// TriggerIndex 异步触发索引并立即返回 202: 大范围回扫可达分钟级, 同步等待
+// 会撞前端 30s 超时; 进度由前端轮询 IndexStatus 获取。
 func (h *TokenAnalysisHandler) TriggerIndex(c *gin.Context) {
 	var req service.TokenAnalysisIndexRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request body")
 		return
 	}
-	result, err := h.service.IndexRange(c.Request.Context(), req)
-	if err != nil {
+	if err := h.service.IndexRangeAsync(req); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, result)
+	response.Accepted(c, nil)
 }
 
 // ArchiveFiles 列出归档目录 JSONL 文件与索引水位, 已入库完成的文件打可删除标签。

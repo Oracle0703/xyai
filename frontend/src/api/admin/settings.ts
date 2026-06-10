@@ -1153,6 +1153,8 @@ export interface UpdateRequestArchiveSettingsRequest {
   capture_response: boolean;
   /** 归档目录: 省略表示不修改; 空串恢复 config 默认; 非空为自定义绝对路径 */
   dir?: string;
+  /** 请求体截断上限(字节): 省略表示不修改; 0 恢复 config 默认; >0 为自定义 */
+  max_request_body_bytes?: number;
 }
 
 export async function getRequestArchiveSettings(): Promise<RequestArchiveSettings> {

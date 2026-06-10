@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,10 +72,35 @@ func TestTokenAnalysisHandlerRequestInput(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestTokenAnalysisHandlerTriggerIndexReturnsAccepted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &tokenAnalysisServiceStub{}
+	h := &TokenAnalysisHandler{service: svc}
+
+	r := gin.New()
+	r.POST("/index", h.TriggerIndex)
+
+	// 异步触发: 校验通过即 202, 索引结果不在响应里, 由前端轮询状态。
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/index", strings.NewReader(`{"start_date":"2026-06-04","end_date":"2026-06-09"}`)))
+	require.Equal(t, http.StatusAccepted, w.Code)
+	require.Equal(t, "2026-06-04", svc.lastIndexReq.StartDate)
+	require.Equal(t, "2026-06-09", svc.lastIndexReq.EndDate)
+
+	// 已在运行: 同步透传 409。
+	svc.indexErr = infraerrors.Conflict("TOKEN_ANALYSIS_INDEX_RUNNING", "token analysis indexing is already running")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/index", strings.NewReader(`{}`)))
+	require.Equal(t, http.StatusConflict, w.Code)
+	require.Contains(t, w.Body.String(), "TOKEN_ANALYSIS_INDEX_RUNNING")
+}
+
 type tokenAnalysisServiceStub struct {
-	summary     *service.TokenAnalysisSummary
-	userInput   *service.TokenAnalysisUserInput
-	lastFilters service.TokenAnalysisFilters
+	summary      *service.TokenAnalysisSummary
+	userInput    *service.TokenAnalysisUserInput
+	lastFilters  service.TokenAnalysisFilters
+	lastIndexReq service.TokenAnalysisIndexRequest
+	indexErr     error
 }
 
 func (s *tokenAnalysisServiceStub) GetSummary(ctx context.Context, filters service.TokenAnalysisFilters) (*service.TokenAnalysisSummary, error) {
@@ -112,8 +138,9 @@ func (s *tokenAnalysisServiceStub) GetIndexStatus(ctx context.Context) (*service
 	return &service.TokenAnalysisIndexStatus{}, nil
 }
 
-func (s *tokenAnalysisServiceStub) IndexRange(ctx context.Context, req service.TokenAnalysisIndexRequest) (*service.TokenAnalysisIndexResult, error) {
-	return &service.TokenAnalysisIndexResult{}, nil
+func (s *tokenAnalysisServiceStub) IndexRangeAsync(req service.TokenAnalysisIndexRequest) error {
+	s.lastIndexReq = req
+	return s.indexErr
 }
 
 var _ = time.Time{}

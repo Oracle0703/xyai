@@ -172,6 +172,11 @@ const requestArchiveRuntimeErrorTTL = time.Second
 const requestArchiveRuntimeDBTimeout = 2 * time.Second
 const requestArchiveRuntimeCacheKey = "request_archive_runtime_config"
 
+// 后台自定义请求体截断上限的合法区间: 过小会让所有归档行都被截断,
+// 过大则单文件膨胀失控(当前生产单日已 16GB 级)。
+const minRequestArchiveBodyBytes = int64(64 * 1024)
+const maxRequestArchiveBodyBytes = int64(512 * 1024 * 1024)
+
 const openAIQuotaAutoPauseSettingsRefreshKey = "openai_quota_auto_pause_settings"
 
 // DefaultSubscriptionGroupReader validates group references used by default subscriptions.
@@ -4181,6 +4186,9 @@ func (s *SettingService) getRequestArchiveSettingsUncached(ctx context.Context) 
 		settings.Dir = dir
 		settings.DirCustomized = true
 	}
+	if stored.MaxRequestBodyBytes > 0 {
+		settings.MaxRequestBodyBytes = stored.MaxRequestBodyBytes
+	}
 	return settings, nil
 }
 
@@ -4239,10 +4247,23 @@ func (s *SettingService) SetRequestArchiveSettings(ctx context.Context, settings
 			return err
 		}
 	}
+	// MaxRequestBodyBytes 语义同 Dir: 0 = 沿用 config.yaml 默认(清除自定义);
+	// 等价于默认值的输入不固化, 避免 config 默认日后调整时被旧自定义值钉住。
+	customMaxRequestBodyBytes := settings.MaxRequestBodyBytes
+	if customMaxRequestBodyBytes <= 0 || customMaxRequestBodyBytes == s.defaultRequestArchiveSettings().MaxRequestBodyBytes {
+		customMaxRequestBodyBytes = 0
+	}
+	if customMaxRequestBodyBytes != 0 &&
+		(customMaxRequestBodyBytes < minRequestArchiveBodyBytes || customMaxRequestBodyBytes > maxRequestArchiveBodyBytes) {
+		return infraerrors.BadRequest("REQUEST_ARCHIVE_MAX_REQUEST_BODY_INVALID",
+			fmt.Sprintf("max request body bytes must be between %d and %d, got %d",
+				minRequestArchiveBodyBytes, maxRequestArchiveBodyBytes, customMaxRequestBodyBytes))
+	}
 	stored := persistedRequestArchiveSettings{
-		Enabled:         settings.Enabled,
-		CaptureResponse: settings.CaptureResponse,
-		Dir:             customDir,
+		Enabled:             settings.Enabled,
+		CaptureResponse:     settings.CaptureResponse,
+		Dir:                 customDir,
+		MaxRequestBodyBytes: customMaxRequestBodyBytes,
 	}
 	data, err := json.Marshal(stored)
 	if err != nil {
@@ -4257,6 +4278,9 @@ func (s *SettingService) SetRequestArchiveSettings(ctx context.Context, settings
 	if customDir != "" {
 		merged.Dir = customDir
 		merged.DirCustomized = true
+	}
+	if customMaxRequestBodyBytes > 0 {
+		merged.MaxRequestBodyBytes = customMaxRequestBodyBytes
 	}
 	s.storeRequestArchiveRuntimeConfig(merged, requestArchiveRuntimeCacheTTL)
 	return nil

@@ -24,21 +24,19 @@ func (s *TokenAnalysisService) startAutoIndexWithInterval(interval time.Duration
 	if s == nil || s.repo == nil || interval <= 0 {
 		return
 	}
-	// baseCtx 在 Stop 时取消, 让正在执行的索引轮次尽快经 repo 调用报错退出,
-	// 避免大文件回扫拖住优雅停机(codex 审查中等3)。
-	baseCtx, cancel := context.WithCancel(context.Background())
-	s.autoIndexCancel = cancel
-	s.autoIndexWG.Add(1)
+	// lifecycleCtx 在 Stop 时取消, 让正在执行的索引轮次尽快经 repo 调用报错退出,
+	// 避免大文件回扫拖住优雅停机(codex 审查中等3); 手动异步索引同源。
+	s.backgroundWG.Add(1)
 	go func() {
-		defer s.autoIndexWG.Done()
+		defer s.backgroundWG.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
-		s.autoIndexOnce(baseCtx)
+		s.autoIndexOnce(s.lifecycleCtx)
 		for {
 			select {
 			case <-ticker.C:
-				s.autoIndexOnce(baseCtx)
+				s.autoIndexOnce(s.lifecycleCtx)
 			case <-s.autoIndexStop:
 				return
 			}
@@ -46,19 +44,19 @@ func (s *TokenAnalysisService) startAutoIndexWithInterval(interval time.Duration
 	}()
 }
 
-// StopAutoIndex 停止自动索引循环并等待退出(幂等, 未启动时安全);
-// 先取消进行中的轮次再等待, 停机不会被长索引拖住。
+// StopAutoIndex 停止自动索引循环与进行中的手动异步索引并等待退出
+// (幂等, 未启动时安全); 先取消再等待, 停机不会被长索引拖住。
 func (s *TokenAnalysisService) StopAutoIndex() {
 	if s == nil {
 		return
 	}
 	s.autoIndexStopOnce.Do(func() {
-		if s.autoIndexCancel != nil {
-			s.autoIndexCancel()
+		if s.lifecycleCancel != nil {
+			s.lifecycleCancel()
 		}
 		close(s.autoIndexStop)
 	})
-	s.autoIndexWG.Wait()
+	s.backgroundWG.Wait()
 }
 
 func (s *TokenAnalysisService) autoIndexOnce(baseCtx context.Context) {

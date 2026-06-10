@@ -266,6 +266,46 @@ WHERE ` + strings.Join(where, " AND ")
 	return &summary, nil
 }
 
+// CountBilledRequests 统计同期 usage_logs 计费请求数, 作为概览归档覆盖率的
+// 分母。只应用 usage_logs 上有对应列的过滤(时间/用户/密钥/账号/分组/模型);
+// endpoint/风险分/项目归因/include_unmatched 是归档侧概念, 不参与。
+func (r *tokenAnalysisRepository) CountBilledRequests(ctx context.Context, filters service.TokenAnalysisFilters) (int64, error) {
+	where := []string{"1=1"}
+	args := make([]any, 0)
+	add := func(expr string, value any) {
+		args = append(args, value)
+		where = append(where, fmt.Sprintf(expr, len(args)))
+	}
+	if filters.StartTime != nil {
+		add("created_at >= $%d", *filters.StartTime)
+	}
+	if filters.EndTime != nil {
+		add("created_at < $%d", *filters.EndTime)
+	}
+	if filters.UserID != nil {
+		add("user_id = $%d", *filters.UserID)
+	}
+	if filters.APIKeyID != nil {
+		add("api_key_id = $%d", *filters.APIKeyID)
+	}
+	if filters.AccountID != nil {
+		add("account_id = $%d", *filters.AccountID)
+	}
+	if filters.GroupID != nil {
+		add("group_id = $%d", *filters.GroupID)
+	}
+	if model := strings.TrimSpace(filters.Model); model != "" {
+		args = append(args, model)
+		placeholder := fmt.Sprintf("$%d", len(args))
+		where = append(where, "(model = "+placeholder+" OR requested_model = "+placeholder+" OR upstream_model = "+placeholder+")")
+	}
+	var count int64
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_logs WHERE "+strings.Join(where, " AND "), args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count billed requests: %w", err)
+	}
+	return count, nil
+}
+
 func (r *tokenAnalysisRepository) ListUserUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisUserUsage, *pagination.PaginationResult, error) {
 	where, args := buildTokenAnalysisWhere(filters, "s")
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
@@ -536,9 +576,9 @@ LIMIT 50`)
 			v := state.UpdatedAt
 			status.UpdatedAt = &v
 		}
-		if state.StartedAt != nil && state.FinishedAt == nil {
-			status.Running = true
-		}
+		// Running 不再按 started_at/finished_at 推断: 中断过的轮次会留下
+		// 永远缺 finished_at 的行, 把状态卡成永久运行中。运行中与否由
+		// service 层内存标志(s.running)给出, 覆盖手动与自动索引。
 		status.Files = append(status.Files, state)
 	}
 	if err := rows.Err(); err != nil {
@@ -584,7 +624,7 @@ ON CONFLICT (source_file) DO UPDATE SET
     last_archive_id = EXCLUDED.last_archive_id,
     processed_rows = token_analysis_index_state.processed_rows + EXCLUDED.processed_rows,
     failed_rows = token_analysis_index_state.failed_rows + EXCLUDED.failed_rows,
-    last_error = EXCLUDED.last_error,
+    last_error = COALESCE(NULLIF(EXCLUDED.last_error, ''), token_analysis_index_state.last_error),
     started_at = COALESCE(EXCLUDED.started_at, token_analysis_index_state.started_at),
     finished_at = EXCLUDED.finished_at,
     updated_at = NOW()`,
