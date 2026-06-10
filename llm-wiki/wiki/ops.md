@@ -53,6 +53,70 @@ pnpm --dir frontend run build
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
 
+## 生产源码部署
+
+生产服务器源码部署基线:
+
+- 代码目录: `/opt/sub2api`
+- 部署方式: 源码 + systemd, 不是 Docker
+- 应用服务: `sub2api`
+- systemd 启动二进制: `/opt/sub2api/backend/bin/server`
+- systemd 工作目录: `/opt/sub2api/backend`
+- 禁止操作: 不重启 PostgreSQL, Redis, Nginx; 不修改服务器 Codex 登录或认证配置。
+
+上线前只读检查:
+
+```bash
+cd /opt/sub2api
+git status --short --branch
+git fetch origin
+git log --oneline -n 3 origin/main
+```
+
+如果工作树不干净, 立即停止上线。确认干净后再切换和拉取目标分支, 例如部署 `origin/main`:
+
+```bash
+cd /opt/sub2api
+git checkout main
+git pull --ff-only origin main
+```
+
+生产构建顺序必须先前端、后后端:
+
+```bash
+cd /opt/sub2api
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend run build
+
+cd /opt/sub2api/backend
+CGO_ENABLED=0 go build -tags embed -ldflags="-s -w -X main.Version=$(tr -d '\r\n' < ./cmd/server/VERSION)" -trimpath -o bin/server ./cmd/server
+chown sub2api:sub2api /opt/sub2api/backend/bin/server
+chmod 0750 /opt/sub2api/backend/bin/server
+```
+
+关键原因:
+
+- 前端必须先构建到 `backend/internal/web/dist`, 否则后端二进制不会嵌入最新前端产物。
+- 后端必须使用 `-tags embed`, 否则会编入 `backend/internal/web/embed_off.go`, 页面可能返回 `Frontend not embedded. Build with -tags embed to include frontend.`
+- root 构建后要修正 `/opt/sub2api/backend/bin/server` 的 owner 和 mode, 否则 systemd 以 `sub2api` 用户启动时可能报 `status=203/EXEC` 和 `Permission denied`。
+
+仅重启应用服务:
+
+```bash
+systemctl restart sub2api
+```
+
+重启后检查:
+
+```bash
+systemctl status sub2api --no-pager
+journalctl -u sub2api -n 120 --no-pager
+ss -lntp | grep sub2api || ss -lntp | grep -E '8080|5299'
+curl -fsS http://127.0.0.1:52997/ | head -5
+```
+
+`curl` 返回 `<!doctype html>` 和 `<html lang="zh-CN">` 说明前端已正确嵌入。`systemctl restart sub2api` 会进入应用启动流程, 应用启动会自动执行 `backend/migrations` 中未执行的 SQL migration; 不要手动处理数据库。若启动失败, 先看 `journalctl -u sub2api -n 120 --no-pager`。
+
 ## 验证命令
 
 后端:
