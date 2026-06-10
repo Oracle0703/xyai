@@ -116,7 +116,7 @@ func registerRoutes(
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, redisClient, settingService)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, settingService)
 	routes.RegisterAdminRoutes(v1, h, adminAuth, settingService)
-	registerPromptMetricsAdminRoutes(v1, adminAuth, promptMetrics)
+	registerPromptMetricsAdminRoutes(v1, adminAuth, settingService, promptMetrics)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg)
 	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, settingService)
 
@@ -126,6 +126,7 @@ func registerRoutes(
 func registerPromptMetricsAdminRoutes(
 	v1 *gin.RouterGroup,
 	adminAuth middleware2.AdminAuthMiddleware,
+	settingService *service.SettingService,
 	promptMetrics *promptmetrics.Extension,
 ) {
 	if promptMetrics == nil {
@@ -133,5 +134,8 @@ func registerPromptMetricsAdminRoutes(
 	}
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
+	// 与 RegisterAdminRoutes 一致: fork 专属管理端路由同样受合规确认门控制,
+	// 避免未确认时 prompt metrics 成为旁路。
+	admin.Use(middleware2.AdminComplianceGuard(settingService))
 	promptMetrics.RegisterAdminRoutes(admin)
 }
