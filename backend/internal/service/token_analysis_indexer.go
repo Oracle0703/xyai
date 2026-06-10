@@ -196,8 +196,9 @@ func (s *TokenAnalysisService) indexArchiveFile(ctx context.Context, file string
 					LastOffset:    offset,
 					LastArchiveID: lastArchiveID,
 					FailedRows:    1,
-					LastError:     err.Error(),
-					UpdatedAt:     time.Now().UTC(),
+					// 错误消息可能内嵌归档原文片段(如非法 timestamp), 同样剥 NUL。
+					LastError: sanitizeTokenAnalysisText(err.Error()),
+					UpdatedAt: time.Now().UTC(),
 				})
 			} else if indexed > 0 || failed > 0 {
 				_ = s.repo.UpdateIndexState(ctx, TokenAnalysisIndexState{
@@ -251,6 +252,12 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	if event.Event != "request" {
 		return 0, 1, 0, archiveID, nil
 	}
+	// 归档 JSON 字符串里的 \u0000 转义解码后是真实 0x00, 这些字段最终都
+	// 写入 Postgres text 列, 必须先剥离(body 衍生文本在 summarizer 内清洗)。
+	event.Method = sanitizeTokenAnalysisText(event.Method)
+	event.Endpoint = sanitizeTokenAnalysisText(event.Endpoint)
+	event.Path = sanitizeTokenAnalysisText(event.Path)
+	event.Model = sanitizeTokenAnalysisText(event.Model)
 	eventTime, err := time.Parse(time.RFC3339Nano, event.Timestamp)
 	if err != nil {
 		return 0, 0, 0, archiveID, fmt.Errorf("parse archive timestamp %s: %w", event.Timestamp, err)

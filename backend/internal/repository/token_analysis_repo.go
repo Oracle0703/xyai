@@ -441,7 +441,7 @@ LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 LEFT JOIN users u ON u.id = s.user_id
 ` + whereSQL + `
 GROUP BY s.client_project, s.user_id, u.email
-ORDER BY total_tokens DESC, actual_cost DESC, request_count DESC
+ORDER BY ` + tokenAnalysisProjectOrderBy(params) + `
 LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
@@ -902,6 +902,22 @@ func rewriteTokenAnalysisAlias(where []string, fromAlias, toAlias string) []stri
 		out = append(out, strings.ReplaceAll(expr, from+".", to+"."))
 	}
 	return out
+}
+
+// tokenAnalysisProjectOrderBy 把项目聚合的排序参数映射到 SELECT 别名,
+// switch 白名单防注入; 未识别值回退默认 total_tokens。
+func tokenAnalysisProjectOrderBy(params pagination.PaginationParams) string {
+	order := params.NormalizedSortOrder(pagination.SortOrderDesc)
+	switch strings.TrimSpace(params.SortBy) {
+	case "request_count":
+		return "request_count " + order + ", total_tokens DESC"
+	case "actual_cost":
+		return "actual_cost " + order + ", total_tokens DESC"
+	case "last_event_time":
+		return "last_event_time " + order + ", total_tokens DESC"
+	default:
+		return "total_tokens " + order + ", actual_cost DESC, request_count DESC"
+	}
 }
 
 func tokenAnalysisRequestOrderBy(params pagination.PaginationParams) string {

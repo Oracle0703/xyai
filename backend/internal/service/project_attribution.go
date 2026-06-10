@@ -99,7 +99,7 @@ func extractAnthropicAttribution(body string) ProjectAttribution {
 			attr.setWorkdir(m[1], projectAttributionSourceSystem)
 		}
 		if m := reAttribBranch.FindStringSubmatch(text); m != nil {
-			attr.Branch = m[1]
+			attr.Branch = sanitizeTokenAnalysisText(m[1])
 		}
 		return attr
 	}
@@ -110,7 +110,7 @@ func extractAnthropicAttribution(body string) ProjectAttribution {
 		attr.setWorkdir(strings.TrimRight(m[1], `\"`), projectAttributionSourceRawHead)
 	}
 	if m := reAttribBranch.FindStringSubmatch(head); m != nil {
-		attr.Branch = m[1]
+		attr.Branch = sanitizeTokenAnalysisText(m[1])
 	}
 	return attr
 }
@@ -122,7 +122,7 @@ func extractCodexAttribution(body string) ProjectAttribution {
 		attr.setWorkdir(m[1], projectAttributionSourceEnvCtx)
 	}
 	if m := reAttribBranch.FindStringSubmatch(head); m != nil {
-		attr.Branch = m[1]
+		attr.Branch = sanitizeTokenAnalysisText(m[1])
 	}
 	return attr
 }
@@ -188,7 +188,7 @@ func extractGenericAttribution(body string) ProjectAttribution {
 		attr.setWorkdir(m[1], projectAttributionSourceRawHead)
 	}
 	if m := reAttribBranch.FindStringSubmatch(head); m != nil {
-		attr.Branch = m[1]
+		attr.Branch = sanitizeTokenAnalysisText(m[1])
 	}
 	return attr
 }
@@ -241,7 +241,8 @@ func cutAttributionLiteralNewline(v string) string {
 }
 
 func validAttributionCwd(p string) bool {
-	if p == "" || len(p) > projectAttributionMaxCwdLen || strings.ContainsAny(p, "\n") {
+	// 含 NUL 的"路径"是坏数据而非真实工作目录, 直接拒绝(NUL 也进不了 text 列)。
+	if p == "" || len(p) > projectAttributionMaxCwdLen || strings.ContainsAny(p, "\n\x00") {
 		return false
 	}
 	if !strings.HasPrefix(p, "/") && !strings.HasPrefix(p, "~") && !reAttribDrivePath.MatchString(p) {

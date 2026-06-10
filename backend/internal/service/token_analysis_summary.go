@@ -15,10 +15,21 @@ var tokenAnalysisRedactions = []*regexp.Regexp{
 	regexp.MustCompile(`\S{240,}`),
 }
 
+// sanitizeTokenAnalysisText 剥离 PostgreSQL text/jsonb 列拒收的 NUL 字节并
+// 兜底替换非法 UTF-8。归档 JSON 字符串里合法的 \u0000 转义经解码后就是真实
+// 0x00, 任何 body 衍生文本入库前都必须过这里, 否则 pq: invalid byte sequence。
+func sanitizeTokenAnalysisText(s string) string {
+	if strings.ContainsRune(s, 0) {
+		s = strings.ReplaceAll(s, "\x00", "")
+	}
+	return strings.ToValidUTF8(s, "�")
+}
+
 func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars int) (TokenAnalysisBodySummary, error) {
 	if maxPreviewChars <= 0 {
 		maxPreviewChars = 300
 	}
+	endpoint = sanitizeTokenAnalysisText(endpoint)
 	var root map[string]any
 	if err := json.Unmarshal(body, &root); err != nil {
 		return TokenAnalysisBodySummary{}, fmt.Errorf("parse request body: %w", err)
@@ -62,7 +73,7 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 }
 
 func SanitizeTokenAnalysisPreview(input string, maxChars int) string {
-	out := strings.TrimSpace(input)
+	out := sanitizeTokenAnalysisText(strings.TrimSpace(input))
 	for _, re := range tokenAnalysisRedactions {
 		out = re.ReplaceAllString(out, "[redacted]")
 	}
@@ -86,7 +97,7 @@ func SanitizeTokenAnalysisInputText(input string, maxChars int) (string, bool) {
 // RedactTokenAnalysisInputText 只做脱敏不截断, 供留存哈希计算使用:
 // 哈希必须对脱敏后文本计算, 否则 secret 会留下可离线比对的原文指纹(codex 审查重要1)。
 func RedactTokenAnalysisInputText(input string) string {
-	out := strings.TrimSpace(input)
+	out := sanitizeTokenAnalysisText(strings.TrimSpace(input))
 	for _, re := range tokenAnalysisRedactions {
 		out = re.ReplaceAllString(out, "[redacted]")
 	}
@@ -317,7 +328,7 @@ func tokenAnalysisString(value any) string {
 	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(text)
+	return sanitizeTokenAnalysisText(strings.TrimSpace(text))
 }
 
 func tokenAnalysisNumberAsInt(value any) int {
@@ -338,7 +349,8 @@ func tokenAnalysisNumberAsInt(value any) int {
 
 func tokenAnalysisShape(root map[string]any) string {
 	if shape, ok := root["shape"].(string); ok {
-		return shape
+		// shape 来自 body 原文, 同样要过 NUL 清洗才能进 jsonb。
+		return sanitizeTokenAnalysisText(shape)
 	}
 	if tokenAnalysisArray(root["contents"]) != nil {
 		return "gemini"

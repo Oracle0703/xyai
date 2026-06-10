@@ -37,6 +37,12 @@ func TestTokenAnalysisGetSummaryZeroBilledRequestsKeepsCoverageZero(t *testing.T
 	require.Zero(t, got.ArchiveCoverage)
 }
 
+func TestTokenAnalysisSanitizersStripNUL(t *testing.T) {
+	// Postgres text 列拒收 0x00; 预览与留存脱敏入口都必须剥离。
+	require.Equal(t, "ab", SanitizeTokenAnalysisPreview("a\x00b", 10))
+	require.Equal(t, "ab", RedactTokenAnalysisInputText("a\x00b"))
+}
+
 func TestTokenAnalysisSummarizeChatCompletionsSanitizesPreview(t *testing.T) {
 	body := []byte(`{
 		"model":"gpt-4.1",

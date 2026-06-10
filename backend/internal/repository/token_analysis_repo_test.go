@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -89,6 +90,59 @@ func TestTokenAnalysisRepositoryFindNearestUsageLogNoRows(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Nil(t, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryListProjectUsageSortable(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery("SELECT COUNT").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
+	// 排序参数经白名单映射进 ORDER BY(SELECT 别名), asc 生效(归一化为小写)。
+	mock.ExpectQuery("ORDER BY request_count asc, total_tokens DESC").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"project", "user_id", "user_email", "request_count", "matched_request_count",
+			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
+			"actual_cost", "last_event_time",
+		}).AddRow("demo", int64(7), "a@b.c", int64(3), int64(2), int64(900), int64(500), int64(100), int64(200), int64(100), 0.5, now))
+
+	items, result, err := repo.ListProjectUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
+		pagination.PaginationParams{Page: 1, PageSize: 20, SortBy: "request_count", SortOrder: "asc"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, items, 1)
+	require.Equal(t, "demo", items[0].Project)
+	require.Equal(t, int64(3), items[0].RequestCount)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+
+	mock.ExpectQuery("SELECT COUNT").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	// 未识别排序字段(潜在注入)回退默认 total_tokens, 排序方向保留请求值。
+	mock.ExpectQuery("ORDER BY total_tokens asc, actual_cost DESC, request_count DESC").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"project", "user_id", "user_email", "request_count", "matched_request_count",
+			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
+			"actual_cost", "last_event_time",
+		}))
+
+	_, _, err = repo.ListProjectUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
+		pagination.PaginationParams{Page: 1, PageSize: 20, SortBy: "1; DROP TABLE users", SortOrder: "asc"})
+
+	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

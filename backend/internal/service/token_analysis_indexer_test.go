@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -479,6 +480,81 @@ func TestTokenAnalysisIndexerCountsUntruncatedBadBodyAsFailed(t *testing.T) {
 	}
 	require.Contains(t, lastError, "parse request body")
 	require.Equal(t, int64(1), failedRows)
+}
+
+func TestTokenAnalysisIndexerStripsNULFromArchiveText(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-10.jsonl")
+	// 用户输入含 JSON 的 NUL 转义(真实来源: 二进制内容被贴进工具结果),
+	// 解码后是 0x00; Postgres text 列拒收, 预览/留存/哈希入库前必须剥离。
+	// 生产事故形态: upsert token analysis user input: pq: invalid byte sequence。
+	bodyJSON := `{"model":"gpt-4.1","messages":[{"role":"user","content":"bad` + "\\" + `u0000text"}]}`
+	event := map[string]any{
+		"archive_id": "nul1", "event": "request", "timestamp": "2026-06-10T01:02:03Z",
+		"method": "POST", "endpoint": "/v1/chat/completions", "user_id": 7, "api_key_id": 9,
+		"model": "gpt-4.1", "body": bodyJSON, "body_size": len(bodyJSON), "body_sha256": "hash-nul1",
+	}
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, append(raw, '\n'), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+			InputStoreMaxChars: 8000,
+		},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-10", EndDate: "2026-06-10"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Len(t, repo.upserts, 1)
+	require.Equal(t, "badtext", repo.upserts[0].LastUserPreview)
+	require.Len(t, repo.userInputs, 1)
+	input := repo.userInputs[0]
+	require.Equal(t, "badtext", input.Content)
+	require.NotContains(t, input.Content, "\x00")
+	// 哈希对剥离 NUL 后的脱敏文本计算, 与 content 一致。
+	sum := sha256.Sum256([]byte("badtext"))
+	require.Equal(t, hex.EncodeToString(sum[:]), input.ContentSHA256)
+}
+
+func TestTokenAnalysisIndexerSanitizesLastErrorNUL(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-10.jsonl")
+	// 解析错误消息内嵌归档原文(此处为带 NUL 的 timestamp): last_error 落库
+	// 前同样要剥离, 否则记录失败行状态本身又触发 pq invalid byte sequence。
+	event := map[string]any{
+		"archive_id": "ts1", "event": "request", "timestamp": "2026-06-10T01:02:03Z\x00bad",
+		"method": "POST", "endpoint": "/v1/chat/completions", "user_id": 7, "api_key_id": 9,
+		"model": "gpt-4.1", "body": `{"model":"gpt-4.1"}`, "body_size": 19, "body_sha256": "hash-ts1",
+	}
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, append(raw, '\n'), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-10", EndDate: "2026-06-10"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.FailedRows)
+	var lastError string
+	for _, state := range repo.states {
+		if state.LastError != "" {
+			lastError = state.LastError
+		}
+	}
+	require.Contains(t, lastError, "parse archive timestamp")
+	require.NotContains(t, lastError, "\x00")
 }
 
 func TestTokenAnalysisServiceGetUserInputNotFound(t *testing.T) {

@@ -133,7 +133,7 @@
                 <td>{{ formatNumber(file.last_offset) }}</td>
                 <td>{{ formatNumber(file.processed_rows) }}</td>
                 <td>{{ formatNumber(file.failed_rows) }}</td>
-                <td>{{ file.updated_at || '-' }}</td>
+                <td class="whitespace-nowrap">{{ formatTimeCN(file.updated_at) }}</td>
               </tr>
             </tbody>
           </table>
@@ -198,12 +198,32 @@
               <tr>
                 <th>{{ t('admin.tokenAnalysis.project') }}</th>
                 <th>{{ t('admin.tokenAnalysis.user') }}</th>
-                <th>{{ t('admin.tokenAnalysis.requests') }}</th>
-                <th>{{ t('admin.tokenAnalysis.tokens') }}</th>
+                <th>
+                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('request_count')">
+                    {{ t('admin.tokenAnalysis.requests') }}
+                    <span :class="projectSort === 'request_count' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('request_count') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('total_tokens')">
+                    {{ t('admin.tokenAnalysis.tokens') }}
+                    <span :class="projectSort === 'total_tokens' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('total_tokens') }}</span>
+                  </button>
+                </th>
                 <th>Input / Output</th>
                 <th>{{ t('admin.tokenAnalysis.cacheTokens') }}</th>
-                <th>{{ t('admin.tokenAnalysis.cost') }}</th>
-                <th>{{ t('admin.tokenAnalysis.lastActive') }}</th>
+                <th>
+                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('actual_cost')">
+                    {{ t('admin.tokenAnalysis.cost') }}
+                    <span :class="projectSort === 'actual_cost' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('actual_cost') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('last_event_time')">
+                    {{ t('admin.tokenAnalysis.lastActive') }}
+                    <span :class="projectSort === 'last_event_time' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('last_event_time') }}</span>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -226,11 +246,15 @@
                   <div>{{ formatNumber(row.request_count) }}</div>
                   <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.matched') }} {{ formatNumber(row.matched_request_count) }}</div>
                 </td>
-                <td class="font-medium">{{ formatNumber(row.total_tokens) }}</td>
-                <td class="text-xs text-gray-500">{{ formatNumber(row.input_tokens) }} / {{ formatNumber(row.output_tokens) }}</td>
-                <td class="text-xs text-gray-500">{{ formatNumber(row.cache_read_tokens + row.cache_creation_tokens) }}</td>
+                <td class="font-medium" :title="formatNumber(row.total_tokens)">{{ formatCompactNumber(row.total_tokens) }}</td>
+                <td class="text-xs text-gray-500" :title="`${formatNumber(row.input_tokens)} / ${formatNumber(row.output_tokens)}`">
+                  {{ formatCompactNumber(row.input_tokens) }} / {{ formatCompactNumber(row.output_tokens) }}
+                </td>
+                <td class="text-xs text-gray-500" :title="formatNumber(row.cache_read_tokens + row.cache_creation_tokens)">
+                  {{ formatCompactNumber(row.cache_read_tokens + row.cache_creation_tokens) }}
+                </td>
                 <td>{{ formatCost(row.actual_cost) }}</td>
-                <td class="text-xs text-gray-500">{{ row.last_event_time || '-' }}</td>
+                <td class="whitespace-nowrap text-xs text-gray-500">{{ formatTimeCN(row.last_event_time) }}</td>
               </tr>
               <tr v-if="!projectsLoading && projects.length === 0">
                 <td colspan="8" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
@@ -454,7 +478,7 @@ import type {
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
-import { formatBytes, formatDateTime } from '@/utils/format'
+import { formatBytes, formatCompactNumber, formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -477,6 +501,10 @@ const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
 const archiveFiles = ref<TokenAnalysisArchiveFile[]>([])
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
 const requestSort = ref<'event_time' | 'risk_score'>('event_time')
+// 项目排行支持按请求数/token/费用/最近活动服务端排序(列表是分页的, 前端排序无意义)。
+type ProjectSortField = 'request_count' | 'total_tokens' | 'actual_cost' | 'last_event_time'
+const projectSort = ref<ProjectSortField>('total_tokens')
+const projectSortOrder = ref<'asc' | 'desc'>('desc')
 const requestInput = ref<TokenAnalysisRequestInput | null>(null)
 const requestInputLoading = ref(false)
 const usersLoading = ref(false)
@@ -517,7 +545,7 @@ const summaryCards = computed(() => [
 const indexStatusText = computed(() => {
   if (indexStatus.value?.running) return t('admin.tokenAnalysis.indexRunning')
   if (indexStatus.value?.last_error) return indexStatus.value.last_error
-  return indexStatus.value?.updated_at || '-'
+  return formatTimeCN(indexStatus.value?.updated_at)
 })
 
 const detailFields = computed(() => {
@@ -549,6 +577,24 @@ const detailFields = computed(() => {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(Math.round(value || 0))
+}
+
+// 时间列固定东八区展示(团队所在时区), 形如 2026-06-10 16:23:45;
+// sv-SE locale 天然输出 YYYY-MM-DD HH:mm:ss, 不带 ISO 的 T 和时区尾巴。
+function formatTimeCN(value?: string | null): string {
+  if (!value) return '-'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).format(d)
 }
 
 function formatCost(value: number): string {
@@ -592,7 +638,9 @@ async function loadProjects() {
     const result = await adminAPI.tokenAnalysis.listProjects({
       ...cleanFilters.value,
       page: projectsPagination.page,
-      page_size: projectsPagination.page_size
+      page_size: projectsPagination.page_size,
+      sort_by: projectSort.value,
+      sort_order: projectSortOrder.value
     })
     projects.value = result.items
     projectsPagination.total = result.total
@@ -625,6 +673,23 @@ async function loadRequests() {
 function changeRequestSort() {
   requestsPagination.page = 1
   void loadRequests()
+}
+
+// 点已选中列翻转方向, 点新列重置为降序。
+function changeProjectSort(field: ProjectSortField) {
+  if (projectSort.value === field) {
+    projectSortOrder.value = projectSortOrder.value === 'desc' ? 'asc' : 'desc'
+  } else {
+    projectSort.value = field
+    projectSortOrder.value = 'desc'
+  }
+  projectsPagination.page = 1
+  void loadProjects()
+}
+
+function projectSortIcon(field: ProjectSortField): string {
+  if (projectSort.value !== field) return '↕'
+  return projectSortOrder.value === 'desc' ? '↓' : '↑'
 }
 
 // 点行打开抽屉并懒加载净输入全文(列表只带 300 字预览)。

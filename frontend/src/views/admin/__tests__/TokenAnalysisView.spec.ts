@@ -170,6 +170,61 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
   })
 
+  it('renders project ranking with compact tokens, UTC+8 time and sortable headers', async () => {
+    api.listProjects.mockResolvedValue({
+      items: [
+        {
+          project: 'lag-killer',
+          user_id: 7,
+          user_email: 'dev@example.com',
+          request_count: 1234,
+          matched_request_count: 1200,
+          total_tokens: 1_234_000_000,
+          input_tokens: 56_700_000,
+          output_tokens: 890_000,
+          cache_read_tokens: 12_000_000,
+          cache_creation_tokens: 3_000_000,
+          actual_cost: 12.3456,
+          last_event_time: '2026-06-10T01:02:03Z'
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20
+    })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    // 默认按 total_tokens 降序请求。
+    expect(api.listProjects).toHaveBeenCalledWith(
+      expect.objectContaining({ sort_by: 'total_tokens', sort_order: 'desc' })
+    )
+    // Token / Input / Output / 缓存三列以 K/M/B 紧凑展示。
+    expect(wrapper.text()).toContain('1.2B')
+    expect(wrapper.text()).toContain('56.7M')
+    expect(wrapper.text()).toContain('890.0K')
+    expect(wrapper.text()).toContain('15.0M')
+    // 最近活动按东八区展示, 不带 ISO 的 T/时区尾巴。
+    expect(wrapper.text()).toContain('2026-06-10 09:02:03')
+    expect(wrapper.text()).not.toContain('2026-06-10T01:02:03Z')
+
+    // 点击"请求数"表头 → 改列默认降序; 再点同列翻转为升序。
+    const th = wrapper.findAll('th button').find((b) => b.text().includes('admin.tokenAnalysis.requests'))
+    expect(th).toBeTruthy()
+    await th!.trigger('click')
+    await flushPromises()
+    expect(api.listProjects).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort_by: 'request_count', sort_order: 'desc' })
+    )
+    await th!.trigger('click')
+    await flushPromises()
+    expect(api.listProjects).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort_by: 'request_count', sort_order: 'asc' })
+    )
+  })
+
   it('lazy loads full user input when a request row is opened', async () => {
     const wrapper = mount(TokenAnalysisView, {
       global: { stubs: { AppLayout: AppLayoutStub } }

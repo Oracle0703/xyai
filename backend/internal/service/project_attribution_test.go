@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -86,4 +87,16 @@ func TestExtractProjectAttributionRejectsGarbageCwd(t *testing.T) {
 
 func TestExtractProjectAttributionEmptyBody(t *testing.T) {
 	require.False(t, ExtractProjectAttribution("/v1/messages", "claude-cli/2.0", "").Attributed())
+}
+
+func TestExtractProjectAttributionRejectsNULBytes(t *testing.T) {
+	// JSON 字符串里合法的 NUL 转义解码后是真实 0x00: 含 NUL 的"路径"是坏数据,
+	// 直接拒绝归因; branch 剥离 NUL 后保留。两者都不得把 0x00 带进 text 列。
+	sys := "Primary working directory: E:/code/ev\x00il\nCurrent branch: ma\x00in"
+	body, err := json.Marshal(map[string]any{"model": "claude-sonnet-4-6", "system": sys})
+	require.NoError(t, err)
+	attr := ExtractProjectAttribution("/v1/messages", "claude-cli/2.1.162", string(body))
+	require.Empty(t, attr.Workdir)
+	require.Empty(t, attr.Project)
+	require.Equal(t, "main", attr.Branch)
 }
