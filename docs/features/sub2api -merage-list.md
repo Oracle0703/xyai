@@ -271,3 +271,63 @@ git show --cc d187587c -- backend/cmd/server/wire.go backend/cmd/server/wire_gen
 git diff --stat 635ad81c..8c782bcc
 git diff --name-only 635ad81c..8c782bcc
 ```
+
+## 2026-06-10
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0609_合并1.135版本` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `e30ccd8d` |
+| Upstream head merged | `c32e29ba` |
+| Merge commit | `97266dbd` |
+| Files changed | 56 |
+| Conflict files | `README_CN.md`, `backend/internal/handler/gateway_handler_error_fallback_test.go`, `backend/internal/service/openai_gateway_chat_completions_test.go` |
+
+### Summary
+
+Merged Wei-Shaw/sub2api `main` into the current integration branch after the previous `v0.1.135` merge.
+
+Major upstream changes included:
+
+| Area | Notes |
+|---|---|
+| Admin users filter | `GET /api/v1/admin/users` adds `api_key_group_id` to filter users by the exact group bound to their non-soft-deleted API keys; frontend `/admin/users` adds an API Key group filter, including disabled groups for investigation. |
+| Account group scheduler indexes | Added `backend/migrations/150_account_group_scheduler_indexes_notx.sql` with concurrent indexes on `account_groups` for group/account priority scheduler lookups. |
+| Gateway error writes | Added `MarkResponseCommitted` coverage and `gatewayForwardErrorAlreadyCommunicated` handling to prevent non-stream upstream JSON error passthrough from being polluted by an extra fallback SSE error frame. |
+| OpenAI compatibility | Chat Completions -> Responses API key path now propagates `prompt_cache_key` into the Responses body and derives stable session headers from API key/cache key context. |
+| Bedrock compatibility | `ApplyBedrockCCCompat` centralizes body cleanup and `anthropic-beta` filtering while preserving supported Bedrock beta tokens such as `context-management-2025-06-27`. |
+| Idempotency | Stored idempotency responses now truncate on UTF-8-safe boundaries. |
+| Misc | Added `claude-fable-5`, sponsor/README updates, Bedrock CC reload fix, gateway debug log loop optimization, and precomputed model body replacement fix. |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `README_CN.md` | Upstream deleted the Chinese README while this branch still keeps and modifies it; preserved the local branch version to avoid dropping project-local documentation. |
+| `backend/internal/handler/gateway_handler_error_fallback_test.go` | Both sides added adjacent regression tests. Kept the local `ConcurrencyCacheError` -> 503 test and the upstream `gatewayForwardErrorAlreadyCommunicated` double-write prevention tests. |
+| `backend/internal/service/openai_gateway_chat_completions_test.go` | Both sides added adjacent regression tests. Kept local large request compaction tests and appended upstream `prompt_cache_key` propagation coverage as a separate test. |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `go test -p 1 ./internal/handler ./internal/service -count=1` with repo-local `GOCACHE/GOTMPDIR` | Passed before merge commit after conflict resolution. The first attempt without local `GOCACHE` failed with Windows `go-build` access denied cache lock. |
+| `go test -p 1 ./internal/handler -run 'TestGateway(HandleConcurrencyError|ForwardErrorAlreadyCommunicated|EnsureForwardErrorResponse)' -count=1` with repo-local `GOCACHE/GOTMPDIR` | Passed. |
+| `go test -p 1 ./internal/service -run 'TestForwardAsChatCompletions(CompactsLargeToolOutputForEnabledAPIKey|WarnModeDoesNotMutateLargeRequest|CompactionUsesAPIKeyFromContext|_APIKeyPropagatesPromptCacheKeyInResponsesBody)' -count=1` with repo-local `GOCACHE/GOTMPDIR` | Passed. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed. Direct PowerShell `pnpm` was blocked by local execution policy, so `cmd.exe /c` was used. |
+| `go test -p 1 ./internal/handler ./internal/service -count=1` after wiki update | Timed out in this Codex tool run before emitting a code failure; narrower final regression runs above passed. |
+
+### Wiki Updates
+
+Updated `llm-wiki/wiki/backend.md`, `frontend.md`, `data-and-domain.md`, and `security-and-reliability.md` for the stable knowledge introduced by this upstream merge: API key group filtering, scheduler indexes, UTF-8-safe idempotency truncation, OpenAI prompt cache key propagation, gateway double-write prevention, and Bedrock CC compatibility filtering.
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 97266dbd
+git show --cc 97266dbd -- README_CN.md backend/internal/handler/gateway_handler_error_fallback_test.go backend/internal/service/openai_gateway_chat_completions_test.go
+git diff --stat e30ccd8d..97266dbd
+git log --oneline e30ccd8d..c32e29ba
+```

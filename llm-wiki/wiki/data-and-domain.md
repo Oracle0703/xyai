@@ -59,6 +59,10 @@ go generate ./cmd/server
 
 新增 migration 时只新增下一个编号文件, 不修旧文件。
 
+当前调度性能相关索引:
+
+- `backend/migrations/150_account_group_scheduler_indexes_notx.sql` 为 `account_groups` 新增 `(group_id, priority, account_id)` 和 `(account_id, priority, group_id)` 并发索引, 用于账号分组调度查询; 这是 `_notx.sql`, 必须保持 `CREATE INDEX CONCURRENTLY IF NOT EXISTS`。
+
 ## 支付领域
 
 内置支付系统支持:

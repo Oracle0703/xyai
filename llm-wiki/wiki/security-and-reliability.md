@@ -72,6 +72,8 @@
 
 新增关键写接口, 尤其支付, 余额, 订阅, 系统操作, 应考虑 `Idempotency-Key` 和失败重试语义。
 
+幂等响应入库前会做脱敏和长度裁剪; `MaxStoredResponseLen` 截断必须使用 UTF-8 安全边界(`truncateUTF8`), 避免把多字节字符切坏后写入不可解析响应。
+
 ## URL, CSP 与响应头
 
 配置位于 `security`:
@@ -125,8 +127,10 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - client disconnect。
 - OpenAI Responses WebSocket fallback。
 - Chat Completions -> Responses bridge 的 item 生命周期完整性, 包括动态 item id 一致性、reasoning item、content part 和 tool call done 事件。
+- 非流式上游错误透传不能二次写响应: `GatewayService` 写完整 JSON 错误后应标记 response committed, handler 层通过 `gatewayForwardErrorAlreadyCommunicated` 跳过通用 fallback; 流式中途错误仍要补协议级终止帧。
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。
+- Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 
 后台任务可靠性:
 
