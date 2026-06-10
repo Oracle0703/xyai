@@ -783,7 +783,8 @@ const adminNavItems = computed((): NavItem[] => {
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/admin/token-analysis', label: t('nav.tokenAnalysis'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/admin/prompt-metrics', label: t('nav.promptMetrics'), icon: ChartIcon, hideInSimpleMode: true }
+    // prompt 指标菜单暂时隐藏(路由保留, 可直接访问 /admin/prompt-metrics)。
+    // { path: '/admin/prompt-metrics', label: t('nav.promptMetrics'), icon: ChartIcon, hideInSimpleMode: true },
   ]
 
   const visible = applyFeatureFlags(baseItems)

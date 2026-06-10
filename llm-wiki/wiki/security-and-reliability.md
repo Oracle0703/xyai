@@ -93,6 +93,12 @@
 - Security headers: `backend/internal/server/middleware/security_headers.go`
 - CORS: `backend/internal/server/middleware/cors.go`
 
+CSP 注意点:
+
+- 默认策略是 `config.DefaultCSPPolicy`; 部署可用 `security.csp.policy` 覆盖。
+- `security_headers.go` 的 `requiredCSPDirectiveValues` 是"旧自定义策略缺新指令"的运行时补丁列表(支付 SDK 域名、`img-src blob:` 等都走这里)。给 CSP 加新的必需指令时**必须同时改默认串和该列表**, 否则覆盖了 policy 的存量部署不会生效。
+- `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
+
 生产环境要谨慎允许 HTTP, private hosts 和 proxy fallback direct, 避免 token 泄露和 SSRF 风险。
 
 ## 网关可靠性

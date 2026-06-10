@@ -344,6 +344,21 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Contains(t, enhanced, "frame-src 'self'")
 	})
 
+	t.Run("adds_blob_to_img_src_for_legacy_policies", func(t *testing.T) {
+		// 旧配置文件的 img-src 没有 blob:，图片生成页的 createObjectURL 缩略图会被拦截。
+		policy := "default-src 'self'; img-src 'self' data: https:"
+		enhanced := enhanceCSPPolicy(policy)
+
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "img-src", "blob:"))
+	})
+
+	t.Run("does_not_duplicate_blob_in_img_src", func(t *testing.T) {
+		policy := "default-src 'self'; img-src 'self' data: blob: https:"
+		enhanced := enhanceCSPPolicy(policy)
+
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "img-src", "blob:"))
+	})
+
 	t.Run("does_not_duplicate_airwallex_domains", func(t *testing.T) {
 		policy := "default-src 'self'; script-src 'self' https://static.airwallex.com https://static-demo.airwallex.com; frame-src https://checkout.airwallex.com https://checkout-demo.airwallex.com"
 		enhanced := enhanceCSPPolicy(policy)

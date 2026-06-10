@@ -35,7 +35,7 @@
             <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">gpt-image-2</span>
           </div>
 
-          <form class="space-y-4" @submit.prevent="generateImages">
+          <form class="space-y-4" @submit.prevent="generate">
             <div>
               <label class="input-label" for="image-gen-key">API Key</label>
               <div class="relative">
@@ -102,11 +102,11 @@
             </div>
 
             <div v-if="generationMode === 'edit'">
-              <label class="input-label">原图</label>
+              <label class="input-label">原图（可多张）</label>
               <div
                 data-test="source-image-dropzone"
                 class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-blue-400 hover:bg-blue-50/60 dark:border-dark-700 dark:bg-dark-950 dark:hover:border-blue-500/70 dark:hover:bg-blue-950/20"
-                :class="{ 'border-solid border-blue-300 bg-blue-50/50 dark:border-blue-600/70 dark:bg-blue-950/20': sourceImageFile }"
+                :class="{ 'border-solid border-blue-300 bg-blue-50/50 dark:border-blue-600/70 dark:bg-blue-950/20': sourceImages.length > 0 }"
                 @click="sourceImageInput?.click()"
                 @dragover.prevent
                 @drop.prevent="handleSourceImageDrop"
@@ -115,42 +115,54 @@
                   ref="sourceImageInput"
                   data-test="source-image-input"
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
                   class="hidden"
                   @change="handleSourceImageChange"
                 />
-                <div v-if="sourceImageFile" class="flex items-center gap-3">
-                  <div class="h-16 w-16 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
-                    <img
-                      v-if="sourceImagePreview"
-                      :src="sourceImagePreview"
-                      alt=""
-                      class="h-full w-full object-cover"
-                    />
-                    <div v-else class="flex h-full w-full items-center justify-center text-gray-400 dark:text-dark-500">
-                      <Icon name="upload" size="lg" />
+                <div v-if="sourceImages.length > 0">
+                  <div class="mb-2 flex items-center justify-between gap-3">
+                    <p class="text-xs text-gray-500 dark:text-dark-400">
+                      已选 {{ sourceImages.length }}/{{ MAX_SOURCE_IMAGES }} 张 · 共 {{ formatFileSize(totalSourceSize) }}
+                    </p>
+                    <button
+                      type="button"
+                      class="text-xs font-medium text-gray-500 hover:text-red-600 dark:text-dark-400 dark:hover:text-red-300"
+                      @click.stop="clearSourceImages"
+                    >
+                      全部移除
+                    </button>
+                  </div>
+                  <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    <div
+                      v-for="image in sourceImages"
+                      :key="image.id"
+                      data-test="source-image-item"
+                      class="relative"
+                    >
+                      <div class="aspect-square overflow-hidden rounded-md border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900">
+                        <img :src="image.previewUrl" alt="" class="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        data-test="source-image-remove"
+                        class="absolute -right-1.5 -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900/80 text-white hover:bg-red-600 dark:bg-dark-700 dark:hover:bg-red-600"
+                        title="移除这张原图"
+                        @click.stop="removeSourceImage(image.id)"
+                      >
+                        <Icon name="x" size="xs" />
+                      </button>
+                      <p class="mt-1 truncate text-[11px] text-gray-500 dark:text-dark-400">{{ image.file.name }}</p>
                     </div>
                   </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ sourceImageFile.name }}</p>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ formatFileSize(sourceImageFile.size) }}</p>
-                  </div>
-                  <button
-                    type="button"
-                    class="rounded-md p-2 text-gray-400 hover:bg-white hover:text-red-600 dark:hover:bg-dark-800 dark:hover:text-red-300"
-                    title="移除原图"
-                    @click.stop="clearSourceImage"
-                  >
-                    <Icon name="x" size="sm" />
-                  </button>
                 </div>
                 <div v-else class="flex min-h-24 flex-col items-center justify-center text-center">
                   <Icon name="upload" size="xl" class="text-gray-400 dark:text-dark-500" />
-                  <p class="mt-2 text-sm font-medium text-gray-700 dark:text-dark-200">点击选择、拖拽或 Ctrl+V 粘贴图片</p>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">支持常见图片格式，单张不超过 20MB。</p>
+                  <p class="mt-2 text-sm font-medium text-gray-700 dark:text-dark-200">点击选择、拖拽或 Ctrl+V 粘贴图片，可多选</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">最多 {{ MAX_SOURCE_IMAGES }} 张，单张不超过 20MB，总计不超过 100MB，支持 png / jpg / webp。</p>
                 </div>
               </div>
-              <p class="input-hint">切到图改图后，页面会把这张原图作为 image 字段提交。</p>
+              <p class="input-hint">页面会把这些原图按顺序作为 image[] 字段提交，第一张的细节保留度最高。</p>
             </div>
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -171,7 +183,7 @@
                   class="input"
                   type="number"
                   min="1"
-                  max="4"
+                  max="10"
                 />
               </div>
             </div>
@@ -181,7 +193,7 @@
               type="button"
               class="btn btn-primary w-full"
               :disabled="isGenerating"
-              @click="generateImages"
+              @click="generate"
             >
               <Icon v-if="!isGenerating" name="sparkles" size="sm" />
               <span v-else class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
@@ -192,6 +204,7 @@
 
         <div
           v-if="errorMessage"
+          data-test="error-message"
           class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
         >
           {{ errorMessage }}
@@ -261,7 +274,7 @@
             </button>
           </div>
 
-          <div v-if="historyItems.length" class="space-y-3">
+          <div v-if="historyItems.length" class="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
             <article
               v-for="item in historyItems"
               :key="item.id"
@@ -309,7 +322,12 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useAppStore, useAuthStore } from '@/stores'
+import { storeToRefs } from 'pinia'
+// 从文件模块导入（而非 '@/stores' index），让测试可以只 mock app/auth 两个模块
+// 而让 imageGen store 真实运行。
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { useImageGenStore, MAX_SOURCE_IMAGES, type GenerationMode } from '@/stores/imageGen'
 import Icon from '@/components/icons/Icon.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 
@@ -327,44 +345,34 @@ const StandaloneShell = defineComponent({
   },
 })
 
-const HISTORY_STORAGE_KEY = 'image-gen-history-v1'
-const MAX_HISTORY_ITEMS = 20
-const MAX_SOURCE_IMAGE_SIZE = 20 * 1024 * 1024
-const DEFAULT_MODEL = 'gpt-image-2'
-const IMAGE_GENERATION_ENDPOINT = import.meta.env.VITE_IMAGE_GENERATION_ENDPOINT || '/v1/images/generations'
-const IMAGE_EDIT_ENDPOINT = import.meta.env.VITE_IMAGE_EDIT_ENDPOINT || '/v1/images/edits'
-
-type GenerationMode = 'generate' | 'edit'
-
-interface GeneratedImage {
-  id: string
-  src: string
-  revisedPrompt: string
-}
-
-interface HistoryItem {
-  id: string
-  createdAt: string
-  prompt: string
-  model: string
-  size: string
-  images: string[]
-  mode?: GenerationMode
-}
-
-interface ImagesResponseItem {
-  b64_json?: string
-  url?: string
-  revised_prompt?: string
-}
-
-interface ImagesResponse {
-  data?: ImagesResponseItem[]
-  output_format?: string
-}
-
 const appStore = useAppStore()
 const authStore = useAuthStore()
+// 表单、原图、结果、历史与生成逻辑都在 store 里：路由切换卸载本组件后状态不丢，
+// 进行中的生成继续运行。
+const imageGenStore = useImageGenStore()
+const {
+  apiKey,
+  prompt,
+  size,
+  count,
+  generationMode,
+  isGenerating,
+  errorMessage,
+  results,
+  historyItems,
+  sourceImages,
+  totalSourceSize,
+} = storeToRefs(imageGenStore)
+const {
+  generate,
+  addSourceImages,
+  removeSourceImage,
+  clearSourceImages,
+  deleteHistoryItem,
+  clearHistory,
+  restoreHistory,
+} = imageGenStore
+
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
@@ -391,26 +399,15 @@ const sizeOptions = [
   { value: '1024x1792', label: '1024 x 1792' },
 ]
 
-const apiKey = ref('')
-const prompt = ref('')
-const size = ref('1024x1024')
-const count = ref(1)
-const generationMode = ref<GenerationMode>('generate')
 const showKey = ref(false)
-const isGenerating = ref(false)
-const errorMessage = ref('')
-const results = ref<GeneratedImage[]>([])
-const historyItems = ref<HistoryItem[]>([])
 const sourceImageInput = ref<HTMLInputElement | null>(null)
-const sourceImageFile = ref<File | null>(null)
-const sourceImagePreview = ref('')
 
 const formTitle = computed(() => generationMode.value === 'edit' ? '图改图' : '文生图')
 const formSubtitle = computed(() => generationMode.value === 'edit'
   ? '上传或粘贴原图，再用已验证 API Key 调用图片编辑网关。'
   : '粘贴已验证 API Key，直接调用图片生成网关。')
 const promptPlaceholder = computed(() => generationMode.value === 'edit'
-  ? '描述希望如何修改这张图片，例如：把背景改成白色，保持主体不变...'
+  ? '描述希望如何修改这些图片，例如：把背景改成白色，保持主体不变...'
   : '描述要生成的图片内容、风格、尺寸用途...')
 const submitLabel = computed(() => generationMode.value === 'edit' ? '修改图片' : '生成图片')
 const emptyResultHint = computed(() => generationMode.value === 'edit'
@@ -418,7 +415,6 @@ const emptyResultHint = computed(() => generationMode.value === 'edit'
   : '填写 API Key 和提示词后开始生成。')
 
 onMounted(() => {
-  loadHistory()
   window.addEventListener('paste', handleSourceImagePaste)
   if (!appStore.publicSettingsLoaded) {
     void appStore.fetchPublicSettings()
@@ -426,292 +422,38 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  // 只移除本组件的监听器；原图预览的 objectURL 归 store 管，卸载时不得 revoke，
+  // 否则切回页面后缩略图失效。
   window.removeEventListener('paste', handleSourceImagePaste)
-  revokeSourceImagePreview()
 })
-
-async function generateImages(): Promise<void> {
-  errorMessage.value = ''
-  const key = apiKey.value.trim()
-  const text = prompt.value.trim()
-  const imageCount = normalizeCount(count.value)
-
-  if (!key) {
-    errorMessage.value = '请输入 API Key'
-    return
-  }
-  if (!text) {
-    errorMessage.value = '请输入提示词'
-    return
-  }
-  if (generationMode.value === 'edit' && !sourceImageFile.value) {
-    errorMessage.value = '请先上传或粘贴原图'
-    return
-  }
-
-  isGenerating.value = true
-  try {
-    const response = generationMode.value === 'edit'
-      ? await editImages(key, text, imageCount)
-      : await createImages(key, text, imageCount)
-
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(extractErrorMessage(payload, response.status))
-    }
-
-    const images = normalizeImagesResponse(payload as ImagesResponse)
-    if (images.length === 0) {
-      throw new Error('接口未返回可展示的图片')
-    }
-
-    results.value = images
-    saveHistory({
-      id: createID(),
-      createdAt: new Date().toISOString(),
-      prompt: text,
-      model: DEFAULT_MODEL,
-      size: size.value,
-      images: images.map((item) => item.src),
-      mode: generationMode.value,
-    })
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '生成失败，请稍后重试'
-  } finally {
-    isGenerating.value = false
-  }
-}
-
-function createImages(key: string, text: string, imageCount: number): Promise<Response> {
-  return fetch(IMAGE_GENERATION_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: DEFAULT_MODEL,
-      prompt: text,
-      size: size.value,
-      n: imageCount,
-      response_format: 'b64_json',
-    }),
-  })
-}
-
-function editImages(key: string, text: string, imageCount: number): Promise<Response> {
-  const formData = new FormData()
-  formData.set('model', DEFAULT_MODEL)
-  formData.set('prompt', text)
-  formData.set('size', size.value)
-  formData.set('n', String(imageCount))
-  formData.set('response_format', 'b64_json')
-  formData.set('image', sourceImageFile.value as File)
-
-  return fetch(IMAGE_EDIT_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-    },
-    body: formData,
-  })
-}
 
 function handleSourceImageChange(event: Event): void {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  setSourceImage(file || null)
+  addSourceImages(Array.from(input.files ?? []))
   input.value = ''
 }
 
 function handleSourceImageDrop(event: DragEvent): void {
-  const file = Array.from(event.dataTransfer?.files ?? []).find((item) => item.type.startsWith('image/'))
-  setSourceImage(file || null)
+  const files = Array.from(event.dataTransfer?.files ?? []).filter((item) => item.type.startsWith('image/'))
+  addSourceImages(files)
 }
 
 function handleSourceImagePaste(event: ClipboardEvent): void {
   if (generationMode.value !== 'edit') {
     return
   }
-  const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
+  const fromFiles = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
   const fromItems = Array.from(event.clipboardData?.items ?? [])
     .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
     .map((item) => item.getAsFile())
     .filter((file): file is File => file !== null)
-  const image = files[0] || fromItems[0]
-  if (!image) {
+  // files 与 items 指向同一批剪贴板文件，取其一即可，合并会重复添加。
+  const images = fromFiles.length > 0 ? fromFiles : fromItems
+  if (images.length === 0) {
     return
   }
   event.preventDefault()
-  setSourceImage(image)
-}
-
-function setSourceImage(file: File | null): void {
-  if (!file) {
-    return
-  }
-  errorMessage.value = ''
-  if (!file.type.startsWith('image/')) {
-    errorMessage.value = '请选择图片文件'
-    return
-  }
-  if (file.size > MAX_SOURCE_IMAGE_SIZE) {
-    errorMessage.value = '原图不能超过 20MB'
-    return
-  }
-  revokeSourceImagePreview()
-  sourceImageFile.value = file
-  sourceImagePreview.value = URL.createObjectURL(file)
-}
-
-function clearSourceImage(): void {
-  sourceImageFile.value = null
-  revokeSourceImagePreview()
-}
-
-function revokeSourceImagePreview(): void {
-  if (sourceImagePreview.value) {
-    URL.revokeObjectURL(sourceImagePreview.value)
-    sourceImagePreview.value = ''
-  }
-}
-
-function normalizeImagesResponse(payload: ImagesResponse): GeneratedImage[] {
-  const outputFormat = payload.output_format || 'png'
-  return (payload.data || [])
-    .map((item, index) => {
-      const src = imageItemToSource(item, outputFormat)
-      if (!src) {
-        return null
-      }
-      return {
-        id: `${Date.now()}-${index}`,
-        src,
-        revisedPrompt: item.revised_prompt || '',
-      }
-    })
-    .filter((item): item is GeneratedImage => item !== null)
-}
-
-function imageItemToSource(item: ImagesResponseItem, outputFormat: string): string {
-  if (item.url) {
-    return item.url
-  }
-  if (!item.b64_json) {
-    return ''
-  }
-  return `data:${mimeTypeForOutputFormat(outputFormat)};base64,${item.b64_json}`
-}
-
-function mimeTypeForOutputFormat(format: string): string {
-  switch (format.toLowerCase()) {
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg'
-    case 'webp':
-      return 'image/webp'
-    case 'png':
-    default:
-      return 'image/png'
-  }
-}
-
-function normalizeCount(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 1
-  }
-  return Math.min(4, Math.max(1, Math.trunc(value)))
-}
-
-function extractErrorMessage(payload: unknown, status: number): string {
-  if (payload && typeof payload === 'object') {
-    const record = payload as Record<string, any>
-    const nested = record.error
-    if (nested && typeof nested === 'object' && typeof nested.message === 'string') {
-      return nested.message
-    }
-    if (typeof record.message === 'string') {
-      return record.message
-    }
-  }
-  return `生成失败，网关返回 ${status}`
-}
-
-function loadHistory(): void {
-  try {
-    const raw = localStorage.getItem(HISTORY_STORAGE_KEY)
-    if (!raw) {
-      historyItems.value = []
-      return
-    }
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      historyItems.value = []
-      return
-    }
-    historyItems.value = parsed
-      .filter(isHistoryItem)
-      .slice(0, MAX_HISTORY_ITEMS)
-  } catch {
-    historyItems.value = []
-  }
-}
-
-function saveHistory(item: HistoryItem): void {
-  const next = [item, ...historyItems.value].slice(0, MAX_HISTORY_ITEMS)
-  historyItems.value = next
-  try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next))
-  } catch {
-    // Generation result should remain usable even if browser storage is unavailable.
-  }
-}
-
-function deleteHistoryItem(id: string): void {
-  historyItems.value = historyItems.value.filter((item) => item.id !== id)
-  try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyItems.value))
-  } catch {
-    // ignore localStorage failures
-  }
-}
-
-function clearHistory(): void {
-  historyItems.value = []
-  try {
-    localStorage.removeItem(HISTORY_STORAGE_KEY)
-  } catch {
-    // ignore localStorage failures
-  }
-}
-
-function restoreHistory(item: HistoryItem): void {
-  prompt.value = item.prompt
-  size.value = item.size
-  generationMode.value = item.mode || 'generate'
-  // 历史记录不保存原图，restore 后清掉残留的上传，避免切回 edit 时出现
-  // 与当前历史不匹配的上次会话的原图。
-  clearSourceImage()
-  results.value = item.images.map((src, index) => ({
-    id: `${item.id}-${index}`,
-    src,
-    revisedPrompt: '',
-  }))
-}
-
-function isHistoryItem(value: unknown): value is HistoryItem {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const item = value as Partial<HistoryItem>
-  return typeof item.id === 'string'
-    && typeof item.createdAt === 'string'
-    && typeof item.prompt === 'string'
-    && typeof item.model === 'string'
-    && typeof item.size === 'string'
-    && (item.mode === undefined || item.mode === 'generate' || item.mode === 'edit')
-    && Array.isArray(item.images)
-    && item.images.every((src) => typeof src === 'string')
+  addSourceImages(images)
 }
 
 function modeLabel(mode?: GenerationMode): string {
@@ -756,12 +498,5 @@ function formatTime(raw: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
-}
-
-function createID(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 </script>

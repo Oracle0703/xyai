@@ -1,7 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"mime/multipart"
 	"strings"
 	"testing"
 
@@ -126,6 +129,88 @@ func TestTokenAnalysisSummarizeKeepsRawLastUserText(t *testing.T) {
 	require.Equal(t, "line one\nline two with sk-secret-1234567890", got.LastUserText)
 	require.NotContains(t, got.LastUserPreview, "sk-secret")
 	require.LessOrEqual(t, len([]rune(got.LastUserPreview)), 20)
+}
+
+// buildTokenAnalysisMultipartImageEditBody 构造与前端 editImages 同序的
+// /v1/images/edits multipart 体: 文本域在前, image[] 图片分片在后。
+func buildTokenAnalysisMultipartImageEditBody(t *testing.T, imageSizes ...int) (string, []byte) {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "把这张图改成赛博朋克风格"))
+	require.NoError(t, writer.WriteField("size", "1024x1024"))
+	require.NoError(t, writer.WriteField("n", "2"))
+	require.NoError(t, writer.WriteField("response_format", "b64_json"))
+	for i, size := range imageSizes {
+		part, err := writer.CreateFormFile("image[]", fmt.Sprintf("src-%d.png", i))
+		require.NoError(t, err)
+		// 非法 UTF-8 字节模拟图片二进制(归档转码后会被 U+FFFD 替换)。
+		_, err = part.Write(bytes.Repeat([]byte{0xff, 0xd8, 0xab}, size/3+1)[:size])
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+	return writer.FormDataContentType(), buf.Bytes()
+}
+
+func TestTokenAnalysisSummarizeMultipartImageEdit(t *testing.T) {
+	contentType, body := buildTokenAnalysisMultipartImageEditBody(t, 64, 64)
+
+	got, ok := SummarizeTokenAnalysisMultipartRequest("/v1/images/edits", contentType, body, 300)
+
+	require.True(t, ok)
+	require.Equal(t, "gpt-image-2", got.Model)
+	require.Equal(t, 1, got.MessageCount)
+	// ImageCount 与 JSON image 形态同口径: 取请求张数 n。
+	require.Equal(t, 2, got.ImageCount)
+	require.Equal(t, "把这张图改成赛博朋克风格", got.LastUserPreview)
+	require.Equal(t, "image", got.SummaryJSON["shape"])
+	require.Equal(t, true, got.SummaryJSON["multipart"])
+	require.Equal(t, 2, got.SummaryJSON["source_image_count"])
+	require.Equal(t, "1024x1024", got.SummaryJSON["size"])
+	require.Equal(t, "/v1/images/edits", got.SummaryJSON["endpoint"])
+}
+
+func TestTokenAnalysisSummarizeMultipartTruncatedStillExtractsTextFields(t *testing.T) {
+	contentType, body := buildTokenAnalysisMultipartImageEditBody(t, 4096)
+	// 模拟归档端按 max_request_body_bytes 截断: 切点落在图片分片中间,
+	// 文本域在前仍完整可解(前端构造顺序保证)。
+	truncated := body[:len(body)-2048]
+
+	got, ok := SummarizeTokenAnalysisMultipartRequest("/v1/images/edits", contentType, truncated, 300)
+
+	require.True(t, ok)
+	require.Equal(t, "gpt-image-2", got.Model)
+	require.Contains(t, got.LastUserPreview, "赛博朋克")
+	require.Equal(t, 2, got.ImageCount)
+	require.Equal(t, 1, got.SummaryJSON["source_image_count"])
+}
+
+func TestTokenAnalysisSummarizeMultipartBoundaryFallbackFromBody(t *testing.T) {
+	_, body := buildTokenAnalysisMultipartImageEditBody(t, 64)
+
+	// 缺 content_type 的历史归档行: 从 body 首行 "--boundary" 兜底提取。
+	got, ok := SummarizeTokenAnalysisMultipartRequest("/v1/images/edits", "", body, 300)
+
+	require.True(t, ok)
+	require.Equal(t, "gpt-image-2", got.Model)
+	require.Equal(t, 1, got.SummaryJSON["source_image_count"])
+}
+
+func TestTokenAnalysisSummarizeMultipartRejectsNonMultipart(t *testing.T) {
+	_, ok := SummarizeTokenAnalysisMultipartRequest("/v1/responses", "application/json", []byte(`{"input":"hi"}`), 300)
+	require.False(t, ok)
+
+	_, ok = SummarizeTokenAnalysisMultipartRequest("/v1/responses", "", []byte("not-json"), 300)
+	require.False(t, ok)
+}
+
+func TestTokenAnalysisSummarizeMultipartGarbageDegrades(t *testing.T) {
+	// boundary 能识别但分片解不出: 降级摘要而非失败, 失败行只留给真坏数据。
+	got, ok := SummarizeTokenAnalysisMultipartRequest("/v1/images/edits", "multipart/form-data; boundary=xyz", []byte("--xyz\r\ngarbage-without-headers"), 300)
+
+	require.True(t, ok)
+	require.Equal(t, "multipart_body", got.SummaryJSON["degraded"])
 }
 
 func TestSanitizeTokenAnalysisInputTextPreservesFormatting(t *testing.T) {

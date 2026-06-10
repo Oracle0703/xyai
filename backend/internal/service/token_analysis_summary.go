@@ -1,9 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -56,10 +61,17 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 		summary.Model = tokenAnalysisModelFromEndpoint(endpoint)
 	}
 	summary.ToolsCount += tokenAnalysisToolCount(root)
+	summary.SummaryJSON["shape"] = tokenAnalysisShape(root)
+	finalizeTokenAnalysisBodySummary(endpoint, &summary, maxPreviewChars)
+	return summary, nil
+}
+
+// finalizeTokenAnalysisBodySummary 统一摘要尾部(JSON 与 multipart 两条解析
+// 路径共用): 预览脱敏与 SummaryJSON 计数字段, 保证下游展示字段齐全。
+func finalizeTokenAnalysisBodySummary(endpoint string, summary *TokenAnalysisBodySummary, maxPreviewChars int) {
 	// sanitize 之前 LastUserPreview 即原始全文, 留一份给净输入留存。
 	summary.LastUserText = summary.LastUserPreview
 	summary.LastUserPreview = SanitizeTokenAnalysisPreview(summary.LastUserPreview, maxPreviewChars)
-	summary.SummaryJSON["shape"] = tokenAnalysisShape(root)
 	summary.SummaryJSON["endpoint"] = strings.TrimSpace(endpoint)
 	summary.SummaryJSON["message_count"] = summary.MessageCount
 	summary.SummaryJSON["system_chars"] = summary.SystemChars
@@ -69,7 +81,107 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 	summary.SummaryJSON["tool_message_count"] = summary.ToolMessageCount
 	summary.SummaryJSON["tool_output_bytes"] = summary.ToolOutputBytes
 	summary.SummaryJSON["max_tool_output_bytes"] = summary.MaxToolOutputBytes
-	return summary, nil
+}
+
+// SummarizeTokenAnalysisMultipartRequest 解析 multipart/form-data 归档体
+// (/v1/images/edits 图改图等): 归档原样存了 multipart 原文, JSON 解析必报
+// invalid character '-'。前端构造时文本域(model/prompt/size/n)在图片分片
+// 之前, 因此即使 body 被归档上限截断, 前缀仍能解出完整文本域; 图片二进制
+// 经 string()+JSON 转码已被 U+FFFD 损毁, 只计数不读取。
+// 返回 ok=false 表示根本不是 multipart(调用方按原错误继续处理); 是
+// multipart 但什么都解不出时返回降级摘要, 不应计失败行。
+func SummarizeTokenAnalysisMultipartRequest(endpoint, contentType string, body []byte, maxPreviewChars int) (TokenAnalysisBodySummary, bool) {
+	boundary, ok := tokenAnalysisMultipartBoundary(contentType, body)
+	if !ok {
+		return TokenAnalysisBodySummary{}, false
+	}
+	if maxPreviewChars <= 0 {
+		maxPreviewChars = 300
+	}
+	endpoint = sanitizeTokenAnalysisText(endpoint)
+
+	fields := map[string]string{}
+	imageParts := 0
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	for {
+		part, err := reader.NextPart()
+		if err != nil {
+			// 截断 body 的最后一个分片必然 unexpected EOF: 已读到的域照常使用。
+			break
+		}
+		name := part.FormName()
+		switch {
+		case name == "":
+		case name == "image" || strings.HasPrefix(name, "image["):
+			// 与网关 parseOpenAIImagesMultipartRequest 的收集口径一致。
+			imageParts++
+		case part.FileName() != "":
+			// mask 等其他文件域: 内容已损毁, 跳过(NextPart 自动丢弃剩余字节)。
+		default:
+			if _, exists := fields[name]; !exists {
+				// 文本域远小于归档上限, 限读仅防御异常构造。
+				data, _ := io.ReadAll(io.LimitReader(part, 64*1024))
+				fields[name] = string(data)
+			}
+		}
+	}
+	if len(fields) == 0 && imageParts == 0 {
+		return TokenAnalysisBodySummary{SummaryJSON: map[string]any{"degraded": "multipart_body"}}, true
+	}
+
+	summary := TokenAnalysisBodySummary{
+		Model:       sanitizeTokenAnalysisText(strings.TrimSpace(fields["model"])),
+		SummaryJSON: map[string]any{},
+	}
+	prompt := fields["prompt"]
+	summary.MessageCount = 1
+	summary.UserChars = len([]rune(prompt))
+	summary.LastUserPreview = prompt
+	// 与 summaryImageRequest 同口径: ImageCount 取请求张数 n, 缺省回退输入图数。
+	summary.ImageCount = tokenAnalysisFormInt(fields["n"])
+	if summary.ImageCount <= 0 {
+		summary.ImageCount = imageParts
+	}
+	summary.SummaryJSON["shape"] = "image"
+	summary.SummaryJSON["multipart"] = true
+	summary.SummaryJSON["source_image_count"] = imageParts
+	if size := sanitizeTokenAnalysisText(strings.TrimSpace(fields["size"])); size != "" {
+		summary.SummaryJSON["size"] = size
+	}
+	finalizeTokenAnalysisBodySummary(endpoint, &summary, maxPreviewChars)
+	return summary, true
+}
+
+// tokenAnalysisMultipartBoundary 从归档的 content_type 头解析 multipart
+// boundary; 缺 headers 的历史归档行兜底从 body 首行 "--boundary" 提取。
+func tokenAnalysisMultipartBoundary(contentType string, body []byte) (string, bool) {
+	if mediaType, params, err := mime.ParseMediaType(contentType); err == nil &&
+		strings.HasPrefix(mediaType, "multipart/") {
+		if boundary := params["boundary"]; boundary != "" {
+			return boundary, true
+		}
+	}
+	if !bytes.HasPrefix(body, []byte("--")) {
+		return "", false
+	}
+	line := body[2:]
+	if idx := bytes.IndexByte(line, '\n'); idx >= 0 {
+		line = line[:idx]
+	}
+	boundary := strings.TrimRight(string(line), "\r")
+	// RFC 2046 boundary 上限 70 字符, 留余量防把非 multipart 文本误判成 boundary。
+	if boundary == "" || len(boundary) > 200 {
+		return "", false
+	}
+	return boundary, true
+}
+
+func tokenAnalysisFormInt(value string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func SanitizeTokenAnalysisPreview(input string, maxChars int) string {

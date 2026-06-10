@@ -81,6 +81,7 @@ API 模块分布:
 - `adminSettings.ts`: 管理端设置缓存。
 - `payment.ts`: 支付流程状态。
 - `onboarding.ts`: 引导流程状态。
+- `imageGen.ts`: 图片生成页全部状态与生成请求(表单/原图列表/结果/历史)。路由切换卸载视图后状态不丢, 进行中的生成在 store 里跑完并经 app store toast 通知。API Key 只在内存, 禁止持久化; 历史用 localStorage key `image-gen-history-v1`。图改图支持多图(`image[]` 最多 16 张, 单张 ≤20MB——网关 multipart 分片在 20MB 处静默截断, 总量 ≤100MB)。store 内部从 `./app` 文件模块导入 app store(测试按文件模块 mock, 见 ImageGenView.spec.ts)。原图预览用 `URL.createObjectURL`, 依赖 CSP `img-src` 放行 `blob:`(security_headers.go 的 requiredCSPDirectiveValues 会给旧配置补上)。
 
 `auth.ts` localStorage key:
 

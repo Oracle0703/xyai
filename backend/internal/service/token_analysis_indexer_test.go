@@ -451,6 +451,85 @@ func TestTokenAnalysisIndexerSkipsUsageMatchForCountTokens(t *testing.T) {
 	require.Equal(t, "/v1/messages/count_tokens", summary.Endpoint)
 }
 
+func TestTokenAnalysisIndexerIndexesMultipartImageEditRow(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-10.jsonl")
+	contentType, mpBody := buildTokenAnalysisMultipartImageEditBody(t, 64, 64)
+	// 生产事故形态: /v1/images/edits 的 multipart 体被原样归档, 修复前按
+	// JSON 解析报 parse request body: invalid character '-' 并计失败行。
+	// string(body) 经 json.Marshal 把非法 UTF-8 替换为 U+FFFD, 复现归档端
+	// 对图片二进制的损毁; 文本域不受影响。
+	event := map[string]any{
+		"archive_id": "mp1", "event": "request", "timestamp": "2026-06-10T01:02:03Z",
+		"method": "POST", "path": "/v1/images/edits", "endpoint": "/v1/images/edits",
+		"user_id": 7, "api_key_id": 9,
+		"headers": map[string]any{"content_type": contentType},
+		"body":    string(mpBody), "body_size": len(mpBody), "body_sha256": "hash-mp1",
+	}
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, append(raw, '\n'), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-10", EndDate: "2026-06-10"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Len(t, repo.upserts, 1)
+	summary := repo.upserts[0]
+	require.Equal(t, "gpt-image-2", summary.Model)
+	require.Contains(t, summary.LastUserPreview, "赛博朋克")
+	require.Equal(t, true, summary.SummaryJSON["multipart"])
+	require.NotContains(t, summary.SummaryJSON, "degraded")
+	for _, state := range repo.states {
+		require.Empty(t, state.LastError)
+		require.Zero(t, state.FailedRows)
+	}
+}
+
+func TestTokenAnalysisIndexerUpgradesTruncatedMultipartRow(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-10.jsonl")
+	_, mpBody := buildTokenAnalysisMultipartImageEditBody(t, 4096)
+	// 截断的 multipart 行此前只能降级 body_truncated 仅元数据; 现在优先走
+	// multipart 解析(文本域在前缀内完整), 升级为带 prompt 的摘要。本行故意
+	// 不带 headers, 同时覆盖 body 首行 boundary 兜底路径。
+	event := map[string]any{
+		"archive_id": "mp2", "event": "request", "timestamp": "2026-06-10T02:02:03Z",
+		"method": "POST", "path": "/v1/images/edits", "endpoint": "/v1/images/edits",
+		"user_id": 7, "api_key_id": 9,
+		"body": string(mpBody[:len(mpBody)-2048]), "body_size": len(mpBody),
+		"body_sha256": "hash-mp2", "body_truncated": true,
+	}
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, append(raw, '\n'), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway:       config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-10", EndDate: "2026-06-10"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Len(t, repo.upserts, 1)
+	summary := repo.upserts[0]
+	require.True(t, summary.RequestBodyTruncated)
+	require.Equal(t, "gpt-image-2", summary.Model)
+	require.Contains(t, summary.LastUserPreview, "赛博朋克")
+	require.NotContains(t, summary.SummaryJSON, "degraded")
+}
+
 func TestTokenAnalysisIndexerCountsUntruncatedBadBodyAsFailed(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "2026-06-09.jsonl")

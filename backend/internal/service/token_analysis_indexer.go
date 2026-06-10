@@ -264,12 +264,18 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	}
 	bodySummary, err := SummarizeTokenAnalysisRequest(event.Endpoint, []byte(event.Body), tokenAnalysisMaxPreviewChars(s.cfg))
 	if err != nil {
-		// 归档端按 max_request_body_bytes 截断过的 body 必然解析失败, 这是
-		// 写入端的预期行为而非坏数据: 降级为仅元数据入库, 不计失败行。
-		if !event.BodyTruncated {
+		if mpSummary, ok := SummarizeTokenAnalysisMultipartRequest(event.Endpoint, event.Headers.ContentType, []byte(event.Body), tokenAnalysisMaxPreviewChars(s.cfg)); ok {
+			// /v1/images/edits 等 multipart 归档体不是 JSON("--boundary" 开头,
+			// JSON 解析必报 invalid character '-'): 按 form 字段解析 prompt/
+			// model/n; 截断行同样适用(文本域在图片分片之前)。
+			bodySummary = mpSummary
+		} else if event.BodyTruncated {
+			// 归档端按 max_request_body_bytes 截断过的 body 必然解析失败, 这是
+			// 写入端的预期行为而非坏数据: 降级为仅元数据入库, 不计失败行。
+			bodySummary = TokenAnalysisBodySummary{SummaryJSON: map[string]any{"degraded": "body_truncated"}}
+		} else {
 			return 0, 0, 0, archiveID, err
 		}
-		bodySummary = TokenAnalysisBodySummary{SummaryJSON: map[string]any{"degraded": "body_truncated"}}
 	}
 	if bodySummary.Model == "" {
 		bodySummary.Model = event.Model

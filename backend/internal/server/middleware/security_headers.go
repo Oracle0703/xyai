@@ -47,6 +47,8 @@ var requiredCSPDirectiveValues = []struct {
 	{"style-src", AirwallexDemoStaticDomain},
 	{"style-src", AirwallexDemoCheckoutDomain},
 	{"frame-src", AirwallexDemoCheckoutDomain},
+	// 图片生成页用 URL.createObjectURL 做原图缩略预览，img-src 必须放行 blob:。
+	{"img-src", "blob:"},
 }
 
 // GenerateNonce generates a cryptographically secure random nonce.

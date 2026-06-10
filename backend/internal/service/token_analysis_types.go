@@ -316,18 +316,23 @@ type TokenAnalysisRepository interface {
 }
 
 type tokenAnalysisArchiveEvent struct {
-	ArchiveID     string `json:"archive_id"`
-	Event         string `json:"event"`
-	Timestamp     string `json:"timestamp"`
-	Method        string `json:"method"`
-	Path          string `json:"path"`
-	Endpoint      string `json:"endpoint"`
-	UserID        *int64 `json:"user_id"`
-	APIKeyID      *int64 `json:"api_key_id"`
-	GroupID       *int64 `json:"group_id"`
-	AccountID     *int64 `json:"account_id"`
-	Model         string `json:"model"`
-	UserAgent     string `json:"user_agent"`
+	ArchiveID string `json:"archive_id"`
+	Event     string `json:"event"`
+	Timestamp string `json:"timestamp"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	Endpoint  string `json:"endpoint"`
+	UserID    *int64 `json:"user_id"`
+	APIKeyID  *int64 `json:"api_key_id"`
+	GroupID   *int64 `json:"group_id"`
+	AccountID *int64 `json:"account_id"`
+	Model     string `json:"model"`
+	UserAgent string `json:"user_agent"`
+	// Headers 只取归档 header 白名单中与解析相关的键: content_type 用于
+	// 识别 multipart 归档体(/v1/images/edits 图改图等)。
+	Headers struct {
+		ContentType string `json:"content_type"`
+	} `json:"headers"`
 	Body          string `json:"body"`
 	BodySize      int64  `json:"body_size"`
 	BodySHA256    string `json:"body_sha256"`
