@@ -202,3 +202,132 @@ git diff --name-only dff279f267eb..<merge-commit>
 | `pnpm --dir frontend run typecheck` | Passed |
 
 经验教训: 合并后应执行全量 `go test ./...` 验证, 而非仅运行冲突相关包, 否则接口扩展引起的测试桩编译错误会漏检。
+
+## 2026-06-09
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0609_合并1.135版本` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch/tag | `v0.1.135` |
+| Base before merge | `125296de` |
+| Merge base | `635ad81c` |
+| Upstream head merged | `8c782bcc` |
+| Upstream version | `0.1.135` |
+| Merge commit | `d187587c` |
+| Files changed | 96 |
+| Conflict files | `backend/cmd/server/wire.go`, `backend/cmd/server/wire_gen.go`, `backend/cmd/server/wire_gen_test.go`, `backend/internal/service/wire.go` |
+
+### Summary
+
+Merged Wei-Shaw/sub2api updates through upstream `v0.1.135`(基于 `v0.1.134` 的 26 个增量提交)。
+
+Major upstream changes included:
+
+| Area | Notes |
+|---|---|
+| 代理有效期与失败回退 | 新增 `ProxyExpiryService`(`ProvideProxyExpiryService`, 每分钟 `SweepExpiredProxies`)、`ResolveProxyFallbackTarget` / `RevertProxyFallback`; `proxies` 新增 `expires_at` / `fallback_mode` / `backup_proxy_id` / `expiry_warn_days`, `accounts` 新增 `proxy_fallback_origin_id`(手动回切来源); 前端 `ProxiesView.vue` 有效期/回退模式 UI 与 `AccountsView.vue` 回切入口。 |
+| OpenAI transport failover | 新增 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`); `/responses` 传输层错误转 failover, 持久网络/代理故障临时摘除账号。 |
+| API Key exclusive group | `APIKeyAuth` 在用户不再被授权独占分组时拒绝访问并补 middleware 单测。 |
+| usage cache token split | `UsageLogStats` 与聚合拆分 `cache_creation_tokens` / `cache_read_tokens`, 前端 i18n 增加缓存创建/命中/命中率文案。 |
+| ops 告警 | 新增 `account_temp_unscheduled_count` 告警指标(`OpsAlertRulesCard.vue` + evaluator)。 |
+| 其它修复 | 5h reset stale 同步 `SessionWindowEnd`; 非流式响应强制 `application/json`; 切组后剥离失配 `previous_response_id`; `Select.vue` 下拉高度修复; 新增 `skills/sub2api-admin` 管理 skill。 |
+
+### Conflict Resolution Notes
+
+四个冲突文件均为本地与上游各自新增独立 provider 而相邻冲突, 一律**双边保留**(本地 `TokenAnalysisService` + 上游 `ProxyExpiryService`):
+
+| File | Resolution |
+|---|---|
+| `backend/internal/service/wire.go` | 同时保留 `ProvideTokenAnalysisService`(启动自动索引)与 `ProvideProxyExpiryService`(启动代理过期服务), ProviderSet 两者均注册。 |
+| `backend/cmd/server/wire.go` | `provideCleanup` 参数与 cleanup steps 同时包含 `tokenAnalysis` / `TokenAnalysisAutoIndex` 与 `proxyExpiry` / `ProxyExpiryService`。 |
+| `backend/cmd/server/wire_gen.go` | 解决源 `wire.go` 后用 `go run -mod=mod github.com/google/wire/cmd/wire ./cmd/server` 重新生成(`go generate ./cmd/server` 的 `main.go` 指令缺 `-mod=mod`, 会因 `google/subcommands` 缺 go.sum 条目失败)。 |
+| `backend/cmd/server/wire_gen_test.go` | `provideCleanup` 最小依赖测试同时构造 `tokenAnalysisSvc` 与 `proxyExpirySvc` 并按签名顺序传入。 |
+
+ent schema(`proxy.go` / `account.go`)、生成的 ent 代码、i18n 文案均自动合并成功; 按 llm-wiki 规则另跑 `go generate ./ent` 重新生成 ent(输出与自动合并一致)。`-mod=mod` 对 `go.sum` 引入的 wire/entc CLI 工具传递依赖已还原, 保持合并聚焦。
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `go build ./...` | Passed |
+| `go generate ./ent` / wire 重生成 | Passed |
+| `go test ./cmd/server -run Wire` | Passed |
+| `go test -tags=unit ./...` | Passed(`internal/pkg/ip` 首轮 Windows `.test.exe` 文件锁误报, 单独重跑通过) |
+| `go test -tags=integration ./...` | 编译通过; 运行期无 Docker, testcontainers 优雅跳过(`CI` 未设置) |
+| `pnpm --dir frontend run typecheck` | Passed |
+| `pnpm --dir frontend exec vitest run` | 733 passed / 4 failed; 4 个失败为 `UsageTable.spec.ts` / `UsageView.spec.ts` 图片用量行用例, 经合并前 main(`125296de`)对比验证为**预存问题, 非本次合并引入** |
+
+### Known Risks / 待办
+
+- **`proxies.backup_proxy_id` 唯一约束不一致(上游 v0.1.135 自带, 非本次合并引入)**: `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go:1111` 把列标记为 `Unique: true`; 但 SQL migration `149_proxy_expiry_fallback.sql` 是普通外键 + 普通索引(非唯一)。本项目**不使用 Ent auto-migrate**(建表仅走 SQL migration), 真实库/集成测试拿到的是非唯一列, 多个代理可共用同一备用代理、回退链 `ResolveProxyFallbackTarget` 正常, 故**当前运行无影响**。按团队决定**仅记录不改代码**, 后续可向上游反馈。详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2。
+- 前端 4 个图片用量用例为 main 预存红(`billing_mode=null` 历史行未走 `image_count`/模型名兜底, 被显示成 "Token"), 与本次合并无关, 团队决定暂不修复。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames d187587c
+git show --cc d187587c -- backend/cmd/server/wire.go backend/cmd/server/wire_gen.go backend/cmd/server/wire_gen_test.go backend/internal/service/wire.go
+git diff --stat 635ad81c..8c782bcc
+git diff --name-only 635ad81c..8c782bcc
+```
+
+## 2026-06-10
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0609_合并1.135版本` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `e30ccd8d` |
+| Upstream head merged | `c32e29ba` |
+| Merge commit | `97266dbd` |
+| Files changed | 56 |
+| Conflict files | `README_CN.md`, `backend/internal/handler/gateway_handler_error_fallback_test.go`, `backend/internal/service/openai_gateway_chat_completions_test.go` |
+
+### Summary
+
+Merged Wei-Shaw/sub2api `main` into the current integration branch after the previous `v0.1.135` merge.
+
+Major upstream changes included:
+
+| Area | Notes |
+|---|---|
+| Admin users filter | `GET /api/v1/admin/users` adds `api_key_group_id` to filter users by the exact group bound to their non-soft-deleted API keys; frontend `/admin/users` adds an API Key group filter, including disabled groups for investigation. |
+| Account group scheduler indexes | Added `backend/migrations/150_account_group_scheduler_indexes_notx.sql` with concurrent indexes on `account_groups` for group/account priority scheduler lookups. |
+| Gateway error writes | Added `MarkResponseCommitted` coverage and `gatewayForwardErrorAlreadyCommunicated` handling to prevent non-stream upstream JSON error passthrough from being polluted by an extra fallback SSE error frame. |
+| OpenAI compatibility | Chat Completions -> Responses API key path now propagates `prompt_cache_key` into the Responses body and derives stable session headers from API key/cache key context. |
+| Bedrock compatibility | `ApplyBedrockCCCompat` centralizes body cleanup and `anthropic-beta` filtering while preserving supported Bedrock beta tokens such as `context-management-2025-06-27`. |
+| Idempotency | Stored idempotency responses now truncate on UTF-8-safe boundaries. |
+| Misc | Added `claude-fable-5`, sponsor/README updates, Bedrock CC reload fix, gateway debug log loop optimization, and precomputed model body replacement fix. |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `README_CN.md` | Upstream deleted the Chinese README while this branch still keeps and modifies it; preserved the local branch version to avoid dropping project-local documentation. |
+| `backend/internal/handler/gateway_handler_error_fallback_test.go` | Both sides added adjacent regression tests. Kept the local `ConcurrencyCacheError` -> 503 test and the upstream `gatewayForwardErrorAlreadyCommunicated` double-write prevention tests. |
+| `backend/internal/service/openai_gateway_chat_completions_test.go` | Both sides added adjacent regression tests. Kept local large request compaction tests and appended upstream `prompt_cache_key` propagation coverage as a separate test. |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `go test -p 1 ./internal/handler ./internal/service -count=1` with repo-local `GOCACHE/GOTMPDIR` | Passed before merge commit after conflict resolution. The first attempt without local `GOCACHE` failed with Windows `go-build` access denied cache lock. |
+| `go test -p 1 ./internal/handler -run 'TestGateway(HandleConcurrencyError|ForwardErrorAlreadyCommunicated|EnsureForwardErrorResponse)' -count=1` with repo-local `GOCACHE/GOTMPDIR` | Passed. |
+| `go test -p 1 ./internal/service -run 'TestForwardAsChatCompletions(CompactsLargeToolOutputForEnabledAPIKey|WarnModeDoesNotMutateLargeRequest|CompactionUsesAPIKeyFromContext|_APIKeyPropagatesPromptCacheKeyInResponsesBody)' -count=1` with repo-local `GOCACHE/GOTMPDIR` | Passed. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed. Direct PowerShell `pnpm` was blocked by local execution policy, so `cmd.exe /c` was used. |
+| `go test -p 1 ./internal/handler ./internal/service -count=1` after wiki update | Timed out in this Codex tool run before emitting a code failure; narrower final regression runs above passed. |
+
+### Wiki Updates
+
+Updated `llm-wiki/wiki/backend.md`, `frontend.md`, `data-and-domain.md`, and `security-and-reliability.md` for the stable knowledge introduced by this upstream merge: API key group filtering, scheduler indexes, UTF-8-safe idempotency truncation, OpenAI prompt cache key propagation, gateway double-write prevention, and Bedrock CC compatibility filtering.
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 97266dbd
+git show --cc 97266dbd -- README_CN.md backend/internal/handler/gateway_handler_error_fallback_test.go backend/internal/service/openai_gateway_chat_completions_test.go
+git diff --stat e30ccd8d..97266dbd
+git log --oneline e30ccd8d..c32e29ba
+```

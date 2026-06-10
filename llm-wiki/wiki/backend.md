@@ -40,7 +40,13 @@
 - `handler.ProviderSet`
 - `server.ProviderSet`
 
-很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, channel monitor runner 和 user platform quota flusher。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
+很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner 和 user platform quota flusher。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
+
+代理有效期与失败回退(`ProvideProxyExpiryService`, 每分钟扫描):
+
+- `backend/internal/service/proxy_expiry_service.go` 定时 `SweepExpiredProxies`; `proxy_fallback.go` 的 `ResolveProxyFallbackTarget` 按 `fallback_mode`(`none` / `proxy` / `direct`)沿 `backup_proxy_id` 链解析过期代理应改投的目标, `RevertProxyFallback` 支持手动回切。
+- 账号回切来源记录在 `accounts.proxy_fallback_origin_id`; 前端入口在 `ProxiesView.vue`(有效期/回退模式)与 `AccountsView.vue`(回切)。
+- `provideCleanup` 的 `ProxyExpiryService` 步骤负责停止该后台任务。
 
 ## HTTP Server 与路由
 
@@ -87,8 +93,11 @@ OpenAI/Codex 兼容桥:
 - `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go` 负责 Chat Completions 与 Responses 双向桥接; streaming bridge 会按 Responses 生命周期发出 `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta/done`, `response.output_item.done`, `response.completed`。
 - Chat -> Responses 流式 message item id 是动态生成的, 但同一条消息在 added/done/completed output 中必须保持一致; 测试不应断言固定 `item_msg_0`。
 - Reasoning-only Chat stream 会先输出 reasoning item, 必要时合成可见 message 文本; tool call stream 必须补齐 `function_call_arguments.done` 和 `output_item.done`, 否则 Codex 客户端不会执行工具。
+- OpenAI-compatible API key 走 Chat Completions -> Responses 上游时, `prompt_cache_key` 要写入 Responses body, 并用 API key ID + cache key 派生稳定 `session_id`; 修正模型名时必须先完成上游模型映射再注入缓存 key。
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
+- OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
+- 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
 
 网关链路常见中间件:
 
