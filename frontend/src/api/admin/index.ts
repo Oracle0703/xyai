@@ -35,6 +35,7 @@ import riskControlAPI from './riskControl'
 import requestInterceptAPI from './requestIntercept'
 import userConcurrencyPresetsAPI from './userConcurrencyPresets'
 import promptMetricsAPI from './promptMetrics'
+import adminComplianceAPI from './compliance'
 
 /**
  * Unified admin API object for convenient access
@@ -71,7 +72,8 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   requestIntercept: requestInterceptAPI,
   userConcurrencyPresets: userConcurrencyPresetsAPI,
-  promptMetrics: promptMetricsAPI
+  promptMetrics: promptMetricsAPI,
+  compliance: adminComplianceAPI
 }
 
 export {
@@ -106,7 +108,8 @@ export {
   riskControlAPI,
   requestInterceptAPI,
   userConcurrencyPresetsAPI,
-  promptMetricsAPI
+  promptMetricsAPI,
+  adminComplianceAPI
 }
 
 export default adminAPI
