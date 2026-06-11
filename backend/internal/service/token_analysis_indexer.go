@@ -254,6 +254,11 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	}
 	// 归档 JSON 字符串里的 \u0000 转义解码后是真实 0x00, 这些字段最终都
 	// 写入 Postgres text 列, 必须先剥离(body 衍生文本在 summarizer 内清洗)。
+	// archive_id/body_sha256 虽是写入端生成, 也一并兜底: 它们直接进 upsert,
+	// 一旦带 NUL 该行会永久失败。
+	event.ArchiveID = sanitizeTokenAnalysisText(event.ArchiveID)
+	archiveID = event.ArchiveID
+	event.BodySHA256 = sanitizeTokenAnalysisText(event.BodySHA256)
 	event.Method = sanitizeTokenAnalysisText(event.Method)
 	event.Endpoint = sanitizeTokenAnalysisText(event.Endpoint)
 	event.Path = sanitizeTokenAnalysisText(event.Path)

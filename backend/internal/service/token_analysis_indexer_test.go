@@ -636,6 +636,69 @@ func TestTokenAnalysisIndexerSanitizesLastErrorNUL(t *testing.T) {
 	require.NotContains(t, lastError, "\x00")
 }
 
+func TestTokenAnalysisIndexerNULInEveryFieldStillIndexesClean(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "2026-06-11.jsonl")
+	// 生产事故形态: upsert token analysis request summary: pq: invalid byte
+	// sequence 0x00。把 NUL 塞进归档行全部用户可控字段, 断言 summary upsert
+	// 的每个 text/jsonb 参数都干净且不计失败行(任一字段漏剥该行即永久失败)。
+	bodyObj := map[string]any{
+		"model":  "claude-sonnet\x00-x",
+		"system": "Primary working directory: E:/code/lag\x00killer\nCurrent branch: feat\x00ure\n",
+		"messages": []map[string]any{
+			{"role": "user", "content": "ask\x00 something"},
+		},
+	}
+	bodyJSON, err := json.Marshal(bodyObj)
+	require.NoError(t, err)
+	event := map[string]any{
+		"archive_id": "nul\x00all", "event": "request", "timestamp": "2026-06-11T01:02:03Z",
+		"method": "POST\x00", "endpoint": "/v1/messages\x00", "path": "/v1/messages\x00",
+		"user_id": 7, "api_key_id": 9, "model": "claude\x00", "user_agent": "claude-cli/1.0",
+		"body": string(bodyJSON), "body_size": len(bodyJSON), "body_sha256": "hash\x00nul",
+	}
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(file, append(raw, '\n'), 0o600))
+
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+			InputStoreMaxChars: 8000,
+		},
+	}, nil)
+
+	result, err := svc.IndexRange(context.Background(), TokenAnalysisIndexRequest{StartDate: "2026-06-11", EndDate: "2026-06-11"})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.IndexedRows)
+	require.Equal(t, int64(0), result.FailedRows)
+	require.Len(t, repo.upserts, 1)
+	got := repo.upserts[0]
+	for name, v := range map[string]string{
+		"archive_id": got.ArchiveID, "model": got.Model, "endpoint": got.Endpoint,
+		"method": got.Method, "body_sha256": got.BodySHA256, "preview": got.LastUserPreview,
+		"workdir": got.ClientWorkdir, "project": got.ClientProject, "branch": got.ClientBranch,
+		"attribution_source": got.AttributionSource, "source_file": got.SourceFile,
+	} {
+		require.NotContains(t, v, "\x00", "field %s", name)
+	}
+	summaryJSON, err := json.Marshal(got.SummaryJSON)
+	require.NoError(t, err)
+	// jsonb 列拒收 u0000 转义(unsupported Unicode escape sequence),
+	// marshal 后的摘要里也不允许出现。
+	require.NotContains(t, string(summaryJSON), `\u`+"0000")
+	require.Equal(t, "claude-sonnet-x", got.Model)
+	require.Equal(t, "/v1/messages", got.Endpoint)
+	// 带 NUL 的 cwd 是坏数据, 整个拒绝而非剥后入库; branch 剥 NUL 保留。
+	require.Empty(t, got.ClientWorkdir)
+	require.Equal(t, "feature", got.ClientBranch)
+	require.Len(t, repo.userInputs, 1)
+	require.NotContains(t, repo.userInputs[0].Content, "\x00")
+}
+
 func TestTokenAnalysisServiceGetUserInputNotFound(t *testing.T) {
 	repo := &tokenAnalysisRepoStub{}
 	svc := NewTokenAnalysisService(repo, &config.Config{}, nil)
