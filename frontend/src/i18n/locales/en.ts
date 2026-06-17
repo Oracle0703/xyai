@@ -1500,6 +1500,45 @@ export default {
       projectRanking: 'Project Usage (Member x Project)',
       project: 'Project',
       projectFilterHint: 'exact project name / unattributed',
+      userEmail: 'User Email',
+      userEmailHint: 'fuzzy email search (user/project ranking, requests)',
+      riskLegend: 'Risk reference',
+      riskLegendHint: 'What each risk tag means. Hovering a tag in the distribution or request list also shows its explanation.',
+      // Risk code -> human label and explanation; the full desc is shown on hover.
+      riskCodes: {
+        huge_input_tiny_output: {
+          label: 'Huge input, tiny output',
+          desc: 'Input tokens are extremely high (>=100k) but output is tiny (<=200). Usually a huge context/file is stuffed into the request with almost no result, wasting input cost.'
+        },
+        repeat_uncached_body: {
+          label: 'Repeated, uncached request',
+          desc: 'Nearly identical large requests are repeated in a short window (>=3 times, input >=20k tokens) with low cache hits — paying again for the same content.'
+        },
+        low_cache_hit_large_input: {
+          label: 'Large input, low cache hit',
+          desc: 'A single input is very large (>=50k tokens) but cache hit is very low; most content is not reused from cache, so input cost is high.'
+        },
+        rapid_similar_requests: {
+          label: 'Rapid similar requests',
+          desc: 'Several similar large requests (>=5, input >=10k tokens) sent in a short window — likely repeated spend from a loop or retries.'
+        },
+        oversized_system_prompt: {
+          label: 'Oversized system prompt',
+          desc: 'The system prompt is clearly oversized (>=20k chars, or larger than user input). It is re-sent with every request, amplifying input cost.'
+        },
+        tool_heavy_short_output: {
+          label: 'Tool-heavy, short output',
+          desc: 'Many tool definitions (>=10) with a large input but very short output (<=500 tokens); tool defs consume lots of input tokens without matching value.'
+        },
+        large_tool_history: {
+          label: 'Oversized tool history',
+          desc: 'Accumulated tool outputs in the conversation are oversized (>=512KB, >=10 messages), re-injected into context each turn and steadily driving up input cost.'
+        },
+        giant_tool_output: {
+          label: 'Giant tool output',
+          desc: 'A single tool output is huge (>=512KB), consuming many tokens at once — usually an untrimmed large blob returned by a tool.'
+        }
+      },
       unattributed: 'Unattributed',
       requests: 'Requests',
       cacheTokens: 'Cache Tokens',

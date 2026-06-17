@@ -16,6 +16,10 @@
             <input v-model.number="filters.user_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
           </label>
           <label class="space-y-1">
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.userEmail') }}</span>
+            <input v-model.trim="filters.user_email" type="text" class="input h-9 text-sm" :placeholder="t('admin.tokenAnalysis.userEmailHint')" @keyup.enter="reloadAll" />
+          </label>
+          <label class="space-y-1">
             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">API Key ID</span>
             <input v-model.number="filters.api_key_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
           </label>
@@ -97,11 +101,28 @@
               type="button"
               class="rounded border px-2.5 py-1 text-xs"
               :class="filters.risk_reason === reason.code ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300'"
+              :title="riskDesc(reason.code) || reason.code"
               @click="toggleRiskReason(reason.code)"
             >
-              {{ reason.code }} · {{ formatNumber(reason.count) }}
+              {{ riskLabel(reason.code) }} · {{ formatNumber(reason.count) }}
             </button>
             <span v-if="!(summary?.risk_reasons || []).length" class="text-sm text-gray-500">{{ t('common.noData') }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <button type="button" class="mb-1 flex w-full items-center justify-between text-left" @click="showRiskLegend = !showRiskLegend">
+          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.riskLegend') }}</h2>
+          <span class="text-xs text-gray-400">{{ showRiskLegend ? '▾' : '▸' }}</span>
+        </button>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.riskLegendHint') }}</p>
+        <div v-if="showRiskLegend" class="grid grid-cols-1 gap-x-6 gap-y-2.5 md:grid-cols-2">
+          <div v-for="code in RISK_CODES" :key="code" class="flex items-start gap-2">
+            <span class="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+              {{ riskLabel(code) }}
+            </span>
+            <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ riskDesc(code) }}</p>
           </div>
         </div>
       </div>
@@ -377,8 +398,13 @@
                       <span v-if="item.risk_score > 0" class="inline-flex min-w-8 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
                         {{ item.risk_score }}
                       </span>
-                      <span v-for="reason in item.risk_reasons || []" :key="reason.code" class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-                        {{ reason.code }}
+                      <span
+                        v-for="reason in item.risk_reasons || []"
+                        :key="reason.code"
+                        class="cursor-help rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                        :title="riskDesc(reason.code) || reason.message || reason.code"
+                      >
+                        {{ riskLabel(reason.code) }}
                       </span>
                     </div>
                   </td>
@@ -501,6 +527,18 @@ const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
 const archiveFiles = ref<TokenAnalysisArchiveFile[]>([])
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
 const requestSort = ref<'event_time' | 'risk_score'>('event_time')
+// 风险说明图例常驻展示(可折叠), 顺序与 ScoreTokenAnalysisRisk 中的扣分权重一致。
+const showRiskLegend = ref(true)
+const RISK_CODES = [
+  'huge_input_tiny_output',
+  'repeat_uncached_body',
+  'low_cache_hit_large_input',
+  'rapid_similar_requests',
+  'oversized_system_prompt',
+  'tool_heavy_short_output',
+  'large_tool_history',
+  'giant_tool_output'
+] as const
 // 项目排行支持按请求数/token/费用/最近活动服务端排序(列表是分页的, 前端排序无意义)。
 type ProjectSortField = 'request_count' | 'total_tokens' | 'actual_cost' | 'last_event_time'
 const projectSort = ref<ProjectSortField>('total_tokens')
@@ -609,6 +647,20 @@ function riskClass(score: number): string {
   if (score >= 60) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
   if (score >= 30) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
   return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
+}
+
+// 风险原因 code 映射中文名称/解释(见 i18n riskCodes)。缺失映射时回退展示原始
+// code, 保证后端新增风险类型而前端文案未补时仍可读, 不会显示成空白。
+function riskLabel(code: string): string {
+  const key = `admin.tokenAnalysis.riskCodes.${code}.label`
+  const label = t(key)
+  return label === key ? code : label
+}
+
+function riskDesc(code: string): string {
+  const key = `admin.tokenAnalysis.riskCodes.${code}.desc`
+  const desc = t(key)
+  return desc === key ? '' : desc
 }
 
 async function loadSummary() {

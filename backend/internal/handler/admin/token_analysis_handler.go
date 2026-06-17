@@ -191,6 +191,7 @@ func (h *TokenAnalysisHandler) parseFilters(c *gin.Context) (service.TokenAnalys
 	filters.Endpoint = strings.TrimSpace(c.Query("endpoint"))
 	filters.RiskReason = strings.TrimSpace(c.Query("risk_reason"))
 	filters.Project = strings.TrimSpace(c.Query("project"))
+	filters.UserEmail = strings.TrimSpace(c.Query("user_email"))
 	if raw := strings.TrimSpace(c.Query("risk_min")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || v < 0 || v > 100 {

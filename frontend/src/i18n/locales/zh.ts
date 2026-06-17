@@ -1521,6 +1521,46 @@ export default {
       projectRanking: '项目消耗排行(成员 × 项目)',
       project: '项目',
       projectFilterHint: '项目名(精确匹配) / unattributed',
+      userEmail: '用户邮箱',
+      userEmailHint: '邮箱模糊搜索(用户/项目排行、请求明细)',
+      riskLegend: '风险说明',
+      riskLegendHint: '下列为各风险标记的含义,鼠标移到「风险原因分布」或请求明细的标签上也会显示对应解释。',
+      // 风险原因 code → 中文名称与解释; 标签悬停展示 desc, 让不熟悉英文的客户
+      // 也能看懂每个风险标记的具体含义。新增风险类型时在此同步补充。
+      riskCodes: {
+        huge_input_tiny_output: {
+          label: '大输入·小输出',
+          desc: '输入 token 极高(≥10万)但输出极短(≤200)。通常是把超大上下文或文件一次性塞进请求,却几乎没有产出,白白付了输入费用。'
+        },
+        repeat_uncached_body: {
+          label: '重复请求未命中缓存',
+          desc: '短时间内重复发送几乎相同的大请求(≥3 次、输入≥2万 token),但缓存命中很低,相当于为相同内容反复付费。'
+        },
+        low_cache_hit_large_input: {
+          label: '大输入·缓存命中低',
+          desc: '单次输入很大(≥5万 token)但缓存命中极低,大部分内容没有复用缓存,输入成本偏高。'
+        },
+        rapid_similar_requests: {
+          label: '高频相似大请求',
+          desc: '短时间内连续发送多个(≥5 次)内容相似的大请求(输入≥1万 token),可能是循环或重试造成的重复消耗。'
+        },
+        oversized_system_prompt: {
+          label: 'system 提示过大',
+          desc: 'system(系统提示)内容明显偏大(≥2万字符,或超过用户输入)。它每次请求都会被重复携带,放大输入成本。'
+        },
+        tool_heavy_short_output: {
+          label: '工具多·输出短',
+          desc: '携带的工具(tools)定义较多(≥10 个)且输入大,但输出很短(≤500 token),工具定义占用大量输入 token 却没带来等价产出。'
+        },
+        large_tool_history: {
+          label: '工具历史过大',
+          desc: '对话历史里累积的工具(tool)返回结果体积过大(≥512KB、≥10 条),每轮都会被重复带入上下文,持续推高输入成本。'
+        },
+        giant_tool_output: {
+          label: '单条工具输出过大',
+          desc: '存在单条超大的工具(tool)返回结果(≥512KB),一次性占用大量 token,通常是工具返回了未裁剪的大段内容。'
+        }
+      },
       unattributed: '未归因',
       requests: '请求数',
       cacheTokens: '缓存 Token',

@@ -308,12 +308,14 @@ func (r *tokenAnalysisRepository) CountBilledRequests(ctx context.Context, filte
 
 func (r *tokenAnalysisRepository) ListUserUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisUserUsage, *pagination.PaginationResult, error) {
 	where, args := buildTokenAnalysisWhere(filters, "s")
+	where, args = appendUserEmailFilter(where, args, filters.UserEmail, "u")
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
 	countQuery := `
 SELECT COUNT(*) FROM (
     SELECT s.user_id, s.api_key_id
     FROM token_analysis_request_summaries s
     LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+    LEFT JOIN users u ON u.id = s.user_id
     ` + whereSQL + `
     GROUP BY s.user_id, s.api_key_id
 ) grouped`
@@ -406,12 +408,14 @@ LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs
 // 归入 unattributed 桶, 在结果中显式呈现而不是悄悄丢弃。
 func (r *tokenAnalysisRepository) ListProjectUsage(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisProjectUsage, *pagination.PaginationResult, error) {
 	where, args := buildTokenAnalysisWhere(filters, "s")
+	where, args = appendUserEmailFilter(where, args, filters.UserEmail, "u")
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
 	countQuery := `
 SELECT COUNT(*) FROM (
     SELECT s.client_project, s.user_id
     FROM token_analysis_request_summaries s
     LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+    LEFT JOIN users u ON u.id = s.user_id
     ` + whereSQL + `
     GROUP BY s.client_project, s.user_id
 ) grouped`
@@ -487,10 +491,11 @@ LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs
 
 func (r *tokenAnalysisRepository) ListRequests(ctx context.Context, filters service.TokenAnalysisFilters, params pagination.PaginationParams) ([]service.TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
 	where, args := buildTokenAnalysisWhere(filters, "s")
+	where, args = appendUserEmailFilter(where, args, filters.UserEmail, "u")
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
 
 	var total int64
-	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM token_analysis_request_summaries s LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id "+whereSQL, args...).Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM token_analysis_request_summaries s LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id LEFT JOIN users u ON u.id = s.user_id "+whereSQL, args...).Scan(&total); err != nil {
 		return nil, nil, fmt.Errorf("count token analysis requests: %w", err)
 	}
 
@@ -888,6 +893,23 @@ func buildTokenAnalysisWhere(filters service.TokenAnalysisFilters, alias string)
 	if !filters.IncludeUnmatched {
 		where = append(where, prefix+"usage_log_id IS NOT NULL")
 	}
+	return where, args
+}
+
+// appendUserEmailFilter 在已 JOIN users 的查询上追加成员邮箱模糊搜索(ILIKE),
+// 供项目消耗排行与请求明细按邮箱筛选; alias 为 users 表别名。用户行 email 为空
+// (未归因/未匹配)时 ILIKE NULL 不命中, 正是按邮箱搜索应有的语义。
+func appendUserEmailFilter(where []string, args []any, email, alias string) ([]string, []any) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return where, args
+	}
+	prefix := strings.TrimSpace(alias)
+	if prefix != "" {
+		prefix += "."
+	}
+	args = append(args, "%"+escapeLikePattern(email)+"%")
+	where = append(where, fmt.Sprintf(prefix+"email ILIKE $%d", len(args)))
 	return where, args
 }
 

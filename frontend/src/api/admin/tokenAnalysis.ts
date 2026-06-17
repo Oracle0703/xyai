@@ -6,6 +6,7 @@ export interface TokenAnalysisQueryParams {
   end_date?: string
   timezone?: string
   user_id?: number
+  user_email?: string
   api_key_id?: number
   account_id?: number
   group_id?: number

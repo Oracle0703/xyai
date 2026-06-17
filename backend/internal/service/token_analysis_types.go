@@ -123,6 +123,8 @@ type TokenAnalysisFilters struct {
 	IncludeUnmatched bool       `json:"include_unmatched,omitempty"`
 	// Project 按客户端项目过滤; 特殊值 "unattributed" 表示未归因(client_project 为空)。
 	Project string `json:"project,omitempty"`
+	// UserEmail 按成员邮箱模糊搜索, 仅作用于项目消耗排行与请求明细(两表均 JOIN users)。
+	UserEmail string `json:"user_email,omitempty"`
 }
 
 type TokenAnalysisSummary struct {
