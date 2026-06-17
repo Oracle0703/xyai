@@ -331,3 +331,85 @@ git show --cc 97266dbd -- README_CN.md backend/internal/handler/gateway_handler_
 git diff --stat e30ccd8d..97266dbd
 git log --oneline e30ccd8d..c32e29ba
 ```
+
+## 2026-06-17
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0617_合并上游1.137版本` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` (tag `v0.1.137`) |
+| Base before merge | `dd1700fc` |
+| Upstream head merged | `4a5665da` |
+| Merge commit | `0e86a67c` |
+| Upstream commits | 80 |
+| Files changed | 176 (`+11023 / -661`) |
+| Conflict files | `backend/internal/service/domain_constants.go`, `backend/internal/service/openai_gateway_responses_chat_fallback.go`, `backend/internal/service/openai_gateway_chat_completions_test.go` |
+
+### Summary
+
+将 Wei-Shaw/sub2api `main`（`v0.1.137`，本地上次合并基线 `dd1700fc` 之后的 80 个上游提交）合入专用集成分支。VERSION `0.1.136 -> 0.1.137`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| cyber 内容审计 | 新增 `openai_cyber_policy.go` / `openai_cyber_session_block.go`：cyber 策略命中后可按会话级自动屏蔽（默认关，`cyber_session_block_enabled` / `cyber_session_block_ttl_seconds` 两个设置键，默认 TTL 3600s）；usage 请求类型新增 `cyber` 维度（前端 badge/label/export）。 |
+| thinking 协议过滤 | 新增 `thinking_protocol.go`：按 Anthropic-compatible 上游协议对 thinking-block 做协议感知过滤；区分 `mappedModel` 与 `originalModel`；MiniMax M 系列 `thinking.type=enabled` 改写为 adaptive。 |
+| 国产 LLM 计费/推理 | GLM / Kimi / MiniMax / DeepSeek V4 Pro·Flash / doubao-embedding-vision / kimi-for-coding 兜底定价；`thinking-enabled` 自动填充 `reasoning_effort` 默认值；DeepSeek `reasoning_effort` `max` 归一化为 `xhigh`。 |
+| OpenAI 配额/探测 | 新增 `openai_quota_service.go`：查询并重置 OpenAI 账号 rate-limit credits；`/responses` 能力探测增加工具调用校验。 |
+| 调度 outbox | scheduler outbox dedup 修复（claim 时释放、非法 dedup index 恢复、snapshot coalesce、消费后清理 + 10s grace）；迁移重排 151/152 -> 152/153。 |
+| 账号/监控 | `accounts` autopause/expiry 部分索引（`151_account_autopause_expiry_index_notx.sql`）；渠道监控正负随机抖动 `jitter_seconds`（Ent schema + `151_channel_monitor_jitter.sql`）；账号列表展示 account id；refresh candidates SQL 修复（不再排除健康账号）。 |
+| 网关健壮性 | Anthropic 429 窗口重置；上游 zstd 响应解压；非 JSON 200 响应 failover；SSE `event:error` body 保留以反映真实上游错误；haiku 探测流式拦截；OpenAI images server error failover。 |
+| 安全/认证 | sub2api 注入修复；ACL 拒绝信息包含 client IP；OAuth 注册应用优惠码；antigravity system-role message 处理；OpenAI cyber policy passthrough。 |
+| 杂项 | `form-data` 升级到 `>=4.0.6`（pnpm override）；token refresh 重试退避降幅；用户等待队列计数移出热路径；Dockerfile 复制 docs/legal。 |
+
+### Conflict Resolution Notes
+
+三处冲突均为语义融合，未做无脑 ours/theirs，全部保留本地能力并吸收上游新增逻辑:
+
+| File | Resolution |
+|---|---|
+| `backend/internal/service/domain_constants.go` | 设置键常量块的加性冲突：保留本地 `SettingKeyRequestInterceptRules`（本地请求拦截能力）+ 吸收上游 `SettingKeyCyberSessionBlockEnabled` / `SettingKeyCyberSessionBlockTTLSeconds`，二者并存。 |
+| `backend/internal/service/openai_gateway_responses_chat_fallback.go` | 语义冲突：本地已将 `billingModel` / `upstreamModel` 计算上移到转换调用之前（因 `ResponsesToChatCompletionsRequestWithOptions` 需要 `upstreamModel`）。上游在原位置重复声明这两个变量并新增 `ApplyThinkingEnabledFallback` 调用。解决方式：保留本地上移声明，去掉上游重复 `:=` 声明，仅吸收上游 `reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)` 一行（复用已算出的 `billingModel`）。 |
+| `backend/internal/service/openai_gateway_chat_completions_test.go` | 测试辅助/用例的加性冲突：保留本地 `largeOpenAIChatCompletionsBody` / `openAIChatCompletionsOAuthTestAccount`（被本文件多处大请求与 OAuth 用例引用）+ 吸收上游新增 `TestBuildChatStreamErrorSSE`，并补齐 HEAD 函数自身的闭合花括号，三者并存。`gjson` import 与 `buildChatStreamErrorSSE` 实现均已存在。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| token 分析（索引/API/前端页面/邮箱搜索/项目归因） | 未被覆盖，保留。 |
+| request archive / intercept 管理（含 `request_intercept_rules` 设置键） | 保留，冲突中显式保住。 |
+| 生图工具 `/image-gen`、图片生成网关 | 未受影响。 |
+| 用户并发方案（migration/repo/service/admin API/runner） | 未受影响。 |
+| Redis 7+ 要求、并发错误分类 | 未引入 Redis 3 workaround。 |
+| OpenAI Responses/Chat 兼容、大请求 role=tool 压缩、空响应兜底 | 保留；fallback 文件冲突中保住本地 model 上移逻辑。 |
+
+### Verification
+
+`GOCACHE` 指向仓库内 `backend/.gocache`（已被 `.gitignore` 忽略），`GOTMPDIR` 指向仓库外 `e:\tmp`，规避 Windows `.test.exe` 文件锁。
+
+| Command | Result |
+|---|---|
+| `go build ./internal/service/...` | Passed |
+| `go vet -tags=unit ./internal/service/`（含测试编译） | Passed |
+| `go test -tags=unit -p 1 -count=1 ./internal/service/` | Passed (88.8s) |
+| `go test -tags=unit -p 1 -count=1 ./internal/pkg/apicompat/` | Passed |
+| `go test -tags=unit -p 1 -count=1 ./cmd/server ./internal/handler ./internal/handler/admin` | Passed |
+| `pnpm --dir frontend run typecheck`（`vue-tsc --noEmit`） | Passed |
+| `pnpm --dir frontend run test:run`（vitest） | 750 passed / 4 failed（124 files，2 failed） |
+
+### Known Risks / 待办
+
+- **前端 4 个图片用量 tooltip 用例为 main 预存红，非本次合并引入**: 失败用例为 `src/views/user/__tests__/UsageView.spec.ts`（image billing metadata tooltip）与 `src/components/admin/usage/__tests__/UsageTable.spec.ts`（historical image rows without 2K fallback），断言 `Image count` / `Billing size` / `Per-image price` 等文案。本次合并对 `UsageTable.vue` / `UsageView.vue` / `usageRequestType.ts` 的改动**仅为加性 `cyber` 请求类型 label/badge/validity-set**，与图片计费 tooltip 渲染正交；两个失败 spec 文件本次合并未改动。与既有记录 `known-red-image-usage-vitest` 一致，团队决定暂不修复。
+- **`backend/migrations/` 出现两个 `151_` 前缀**（`151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql`）: 均来自上游（本地合并前仅到 `150`），是上游各自分支独立编号所致。迁移 runner（`backend/internal/repository/migrations_runner.go`）按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重，不依赖数字前缀唯一，故两文件独立执行、互不覆盖，**当前运行无影响**；仅记录，待后续上游或本地决定是否重排。
+- **`proxies.backup_proxy_id` 唯一约束不一致**: 上游 v0.1.135 自带的历史问题，详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2，本次合并未触及，状态不变。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 0e86a67c
+git show --cc 0e86a67c -- backend/internal/service/domain_constants.go backend/internal/service/openai_gateway_responses_chat_fallback.go backend/internal/service/openai_gateway_chat_completions_test.go
+git diff --stat dd1700fc..0e86a67c
+git log --oneline dd1700fc..4a5665da
+```

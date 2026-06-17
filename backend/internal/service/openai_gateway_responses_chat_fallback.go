@@ -67,6 +67,8 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		})
 		return nil, fmt.Errorf("convert responses to chat completions: %w", err)
 	}
+	// 国产模型默认 effort 补充：需要 mappedModel 判定，billingModel 在上方已算出。
+	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
 	chatReq.Model = upstreamModel
 	if clientStream {
 		chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}

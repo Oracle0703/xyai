@@ -207,6 +207,23 @@ func TestLoadDefaultOpenAIResponseHeaderTimeoutUnlimited(t *testing.T) {
 	require.Equal(t, 0, cfg.Gateway.OpenAIResponseHeaderTimeout)
 }
 
+func TestLoadDefaultOpenAIDefaultReasoningEffortEmpty(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "", cfg.Gateway.OpenAIDefaultReasoningEffort)
+}
+
+func TestLoadOpenAIDefaultReasoningEffortFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GATEWAY_OPENAI_DEFAULT_REASONING_EFFORT", "high")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "high", cfg.Gateway.OpenAIDefaultReasoningEffort)
+}
+
 func TestLoadOpenAIResponseHeaderTimeoutFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_OPENAI_RESPONSE_HEADER_TIMEOUT", "1800")
@@ -1343,6 +1360,11 @@ func TestValidateConfigErrors(t *testing.T) {
 			name:    "gateway openai response header timeout",
 			mutate:  func(c *Config) { c.Gateway.OpenAIResponseHeaderTimeout = -1 },
 			wantErr: "gateway.openai_response_header_timeout",
+		},
+		{
+			name:    "gateway openai default reasoning effort invalid",
+			mutate:  func(c *Config) { c.Gateway.OpenAIDefaultReasoningEffort = "ultra" },
+			wantErr: "gateway.openai_default_reasoning_effort",
 		},
 		{
 			name:    "gateway max idle conns",
