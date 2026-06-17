@@ -125,6 +125,17 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
 
+历史 thinking block 过滤是协议感知的(`internal/service/thinking_protocol.go`), 不能跨上游一刀切:
+
+- `ResolveThinkingProtocol(model)` 按厂商前缀判定协议族: `anthropic-strict`(claude-/opus-/sonnet-/haiku-, 缺失/非法签名应剥离)、`passback-required`(deepseek-/kimi-/moonshot-/glm-/minimax-/qwen*-thinking, 历史 thinking block 必须原样回传, 预过滤会导致上游 400)、`unknown`(其他, 保守不剥离)。
+- 传入的 model 语义随调用路径不同: Anthropic gateway 传 `mappedModel`(账号 model mapping 后的上游 model), Gemini messages compat 传 `originalModel`(客户端 Anthropic 请求 model)。改 `FilterThinkingBlocksForRetry` 调用时要传对路径对应的 model。
+- 国产模型 `thinking.type=enabled` 走 fallback: `ApplyThinkingEnabledFallback`(`gateway_request.go`)在 billingModel 判定后按需补 `reasoning_effort` 默认值; MiniMax M 系列 `thinking.type=enabled` 改写为 adaptive。Responses->Chat fallback 路径必须在 `billingModel` 算出后再调用。
+
+cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
+
+- 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
+- 会话级自动屏蔽默认关, 开关 `cyber_session_block_enabled` + `cyber_session_block_ttl_seconds`(默认 3600s), runtime 经 `SettingService.GetCyberSessionBlockRuntime` 进程内缓存(60s)避免热路径 DB 往返。屏蔽 key 仅由显式会话标识派生(header session_id/conversation_id 或 body `prompt_cache_key`, 混入 apiKeyID 后 sha256); 无显式标识返回空串必须放行, 不退化到 user/apikey/内容派生。store 由 repository `gatewayCache` 类型断言接入(`CyberSessionBlockStore`), 测试 stub 不实现时屏蔽能力静默降级关闭。
+
 修改流式响应时要同时验证:
 
 - SSE flush。
