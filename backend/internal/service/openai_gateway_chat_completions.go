@@ -39,6 +39,39 @@ var cursorResponsesUnsupportedFields = []string{
 	"stream_options",
 }
 
+// applyDefaultOpenAIReasoningEffort 在满足全部条件时把默认 reasoning_effort 注入 CC body:
+// (a) 配置默认非空;(b) body 是标准 CC(含 messages,排除 Cursor 的 Responses-shape 透传);
+// (c) 解析后的计费模型是推理模型;(d) 客户端没通过 reasoning_effort / reasoning.effort /
+// 模型名后缀指定过 effort。任一不满足返回原 body。
+func applyDefaultOpenAIReasoningEffort(body []byte, account *Account, defaultMappedModel, configEffort string) []byte {
+	def := normalizeOpenAIReasoningEffort(configEffort)
+	if def == "" {
+		return body
+	}
+	// 排除 Cursor 等把 Responses 形状(input,无 messages)发到 CC URL 的透传(见下方 isResponsesShape)。
+	if !gjson.GetBytes(body, "messages").Exists() {
+		return body
+	}
+	requestedModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	billingModel := resolveOpenAIForwardModel(account, requestedModel, defaultMappedModel)
+	if !SupportsOpenAIReasoningEffort(billingModel) {
+		return body
+	}
+	// 用 Exists() 判断"是否已指定",不能用 extractOpenAIReasoningEffortFromBody
+	//(它对显式 none/minimal 也返回 nil,会误覆盖);模型名后缀(gpt-5-high)也视为已指定。
+	if gjson.GetBytes(body, "reasoning_effort").Exists() ||
+		gjson.GetBytes(body, "reasoning.effort").Exists() ||
+		deriveOpenAIReasoningEffortFromModel(requestedModel) != "" {
+		return body
+	}
+	patched, err := sjson.SetBytes(body, "reasoning_effort", def)
+	if err != nil {
+		logger.L().Warn("Openai chat_completions: inject default reasoning_effort failed", zap.Error(err))
+		return body
+	}
+	return patched
+}
+
 // ForwardAsChatCompletions accepts a Chat Completions request body, converts it
 // to OpenAI Responses API format, forwards to the OpenAI upstream, and converts
 // the response back to Chat Completions format.
@@ -61,6 +94,13 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	promptCacheKey string,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	// 在分流前对入站 CC body 注入默认 reasoning_effort(配置开启且模型支持时),
+	// 一处同时覆盖 raw 直转与 CC→Responses 两条上游形状;注入在下方 json.Unmarshal
+	// 之前,chatReq 与计费用量都会自然读到注入值。
+	if s.cfg != nil {
+		body = applyDefaultOpenAIReasoningEffort(body, account, defaultMappedModel, s.cfg.Gateway.OpenAIDefaultReasoningEffort)
+	}
+
 	// 入口分流：APIKey 账号 + 强制或已探测确认上游不支持 Responses，走 CC 直转。
 	// 自动模式下标记缺失（未探测）按"现状即证据"原则继续走下方原 Responses 转换路径。
 	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {

@@ -871,6 +871,26 @@ func SupportsVerbosity(model string) bool {
 	return minor >= 3
 }
 
+// SupportsOpenAIReasoningEffort 判定 model 是否接受 reasoning_effort / reasoning.effort。
+// 推理模型(gpt-5.x、o 系列 o1/o3/o4)返回 true;非推理模型(gpt-4o/gpt-4.1/gpt-3.5、
+// 非 OpenAI 模型)返回 false——对后者注入会让官方上游报 400 "unsupported parameter"。
+func SupportsOpenAIReasoningEffort(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndex(m, "/"); i >= 0 { // 去掉 org/ 前缀
+		m = m[i+1:]
+	}
+	if strings.HasPrefix(m, "o1") || strings.HasPrefix(m, "o3") || strings.HasPrefix(m, "o4") {
+		return true
+	}
+	if strings.HasPrefix(m, "gpt-") {
+		var major int
+		if _, err := fmt.Sscanf(m, "gpt-%d", &major); err == nil && major >= 5 {
+			return true // gpt-5 / gpt-5.5 / gpt-5-codex / gpt-6...
+		}
+	}
+	return false
+}
+
 func getNormalizedCodexModel(modelID string) string {
 	key := codexModelLookupKey(modelID)
 	if key == "" {

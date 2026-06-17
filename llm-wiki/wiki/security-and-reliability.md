@@ -130,6 +130,7 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - `ResolveThinkingProtocol(model)` 按厂商前缀判定协议族: `anthropic-strict`(claude-/opus-/sonnet-/haiku-, 缺失/非法签名应剥离)、`passback-required`(deepseek-/kimi-/moonshot-/glm-/minimax-/qwen*-thinking, 历史 thinking block 必须原样回传, 预过滤会导致上游 400)、`unknown`(其他, 保守不剥离)。
 - 传入的 model 语义随调用路径不同: Anthropic gateway 传 `mappedModel`(账号 model mapping 后的上游 model), Gemini messages compat 传 `originalModel`(客户端 Anthropic 请求 model)。改 `FilterThinkingBlocksForRetry` 调用时要传对路径对应的 model。
 - 国产模型 `thinking.type=enabled` 走 fallback: `ApplyThinkingEnabledFallback`(`gateway_request.go`)在 billingModel 判定后按需补 `reasoning_effort` 默认值; MiniMax M 系列 `thinking.type=enabled` 改写为 adaptive。Responses->Chat fallback 路径必须在 `billingModel` 算出后再调用。
+- `/v1/chat/completions` 缺省 effort 注入(`applyDefaultOpenAIReasoningEffort`, 开关 `gateway.openai_default_reasoning_effort` 默认空=关闭): 同样在 billingModel 算出后判定, **强制模型门控**只对 `SupportsOpenAIReasoningEffort`(gpt-5.x / o 系列)的推理模型注入——向 gpt-4o / 第三方模型注入 `reasoning_effort` 会被官方上游 400 拒绝, 故门控不可省。用 `gjson.Exists()` 判定"是否已指定"而非归一化值, 避免覆盖客户端显式的 `none`/`minimal`; 模型名后缀(`gpt-5-high`)也视为已指定; gate `messages` 存在排除 Responses-shape 透传。默认空=零行为变更, opt-in。
 
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
