@@ -17,8 +17,25 @@ func TestBuildContentModerationLogWhere_BlockedIncludesAllBlockActions(t *testin
 
 	require.Empty(t, args)
 	sql := strings.Join(where, " AND ")
-	require.Contains(t, sql, "l.action IN ('block', 'keyword_block', 'hash_block')")
+	require.Contains(t, sql, "l.action IN ('block', 'keyword_block', 'hash_block', 'prompt_risk_block')")
 	require.NotContains(t, sql, "l.action = 'block'")
+}
+
+func TestBuildContentModerationLogWhere_ObserveBucket(t *testing.T) {
+	where, args := buildContentModerationLogWhere(service.ContentModerationLogFilter{Result: "observe"})
+
+	require.Empty(t, args)
+	sql := strings.Join(where, " AND ")
+	require.Contains(t, sql, "l.action = 'prompt_risk_observe'")
+}
+
+// P1-4 回归:pass 桶必须排除 prompt_risk_observe,避免观察事件污染"未命中/pass"口径。
+func TestBuildContentModerationLogWhere_PassExcludesObserve(t *testing.T) {
+	where, args := buildContentModerationLogWhere(service.ContentModerationLogFilter{Result: "pass"})
+
+	require.Empty(t, args)
+	sql := strings.Join(where, " AND ")
+	require.Contains(t, sql, "l.flagged = FALSE AND l.error = '' AND l.action <> 'prompt_risk_observe'")
 }
 
 func TestContentModerationRepositoryCountFlaggedByUserSince_ExcludesHashBlock(t *testing.T) {

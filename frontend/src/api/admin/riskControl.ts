@@ -278,6 +278,75 @@ export async function clearFlaggedHashes(): Promise<ClearFlaggedHashesResponse> 
   return data
 }
 
+// ---- Prompt 风险审查(独立配置) ----
+
+export type PromptRiskMode = 'off' | 'observe' | 'block'
+export type PromptRiskLevel = 'low' | 'medium' | 'high'
+export type PromptRiskMatchMode = 'contains' | 'regex' | 'word'
+export type PromptRiskInputScope = 'newest' | 'full'
+
+export interface PromptRiskKeywordSet {
+  level: PromptRiskLevel
+  match_mode: PromptRiskMatchMode
+  keywords: string[]
+  score: number
+}
+
+export interface PromptRiskExemption {
+  group_ids: number[]
+  user_ids: number[]
+  api_key_ids: number[]
+  max_level: PromptRiskLevel
+}
+
+export interface PromptRiskConfig {
+  enabled: boolean
+  mode: PromptRiskMode
+  all_groups: boolean
+  group_ids: number[]
+  input_scope: PromptRiskInputScope
+  block_status: number
+  escalate_threshold: number
+  block_message: string
+  rewrite_suggestion: string
+  keyword_sets: PromptRiskKeywordSet[]
+  exemptions: PromptRiskExemption[]
+}
+
+export interface PromptRiskReason {
+  level: PromptRiskLevel
+  keyword: string
+  source: PromptRiskMatchMode
+  score: number
+}
+
+export interface PromptRiskDecision {
+  level: PromptRiskLevel
+  action: 'allow' | 'log_notify' | 'block'
+  score: number
+  reasons: PromptRiskReason[]
+}
+
+export interface PromptRiskTestResponse {
+  matched: boolean
+  decision: PromptRiskDecision
+}
+
+export async function getPromptRiskConfig(): Promise<PromptRiskConfig> {
+  const { data } = await apiClient.get<PromptRiskConfig>('/admin/risk-control/prompt-risk')
+  return data
+}
+
+export async function updatePromptRiskConfig(payload: PromptRiskConfig): Promise<PromptRiskConfig> {
+  const { data } = await apiClient.put<PromptRiskConfig>('/admin/risk-control/prompt-risk', payload)
+  return data
+}
+
+export async function testPromptRisk(prompt: string): Promise<PromptRiskTestResponse> {
+  const { data } = await apiClient.post<PromptRiskTestResponse>('/admin/risk-control/prompt-risk/test', { prompt })
+  return data
+}
+
 export const riskControlAPI = {
   getConfig,
   updateConfig,
@@ -287,6 +356,9 @@ export const riskControlAPI = {
   unbanUser,
   deleteFlaggedHash,
   clearFlaggedHashes,
+  getPromptRiskConfig,
+  updatePromptRiskConfig,
+  testPromptRisk,
 }
 
 export default riskControlAPI

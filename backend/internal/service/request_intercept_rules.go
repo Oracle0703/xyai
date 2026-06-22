@@ -18,6 +18,7 @@ const (
 	RequestInterceptMatchExact    = "exact"
 	RequestInterceptMatchContains = "contains"
 	RequestInterceptMatchRegex    = "regex"
+	RequestInterceptMatchWord     = "word"
 
 	RequestInterceptMatchScopeLatestUser  = "latest_user"
 	RequestInterceptMatchScopeFullContext = "full_context"
@@ -389,6 +390,8 @@ func normalizeRequestInterceptMatchMode(raw string) string {
 		return RequestInterceptMatchExact
 	case RequestInterceptMatchRegex:
 		return RequestInterceptMatchRegex
+	case RequestInterceptMatchWord:
+		return RequestInterceptMatchWord
 	default:
 		return RequestInterceptMatchContains
 	}
@@ -404,12 +407,15 @@ func normalizeRequestInterceptMatchScope(raw string) string {
 }
 
 func requestInterceptTextForRule(rule RequestInterceptRuleConfig, input RequestInterceptMatchInput) string {
+	text := input.Text
 	if normalizeRequestInterceptMatchScope(rule.MatchScope) == RequestInterceptMatchScopeFullContext {
 		if strings.TrimSpace(input.FullContextText) != "" {
-			return input.FullContextText
+			text = input.FullContextText
 		}
 	}
-	return input.Text
+	// 剥离 Codex/编码客户端注入的环境上下文包裹,取真正的用户文本——
+	// 否则被包裹的问候(如 "hi")在 exact/word 模式下取不到、几乎不触发。
+	return stripPromptRiskWrappers(text)
 }
 
 func normalizeRequestInterceptScopes(scopes []string) []string {
@@ -454,6 +460,9 @@ func requestInterceptKeywordMatches(mode string, text string, keyword string) bo
 	case RequestInterceptMatchRegex:
 		matched, err := regexp.MatchString(keyword, text)
 		return err == nil && matched
+	case RequestInterceptMatchWord:
+		// 词边界匹配,与 prompt-risk 共享同一匹配器(短词如 "hi" 命中独立词但不命中 "this")。
+		return promptRiskKeywordMatches(PromptRiskMatchWord, text, keyword)
 	default:
 		return strings.Contains(text, keyword)
 	}

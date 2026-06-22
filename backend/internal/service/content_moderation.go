@@ -38,6 +38,9 @@ const (
 	ContentModerationActionKeywordBlock = "keyword_block"
 	ContentModerationActionError        = "error"
 
+	ContentModerationActionPromptRiskBlock   = "prompt_risk_block"
+	ContentModerationActionPromptRiskObserve = "prompt_risk_observe"
+
 	contentModerationKeywordCategory = "keyword"
 
 	ContentModerationKeywordModeKeywordOnly   = "keyword_only"
@@ -769,6 +772,9 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"protocol", input.Protocol)
 		return allow, nil
 	}
+	if decision := s.evaluatePromptRiskStage(ctx, input); decision != nil {
+		return decision, nil
+	}
 	cfg, err := s.loadConfig(ctx)
 	if err != nil {
 		slog.Warn("content_moderation.skip_config_load_failed",
@@ -1083,7 +1089,7 @@ func (s *ContentModerationService) recordPreBlockSyncMetric(latencyMS int, actio
 	}
 	s.preBlockLatencyTotalMS.Add(int64(latencyMS))
 	switch action {
-	case ContentModerationActionBlock, ContentModerationActionHashBlock, ContentModerationActionKeywordBlock:
+	case ContentModerationActionBlock, ContentModerationActionHashBlock, ContentModerationActionKeywordBlock, ContentModerationActionPromptRiskBlock:
 		s.preBlockBlocked.Add(1)
 	case ContentModerationActionError:
 		s.preBlockErrors.Add(1)
@@ -1418,6 +1424,218 @@ func (s *ContentModerationService) runCleanupOnce() {
 	s.lastCleanupUnix.Store(result.FinishedAt.Unix())
 	s.lastCleanupDeletedHit.Store(result.DeletedHit)
 	s.lastCleanupDeletedNonHit.Store(result.DeletedNonHit)
+}
+
+// promptRiskSubject 从审核 input 提取 prompt-risk 评估所需身份(无需改 input)。
+func promptRiskSubject(input ContentModerationCheckInput) PromptRiskSubject {
+	return PromptRiskSubject{
+		UserID:   input.UserID,
+		GroupID:  input.GroupID,
+		APIKeyID: input.APIKeyID,
+		Provider: input.Provider,
+	}
+}
+
+func promptRiskCategory(level string) string {
+	return "prompt_risk_" + normalizePromptRiskLevel(level)
+}
+
+// evaluatePromptRiskStage 运行 Prompt 风险前置审查。命中 block 时返回拦截决策(短路);
+// 命中 observe 仅异步记录后返回 nil(继续走既有内容审核);其余返回 nil。
+func (s *ContentModerationService) evaluatePromptRiskStage(ctx context.Context, input ContentModerationCheckInput) *ContentModerationDecision {
+	prCfg := s.loadPromptRiskConfig(ctx)
+	if prCfg == nil || !prCfg.Enabled || normalizePromptRiskMode(prCfg.Mode) == PromptRiskModeOff {
+		return nil
+	}
+	if !prCfg.includesGroup(input.GroupID) {
+		return nil
+	}
+	content := extractPromptRiskInput(input.Protocol, input.Body, prCfg.InputScope)
+	if content.IsEmpty() {
+		return nil
+	}
+	content.Normalize()
+	d := EvaluatePromptRisk(prCfg, content.Text, promptRiskSubject(input))
+	switch d.Action {
+	case PromptRiskActionBlock:
+		s.recordPreBlockSyncMetric(0, ContentModerationActionPromptRiskBlock)
+		log := s.buildPromptRiskLog(input, ContentModerationActionPromptRiskBlock, true, promptRiskCategory(d.Level), d.Score, content.ExcerptText(), d.Reasons)
+		// applySideEffects=false:prompt-risk 不喂自动封禁/邮件副作用(封禁针对用户账号,合法队友不应被封);
+		// 高危计封禁 / 管理员邮件留待 v1.1(见设计非目标),v1 仅落库 + 看板可见。
+		s.enqueueRecord(input, nil, log, content.Hash(), false, false)
+		message := strings.TrimSpace(prCfg.BlockMessage)
+		if hint := strings.TrimSpace(prCfg.RewriteSuggestion); hint != "" {
+			message = strings.TrimSpace(message + "\n" + hint)
+		}
+		status := prCfg.BlockStatus
+		if status < 400 || status > 599 {
+			status = defaultPromptRiskBlockStatus
+		}
+		slog.Info("content_moderation.prompt_risk_block",
+			"user_id", input.UserID,
+			"api_key_id", input.APIKeyID,
+			"group_id", contentModerationLogGroupID(input.GroupID),
+			"endpoint", input.Endpoint,
+			"protocol", input.Protocol,
+			"level", d.Level,
+			"score", d.Score)
+		return &ContentModerationDecision{
+			Blocked:         true,
+			Flagged:         true,
+			Message:         message,
+			StatusCode:      status,
+			Action:          ContentModerationActionPromptRiskBlock,
+			HighestCategory: promptRiskCategory(d.Level),
+			HighestScore:    d.Score,
+		}
+	case PromptRiskActionLogNotify:
+		log := s.buildPromptRiskLog(input, ContentModerationActionPromptRiskObserve, false, promptRiskCategory(d.Level), d.Score, content.ExcerptText(), d.Reasons)
+		s.enqueueRecord(input, nil, log, content.Hash(), false, false)
+	}
+	return nil
+}
+
+// loadPromptRiskConfig 加载独立的 Prompt 风险配置;任何加载错误都 fail-open
+// (返回默认配置,其 Enabled=false ⇒ 不拦),与旧 content_moderation_config 解耦。
+func (s *ContentModerationService) loadPromptRiskConfig(ctx context.Context) *PromptRiskConfig {
+	cfg := DefaultPromptRiskConfig()
+	if s == nil || s.settingRepo == nil {
+		cfg.normalize()
+		return &cfg
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyPromptRiskConfig)
+	if err != nil {
+		if !errors.Is(err, ErrSettingNotFound) {
+			slog.Warn("content_moderation.prompt_risk_load_failed", "error", err)
+		}
+		cfg.normalize()
+		return &cfg
+	}
+	if strings.TrimSpace(raw) == "" {
+		cfg.normalize()
+		return &cfg
+	}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		slog.Warn("content_moderation.prompt_risk_invalid_json", "error", err)
+		fresh := DefaultPromptRiskConfig()
+		fresh.normalize()
+		return &fresh
+	}
+	cfg.normalize()
+	return &cfg
+}
+
+// GetPromptRiskConfig 读取配置(管理端 GET);JSON 损坏返回 BadRequest 以便管理员修复。
+func (s *ContentModerationService) GetPromptRiskConfig(ctx context.Context) (*PromptRiskConfig, error) {
+	cfg := DefaultPromptRiskConfig()
+	if s == nil || s.settingRepo == nil {
+		cfg.normalize()
+		return &cfg, nil
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyPromptRiskConfig)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			cfg.normalize()
+			return &cfg, nil
+		}
+		return nil, fmt.Errorf("get prompt risk config: %w", err)
+	}
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+			return nil, infraerrors.BadRequest("INVALID_PROMPT_RISK_CONFIG", "Prompt 风险配置不是有效 JSON")
+		}
+	}
+	cfg.normalize()
+	return &cfg, nil
+}
+
+// UpdatePromptRiskConfig 全量替换配置:校验原始枚举(拒绝非法值)→ 归一化 → 校验(regex 可编译/分组存在)→ 落库。
+func (s *ContentModerationService) UpdatePromptRiskConfig(ctx context.Context, cfg PromptRiskConfig) (*PromptRiskConfig, error) {
+	if s == nil || s.settingRepo == nil {
+		return nil, infraerrors.BadRequest("PROMPT_RISK_UNAVAILABLE", "Prompt 风险服务不可用")
+	}
+	if err := cfg.validateRaw(); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_PROMPT_RISK_CONFIG", err.Error())
+	}
+	cfg.normalize()
+	if err := cfg.Validate(); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_PROMPT_RISK_CONFIG", err.Error())
+	}
+	if err := s.validatePromptRiskGroups(ctx, &cfg); err != nil {
+		return nil, err
+	}
+	raw, err := json.Marshal(&cfg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal prompt risk config: %w", err)
+	}
+	if err := s.settingRepo.Set(ctx, SettingKeyPromptRiskConfig, string(raw)); err != nil {
+		return nil, fmt.Errorf("save prompt risk config: %w", err)
+	}
+	return &cfg, nil
+}
+
+func (s *ContentModerationService) validatePromptRiskGroups(ctx context.Context, cfg *PromptRiskConfig) error {
+	if s.groupRepo == nil || cfg == nil {
+		return nil
+	}
+	ids := make([]int64, 0)
+	if !cfg.AllGroups {
+		ids = append(ids, cfg.GroupIDs...)
+	}
+	for _, ex := range cfg.Exemptions {
+		ids = append(ids, ex.GroupIDs...)
+	}
+	for _, id := range ids {
+		if _, err := s.groupRepo.GetByIDLite(ctx, id); err != nil {
+			return infraerrors.BadRequest("INVALID_PROMPT_RISK_GROUP", fmt.Sprintf("Prompt 风险分组不存在: %d", id))
+		}
+	}
+	return nil
+}
+
+// TestPromptRisk 对粘贴的 prompt 直接评估(管理端在线测试器)。
+func (s *ContentModerationService) TestPromptRisk(ctx context.Context, prompt string) (*PromptRiskDecision, error) {
+	cfg, err := s.GetPromptRiskConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d := EvaluatePromptRisk(cfg, prompt, PromptRiskSubject{})
+	return &d, nil
+}
+
+func (s *ContentModerationService) buildPromptRiskLog(input ContentModerationCheckInput, action string, flagged bool, highestCategory string, highestScore float64, text string, reasons []PromptRiskReason) *ContentModerationLog {
+	var userID *int64
+	if input.UserID > 0 {
+		userID = &input.UserID
+	}
+	var apiKeyID *int64
+	if input.APIKeyID > 0 {
+		apiKeyID = &input.APIKeyID
+	}
+	scores := make(map[string]float64, len(reasons))
+	for _, r := range reasons {
+		// key=level:source:keyword,在扁平 map[string]float64 里保留等级/匹配模式,便于审计筛选(无需 migration)。
+		scores[r.Level+":"+r.Source+":"+r.Keyword] = r.Score
+	}
+	return &ContentModerationLog{
+		RequestID:       input.RequestID,
+		UserID:          userID,
+		UserEmail:       input.UserEmail,
+		APIKeyID:        apiKeyID,
+		APIKeyName:      input.APIKeyName,
+		GroupID:         cloneInt64Ptr(input.GroupID),
+		GroupName:       input.GroupName,
+		Endpoint:        input.Endpoint,
+		Provider:        input.Provider,
+		Model:           input.Model,
+		Mode:            "prompt_risk",
+		Action:          action,
+		Flagged:         flagged,
+		HighestCategory: highestCategory,
+		HighestScore:    clampPromptRiskScore(highestScore),
+		CategoryScores:  scores,
+		InputExcerpt:    trimRunes(redactContentModerationSecrets(text), maxModerationExcerptRunes),
+	}
 }
 
 func (s *ContentModerationService) loadConfig(ctx context.Context) (*ContentModerationConfig, error) {

@@ -1013,7 +1013,7 @@
             </div>
           </div>
 
-          <div v-else class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div v-else-if="activeSettingsTab === 'retention'" class="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div>
               <label class="input-label">{{ t('admin.riskControl.hitRetentionDays') }}</label>
               <input v-model.number="configForm.hit_retention_days" type="number" min="1" max="3650" class="input" />
@@ -1029,10 +1029,17 @@
               </div>
             </div>
           </div>
+
+          <div v-else-if="activeSettingsTab === 'promptRisk'">
+            <PromptRiskPanel />
+          </div>
         </div>
 
         <template #footer>
-          <div class="flex justify-end gap-2">
+          <div v-if="activeSettingsTab === 'promptRisk'" class="flex justify-end">
+            <button type="button" class="btn btn-secondary" @click="settingsOpen = false">{{ t('common.close') }}</button>
+          </div>
+          <div v-else class="flex justify-end gap-2">
             <button type="button" class="btn btn-secondary" @click="settingsOpen = false">{{ t('common.cancel') }}</button>
             <button type="button" class="btn btn-primary inline-flex items-center gap-2" :disabled="saving" @click="saveConfig">
               <Icon v-if="saving" name="refresh" size="sm" class="animate-spin" />
@@ -1109,6 +1116,7 @@ import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import PromptRiskPanel from '@/views/admin/PromptRiskPanel.vue'
 import { adminAPI } from '@/api/admin'
 import type {
   ContentModerationAPIKeyLoad,
@@ -1128,7 +1136,7 @@ import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDateTimeValue } from '@/utils/format'
 
-type SettingsTab = 'basic' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'retention' | 'keywords'
+type SettingsTab = 'basic' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'retention' | 'keywords' | 'promptRisk'
 type WorkerSlotState = 'active' | 'idle' | 'disabled'
 type APIKeysWriteMode = 'append' | 'replace'
 type OverviewIcon = 'shield' | 'key' | 'users' | 'document'
@@ -1261,6 +1269,7 @@ const settingsTabs = computed<Array<{ id: SettingsTab; label: string }>>(() => [
   { id: 'response', label: t('admin.riskControl.tabs.response') },
   { id: 'riskThresholds', label: t('admin.riskControl.tabs.riskThresholds') },
   { id: 'keywords', label: t('admin.riskControl.tabs.keywords') },
+  { id: 'promptRisk', label: t('admin.riskControl.tabs.promptRisk') },
   { id: 'retention', label: t('admin.riskControl.tabs.retention') },
 ])
 
@@ -1364,6 +1373,7 @@ const resultOptions = computed<SelectOption[]>(() => [
   { value: '', label: t('admin.riskControl.result.all') },
   { value: 'hit', label: t('admin.riskControl.result.hit') },
   { value: 'blocked', label: t('admin.riskControl.result.blocked') },
+  { value: 'observe', label: t('admin.riskControl.result.observe') },
   { value: 'pass', label: t('admin.riskControl.result.pass') },
   { value: 'error', label: t('admin.riskControl.result.error') },
 ])
@@ -2097,6 +2107,8 @@ function modeDescription(mode: ModerationMode): string {
 }
 
 function resultLabel(row: ContentModerationLog): string {
+  if (row.action === 'prompt_risk_block') return t('admin.riskControl.action.promptRiskBlock')
+  if (row.action === 'prompt_risk_observe') return t('admin.riskControl.action.promptRiskObserve')
   if (row.action === 'keyword_block') return t('admin.riskControl.action.keywordBlock')
   if (row.action === 'block') return t('admin.riskControl.action.block')
   if (row.action === 'error' || row.error) return t('admin.riskControl.action.error')
@@ -2105,7 +2117,8 @@ function resultLabel(row: ContentModerationLog): string {
 }
 
 function resultBadgeClass(row: ContentModerationLog): string {
-  if (row.action === 'block' || row.action === 'keyword_block') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  if (row.action === 'block' || row.action === 'keyword_block' || row.action === 'prompt_risk_block') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  if (row.action === 'prompt_risk_observe') return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
   if (row.action === 'error' || row.error) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
   if (row.flagged) return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
   return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'

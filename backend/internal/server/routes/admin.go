@@ -145,6 +145,9 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		risk.POST("/users/:user_id/unban", h.Admin.ContentModeration.UnbanUser)
 		risk.DELETE("/hashes", h.Admin.ContentModeration.DeleteFlaggedHash)
 		risk.DELETE("/hashes/all", h.Admin.ContentModeration.ClearFlaggedHashes)
+		risk.GET("/prompt-risk", h.Admin.ContentModeration.GetPromptRisk)
+		risk.PUT("/prompt-risk", h.Admin.ContentModeration.UpdatePromptRisk)
+		risk.POST("/prompt-risk/test", h.Admin.ContentModeration.TestPromptRisk)
 	}
 }
 
