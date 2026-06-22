@@ -18,6 +18,11 @@
 - `frontend/src/api/client.ts` 自动附加 Authorization 和处理 refresh。
 - `frontend/src/router/index.ts` 做 `requiresAuth`, `requiresAdmin`, backend mode, simple mode, payment/risk-control gate。
 
+邮箱绑定:
+
+- `AuthService.SendEmailIdentityBindCode` 和 `BindEmailIdentity` 会复用注册邮箱后缀白名单策略(`registration.email_suffix_whitelist` 对应 setting key `registration_email_suffix_whitelist`)。空白名单允许任意邮箱; `["@qq.com"]` 这类精确后缀和 `"*.edu.cn"` 这类通配后缀均按注册策略执行。
+- OAuth/合成邮箱用户补绑真实邮箱时也会执行该策略, 防止绕过注册入口限制。
+
 ## 登录和 OAuth
 
 认证路由集中在 `backend/internal/server/routes/auth.go`:
@@ -149,6 +154,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
+- Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
 
 后台任务可靠性:
 

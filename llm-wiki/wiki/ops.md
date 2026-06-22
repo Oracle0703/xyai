@@ -175,7 +175,9 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback。
 - `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。
+- `gateway.openai_ws.scheduler_score_weights.reset`: 默认 `0.0`, 用于给会话窗口最早重置的 OpenAI 账号加分; 关闭时不改变原调度行为。
 - `gateway.openai_scheduler`: OpenAI sticky session 逃逸配置; 默认开启, 可按 TTFT/error rate 跳过劣化 sticky 账号。
+- `gateway.scheduling.prefer_soonest_reset`: 默认 `false`, 开启后负载感知调度优先选用会话窗口最早重置账号。
 - `gateway.openai_ws`: OpenAI Responses WebSocket v2 和 HTTP bridge 配置; 首包较大时可保持客户端 WS, 改用 HTTP Responses 上游。
 - `database`: PostgreSQL 连接池。
 - `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
