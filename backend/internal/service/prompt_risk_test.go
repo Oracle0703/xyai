@@ -108,14 +108,14 @@ func TestEvaluatePromptRisk_ScoreNeverOverflowsLogColumn(t *testing.T) {
 
 func TestPromptRiskConfig_IncludesGroup(t *testing.T) {
 	all := &PromptRiskConfig{AllGroups: true}
-	if !all.includesGroup(nil) || !all.includesGroup(ptrInt64(3)) {
+	if !all.includesGroup(nil) || !all.includesGroup(promptRiskPtrInt64(3)) {
 		t.Fatal("AllGroups must include any group")
 	}
 	scoped := &PromptRiskConfig{GroupIDs: []int64{5}}
-	if !scoped.includesGroup(ptrInt64(5)) {
+	if !scoped.includesGroup(promptRiskPtrInt64(5)) {
 		t.Fatal("scoped group 5 must be included")
 	}
-	if scoped.includesGroup(ptrInt64(6)) {
+	if scoped.includesGroup(promptRiskPtrInt64(6)) {
 		t.Fatal("group 6 must be excluded")
 	}
 	if scoped.includesGroup(nil) {
@@ -202,4 +202,4 @@ func TestPromptRiskConfig_ValidateRawAllowsEmptyDefaults(t *testing.T) {
 	}
 }
 
-func ptrInt64(v int64) *int64 { return &v }
+func promptRiskPtrInt64(v int64) *int64 { return &v }
