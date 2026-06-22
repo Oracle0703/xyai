@@ -737,6 +737,9 @@ type GatewayConfig struct {
 	// OpenAIPassthroughAllowTimeoutHeaders: OpenAI 透传模式是否放行客户端超时头
 	// 关闭（默认）可避免 x-stainless-timeout 等头导致上游提前断流。
 	OpenAIPassthroughAllowTimeoutHeaders bool `mapstructure:"openai_passthrough_allow_timeout_headers"`
+	// OpenAIDefaultReasoningEffort: CC 请求未携带 reasoning_effort 时，对 OpenAI 推理模型注入的
+	// 默认推理等级。空=关闭（默认，不改变现有行为）。合法值：low/medium/high/xhigh。
+	OpenAIDefaultReasoningEffort string `mapstructure:"openai_default_reasoning_effort"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// OpenAIScheduler: OpenAI 高级调度器粘性逃逸配置
@@ -1903,6 +1906,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
+	viper.SetDefault("gateway.openai_default_reasoning_effort", "")
 	// 默认关闭：归档位于请求热路径，仅用于短期排障，避免拖慢尾延迟与磁盘膨胀。
 	viper.SetDefault("gateway.request_archive.enabled", false)
 	viper.SetDefault("gateway.request_archive.dir", "data/request-archive")
@@ -2584,6 +2588,11 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIResponseHeaderTimeout < 0 {
 		return fmt.Errorf("gateway.openai_response_header_timeout must be non-negative")
+	}
+	switch strings.NewReplacer("-", "", "_", "", " ", "").Replace(strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIDefaultReasoningEffort))) {
+	case "", "none", "minimal", "low", "medium", "high", "xhigh", "extrahigh", "max":
+	default:
+		return fmt.Errorf("gateway.openai_default_reasoning_effort must be empty or one of: low/medium/high/xhigh")
 	}
 	if strings.TrimSpace(c.Gateway.ConnectionPoolIsolation) != "" {
 		switch c.Gateway.ConnectionPoolIsolation {

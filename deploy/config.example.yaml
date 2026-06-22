@@ -242,6 +242,11 @@ gateway:
   # OpenAI 透传模式是否放行客户端超时头（如 x-stainless-timeout）
   # 默认 false：过滤超时头，降低上游提前断流风险。
   openai_passthrough_allow_timeout_headers: false
+  # CC 请求未携带 reasoning_effort 时，对 OpenAI 推理模型（gpt-5.x / o 系列）注入的默认推理等级。
+  # 空=关闭（默认，不改变现有行为）。合法值：low/medium/high/xhigh。
+  # 非推理模型（gpt-4o 等）与第三方模型不受影响；客户端已通过 reasoning_effort / reasoning.effort
+  # 或模型名后缀（gpt-5-high）显式指定时不覆盖。仅作用于 /v1/chat/completions 入口。
+  openai_default_reasoning_effort: ""
   # 本地请求归档：把网关请求体与响应元信息写入本地 JSONL 文件。
   # 警告：仅用于短期排障，不要长期开启。归档位于请求热路径，
   # 会读取完整请求体；capture_response 开启时只记录响应大小、hash、流式标记和 token usage，
