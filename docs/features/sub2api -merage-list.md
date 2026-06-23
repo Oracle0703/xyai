@@ -413,3 +413,81 @@ git show --cc 0e86a67c -- backend/internal/service/domain_constants.go backend/i
 git diff --stat dd1700fc..0e86a67c
 git log --oneline dd1700fc..4a5665da
 ```
+
+## 2026-06-22
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `5965ef7f` |
+| Upstream head merged | `85a3b122` |
+| Merge base | `4a5665da` |
+| Merge commit | `5e115ac6` |
+| Upstream commits | 38 |
+| Files changed from merge base | 58 |
+| Conflict files | `backend/internal/service/openai_gateway_chat_completions_raw_test.go` |
+
+### Summary
+
+将 Wei-Shaw/sub2api `main`（上游 `85a3b122`，本地上次上游基线 `4a5665da` 之后的 38 个提交）合入当前敏感词过滤分支。VERSION 更新到 `0.1.138`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| OpenAI / GLM 兼容 | `glm-*` OpenAI Chat Completions raw 路径把 `reasoning.effort` / `reasoning_effort` 归一化为 GLM 上游接受的 `high` / `max`。 |
+| OpenAI images | `response.incomplete` 被显式识别; 非 content filter 类 incomplete 视为 502 可 failover。上游 completed 但无图时记录诊断摘要并优先同账号快速重试。 |
+| Vertex Anthropic | service account 路径按 Vertex 支持范围过滤 `anthropic-beta`, 并以最终 beta 决定 body sanitize; BetaPolicy block 仍生效。 |
+| OpenAI 调度 | 新增 `gateway.openai_ws.scheduler_score_weights.reset` 与 `gateway.scheduling.prefer_soonest_reset`, 支持 use-it-or-lose-it 优先使用最早重置窗口账号; 默认关闭。 |
+| 认证安全 | OAuth/合成邮箱用户绑定真实邮箱时复用注册邮箱后缀白名单策略。 |
+| 订阅/返利 | 订阅支付履约也会触发邀请返利; 通过 `SUBSCRIPTION_ASSIGNED` 与返利审计占位保证重试幂等。 |
+| 前端 | 自定义页面标题随公开/管理员自定义菜单、站点名和语言切换重新解析; 管理端用量卡片展示 cache creation/read token 明细。 |
+| 杂项 | sponsor 资源更新, CI Node/Go action 更新, promo 过期时间可清空, usage cache tooltip 修复, ccswitch 默认模型与 Claude Code CLI 检测更新。 |
+
+### Conflict Resolution Notes
+
+冲突只出现在测试文件, 但处理时仍按语义合并, 未整文件取一边:
+
+| File | Resolution |
+|---|---|
+| `backend/internal/service/openai_gateway_chat_completions_raw_test.go` | 本分支新增 `TestForwardAsRawChatCompletions_StripsTopLevelThinkingAndKeepsReasoningEffort`, 用于锁定 Chat Completions raw 上游请求删除 top-level `thinking` 且保留 `reasoning_effort`; 上游新增 `TestForwardAsRawChatCompletions_NormalizesGLMReasoningEffortForUpstream`, 用于锁定 GLM `xhigh -> max` 归一化。两者是独立回归覆盖, 不互斥, 因此拆成两个独立测试函数全部保留。 |
+| `backend/internal/service/prompt_risk_test.go` | 合并后 `internal/service` 包测试编译暴露本分支 helper `ptrInt64` 与上游既有 `payment_config_plans_validation_test.go` 中同名 helper 冲突。仅将本分支测试 helper 改名为 `promptRiskPtrInt64` 并更新三处调用, 不改变业务逻辑。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| prompt risk / 敏感词过滤实现与测试 | 保留; 仅测试 helper 为避免上游同名 helper 改名。 |
+| content moderation 与 cyber policy 审计口径 | 保留; 本次合并未覆盖此前 `prompt_risk_%` 与 `cyber_policy` 的过滤/展示处理。 |
+| token 分析、request archive/intercept、生图工具、用户并发方案等本地扩展 | 无冲突覆盖; 合并后仍在工作树中。 |
+| 上游 v0.1.138 新增配置 | 已同步 `deploy/config.example.yaml`, `llm-wiki/wiki/ops.md` 与相关后端基线。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)" backend frontend docs llm-wiki` | Passed, no conflict markers. |
+| `git diff --check` | Passed. |
+| `git diff --cached --check` | Passed before merge commit. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/service -run 'TestForwardAsRawChatCompletions_(StripsTopLevelThinkingAndKeepsReasoningEffort|NormalizesGLMReasoningEffortForUpstream)|TestFilterBySoonestReset|TestExtractImagesUpstreamError|TestImagesOAuthNonStreaming_CompletedNoImageTriggersSameAccountRetry|TestEvaluatePromptRisk'` with repo-local `GOCACHE/GOTMPDIR` | Passed. First attempt with `GOTMPDIR=E:\tmp` failed before tests with `Access is denied`; rerun with `.gotmp-test` succeeded. |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/backend.md`, `frontend.md`, `data-and-domain.md`, `ops.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: GLM reasoning effort 归一化、OpenAI images incomplete/无图软失败、OpenAI 最早重置调度、邮箱绑定白名单、Vertex beta 过滤、订阅返利幂等、前端标题和缓存 token 明细。
+
+### Known Risks / 待办
+
+- Git 在合并提交后提示 loose objects 较多: `There are too many unreachable loose objects; run 'git prune' to remove them.` 这是仓库维护提示, 非本次代码冲突, 未主动执行 destructive/cleanup 操作。
+- 全量 `go test ./...` 未执行; 本次选择冲突与上游新增服务逻辑的定向单测 + 前端 typecheck。若要发布, 建议在 CI 或干净环境跑完整后端/前端矩阵。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 5e115ac6
+git show --cc 5e115ac6 -- backend/internal/service/openai_gateway_chat_completions_raw_test.go backend/internal/service/prompt_risk_test.go
+git diff --stat 4a5665da..85a3b122
+git log --oneline 4a5665da..85a3b122
+```

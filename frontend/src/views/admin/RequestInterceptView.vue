@@ -245,6 +245,7 @@ const draft = reactive<RequestInterceptRule>(emptyDraft())
 
 const matchModeOptions = computed(() => [
   { value: 'contains', label: t('admin.requestIntercept.matchContains') },
+  { value: 'word', label: t('admin.requestIntercept.matchWord') },
   { value: 'exact', label: t('admin.requestIntercept.matchExact') },
   { value: 'regex', label: t('admin.requestIntercept.matchRegex') },
 ])

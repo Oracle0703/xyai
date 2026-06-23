@@ -237,6 +237,50 @@ func (h *ContentModerationHandler) ClearFlaggedHashes(c *gin.Context) {
 	response.Success(c, result)
 }
 
+type promptRiskTestRequest struct {
+	Prompt string `json:"prompt"`
+}
+
+func (h *ContentModerationHandler) GetPromptRisk(c *gin.Context) {
+	cfg, err := h.service.GetPromptRiskConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *ContentModerationHandler) UpdatePromptRisk(c *gin.Context) {
+	var req service.PromptRiskConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	cfg, err := h.service.UpdatePromptRiskConfig(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+func (h *ContentModerationHandler) TestPromptRisk(c *gin.Context) {
+	var req promptRiskTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	decision, err := h.service.TestPromptRisk(c.Request.Context(), req.Prompt)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"matched":  decision != nil && len(decision.Reasons) > 0,
+		"decision": decision,
+	})
+}
+
 func parseContentModerationDate(raw string) (time.Time, bool, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

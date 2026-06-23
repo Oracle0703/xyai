@@ -127,6 +127,7 @@ go generate ./cmd/server
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
 - 前端全量“重置配额”会同时传 `daily/weekly/monthly=true`; “重置日限”只传 `daily=true`, 周/月窗口保持不变。
+- 支付订单履约时, 余额充值和订阅购买都会尝试邀请返利。订阅履约先写 `SUBSCRIPTION_ASSIGNED` 审计再执行返利, 最后 `SUBSCRIPTION_SUCCESS`; 历史已有 `SUBSCRIPTION_SUCCESS` 或新审计时不会重复延长订阅。返利幂等通过 `payment_audit_logs` 的 `AFFILIATE_REBATE_APPLIED` / `AFFILIATE_REBATE_SKIPPED` 动作占位和 `order_id, action` 唯一约束防重, SQL 会按 PostgreSQL 与 SQLite 方言分别生成占位符和时间函数。
 
 配置:
 
@@ -139,7 +140,7 @@ go generate ./cmd/server
 
 计费相关修改要同时检查用量写入, dashboard aggregation, subscription progress, billing cache 和前端展示。
 
-用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(缓存创建)与 `cache_read_tokens`(缓存命中), 前端 i18n 增加缓存创建/命中/命中率文案。修改用量聚合或展示时要保持两者分别统计。
+用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(缓存创建)与 `cache_read_tokens`(缓存命中), 管理端用量统计 DTO 和卡片展示包含 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。修改用量聚合或展示时要保持两者分别统计。
 
 User x platform quota:
 

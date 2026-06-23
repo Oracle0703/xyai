@@ -47,6 +47,7 @@
 - simple mode 会限制部分 SaaS 页面。
 - backend mode 下非管理员只能访问白名单公开路径。
 - chunk load error 会触发一次页面 reload。
+- 页面标题由 `frontend/src/router/title.ts` 的 `resolveRouteDocumentTitle` 统一生成; `CustomPage` 会优先使用公开自定义菜单项或管理员自定义菜单项 label, 语言切换、站点名变化、自定义菜单加载后都会重新解析标题。
 
 ## API Client
 
@@ -107,6 +108,10 @@ API 模块分布:
 - 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
 - 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
 - 操作列的“重置日限”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: false, monthly: false })`, 只归零每日用量, 不修改周/月用量。
+
+管理端用量统计:
+
+- `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 
 项目已有组件 README:
 

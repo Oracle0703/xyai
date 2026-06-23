@@ -1,6 +1,6 @@
 import { apiClient } from '../client'
 
-export type RequestInterceptMatchMode = 'exact' | 'contains' | 'regex'
+export type RequestInterceptMatchMode = 'exact' | 'contains' | 'regex' | 'word'
 export type RequestInterceptMatchScope = 'latest_user' | 'full_context'
 export type RequestInterceptScope = 'all' | 'messages' | 'responses' | 'chat_completions' | 'gemini' | 'images'
 
