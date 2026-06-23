@@ -186,9 +186,23 @@ describe('TokenAnalysisView', () => {
           cache_creation_tokens: 3_000_000,
           actual_cost: 12.3456,
           last_event_time: '2026-06-10T01:02:03Z'
+        },
+        {
+          project: 'chat-heavy',
+          user_id: 8,
+          user_email: 'writer@example.com',
+          request_count: 42,
+          matched_request_count: 40,
+          total_tokens: 12_000,
+          input_tokens: 100_000,
+          output_tokens: 8_000,
+          cache_read_tokens: 0,
+          cache_creation_tokens: 0,
+          actual_cost: 98.7654,
+          last_event_time: '2026-06-10T02:03:04Z'
         }
       ],
-      total: 1,
+      total: 2,
       page: 1,
       page_size: 20
     })
@@ -206,6 +220,19 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('56.7M')
     expect(wrapper.text()).toContain('890.0K')
     expect(wrapper.text()).toContain('15.0M')
+    // 项目排行不再展示费用列, 改为输出/输入比例; 5% 以下红色, 5% 及以上绿色。
+    expect(wrapper.text()).not.toContain('$12.3456')
+    expect(wrapper.text()).not.toContain('$98.7654')
+    expect(wrapper.text()).toContain('1.6%')
+    expect(wrapper.text()).toContain('8.0%')
+    const lowRatio = wrapper.find('[data-test="project-io-ratio-low"]')
+    const healthyRatio = wrapper.find('[data-test="project-io-ratio-healthy"]')
+    expect(lowRatio.exists()).toBe(true)
+    expect(lowRatio.text()).toContain('1.6%')
+    expect(lowRatio.classes()).toContain('text-red-600')
+    expect(healthyRatio.exists()).toBe(true)
+    expect(healthyRatio.text()).toContain('8.0%')
+    expect(healthyRatio.classes()).toContain('text-emerald-600')
     // 最近活动按东八区展示, 不带 ISO 的 T/时区尾巴。
     expect(wrapper.text()).toContain('2026-06-10 09:02:03')
     expect(wrapper.text()).not.toContain('2026-06-10T01:02:03Z')

@@ -231,14 +231,9 @@
                     <span :class="projectSort === 'total_tokens' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('total_tokens') }}</span>
                   </button>
                 </th>
-                <th>Input / Output</th>
+                <th>{{ t('admin.tokenAnalysis.inputOutput') }}</th>
                 <th>{{ t('admin.tokenAnalysis.cacheTokens') }}</th>
-                <th>
-                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('actual_cost')">
-                    {{ t('admin.tokenAnalysis.cost') }}
-                    <span :class="projectSort === 'actual_cost' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('actual_cost') }}</span>
-                  </button>
-                </th>
+                <th>{{ t('admin.tokenAnalysis.outputInputRatio') }}</th>
                 <th>
                   <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('last_event_time')">
                     {{ t('admin.tokenAnalysis.lastActive') }}
@@ -274,7 +269,14 @@
                 <td class="text-xs text-gray-500" :title="formatNumber(row.cache_read_tokens + row.cache_creation_tokens)">
                   {{ formatCompactNumber(row.cache_read_tokens + row.cache_creation_tokens) }}
                 </td>
-                <td>{{ formatCost(row.actual_cost) }}</td>
+                <td
+                  class="text-xs font-semibold"
+                  :class="projectOutputInputRatioClass(row)"
+                  :data-test="projectOutputInputRatioDataTest(row)"
+                  :title="projectOutputInputRatioTitle(row)"
+                >
+                  {{ formatProjectOutputInputRatio(row) }}
+                </td>
                 <td class="whitespace-nowrap text-xs text-gray-500">{{ formatTimeCN(row.last_event_time) }}</td>
               </tr>
               <tr v-if="!projectsLoading && projects.length === 0">
@@ -539,8 +541,8 @@ const RISK_CODES = [
   'large_tool_history',
   'giant_tool_output'
 ] as const
-// 项目排行支持按请求数/token/费用/最近活动服务端排序(列表是分页的, 前端排序无意义)。
-type ProjectSortField = 'request_count' | 'total_tokens' | 'actual_cost' | 'last_event_time'
+// 项目排行支持按请求数/token/最近活动服务端排序(列表是分页的, 前端排序无意义)。
+type ProjectSortField = 'request_count' | 'total_tokens' | 'last_event_time'
 const projectSort = ref<ProjectSortField>('total_tokens')
 const projectSortOrder = ref<'asc' | 'desc'>('desc')
 const requestInput = ref<TokenAnalysisRequestInput | null>(null)
@@ -553,6 +555,7 @@ const indexing = ref(false)
 const usersPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const projectsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const requestsPagination = reactive({ page: 1, page_size: 20, total: 0 })
+const PROJECT_OUTPUT_INPUT_HEALTHY_RATIO = 0.05
 
 const cleanFilters = computed(() => {
   const out: TokenAnalysisQueryParams = {}
@@ -641,6 +644,36 @@ function formatCost(value: number): string {
 
 function percent(value: number): string {
   return `${((value || 0) * 100).toFixed(1)}%`
+}
+
+function projectOutputInputRatio(row: TokenAnalysisProjectUsage): number | null {
+  if (!row.input_tokens || row.input_tokens <= 0) return null
+  return (row.output_tokens || 0) / row.input_tokens
+}
+
+function formatProjectOutputInputRatio(row: TokenAnalysisProjectUsage): string {
+  const ratio = projectOutputInputRatio(row)
+  if (ratio === null) return '-'
+  return percent(ratio)
+}
+
+function projectOutputInputRatioClass(row: TokenAnalysisProjectUsage): string {
+  const ratio = projectOutputInputRatio(row)
+  if (ratio === null) return 'text-gray-400'
+  if (ratio >= PROJECT_OUTPUT_INPUT_HEALTHY_RATIO) return 'text-emerald-600 dark:text-emerald-400'
+  return 'text-red-600 dark:text-red-400'
+}
+
+function projectOutputInputRatioDataTest(row: TokenAnalysisProjectUsage): string {
+  const ratio = projectOutputInputRatio(row)
+  if (ratio === null) return 'project-io-ratio-empty'
+  return ratio >= PROJECT_OUTPUT_INPUT_HEALTHY_RATIO ? 'project-io-ratio-healthy' : 'project-io-ratio-low'
+}
+
+function projectOutputInputRatioTitle(row: TokenAnalysisProjectUsage): string {
+  const ratio = projectOutputInputRatio(row)
+  if (ratio === null) return t('admin.tokenAnalysis.outputInputRatioUnavailable')
+  return `${t('admin.tokenAnalysis.outputInputRatio')}: ${percent(ratio)} (${t('admin.tokenAnalysis.outputInputRatioThreshold')}: ${percent(PROJECT_OUTPUT_INPUT_HEALTHY_RATIO)})`
 }
 
 function riskClass(score: number): string {
