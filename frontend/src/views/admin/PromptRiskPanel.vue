@@ -162,29 +162,64 @@
       <div class="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60">
         <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.promptRisk.tester') }}</p>
         <textarea v-model="testPrompt" class="input mt-2 min-h-20 resize-y" :placeholder="t('admin.riskControl.promptRisk.testerPlaceholder')" />
-        <div class="mt-2 flex items-center gap-3">
+        <div class="mt-2">
           <button type="button" class="btn btn-secondary btn-sm inline-flex items-center gap-1" :disabled="testing || !testPrompt.trim()" @click="runTest">
             <Icon v-if="testing" name="refresh" size="sm" class="animate-spin" />
             <Icon v-else name="play" size="sm" />
             {{ t('admin.riskControl.promptRisk.runTest') }}
           </button>
-          <div v-if="testResult" class="flex flex-wrap items-center gap-2 text-sm">
-            <span class="inline-flex rounded-md px-2 py-1 text-xs font-medium" :class="testActionClass">
-              {{ testActionLabel }}
+        </div>
+
+        <!-- 结果:二元提示 —— 拦截 / 请求生效 -->
+        <div
+          v-if="testResult"
+          class="mt-3 rounded-lg border p-3"
+          :class="isBlocked
+            ? 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20'
+            : 'border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-900/20'"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <Icon
+              :name="isBlocked ? 'x' : 'check'"
+              size="sm"
+              :class="isBlocked ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'"
+            />
+            <span
+              class="text-sm font-semibold"
+              :class="isBlocked ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'"
+            >
+              {{ isBlocked ? t('admin.riskControl.promptRisk.testerBlocked') : t('admin.riskControl.promptRisk.testerPassed') }}
             </span>
-            <span class="text-gray-500 dark:text-gray-400">
+            <span class="text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.riskControl.promptRisk.level') }}: {{ testResult.decision.level }} · {{ t('admin.riskControl.promptRisk.score') }}: {{ testResult.decision.score.toFixed(2) }}
             </span>
           </div>
-        </div>
-        <div v-if="testResult && testResult.decision.reasons.length" class="mt-2 flex flex-wrap gap-1.5">
-          <span
-            v-for="(r, i) in testResult.decision.reasons"
-            :key="i"
-            class="inline-flex rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+
+          <!-- 观察模式:命中但仍放行 -->
+          <p
+            v-if="!isBlocked && testResult.decision.action === 'log_notify'"
+            class="mt-1.5 text-xs text-amber-600 dark:text-amber-400"
           >
-            {{ r.keyword }} ({{ r.level }}/{{ r.source }})
-          </span>
+            {{ t('admin.riskControl.promptRisk.testerObserveNote') }}
+          </p>
+
+          <!-- 命中词 -->
+          <div v-if="testResult.decision.reasons.length" class="mt-2 flex flex-wrap gap-1.5">
+            <span
+              v-for="(r, i) in testResult.decision.reasons"
+              :key="i"
+              class="inline-flex rounded bg-white/70 px-2 py-0.5 text-xs text-gray-700 dark:bg-dark-700/70 dark:text-gray-200"
+            >
+              {{ r.keyword }} ({{ r.level }}/{{ r.source }})
+            </span>
+          </div>
+
+          <!-- 被拦截时:展示调用方会收到的内容 -->
+          <div v-if="isBlocked" class="mt-3 space-y-2 border-t border-red-200 pt-2 dark:border-red-900/50">
+            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.promptRisk.testerWouldReturn') }}</p>
+            <p v-if="form.block_message" class="text-sm text-gray-800 dark:text-gray-100">{{ form.block_message }}</p>
+            <p v-if="form.rewrite_suggestion" class="whitespace-pre-wrap rounded bg-white/70 p-2 text-xs text-gray-700 dark:bg-dark-700/70 dark:text-gray-200">{{ form.rewrite_suggestion }}</p>
+          </div>
         </div>
       </div>
     </template>
@@ -284,19 +319,7 @@ const matchModeOptions = computed<SelectOption[]>(() => [
   { value: 'regex', label: t('admin.riskControl.promptRisk.matchRegex') },
 ])
 
-const testActionLabel = computed(() => {
-  const action = testResult.value?.decision.action
-  if (action === 'block') return t('admin.riskControl.promptRisk.actionBlock')
-  if (action === 'log_notify') return t('admin.riskControl.promptRisk.actionObserve')
-  return t('admin.riskControl.promptRisk.actionAllow')
-})
-
-const testActionClass = computed(() => {
-  const action = testResult.value?.decision.action
-  if (action === 'block') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-  if (action === 'log_notify') return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
-  return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-})
+const isBlocked = computed(() => testResult.value?.decision.action === 'block')
 
 function parseKeywords(text: string): string[] {
   return text

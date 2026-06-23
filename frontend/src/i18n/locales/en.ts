@@ -3064,6 +3064,10 @@ export default {
         actionBlock: 'Block',
         actionObserve: 'Observe',
         actionAllow: 'Allow',
+        testerBlocked: 'Intercepted — caller receives a rejection',
+        testerPassed: '✅ Request goes through — not intercepted',
+        testerObserveNote: 'Observe mode: matched and logged, but the request still passes (not blocked).',
+        testerWouldReturn: 'What the caller would receive:',
       },
     },
 

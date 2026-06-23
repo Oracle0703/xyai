@@ -3142,6 +3142,10 @@ export default {
         actionBlock: '拦截',
         actionObserve: '观察',
         actionAllow: '放行',
+        testerBlocked: '已拦截 —— 调用方会收到拒绝响应',
+        testerPassed: '✅ 请求生效了 —— 未触发拦截',
+        testerObserveNote: '观察模式：已命中并记录，但请求仍会放行（不拦截）。',
+        testerWouldReturn: '调用方会收到的内容：',
       },
     },
 
