@@ -396,14 +396,20 @@ func TestBuildContentModerationLog_RedactsInputExcerpt(t *testing.T) {
 
 	log := svc.buildLog(input, cfg, ContentModerationActionAllow, true, "sexual", 0.8, map[string]float64{"sexual": 0.8}, "hello sk-proj-1234567890abcdef", nil, nil, "")
 
-	require.NotContains(t, log.InputExcerpt, "sk-proj-1234567890abcdef")
-	require.Contains(t, log.InputExcerpt, "[已脱敏]")
+	if contentModerationRedactSecrets {
+		require.NotContains(t, log.InputExcerpt, "sk-proj-1234567890abcdef")
+		require.Contains(t, log.InputExcerpt, "[已脱敏]")
+	} else {
+		// 脱敏关闭时摘要原样保留(便于单人排查命中)。
+		require.Contains(t, log.InputExcerpt, "sk-proj-1234567890abcdef")
+	}
 }
 
 func TestRedactContentModerationSecrets_LongHexAndTokens(t *testing.T) {
 	input := "你哈市多大事cf5bbdc4cd508f3aaf0d2070d529d4a4ac29099f8ecc357f696df28e1df91554 token=abc123456789xyz Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturepart https://example.com/private/path?token=abc123"
 
-	out := redactContentModerationSecrets(input)
+	// 直接验证脱敏逻辑本身(与开关无关),保证开关改回 true 时行为正确。
+	out := applyContentModerationSecretRedaction(input)
 
 	require.NotContains(t, out, "cf5bbdc4cd508f3aaf0d2070d529d4a4ac29099f8ecc357f696df28e1df91554")
 	require.NotContains(t, out, "abc123456789xyz")

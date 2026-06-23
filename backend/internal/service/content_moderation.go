@@ -64,6 +64,10 @@ const (
 	maxContentModerationTimeoutMS     = 30000
 	maxModerationInputRunes           = 12000
 	maxModerationExcerptRunes         = 240
+	// maxModerationInputExcerptRunes: 风控日志 InputExcerpt 的留存上限。设为与
+	// maxModerationInputRunes 一致 ⇒ 摘要保留系统实际检测过的完整输入(列为 TEXT,无 DB 上限),
+	// 便于单人排查命中。调小可省存储;cyber policy 错误体仍走 maxModerationExcerptRunes*4。
+	maxModerationInputExcerptRunes = 12000
 
 	defaultContentModerationWorkerCount          = 4
 	maxContentModerationWorkerCount              = 32
@@ -1648,7 +1652,7 @@ func (s *ContentModerationService) buildPromptRiskLog(input ContentModerationChe
 		HighestCategory: highestCategory,
 		HighestScore:    clampPromptRiskScore(highestScore),
 		CategoryScores:  scores,
-		InputExcerpt:    trimRunes(redactContentModerationSecrets(text), maxModerationExcerptRunes),
+		InputExcerpt:    trimRunes(redactContentModerationSecrets(text), maxModerationInputExcerptRunes),
 	}
 }
 
@@ -1840,7 +1844,7 @@ func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, c
 		HighestScore:      highestScore,
 		CategoryScores:    cloneFloatMap(scores),
 		ThresholdSnapshot: cloneFloatMap(cfg.Thresholds),
-		InputExcerpt:      trimRunes(redactContentModerationSecrets(text), maxModerationExcerptRunes),
+		InputExcerpt:      trimRunes(redactContentModerationSecrets(text), maxModerationInputExcerptRunes),
 		UpstreamLatencyMS: latency,
 		QueueDelayMS:      queueDelay,
 		Error:             errText,
