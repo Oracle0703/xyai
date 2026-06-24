@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -40,6 +41,22 @@ const (
 	defaultPromptRiskBlockMessage = "您的请求包含可能触发上游服务滥用风控的表述，已被网关本地拦截，以保护团队共享账号。"
 	defaultPromptRiskRewriteHint  = "改写建议：聚焦合法工程目标（如网络性能优化、协议兼容性、自有资产的授权测试），" +
 		"避免直接出现攻击工具名或针对第三方系统的攻击性动作；写明授权范围与目标归属后再试。"
+
+	// LLM 语义复核(judge):关键词命中且会真正拦截时,调一次外部 chat 模型做语义精判,降低双用途词误杀。
+	defaultPromptRiskJudgeTimeoutMS = 4000
+	minPromptRiskJudgeTimeoutMS     = 500
+	maxPromptRiskJudgeTimeoutMS     = 15000
+
+	PromptRiskJudgeRiskNone = "none"
+	PromptRiskJudgeRiskLow  = "low"
+	PromptRiskJudgeRiskHigh = "high"
+
+	// 内置 judge system 提示词(judge_prompt_template 为空时使用)。
+	defaultPromptRiskJudgePrompt = "你是网关侧的安全语义复核员。一段用户 prompt 已被关键词规则标记为\"疑似滥用风险\"，现在做语义复核，降低对双用途技术词的误杀。\n" +
+		"- 正常(none/low)：为自有/已授权资产做工程工作（配置自有 VPN/代理/隧道、优化网络、调试自有 OpenVPN、对授权且归属自己的目标做安全测试、学习协议、读文档）。\n" +
+		"- 风险(high)：攻击未授权第三方、搭建翻墙/规避审查服务、规避本网关或上游风控、窃取凭据、批量爆破、投放后门木马。\n" +
+		"仅凭出现 vpn/proxy/代理/exploit/nmap 等词不能判风险，要看意图与目标归属；无法判断时倾向 low。\n" +
+		"严格只输出 JSON，无多余文字：{\"risk\":\"none|low|high\",\"reason\":\"一句话中文理由\"}"
 )
 
 // PromptRiskKeywordSet 一组同等级、同匹配模式的关键词。
@@ -66,6 +83,25 @@ type PromptRiskSubject struct {
 	Provider string
 }
 
+// PromptRiskJudgeConfig 配置"关键词命中后的 LLM 语义复核"。指向一个 OpenAI 兼容
+// /v1/chat/completions 端点(推荐用户自己的网关 + 专属便宜模型 + 专属 API Key)。
+// 仅在关键词评估会真正 block 且命中等级 ∈ TriggerLevels 时触发,judge 判"非风险"则把
+// block 降级为观察(放行),judge 判"风险"则保持拦截;调用失败一律 fail-open(放行)。
+type PromptRiskJudgeConfig struct {
+	Enabled        bool     `json:"enabled"`
+	BaseURL        string   `json:"base_url"`        // 网关根地址,如 https://gw.example.com
+	Model          string   `json:"model"`           // 便宜 chat 模型 id
+	APIKey         string   `json:"api_key"`         // Bearer token(写入用;读取时掩码,见 api_key_masked)
+	TimeoutMS      int      `json:"timeout_ms"`      // 默认 4000,clamp [500,15000]
+	PromptTemplate string   `json:"prompt_template"` // 空则用内置 defaultPromptRiskJudgePrompt
+	TriggerLevels  []string `json:"trigger_levels"`  // 默认 ["high"];只对命中这些等级的 would-be-block 复核
+	FailOpen       bool     `json:"fail_open"`       // v1 固定 true(judge 失败放行)
+
+	// 只读输出(GetPromptRiskConfig 填充,供前端展示;不参与匹配/落库)。
+	APIKeyConfigured bool   `json:"api_key_configured,omitempty"`
+	APIKeyMasked     string `json:"api_key_masked,omitempty"`
+}
+
 // PromptRiskConfig 独立设置(settings 表 key=prompt_risk_config),不依赖旧内容审核配置。
 type PromptRiskConfig struct {
 	Enabled           bool                   `json:"enabled"`
@@ -79,6 +115,7 @@ type PromptRiskConfig struct {
 	RewriteSuggestion string                 `json:"rewrite_suggestion"`
 	KeywordSets       []PromptRiskKeywordSet `json:"keyword_sets"`
 	Exemptions        []PromptRiskExemption  `json:"exemptions"`
+	Judge             PromptRiskJudgeConfig  `json:"judge"`
 }
 
 // PromptRiskReason 单条命中证据。
@@ -132,6 +169,12 @@ func DefaultPromptRiskConfig() PromptRiskConfig {
 			}},
 		},
 		Exemptions: []PromptRiskExemption{},
+		Judge: PromptRiskJudgeConfig{
+			Enabled:       false,
+			TimeoutMS:     defaultPromptRiskJudgeTimeoutMS,
+			TriggerLevels: []string{PromptRiskLevelHigh},
+			FailOpen:      true,
+		},
 	}
 }
 
@@ -259,6 +302,59 @@ func (cfg *PromptRiskConfig) normalize() {
 		cfg.Exemptions[i].UserIDs = normalizeInt64IDs(cfg.Exemptions[i].UserIDs)
 		cfg.Exemptions[i].APIKeyIDs = normalizeInt64IDs(cfg.Exemptions[i].APIKeyIDs)
 	}
+	cfg.Judge.normalize()
+}
+
+// normalize 填充 judge 默认值并归一化(随 PromptRiskConfig.normalize 调用)。
+func (j *PromptRiskJudgeConfig) normalize() {
+	if j == nil {
+		return
+	}
+	j.BaseURL = strings.TrimRight(strings.TrimSpace(j.BaseURL), "/")
+	j.Model = strings.TrimSpace(j.Model)
+	j.APIKey = strings.TrimSpace(j.APIKey)
+	j.PromptTemplate = strings.TrimSpace(j.PromptTemplate)
+	if j.TimeoutMS == 0 {
+		j.TimeoutMS = defaultPromptRiskJudgeTimeoutMS
+	}
+	if j.TimeoutMS < minPromptRiskJudgeTimeoutMS {
+		j.TimeoutMS = minPromptRiskJudgeTimeoutMS
+	}
+	if j.TimeoutMS > maxPromptRiskJudgeTimeoutMS {
+		j.TimeoutMS = maxPromptRiskJudgeTimeoutMS
+	}
+	levels := make([]string, 0, len(j.TriggerLevels))
+	seen := make(map[string]struct{}, len(j.TriggerLevels))
+	for _, lvl := range j.TriggerLevels {
+		if !isValidPromptRiskLevel(lvl) {
+			continue // 丢弃非法等级(normalizePromptRiskLevel 会把未知值强制成 medium,故先判原值)
+		}
+		l := normalizePromptRiskLevel(lvl)
+		if _, ok := seen[l]; ok {
+			continue
+		}
+		seen[l] = struct{}{}
+		levels = append(levels, l)
+	}
+	if len(levels) == 0 {
+		levels = []string{PromptRiskLevelHigh}
+	}
+	j.TriggerLevels = levels
+	j.FailOpen = true // v1 固定 fail-open
+}
+
+// triggersLevel 判断某命中等级是否在 judge 触发范围内。
+func (j *PromptRiskJudgeConfig) triggersLevel(level string) bool {
+	if j == nil {
+		return false
+	}
+	want := normalizePromptRiskLevel(level)
+	for _, lvl := range j.TriggerLevels {
+		if normalizePromptRiskLevel(lvl) == want {
+			return true
+		}
+	}
+	return false
 }
 
 // validateRaw 校验管理端提交的**原始**配置:非空但非法的枚举值直接拒绝,而不是静默纠正。
@@ -302,6 +398,35 @@ func (cfg *PromptRiskConfig) validateRaw() error {
 			return fmt.Errorf("invalid exemption max_level: %q", ex.MaxLevel)
 		}
 	}
+	if err := cfg.Judge.validateRaw(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateRaw 校验 judge 原始配置:仅在启用时强制 base_url/model/api_key,枚举/范围非法直接拒绝。
+func (j *PromptRiskJudgeConfig) validateRaw() error {
+	if j == nil || !j.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(j.BaseURL) == "" {
+		return fmt.Errorf("prompt risk judge base_url is required when enabled")
+	}
+	if _, err := url.ParseRequestURI(strings.TrimSpace(j.BaseURL)); err != nil {
+		return fmt.Errorf("invalid prompt risk judge base_url: %q", j.BaseURL)
+	}
+	if strings.TrimSpace(j.Model) == "" {
+		return fmt.Errorf("prompt risk judge model is required when enabled")
+	}
+	// api_key 允许为空(表示沿用已存旧值);此处不强校验,由 UpdatePromptRiskConfig 合并后于 Validate 兜底。
+	if j.TimeoutMS != 0 && (j.TimeoutMS < minPromptRiskJudgeTimeoutMS || j.TimeoutMS > maxPromptRiskJudgeTimeoutMS) {
+		return fmt.Errorf("prompt risk judge timeout_ms must be within %d-%d", minPromptRiskJudgeTimeoutMS, maxPromptRiskJudgeTimeoutMS)
+	}
+	for _, lvl := range j.TriggerLevels {
+		if l := strings.TrimSpace(lvl); l != "" && !isValidPromptRiskLevel(l) {
+			return fmt.Errorf("invalid prompt risk judge trigger level: %q", lvl)
+		}
+	}
 	return nil
 }
 
@@ -339,6 +464,17 @@ func (cfg *PromptRiskConfig) Validate() error {
 	for _, ex := range cfg.Exemptions {
 		if !isValidPromptRiskLevel(ex.MaxLevel) {
 			return fmt.Errorf("invalid exemption max_level: %q", ex.MaxLevel)
+		}
+	}
+	if cfg.Judge.Enabled {
+		if strings.TrimSpace(cfg.Judge.BaseURL) == "" {
+			return fmt.Errorf("prompt risk judge base_url is required when enabled")
+		}
+		if strings.TrimSpace(cfg.Judge.Model) == "" {
+			return fmt.Errorf("prompt risk judge model is required when enabled")
+		}
+		if strings.TrimSpace(cfg.Judge.APIKey) == "" {
+			return fmt.Errorf("prompt risk judge api_key is required when enabled")
 		}
 	}
 	return nil

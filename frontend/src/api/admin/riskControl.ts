@@ -301,6 +301,20 @@ export interface PromptRiskExemption {
   max_level: PromptRiskLevel
 }
 
+export interface PromptRiskJudgeConfig {
+  enabled: boolean
+  base_url: string
+  model: string
+  api_key: string
+  timeout_ms: number
+  prompt_template: string
+  trigger_levels: PromptRiskLevel[]
+  fail_open: boolean
+  // 只读(GET 返回):api_key 永不回传明文,仅用掩码展示。
+  api_key_configured?: boolean
+  api_key_masked?: string
+}
+
 export interface PromptRiskConfig {
   enabled: boolean
   mode: PromptRiskMode
@@ -313,6 +327,7 @@ export interface PromptRiskConfig {
   rewrite_suggestion: string
   keyword_sets: PromptRiskKeywordSet[]
   exemptions: PromptRiskExemption[]
+  judge: PromptRiskJudgeConfig
 }
 
 export interface PromptRiskReason {

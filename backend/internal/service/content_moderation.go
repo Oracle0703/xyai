@@ -1476,8 +1476,33 @@ func (s *ContentModerationService) evaluatePromptRiskStage(ctx context.Context, 
 	d := EvaluatePromptRisk(prCfg, content.Text, promptRiskSubject(input))
 	switch d.Action {
 	case PromptRiskActionBlock:
+		// LLM 语义复核:仅在 judge 启用、命中等级在触发范围、且非 judge 自身回环时,做一次精判。
+		var judge *promptRiskJudgeResult
+		if prCfg.Judge.Enabled && prCfg.Judge.triggersLevel(d.Level) && !ctxHasPromptRiskJudgeInFlight(ctx) {
+			judge = s.runPromptRiskJudge(ctx, prCfg, content.Text, d.Reasons)
+		}
+		// 融合:judge 判"非风险"或调用失败(fail-open)→ 降级为观察放行;否则保持拦截。
+		downgrade := judge != nil && (judge.Err != nil || judge.Risk == PromptRiskJudgeRiskNone || judge.Risk == PromptRiskJudgeRiskLow)
+		if judge != nil {
+			slog.Info("content_moderation.prompt_risk_judge",
+				"user_id", input.UserID,
+				"api_key_id", input.APIKeyID,
+				"group_id", contentModerationLogGroupID(input.GroupID),
+				"level", d.Level,
+				"judge_risk", judge.Risk,
+				"downgraded", downgrade,
+				"latency_ms", judge.LatencyMS,
+				"err", judgeErrString(judge.Err))
+		}
+		if downgrade {
+			log := s.buildPromptRiskLog(input, ContentModerationActionPromptRiskObserve, false, promptRiskCategory(d.Level), d.Score, content.ExcerptText(), d.Reasons)
+			attachPromptRiskJudgeFields(log, judge, true)
+			s.enqueueRecord(input, nil, log, content.Hash(), false, false)
+			return nil
+		}
 		s.recordPreBlockSyncMetric(0, ContentModerationActionPromptRiskBlock)
 		log := s.buildPromptRiskLog(input, ContentModerationActionPromptRiskBlock, true, promptRiskCategory(d.Level), d.Score, content.ExcerptText(), d.Reasons)
+		attachPromptRiskJudgeFields(log, judge, false)
 		// applySideEffects=false:prompt-risk 不喂自动封禁/邮件副作用(封禁针对用户账号,合法队友不应被封);
 		// 高危计封禁 / 管理员邮件留待 v1.1(见设计非目标),v1 仅落库 + 看板可见。
 		s.enqueueRecord(input, nil, log, content.Hash(), false, false)
@@ -1511,6 +1536,42 @@ func (s *ContentModerationService) evaluatePromptRiskStage(ctx context.Context, 
 		s.enqueueRecord(input, nil, log, content.Hash(), false, false)
 	}
 	return nil
+}
+
+// judgeErrString 把 judge 错误转成日志可打印字符串(nil → "")。
+func judgeErrString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// attachPromptRiskJudgeFields 把 judge 结果写进日志(复用 category_scores,无需 migration):
+// judge:risk:<lvl>=1、judge:latency_ms、judge:downgraded=1、judge:error=1;reason 追加进摘要/Error。
+func attachPromptRiskJudgeFields(log *ContentModerationLog, judge *promptRiskJudgeResult, downgraded bool) {
+	if log == nil || judge == nil {
+		return
+	}
+	if log.CategoryScores == nil {
+		log.CategoryScores = map[string]float64{}
+	}
+	if judge.LatencyMS > 0 {
+		log.CategoryScores["judge:latency_ms"] = float64(judge.LatencyMS)
+	}
+	if judge.Err != nil {
+		log.CategoryScores["judge:error"] = 1
+		if strings.TrimSpace(log.Error) == "" {
+			log.Error = "judge: " + judge.Err.Error()
+		}
+	} else if judge.Risk != "" {
+		log.CategoryScores["judge:risk:"+judge.Risk] = 1
+		if r := strings.TrimSpace(judge.Reason); r != "" {
+			log.InputExcerpt = strings.TrimSpace(log.InputExcerpt + "\n[judge:" + judge.Risk + "] " + r)
+		}
+	}
+	if downgraded {
+		log.CategoryScores["judge:downgraded"] = 1
+	}
 }
 
 // loadPromptRiskConfig 加载独立的 Prompt 风险配置;任何加载错误都 fail-open
@@ -1564,13 +1625,31 @@ func (s *ContentModerationService) GetPromptRiskConfig(ctx context.Context) (*Pr
 		}
 	}
 	cfg.normalize()
+	maskPromptRiskJudgeAPIKey(&cfg)
 	return &cfg, nil
+}
+
+// maskPromptRiskJudgeAPIKey 把 judge api_key 替换为掩码并填充只读展示字段(管理端 GET 时调用)。
+func maskPromptRiskJudgeAPIKey(cfg *PromptRiskConfig) {
+	if cfg == nil {
+		return
+	}
+	key := strings.TrimSpace(cfg.Judge.APIKey)
+	cfg.Judge.APIKeyConfigured = key != ""
+	cfg.Judge.APIKeyMasked = maskSecretTail(key)
+	cfg.Judge.APIKey = ""
 }
 
 // UpdatePromptRiskConfig 全量替换配置:校验原始枚举(拒绝非法值)→ 归一化 → 校验(regex 可编译/分组存在)→ 落库。
 func (s *ContentModerationService) UpdatePromptRiskConfig(ctx context.Context, cfg PromptRiskConfig) (*PromptRiskConfig, error) {
 	if s == nil || s.settingRepo == nil {
 		return nil, infraerrors.BadRequest("PROMPT_RISK_UNAVAILABLE", "Prompt 风险服务不可用")
+	}
+	// judge api_key 传空表示沿用已存旧值(GET 返回的是掩码,前端不回填明文)。
+	if strings.TrimSpace(cfg.Judge.APIKey) == "" {
+		if old := s.loadPromptRiskConfig(ctx); old != nil {
+			cfg.Judge.APIKey = old.Judge.APIKey
+		}
 	}
 	if err := cfg.validateRaw(); err != nil {
 		return nil, infraerrors.BadRequest("INVALID_PROMPT_RISK_CONFIG", err.Error())
@@ -1589,6 +1668,7 @@ func (s *ContentModerationService) UpdatePromptRiskConfig(ctx context.Context, c
 	if err := s.settingRepo.Set(ctx, SettingKeyPromptRiskConfig, string(raw)); err != nil {
 		return nil, fmt.Errorf("save prompt risk config: %w", err)
 	}
+	maskPromptRiskJudgeAPIKey(&cfg)
 	return &cfg, nil
 }
 
