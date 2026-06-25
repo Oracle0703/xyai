@@ -1589,6 +1589,8 @@ export default {
       quality: '质量',
       qualityNotEvaluated: '未评估',
       noInputStored: '未留存输入',
+      userRequest: 'User Request',
+      userRequestHint: '从 <userRequest> 标签提取, 内容仍来自已脱敏/可能截断的留存输入',
       inputFull: '用户输入全文',
       inputTruncatedNote: '超长已截断, 完整内容见归档 JSONL',
       sortByTime: '按时间',

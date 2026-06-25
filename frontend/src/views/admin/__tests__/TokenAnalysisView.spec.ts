@@ -270,6 +270,32 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('abc')
   })
 
+  it('shows userRequest content before the full input when present', async () => {
+    api.getRequestInput.mockResolvedValue({
+      id: 1,
+      archive_id: 'arch-1',
+      event_time: '2026-05-19T01:00:00Z',
+      content: '<context>ignored</context>\n<userRequest>Put this first\nwith line two</userRequest>\n<notes>keep below</notes>',
+      content_sha256: 'abc',
+      chars: 96,
+      truncated: false,
+      quality_version: ''
+    })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const row = wrapper.findAll('tbody tr').find((r) => r.text().includes('user@example.com'))
+    expect(row).toBeTruthy()
+    await row!.trigger('click')
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('admin.tokenAnalysis.userRequest')
+    expect(text).toContain('Put this first')
+    expect(text.indexOf('Put this first')).toBeLessThan(text.indexOf('<context>ignored</context>'))
+  })
   it('keeps loading state for the newly opened request when an older input request resolves late', async () => {
     // 竞态回归: 连续点击 A→B, A 的旧 promise 晚到时不得关闭 B 的 loading,
     // 更不能把 A 的全文展示在 B 的抽屉里。

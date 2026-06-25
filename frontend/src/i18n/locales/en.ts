@@ -1567,6 +1567,8 @@ export default {
       quality: 'Quality',
       qualityNotEvaluated: 'Not evaluated',
       noInputStored: 'Input not stored',
+      userRequest: 'User Request',
+      userRequestHint: 'Extracted from the <userRequest> tag; content is still from redacted and possibly truncated stored input',
       inputFull: 'Full User Input',
       inputTruncatedNote: 'Truncated; full text in archive JSONL',
       sortByTime: 'By time',
