@@ -3138,6 +3138,7 @@ export default {
         saveFailed: '保存 Prompt 风险配置失败',
         loadFailed: '加载 Prompt 风险配置失败',
         tester: '在线测试器',
+        testerRuleOnlyHint: '仅评估关键词规则；不会调用 LLM 语义复核。真实网关请求命中拦截条件时，才会按配置触发语义复核。',
         testerPlaceholder: '粘贴一段 prompt，预览其等级 / 动作 / 命中词',
         runTest: '测试',
         testFailed: '测试失败',

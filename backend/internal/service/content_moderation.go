@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
+
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
@@ -302,18 +304,19 @@ type ContentModerationModelFilter struct {
 }
 
 type ContentModerationCheckInput struct {
-	RequestID  string
-	UserID     int64
-	UserEmail  string
-	APIKeyID   int64
-	APIKeyName string
-	GroupID    *int64
-	GroupName  string
-	Endpoint   string
-	Provider   string
-	Model      string
-	Protocol   string
-	Body       []byte
+	RequestID             string
+	UserID                int64
+	UserEmail             string
+	APIKeyID              int64
+	APIKeyName            string
+	GroupID               *int64
+	GroupName             string
+	Endpoint              string
+	Provider              string
+	Model                 string
+	Protocol              string
+	Body                  []byte
+	PromptRiskJudgeHeader string
 }
 
 type ContentModerationInput struct {
@@ -500,6 +503,8 @@ type ContentModerationService struct {
 	authCacheInvalidator     APIKeyAuthCacheInvalidator
 	emailService             *EmailService
 	httpClient               *http.Client
+	cfg                      *config.Config
+	promptRiskJudgeSemaphore chan struct{}
 	asyncQueue               chan contentModerationTask
 	workerCount              int
 	apiKeyCursor             atomic.Uint64
@@ -558,19 +563,26 @@ func NewContentModerationService(
 	userRepo UserRepository,
 	authCacheInvalidator APIKeyAuthCacheInvalidator,
 	emailService *EmailService,
+	configs ...*config.Config,
 ) *ContentModerationService {
+	var cfg *config.Config
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
 	svc := &ContentModerationService{
-		settingRepo:          settingRepo,
-		repo:                 repo,
-		hashCache:            hashCache,
-		groupRepo:            groupRepo,
-		userRepo:             userRepo,
-		authCacheInvalidator: authCacheInvalidator,
-		emailService:         emailService,
-		httpClient:           &http.Client{},
-		workerCount:          maxContentModerationWorkerCount,
-		asyncQueue:           make(chan contentModerationTask, maxContentModerationQueueSize),
-		keyHealth:            make(map[string]*contentModerationKeyHealth),
+		settingRepo:              settingRepo,
+		repo:                     repo,
+		hashCache:                hashCache,
+		groupRepo:                groupRepo,
+		userRepo:                 userRepo,
+		authCacheInvalidator:     authCacheInvalidator,
+		emailService:             emailService,
+		httpClient:               &http.Client{},
+		cfg:                      cfg,
+		promptRiskJudgeSemaphore: make(chan struct{}, defaultPromptRiskJudgeMaxConcurrent),
+		workerCount:              maxContentModerationWorkerCount,
+		asyncQueue:               make(chan contentModerationTask, maxContentModerationQueueSize),
+		keyHealth:                make(map[string]*contentModerationKeyHealth),
 	}
 	if settingRepo != nil && repo != nil {
 		for i := 0; i < svc.workerCount; i++ {
@@ -1462,7 +1474,19 @@ func promptRiskCategory(level string) string {
 // 命中 observe 仅异步记录后返回 nil(继续走既有内容审核);其余返回 nil。
 func (s *ContentModerationService) evaluatePromptRiskStage(ctx context.Context, input ContentModerationCheckInput) *ContentModerationDecision {
 	prCfg := s.loadPromptRiskConfig(ctx)
-	if prCfg == nil || !prCfg.Enabled || normalizePromptRiskMode(prCfg.Mode) == PromptRiskModeOff {
+	if prCfg == nil {
+		return nil
+	}
+	if prCfg.Judge.Enabled && IsPromptRiskJudgeRequestHeader(input.PromptRiskJudgeHeader, prCfg.Judge.APIKey, input.Body) {
+		slog.Info("content_moderation.prompt_risk_skip_judge_request",
+			"user_id", input.UserID,
+			"api_key_id", input.APIKeyID,
+			"group_id", contentModerationLogGroupID(input.GroupID),
+			"endpoint", input.Endpoint,
+			"protocol", input.Protocol)
+		return nil
+	}
+	if !prCfg.Enabled || normalizePromptRiskMode(prCfg.Mode) == PromptRiskModeOff {
 		return nil
 	}
 	if !prCfg.includesGroup(input.GroupID) {

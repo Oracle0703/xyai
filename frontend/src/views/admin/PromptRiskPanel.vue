@@ -227,6 +227,7 @@
       <!-- 在线测试器 -->
       <div class="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60">
         <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.promptRisk.tester') }}</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.promptRisk.testerRuleOnlyHint') }}</p>
         <textarea v-model="testPrompt" class="input mt-2 min-h-20 resize-y" :placeholder="t('admin.riskControl.promptRisk.testerPlaceholder')" />
         <div class="mt-2">
           <button type="button" class="btn btn-secondary btn-sm inline-flex items-center gap-1" :disabled="testing || !testPrompt.trim()" @click="runTest">
@@ -496,7 +497,6 @@ function buildPayload(): PromptRiskConfig {
       timeout_ms: Number(form.judge.timeout_ms) || 4000,
       prompt_template: form.judge.prompt_template,
       trigger_levels: form.judge.trigger_levels.slice(),
-      fail_open: true,
     },
   }
 }

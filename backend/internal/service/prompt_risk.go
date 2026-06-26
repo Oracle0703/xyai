@@ -43,9 +43,11 @@ const (
 		"避免直接出现攻击工具名或针对第三方系统的攻击性动作；写明授权范围与目标归属后再试。"
 
 	// LLM 语义复核(judge):关键词命中且会真正拦截时,调一次外部 chat 模型做语义精判,降低双用途词误杀。
-	defaultPromptRiskJudgeTimeoutMS = 4000
-	minPromptRiskJudgeTimeoutMS     = 500
-	maxPromptRiskJudgeTimeoutMS     = 15000
+	defaultPromptRiskJudgeTimeoutMS     = 4000
+	minPromptRiskJudgeTimeoutMS         = 500
+	maxPromptRiskJudgeTimeoutMS         = 15000
+	defaultPromptRiskJudgeMaxConcurrent = 8
+	maxPromptRiskJudgeResponseBytes     = 64 * 1024
 
 	PromptRiskJudgeRiskNone = "none"
 	PromptRiskJudgeRiskLow  = "low"
@@ -95,7 +97,6 @@ type PromptRiskJudgeConfig struct {
 	TimeoutMS      int      `json:"timeout_ms"`      // 默认 4000,clamp [500,15000]
 	PromptTemplate string   `json:"prompt_template"` // 空则用内置 defaultPromptRiskJudgePrompt
 	TriggerLevels  []string `json:"trigger_levels"`  // 默认 ["high"];只对命中这些等级的 would-be-block 复核
-	FailOpen       bool     `json:"fail_open"`       // v1 固定 true(judge 失败放行)
 
 	// 只读输出(GetPromptRiskConfig 填充,供前端展示;不参与匹配/落库)。
 	APIKeyConfigured bool   `json:"api_key_configured,omitempty"`
@@ -105,7 +106,7 @@ type PromptRiskJudgeConfig struct {
 // PromptRiskConfig 独立设置(settings 表 key=prompt_risk_config),不依赖旧内容审核配置。
 type PromptRiskConfig struct {
 	Enabled           bool                   `json:"enabled"`
-	Mode              string                 `json:"mode"`        // off / observe / block
+	Mode              string                 `json:"mode"` // off / observe / block
 	AllGroups         bool                   `json:"all_groups"`
 	GroupIDs          []int64                `json:"group_ids"`   // group 级 opt-in
 	InputScope        string                 `json:"input_scope"` // newest(默认,仅本轮用户意图) / full(全历史 user turn)
@@ -173,7 +174,6 @@ func DefaultPromptRiskConfig() PromptRiskConfig {
 			Enabled:       false,
 			TimeoutMS:     defaultPromptRiskJudgeTimeoutMS,
 			TriggerLevels: []string{PromptRiskLevelHigh},
-			FailOpen:      true,
 		},
 	}
 }
@@ -340,7 +340,6 @@ func (j *PromptRiskJudgeConfig) normalize() {
 		levels = []string{PromptRiskLevelHigh}
 	}
 	j.TriggerLevels = levels
-	j.FailOpen = true // v1 固定 fail-open
 }
 
 // triggersLevel 判断某命中等级是否在 judge 触发范围内。
@@ -591,7 +590,8 @@ func normalizePromptRiskScope(scope string) string {
 	return PromptRiskScopeNewest
 }
 
-func normalizePromptRiskMatchMode(mode string) string {	switch strings.ToLower(strings.TrimSpace(mode)) {
+func normalizePromptRiskMatchMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case PromptRiskMatchRegex:
 		return PromptRiskMatchRegex
 	case PromptRiskMatchWord:

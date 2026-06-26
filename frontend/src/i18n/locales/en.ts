@@ -3060,6 +3060,7 @@ export default {
         saveFailed: 'Failed to save prompt risk config',
         loadFailed: 'Failed to load prompt risk config',
         tester: 'Live tester',
+        testerRuleOnlyHint: 'Evaluates keyword rules only; it does not call the LLM semantic review. Real gateway requests trigger semantic review only when configured block conditions are met.',
         testerPlaceholder: 'Paste a prompt to preview its level / action / matched keywords',
         runTest: 'Test',
         testFailed: 'Test failed',

@@ -309,7 +309,6 @@ export interface PromptRiskJudgeConfig {
   timeout_ms: number
   prompt_template: string
   trigger_levels: PromptRiskLevel[]
-  fail_open: boolean
   // 只读(GET 返回):api_key 永不回传明文,仅用掩码展示。
   api_key_configured?: boolean
   api_key_masked?: string
@@ -347,6 +346,8 @@ export interface PromptRiskDecision {
 export interface PromptRiskTestResponse {
   matched: boolean
   decision: PromptRiskDecision
+  scope?: 'keyword_rules_only'
+  judge_evaluated?: boolean
 }
 
 export async function getPromptRiskConfig(): Promise<PromptRiskConfig> {

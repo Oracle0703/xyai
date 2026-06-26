@@ -3,6 +3,10 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 )
 
 // LLM 语义复核(judge):关键词命中且会真正 block 时,调一次 OpenAI 兼容 /v1/chat/completions
@@ -19,6 +25,42 @@ import (
 
 // promptRiskJudgeContextKey 标记"judge 自身发起的回环请求",防同进程内直接递归。
 type promptRiskJudgeContextKey struct{}
+
+// PromptRiskJudgeHeaderName 是 judge 回环请求的内部标记头。头值由 judge API key 和请求体派生,
+// 只在服务端出站设置和入站校验,避免外部固定头值伪造绕过 Prompt Risk。
+const PromptRiskJudgeHeaderName = "X-Sub2API-Prompt-Risk-Judge"
+
+const promptRiskJudgeHeaderSalt = "sub2api-prompt-risk-judge-v1"
+
+func buildPromptRiskJudgeHeaderValue(apiKey string, body []byte) string {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return ""
+	}
+	mac := hmac.New(sha256.New, []byte(apiKey))
+	_, _ = mac.Write([]byte(promptRiskJudgeHeaderSalt))
+	_, _ = mac.Write([]byte{0})
+	_, _ = mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func IsPromptRiskJudgeRequestHeader(value, apiKey string, body []byte) bool {
+	value = strings.TrimSpace(value)
+	expected := buildPromptRiskJudgeHeaderValue(apiKey, body)
+	if value == "" || expected == "" || len(value) != len(expected) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(value), []byte(expected)) == 1
+}
+
+func setPromptRiskJudgeRequestHeader(h http.Header, apiKey string, body []byte) {
+	if h == nil {
+		return
+	}
+	if value := buildPromptRiskJudgeHeaderValue(apiKey, body); value != "" {
+		h.Set(PromptRiskJudgeHeaderName, value)
+	}
+}
 
 func withPromptRiskJudgeInFlight(ctx context.Context) context.Context {
 	return context.WithValue(ctx, promptRiskJudgeContextKey{}, true)
@@ -141,7 +183,11 @@ func (s *ContentModerationService) runPromptRiskJudge(ctx context.Context, cfg *
 	start := time.Now()
 	latency := func() int { return int(time.Since(start).Milliseconds()) }
 
-	endpoint, err := url.JoinPath(strings.TrimRight(j.BaseURL, "/"), "/v1/chat/completions")
+	baseURL, err := s.validatePromptRiskJudgeBaseURL(j.BaseURL)
+	if err != nil {
+		return &promptRiskJudgeResult{LatencyMS: latency(), Err: err}
+	}
+	endpoint, err := url.JoinPath(baseURL, "v1/chat/completions")
 	if err != nil {
 		return &promptRiskJudgeResult{LatencyMS: latency(), Err: fmt.Errorf("prompt risk judge: join url: %w", err)}
 	}
@@ -170,10 +216,17 @@ func (s *ContentModerationService) runPromptRiskJudge(ctx context.Context, cfg *
 	}
 	req.Header.Set("Authorization", "Bearer "+j.APIKey)
 	req.Header.Set("Content-Type", "application/json")
+	setPromptRiskJudgeRequestHeader(req.Header, j.APIKey, raw)
 
-	client := s.httpClient
-	if client == nil {
-		client = http.DefaultClient
+	release, ok := s.acquirePromptRiskJudgeSlot()
+	if !ok {
+		return &promptRiskJudgeResult{LatencyMS: latency(), Err: fmt.Errorf("prompt risk judge: concurrency limit reached")}
+	}
+	defer release()
+
+	client := http.DefaultClient
+	if s != nil && s.httpClient != nil {
+		client = s.httpClient
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -185,8 +238,15 @@ func (s *ContentModerationService) runPromptRiskJudge(ctx context.Context, cfg *
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return &promptRiskJudgeResult{LatencyMS: latency(), Err: fmt.Errorf("prompt risk judge: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))}
 	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPromptRiskJudgeResponseBytes+1))
+	if err != nil {
+		return &promptRiskJudgeResult{LatencyMS: latency(), Err: fmt.Errorf("prompt risk judge: read response: %w", err)}
+	}
+	if len(body) > maxPromptRiskJudgeResponseBytes {
+		return &promptRiskJudgeResult{LatencyMS: latency(), Err: fmt.Errorf("prompt risk judge: response too large")}
+	}
 	var out promptRiskJudgeChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.Unmarshal(body, &out); err != nil {
 		return &promptRiskJudgeResult{LatencyMS: latency(), Err: fmt.Errorf("prompt risk judge: decode: %w", err)}
 	}
 	if len(out.Choices) == 0 {
@@ -197,4 +257,45 @@ func (s *ContentModerationService) runPromptRiskJudge(ctx context.Context, cfg *
 		return &promptRiskJudgeResult{LatencyMS: latency(), Err: err}
 	}
 	return &promptRiskJudgeResult{Risk: risk, Reason: reason, LatencyMS: latency()}
+}
+func (s *ContentModerationService) validatePromptRiskJudgeBaseURL(raw string) (string, error) {
+	if s != nil && s.cfg != nil {
+		allowlist := s.cfg.Security.URLAllowlist
+		if !allowlist.Enabled {
+			normalized, err := urlvalidator.ValidateURLFormat(raw, allowlist.AllowInsecureHTTP)
+			if err != nil {
+				return "", fmt.Errorf("prompt risk judge: invalid base_url: %w", err)
+			}
+			return normalized, nil
+		}
+
+		normalized, err := urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
+			AllowedHosts:     allowlist.UpstreamHosts,
+			RequireAllowlist: true,
+			AllowPrivate:     allowlist.AllowPrivateHosts,
+		})
+		if err != nil {
+			return "", fmt.Errorf("prompt risk judge: invalid base_url: %w", err)
+		}
+		return normalized, nil
+	}
+
+	normalized, err := urlvalidator.ValidateURLFormat(raw, false)
+	if err != nil {
+		return "", fmt.Errorf("prompt risk judge: invalid base_url: %w", err)
+	}
+	return normalized, nil
+}
+
+func (s *ContentModerationService) acquirePromptRiskJudgeSlot() (func(), bool) {
+	if s == nil || s.promptRiskJudgeSemaphore == nil {
+		return func() {}, true
+	}
+	sem := s.promptRiskJudgeSemaphore
+	select {
+	case sem <- struct{}{}:
+		return func() { <-sem }, true
+	default:
+		return nil, false
+	}
 }

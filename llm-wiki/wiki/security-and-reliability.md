@@ -137,6 +137,15 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - 国产模型 `thinking.type=enabled` 走 fallback: `ApplyThinkingEnabledFallback`(`gateway_request.go`)在 billingModel 判定后按需补 `reasoning_effort` 默认值; MiniMax M 系列 `thinking.type=enabled` 改写为 adaptive。Responses->Chat fallback 路径必须在 `billingModel` 算出后再调用。
 - `/v1/chat/completions` 缺省 effort 注入(`applyDefaultOpenAIReasoningEffort`, 开关 `gateway.openai_default_reasoning_effort` 默认空=关闭): 同样在 billingModel 算出后判定, **强制模型门控**只对 `SupportsOpenAIReasoningEffort`(gpt-5.x / o 系列)的推理模型注入——向 gpt-4o / 第三方模型注入 `reasoning_effort` 会被官方上游 400 拒绝, 故门控不可省。用 `gjson.Exists()` 判定"是否已指定"而非归一化值, 避免覆盖客户端显式的 `none`/`minimal`; 模型名后缀(`gpt-5-high`)也视为已指定; gate `messages` 存在排除 Responses-shape 透传。默认空=零行为变更, opt-in。
 
+Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `prompt_risk_judge.go`):
+
+- Prompt Risk 是内容审核前置阶段: 先从网关请求体抽取 prompt, 按独立 `prompt_risk_config` 做关键词/正则/等级评估; block 模式下命中拦截会短路请求, observe 只记录后继续既有内容审核。
+- LLM 语义复核 judge 仅在关键词规则将要真正拦截、且命中等级在 `judge.trigger_levels` 内时触发; 调用 OpenAI 兼容 `/v1/chat/completions`, 失败、超时、非 2xx 或无法解析结果一律 fail-open, 降级为观察放行, 避免语义复核故障扩大为生产拦截。
+- judge `base_url` 复用 `security.url_allowlist.upstream_hosts` 出站校验: 开启 `security.url_allowlist.enabled` 时必须命中 allowlist, 且私网/localhost 是否允许由 `allow_private_hosts` 决定; 关闭 allowlist 时只做 URL 格式和 scheme 校验。`fail_open` 不是配置项, judge 失败固定 fail-open。
+- judge HTTP 调用有固定进程内并发闸门和成功响应体上限; 闸门满载、响应体超限、超时、非 2xx 或解析失败都按 judge error 记录并 fail-open。
+- judge 走本网关或同域 base_url 时会形成真实 HTTP 回环。出站 judge 请求会携带 `X-Sub2API-Prompt-Risk-Judge`, 头值由 judge API key 和请求体派生; 入站内容审核只在 judge 当前启用且该头能用当前 judge key 与原始请求体校验通过时跳过整个 Prompt Risk stage, 防止二次 judge 或关键词规则反向拦截 judge 请求。不要把该头当作外部可配置开关暴露。
+- 如果 judge 使用本网关 API Key, 仍建议使用专属 API Key / 分组, 便于计费、审计和故障定位; 不要复用普通用户 key。
+- 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。

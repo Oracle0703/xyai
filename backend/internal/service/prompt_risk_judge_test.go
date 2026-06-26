@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,7 +86,6 @@ func TestPromptRiskJudge_Normalize(t *testing.T) {
 	require.Equal(t, "m", cfg.Judge.Model)
 	require.Equal(t, minPromptRiskJudgeTimeoutMS, cfg.Judge.TimeoutMS)
 	require.Equal(t, []string{PromptRiskLevelHigh}, cfg.Judge.TriggerLevels) // 去重 + 过滤非法
-	require.True(t, cfg.Judge.FailOpen)
 
 	empty := DefaultPromptRiskConfig()
 	empty.Judge = PromptRiskJudgeConfig{Enabled: true}
@@ -93,6 +94,11 @@ func TestPromptRiskJudge_Normalize(t *testing.T) {
 	require.Equal(t, []string{PromptRiskLevelHigh}, empty.Judge.TriggerLevels)
 }
 
+func TestPromptRiskJudge_JSONDoesNotExposeFailOpen(t *testing.T) {
+	raw, err := json.Marshal(DefaultPromptRiskConfig().Judge)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "fail_open")
+}
 func TestPromptRiskJudge_ValidateRawRejects(t *testing.T) {
 	cases := []struct {
 		name string
@@ -134,11 +140,23 @@ func judgeChatResponse(verdict string) string {
 	return string(body)
 }
 
+func localPromptRiskJudgeTestConfig() *config.Config {
+	return &config.Config{
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           false,
+				AllowInsecureHTTP: true,
+			},
+		},
+	}
+}
+
 func newJudgeService(t *testing.T) *ContentModerationService {
 	t.Helper()
 	return NewContentModerationService(
 		&contentModerationTestSettingRepo{values: map[string]string{}},
 		nil, nil, nil, nil, nil, nil,
+		localPromptRiskJudgeTestConfig(),
 	)
 }
 
@@ -164,6 +182,88 @@ func TestRunPromptRiskJudge_Success(t *testing.T) {
 	require.Equal(t, "/v1/chat/completions", gotPath)
 }
 
+func TestRunPromptRiskJudge_RejectsBaseURLOutsideAllowlist(t *testing.T) {
+	svc := newJudgeService(t)
+	svc.cfg = &config.Config{
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				UpstreamHosts:     []string{"judge.allowed.example"},
+				AllowPrivateHosts: false,
+			},
+		},
+	}
+	cfg := DefaultPromptRiskConfig()
+	cfg.Judge = PromptRiskJudgeConfig{Enabled: true, BaseURL: "https://127.0.0.1", Model: "m", APIKey: "sk", TimeoutMS: 4000}
+	cfg.normalize()
+
+	res := svc.runPromptRiskJudge(context.Background(), &cfg, "x", nil)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Err.Error(), "invalid base_url")
+}
+
+func TestRunPromptRiskJudge_ConcurrencyLimitFailOpen(t *testing.T) {
+	var calls int64
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&calls, 1)
+		started <- struct{}{}
+		<-release
+		_, _ = w.Write([]byte(judgeChatResponse(`{"risk":"none"}`)))
+	}))
+	defer server.Close()
+
+	svc := newJudgeService(t)
+	svc.promptRiskJudgeSemaphore = make(chan struct{}, 2)
+	cfg := DefaultPromptRiskConfig()
+	cfg.Judge = PromptRiskJudgeConfig{Enabled: true, BaseURL: server.URL, Model: "m", APIKey: "sk", TimeoutMS: 4000}
+	cfg.normalize()
+
+	done := make(chan *promptRiskJudgeResult, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			done <- svc.runPromptRiskJudge(context.Background(), &cfg, "x", nil)
+		}()
+	}
+	for i := 0; i < 2; i++ {
+		<-started
+	}
+
+	res := svc.runPromptRiskJudge(context.Background(), &cfg, "x", nil)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Err.Error(), "concurrency limit")
+	require.Equal(t, int64(2), atomic.LoadInt64(&calls), "满载后的请求不应继续打到 judge server")
+
+	close(release)
+	for i := 0; i < 2; i++ {
+		require.NoError(t, (<-done).Err)
+	}
+}
+
+func TestRunPromptRiskJudge_SuccessBodyTooLargeFailOpen(t *testing.T) {
+	largePadding := strings.Repeat("x", 70*1024)
+	body, err := json.Marshal(map[string]any{
+		"choices": []map[string]any{
+			{"message": map[string]any{"content": `{"risk":"none"}`}},
+		},
+		"padding": largePadding,
+	})
+	require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	svc := newJudgeService(t)
+	cfg := DefaultPromptRiskConfig()
+	cfg.Judge = PromptRiskJudgeConfig{Enabled: true, BaseURL: server.URL, Model: "m", APIKey: "sk", TimeoutMS: 4000}
+	cfg.normalize()
+
+	res := svc.runPromptRiskJudge(context.Background(), &cfg, "x", nil)
+	require.Error(t, res.Err)
+	require.Contains(t, res.Err.Error(), "response too large")
+}
 func TestRunPromptRiskJudge_Non2xxFailOpen(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -248,6 +348,7 @@ func newCheckServiceWithJudge(t *testing.T, settingsJSON string) (*ContentModera
 			SettingKeyPromptRiskConfig:   settingsJSON,
 		}},
 		repo, nil, nil, nil, nil, nil,
+		localPromptRiskJudgeTestConfig(),
 	)
 	return svc, repo
 }
@@ -370,6 +471,72 @@ func TestPromptRiskJudge_ContextInFlightSkips(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, decision.Blocked, "递归回环应保持关键词 block,不再 judge")
 	require.Equal(t, int64(0), atomic.LoadInt64(&calls))
+}
+
+// judge 出站请求必须带内部标记头,让真实 HTTP 回环能被本网关识别。
+func TestRunPromptRiskJudge_SendsInternalHeader(t *testing.T) {
+	var gotHeader string
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get(PromptRiskJudgeHeaderName)
+		gotBody, _ = io.ReadAll(r.Body)
+		_, _ = w.Write([]byte(judgeChatResponse(`{"risk":"none"}`)))
+	}))
+	defer server.Close()
+
+	svc := newJudgeService(t)
+	cfg := DefaultPromptRiskConfig()
+	cfg.Judge = PromptRiskJudgeConfig{Enabled: true, BaseURL: server.URL, Model: "m", APIKey: "sk-judge", TimeoutMS: 4000}
+	cfg.normalize()
+
+	res := svc.runPromptRiskJudge(context.Background(), &cfg, "config our vpn", nil)
+	require.NoError(t, res.Err)
+	require.Equal(t, buildPromptRiskJudgeHeaderValue("sk-judge", gotBody), gotHeader)
+	require.False(t, IsPromptRiskJudgeRequestHeader(gotHeader, "wrong-key", gotBody), "内部头必须绑定 judge API key,避免外部伪造固定值绕过")
+	require.False(t, IsPromptRiskJudgeRequestHeader(gotHeader, "sk-judge", []byte(`{"messages":[{"role":"user","content":"different"}]}`)), "内部头必须绑定请求体,避免复用到其它 prompt")
+}
+
+// 真实 HTTP 回环:入站带合法 judge 标记时跳过整个 Prompt Risk stage,避免 judge 请求被关键词规则反向拦截。
+func TestPromptRiskJudge_InternalHTTPRequestSkipsPromptRiskStage(t *testing.T) {
+	var calls int64
+	server := judgeServerWithCount(`{"risk":"high"}`, &calls)
+	defer server.Close()
+
+	settings := buildJudgePromptRiskSettings(t, PromptRiskJudgeConfig{
+		Enabled: true, BaseURL: server.URL, Model: "m", APIKey: "sk-judge", TimeoutMS: 4000,
+		TriggerLevels: []string{PromptRiskLevelHigh},
+	}, nil)
+	svc, repo := newCheckServiceWithJudge(t, settings)
+
+	body := []byte(`{"messages":[{"role":"user","content":"set up vpn proxy tunnel for the lab"}]}`)
+	decision, err := svc.Check(context.Background(), ContentModerationCheckInput{
+		UserID:                1,
+		PromptRiskJudgeHeader: buildPromptRiskJudgeHeaderValue("sk-judge", body),
+		Protocol:              ContentModerationProtocolOpenAIChat,
+		Body:                  body,
+	})
+	require.NoError(t, err)
+	require.False(t, decision.Blocked, "judge 回环请求应跳过 Prompt Risk stage,继续走后续链路")
+	require.Equal(t, int64(0), atomic.LoadInt64(&calls), "跳过 Prompt Risk 后不应二次调用 judge")
+	requireContentModerationLogCount(t, repo, 0)
+}
+
+// judge 关闭时即使存在旧内部头值也不能跳过 Prompt Risk,避免关闭语义复核后留下绕过面。
+func TestPromptRiskJudge_InternalHeaderIgnoredWhenJudgeDisabled(t *testing.T) {
+	settings := buildJudgePromptRiskSettings(t, PromptRiskJudgeConfig{
+		Enabled: false, BaseURL: "https://judge.example.com", Model: "m", APIKey: "sk-judge",
+	}, nil)
+	svc, _ := newCheckServiceWithJudge(t, settings)
+
+	body := []byte(`{"messages":[{"role":"user","content":"set up vpn proxy tunnel for the lab"}]}`)
+	decision, err := svc.Check(context.Background(), ContentModerationCheckInput{
+		UserID:                1,
+		PromptRiskJudgeHeader: buildPromptRiskJudgeHeaderValue("sk-judge", body),
+		Protocol:              ContentModerationProtocolOpenAIChat,
+		Body:                  body,
+	})
+	require.NoError(t, err)
+	require.True(t, decision.Blocked, "judge 关闭时内部头不应跳过 Prompt Risk")
 }
 
 // 回归:judge 关闭时行为与现状一致(不调用、保持 block)。
