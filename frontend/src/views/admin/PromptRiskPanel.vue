@@ -149,6 +149,72 @@
         </div>
       </div>
 
+      <!-- LLM 语义复核(judge) -->
+      <div class="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-900/40 dark:bg-indigo-900/10">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.promptRisk.judge.title') }}</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.promptRisk.judge.hint') }}</p>
+          </div>
+          <label class="inline-flex shrink-0 cursor-pointer items-center gap-2">
+            <input v-model="form.judge.enabled" type="checkbox" class="checkbox" />
+            <span class="text-sm text-gray-700 dark:text-gray-200">{{ t('admin.riskControl.promptRisk.judge.enabled') }}</span>
+          </label>
+        </div>
+
+        <div v-if="form.judge.enabled" class="space-y-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label class="input-label">{{ t('admin.riskControl.promptRisk.judge.baseUrl') }}</label>
+              <input v-model="form.judge.base_url" class="input" placeholder="https://your-gateway.example.com" />
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.riskControl.promptRisk.judge.model') }}</label>
+              <input v-model="form.judge.model" class="input" placeholder="gpt-4o-mini" />
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.riskControl.promptRisk.judge.apiKey') }}</label>
+              <input v-model="form.judge.api_key" type="password" autocomplete="off" class="input" :placeholder="form.judge.api_key_configured ? form.judge.api_key_masked || '••••••••' : ''" />
+              <p class="mt-1 text-xs text-gray-400">{{ t('admin.riskControl.promptRisk.judge.apiKeyHint') }}</p>
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.riskControl.promptRisk.judge.timeoutMs') }}</label>
+              <input v-model.number="form.judge.timeout_ms" type="number" min="500" max="15000" step="100" class="input" />
+            </div>
+          </div>
+
+          <div>
+            <label class="input-label">{{ t('admin.riskControl.promptRisk.judge.triggerLevels') }}</label>
+            <div class="flex flex-wrap gap-3">
+              <label v-for="opt in levelOptions" :key="String(opt.value)" class="inline-flex cursor-pointer items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  :checked="form.judge.trigger_levels.includes(opt.value as PromptRiskLevel)"
+                  @change="toggleJudgeTriggerLevel(opt.value as PromptRiskLevel)"
+                />
+                {{ opt.label }}
+              </label>
+            </div>
+            <p class="mt-1 text-xs text-gray-400">{{ t('admin.riskControl.promptRisk.judge.triggerLevelsHint') }}</p>
+          </div>
+
+          <div>
+            <label class="input-label">{{ t('admin.riskControl.promptRisk.judge.promptTemplate') }}</label>
+            <textarea v-model="form.judge.prompt_template" class="input min-h-24 resize-y" :placeholder="t('admin.riskControl.promptRisk.judge.promptTemplatePlaceholder')" />
+          </div>
+
+          <!-- 防递归提示 -->
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+            <p class="font-semibold">{{ t('admin.riskControl.promptRisk.judge.recursionTitle') }}</p>
+            <p class="mt-1 whitespace-pre-wrap">{{ t('admin.riskControl.promptRisk.judge.recursionHint') }}</p>
+            <button type="button" class="btn btn-secondary btn-sm mt-2 inline-flex items-center gap-1" @click="addExemptionForJudge">
+              <Icon name="plus" size="sm" /> {{ t('admin.riskControl.promptRisk.judge.addExemption') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- 保存 -->
       <div class="flex justify-end">
         <button type="button" class="btn btn-primary inline-flex items-center gap-2" :disabled="saving" @click="save">
@@ -161,6 +227,7 @@
       <!-- 在线测试器 -->
       <div class="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60">
         <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.promptRisk.tester') }}</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.promptRisk.testerRuleOnlyHint') }}</p>
         <textarea v-model="testPrompt" class="input mt-2 min-h-20 resize-y" :placeholder="t('admin.riskControl.promptRisk.testerPlaceholder')" />
         <div class="mt-2">
           <button type="button" class="btn btn-secondary btn-sm inline-flex items-center gap-1" :disabled="testing || !testPrompt.trim()" @click="runTest">
@@ -262,6 +329,18 @@ interface EditableExemption {
   max_level: PromptRiskLevel
 }
 
+interface EditableJudge {
+  enabled: boolean
+  base_url: string
+  model: string
+  api_key: string // 写入用;留空=沿用已存旧 key
+  api_key_configured: boolean
+  api_key_masked: string
+  timeout_ms: number
+  prompt_template: string
+  trigger_levels: PromptRiskLevel[]
+}
+
 interface EditableForm {
   enabled: boolean
   mode: PromptRiskMode
@@ -274,6 +353,7 @@ interface EditableForm {
   rewrite_suggestion: string
   keyword_sets: EditableKeywordSet[]
   exemptions: EditableExemption[]
+  judge: EditableJudge
 }
 
 const loading = ref(true)
@@ -294,6 +374,17 @@ const form = reactive<EditableForm>({
   rewrite_suggestion: '',
   keyword_sets: [],
   exemptions: [],
+  judge: {
+    enabled: false,
+    base_url: '',
+    model: '',
+    api_key: '',
+    api_key_configured: false,
+    api_key_masked: '',
+    timeout_ms: 4000,
+    prompt_template: '',
+    trigger_levels: ['high'],
+  },
 })
 
 const modeOptions = computed<SelectOption[]>(() => [
@@ -359,6 +450,20 @@ function applyConfig(cfg: PromptRiskConfig) {
     api_key_ids_text: (e.api_key_ids ?? []).join(', '),
     max_level: e.max_level,
   }))
+  const j = cfg.judge
+  if (j) {
+    form.judge = {
+      enabled: j.enabled,
+      base_url: j.base_url,
+      model: j.model,
+      api_key: '', // 写入框始终留空,展示用掩码;留空提交=沿用旧 key
+      api_key_configured: j.api_key_configured ?? false,
+      api_key_masked: j.api_key_masked ?? '',
+      timeout_ms: j.timeout_ms || 4000,
+      prompt_template: j.prompt_template ?? '',
+      trigger_levels: (j.trigger_levels ?? ['high']).slice(),
+    }
+  }
 }
 
 function buildPayload(): PromptRiskConfig {
@@ -384,6 +489,25 @@ function buildPayload(): PromptRiskConfig {
       api_key_ids: parseIds(e.api_key_ids_text),
       max_level: e.max_level,
     })),
+    judge: {
+      enabled: form.judge.enabled,
+      base_url: form.judge.base_url.trim(),
+      model: form.judge.model.trim(),
+      api_key: form.judge.api_key, // 留空=后端沿用旧 key
+      timeout_ms: Number(form.judge.timeout_ms) || 4000,
+      prompt_template: form.judge.prompt_template,
+      trigger_levels: form.judge.trigger_levels.slice(),
+    },
+  }
+}
+
+// toggleJudgeTriggerLevel 切换 judge 触发等级(多选)。
+function toggleJudgeTriggerLevel(level: PromptRiskLevel) {
+  const idx = form.judge.trigger_levels.indexOf(level)
+  if (idx >= 0) {
+    form.judge.trigger_levels.splice(idx, 1)
+  } else {
+    form.judge.trigger_levels.push(level)
   }
 }
 
@@ -393,6 +517,13 @@ function addKeywordSet() {
 
 function addExemption() {
   form.exemptions.push({ group_ids_text: '', user_ids_text: '', api_key_ids_text: '', max_level: 'medium' })
+}
+
+// addExemptionForJudge 追加一条空 API Key 豁免(MaxLevel=low),用户填入 judge 专属 api_key_id
+// 即可阻断 judge 回环请求自触发审查(见防递归提示)。
+function addExemptionForJudge() {
+  form.exemptions.push({ group_ids_text: '', user_ids_text: '', api_key_ids_text: '', max_level: 'low' })
+  appStore.showSuccess(t('admin.riskControl.promptRisk.judge.exemptionAdded'))
 }
 
 async function load() {

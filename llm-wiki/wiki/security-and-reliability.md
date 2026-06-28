@@ -137,6 +137,23 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - 国产模型 `thinking.type=enabled` 走 fallback: `ApplyThinkingEnabledFallback`(`gateway_request.go`)在 billingModel 判定后按需补 `reasoning_effort` 默认值; MiniMax M 系列 `thinking.type=enabled` 改写为 adaptive。Responses->Chat fallback 路径必须在 `billingModel` 算出后再调用。
 - `/v1/chat/completions` 缺省 effort 注入(`applyDefaultOpenAIReasoningEffort`, 开关 `gateway.openai_default_reasoning_effort` 默认空=关闭): 同样在 billingModel 算出后判定, **强制模型门控**只对 `SupportsOpenAIReasoningEffort`(gpt-5.x / o 系列)的推理模型注入——向 gpt-4o / 第三方模型注入 `reasoning_effort` 会被官方上游 400 拒绝, 故门控不可省。用 `gjson.Exists()` 判定"是否已指定"而非归一化值, 避免覆盖客户端显式的 `none`/`minimal`; 模型名后缀(`gpt-5-high`)也视为已指定; gate `messages` 存在排除 Responses-shape 透传。默认空=零行为变更, opt-in。
 
+Codex CLI only 客户端限制(`openai_client_restriction_detector.go` / `engine_fingerprint_signal.go`):
+
+- 账号级 `codex_cli_only` 开启后才进入检测; `gateway.force_codex_cli` 是全局旁路放行, 仅用于兼容兜底。
+- 检测顺序是黑名单 deny、官方 UA/originator、全局白名单、app-server 开闸、官方候选版本范围、engine fingerprint AND 硬门。黑名单为 OR deny; 白名单为 originator + UA 双因子 AND allow。
+- `codex_cli_only_engine_fingerprint_signals` 是 JSON 数组, 每条 `required=true` 之间 AND, 同条 `match` 变体 OR; 默认种子只要求 `x-codex-` header prefix。旧 `codex_cli_only_allow_body_engine_fingerprint` 只作为迁移输入, 运行时看统一 signals。
+- app-server 有全局开关 `codex_cli_only_allow_app_server_clients` 和账号级 `codex_cli_only_allow_app_server`; 任一开启会把未列名 app-server client 作为候选, 但仍需通过 engine fingerprint 门。
+- 白名单条目可设置 skip engine fingerprint, 风险高于默认策略, 只应用于确实不发送 Codex 引擎指纹的可信第三方客户端。
+
+Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `prompt_risk_judge.go`):
+
+- Prompt Risk 是内容审核前置阶段: 先从网关请求体抽取 prompt, 按独立 `prompt_risk_config` 做关键词/正则/等级评估; block 模式下命中拦截会短路请求, observe 只记录后继续既有内容审核。
+- LLM 语义复核 judge 仅在关键词规则将要真正拦截、且命中等级在 `judge.trigger_levels` 内时触发; 调用 OpenAI 兼容 `/v1/chat/completions`, 失败、超时、非 2xx 或无法解析结果一律 fail-open, 降级为观察放行, 避免语义复核故障扩大为生产拦截。
+- judge `base_url` 复用 `security.url_allowlist.upstream_hosts` 出站校验: 开启 `security.url_allowlist.enabled` 时必须命中 allowlist, 且私网/localhost 是否允许由 `allow_private_hosts` 决定; 关闭 allowlist 时只做 URL 格式和 scheme 校验。`fail_open` 不是配置项, judge 失败固定 fail-open。
+- judge HTTP 调用有固定进程内并发闸门和成功响应体上限; 闸门满载、响应体超限、超时、非 2xx 或解析失败都按 judge error 记录并 fail-open。
+- judge 走本网关或同域 base_url 时会形成真实 HTTP 回环。出站 judge 请求会携带 `X-Sub2API-Prompt-Risk-Judge`, 头值由 judge API key 和请求体派生; 入站内容审核只在 judge 当前启用且该头能用当前 judge key 与原始请求体校验通过时跳过整个 Prompt Risk stage, 防止二次 judge 或关键词规则反向拦截 judge 请求。不要把该头当作外部可配置开关暴露。
+- 如果 judge 使用本网关 API Key, 仍建议使用专属 API Key / 分组, 便于计费、审计和故障定位; 不要复用普通用户 key。
+- 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
@@ -152,6 +169,9 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - Chat Completions -> Responses bridge 的 item 生命周期完整性, 包括动态 item id 一致性、reasoning item、content part 和 tool call done 事件。
 - 非流式上游错误透传不能二次写响应: `GatewayService` 写完整 JSON 错误后应标记 response committed, handler 层通过 `gatewayForwardErrorAlreadyCommunicated` 跳过通用 fallback; 流式中途错误仍要补协议级终止帧。
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
+- 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
+- OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 避免把 verbose upstream body 直接暴露给用户或前端错误视图。
+- Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。

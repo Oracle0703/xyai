@@ -12,6 +12,7 @@ Sub2API 的核心对象:
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image metadata 等。
 - SubscriptionPlan/UserSubscription: 套餐和用户订阅。
 - PaymentOrder/PaymentProviderInstance/PaymentAuditLog: 内置支付系统。
+- GrokOAuthClient/Grok quota snapshot: Grok/xAI OAuth 与订阅配额快照支撑, 运行态快照主要保存在账号 `extra`。
 - RedeemCode/PromoCode/Affiliate: 兑换码, 优惠码, 邀请返利。
 - Ops: error log, upstream error, metrics, alert, dashboard aggregation。
 - ChannelMonitor: 渠道监控, 模板, 历史和 daily rollup。
@@ -101,6 +102,13 @@ go generate ./cmd/server
 
 支付回调必须验签, 成功后充值, 并支持支付成功但充值失败后的重试。
 
+支付金额与订阅修复口径:
+
+- 余额充值金额计算在 `backend/internal/service/payment_amounts.go`: `calculateCreditedBalance` 按充值倍率入账, `calculateGatewayPaymentAmount` / refund 按币种 fraction digits 四舍五入。
+- 余额扣费在 `usage_billing_repo.go` 先尝试 `balance >= amount` 的原子更新; 不足时仍写入负余额并返回 `BalanceOverdrafted`, 调用方必须据此处理防持续透支策略。
+- 订阅订单履约需要应用充值倍率/兑换倍率并保持幂等审计; validity unit 支持单复数输入归一化。
+- 管理端订单金额展示应优先读取订单自身 `currency` 字段决定币种符号, 不要只依赖当前 provider 默认币种。
+
 ## 外部支付 Admin API
 
 `docs/ADMIN_PAYMENT_INTEGRATION_API.md` 记录外部支付系统对接:
@@ -156,7 +164,10 @@ User x platform quota:
 
 ## 模型与平台
 
-网关支持多平台调度, 常见 platform 包括 Claude/Anthropic, OpenAI, Gemini, Antigravity。Group 的 platform 决定部分路由行为和协议兼容分流。
+网关支持多平台调度, 常见 platform 包括 Claude/Anthropic, OpenAI, Gemini, Antigravity, Grok/xAI。Group 的 platform 决定部分路由行为和协议兼容分流。
+
+- `PlatformGrok = "grok"` 已加入后端 domain/service 常量和前端 `GroupPlatform` / `AccountPlatform`; user x platform quota 的允许平台也包含 `grok`。新增 quota 维度时要同步 Ent schema validate、service `AllowedQuotaPlatforms`、前端 Settings/UserPlatformQuota UI。
+- Grok OAuth 账号的 quota 由 xAI 响应头快照和本地 usage 聚合共同展示: `grok_request_quota`, `grok_token_quota`, `grok_retry_after_seconds`, `grok_entitlement_status`, `grok_local_usage` 等字段属于账号 usage DTO 扩展。
 
 模型映射和白名单相关改动要检查:
 

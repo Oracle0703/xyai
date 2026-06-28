@@ -1,5 +1,11 @@
 # 运维, 配置与验证基线
 
+## 当前版本基线
+
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.139`。
+- `backend/go.mod` 声明 Go `1.26.4`; CI 的 Go 版本校验也应保持 `go1.26.4`。
+- Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
+
 ## 本地启动
 
 Windows 本地脚本:
@@ -126,6 +132,16 @@ cd backend
 go test -tags=unit ./...
 go test -tags=integration ./...
 golangci-lint run ./...
+```
+
+Windows 本地验证若遇到 `go-build` / `.test.exe` access denied 或文件锁, 优先使用仓库内 cache 并串行重跑:
+
+```powershell
+cd backend
+New-Item -ItemType Directory -Force -Path .gocache-test,.gotmp-test | Out-Null
+$env:GOCACHE = (Resolve-Path .gocache-test).Path
+$env:GOTMPDIR = (Resolve-Path .gotmp-test).Path
+go test -tags=unit -p 1 -count=1 ./...
 ```
 
 前端:

@@ -276,8 +276,10 @@ func (h *ContentModerationHandler) TestPromptRisk(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{
-		"matched":  decision != nil && len(decision.Reasons) > 0,
-		"decision": decision,
+		"matched":         decision != nil && len(decision.Reasons) > 0,
+		"decision":        decision,
+		"scope":           "keyword_rules_only",
+		"judge_evaluated": false,
 	})
 }
 

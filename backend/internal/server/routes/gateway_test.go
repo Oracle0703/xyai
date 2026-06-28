@@ -19,16 +19,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newGatewayRoutesTestRouter() *gin.Engine {
-	return newGatewayRoutesTestRouterWithConfig(&config.Config{})
+type gatewayRoutesTestOption func(*gatewayRoutesTestConfig)
+
+type gatewayRoutesTestConfig struct {
+	cfg      *config.Config
+	platform string
 }
 
-func newGatewayRoutesTestRouterWithConfig(cfg *config.Config) *gin.Engine {
+func withGatewayRoutesTestConfig(cfg *config.Config) gatewayRoutesTestOption {
+	return func(opts *gatewayRoutesTestConfig) {
+		opts.cfg = cfg
+	}
+}
+
+func withGatewayRoutesTestPlatform(platform string) gatewayRoutesTestOption {
+	return func(opts *gatewayRoutesTestConfig) {
+		opts.platform = platform
+	}
+}
+
+func newGatewayRoutesTestRouter(options ...gatewayRoutesTestOption) *gin.Engine {
+	opts := gatewayRoutesTestConfig{
+		cfg:      &config.Config{},
+		platform: service.PlatformOpenAI,
+	}
+	for _, option := range options {
+		option(&opts)
+	}
+	if opts.cfg == nil {
+		opts.cfg = &config.Config{}
+	}
+	if opts.platform == "" {
+		opts.platform = service.PlatformOpenAI
+	}
+
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	if cfg == nil {
-		cfg = &config.Config{}
-	}
 
 	RegisterGatewayRoutes(
 		router,
@@ -40,7 +66,7 @@ func newGatewayRoutesTestRouterWithConfig(cfg *config.Config) *gin.Engine {
 			groupID := int64(1)
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
 				GroupID: &groupID,
-				Group:   &service.Group{Platform: service.PlatformOpenAI},
+				Group:   &service.Group{Platform: opts.platform},
 			})
 			c.Next()
 		}),
@@ -48,7 +74,7 @@ func newGatewayRoutesTestRouterWithConfig(cfg *config.Config) *gin.Engine {
 		nil,
 		nil,
 		nil,
-		cfg,
+		opts.cfg,
 	)
 
 	return router
@@ -93,7 +119,7 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
 	dir := t.TempDir()
 	t.Cleanup(servermiddleware.CloseRequestArchiveWritersForTest)
-	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
+	router := newGatewayRoutesTestRouter(withGatewayRoutesTestConfig(&config.Config{
 		Gateway: config.GatewayConfig{
 			MaxBodySize: 1024 * 1024,
 			RequestArchive: config.GatewayRequestArchiveConfig{
@@ -104,7 +130,7 @@ func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
 				CaptureResponse:      true,
 			},
 		},
-	})
+	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/responses", strings.NewReader(`{"model":"gpt-5","input":"hello"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -136,7 +162,7 @@ rules:
     reply: "你好，我是迅游AI，有什么可以帮助你？"
 `), 0o600))
 	archiveDir := filepath.Join(dir, "archive")
-	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
+	router := newGatewayRoutesTestRouter(withGatewayRoutesTestConfig(&config.Config{
 		Gateway: config.GatewayConfig{
 			MaxBodySize: 1024 * 1024,
 			RequestArchive: config.GatewayRequestArchiveConfig{
@@ -151,7 +177,7 @@ rules:
 				RulesFile: rulesFile,
 			},
 		},
-	})
+	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5","input":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -170,6 +196,43 @@ rules:
 	require.NotContains(t, records[1], "body")
 	require.Greater(t, records[1]["body_size"], float64(0))
 	require.NotEmpty(t, records[1]["body_sha256"])
+}
+
+func TestGatewayRoutesGrokOnlyAllowsResponsesHTTP(t *testing.T) {
+	router := newGatewayRoutesTestRouter(withGatewayRoutesTestPlatform(service.PlatformGrok))
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/v1/messages"},
+		{http.MethodPost, "/v1/chat/completions"},
+		{http.MethodPost, "/chat/completions"},
+		{http.MethodGet, "/v1/responses"},
+		{http.MethodGet, "/responses"},
+		{http.MethodGet, "/backend-api/codex/responses"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(`{"model":"grok"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "method=%s path=%s", tc.method, tc.path)
+		require.Contains(t, w.Body.String(), "not supported for Grok groups")
+	}
+
+	for _, path := range []string{
+		"/v1/responses",
+		"/responses",
+		"/backend-api/codex/responses",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok","input":"hi"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should still reach Responses handler", path)
+	}
 }
 
 func readGatewayRouteArchiveRecords(t *testing.T, dir string) []map[string]any {

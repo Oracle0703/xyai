@@ -78,6 +78,7 @@
 - `/v1/chat/completions` 和根级 `/chat/completions` 支持 OpenAI Chat Completions。
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
 - `/v1/images/generations` 和 `/v1/images/edits` 仅 OpenAI platform 支持。
+- Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; 当前支持 OAuth 订阅账号的 Responses/Chat 兼容文本与推理流量, API Key 账号不在 Grok 首版范围。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `/backend-api/codex/responses` 支持 Codex 直连别名。
 
@@ -101,7 +102,18 @@ OpenAI/Codex 兼容桥:
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
 - OpenAI/ChatGPT/Codex 账号配额查询与重置由 `backend/internal/service/openai_quota_service.go` 提供(上游 v0.1.137): 调 `chatgpt.com/backend-api/wham/usage` 读 rate-limit 窗口、`/wham/rate-limit-reset-credits/consume` 重置 credits; 管理端入口 `GET /api/v1/admin/openai/accounts/:id/quota` 与 `POST .../reset-quota`。上游对未用窗口返回显式 `null`, 消费方按 nil 指针视作"无数据"。
+- OpenAI Codex PAT 账号由 `backend/internal/service/openai_codex_pat_service.go` 校验 `at-*` token, 使用官方 whoami endpoint 读取 email/account/user/plan/FedRAMP 字段。PAT 账号会清理 OAuth-only credential 字段, refresh 时不走 OAuth refresh token。
 - OpenAI 图片生成 Responses 路径会识别 `response.incomplete`: `content_filter`/moderation 视为 400 非重试, 其他 incomplete 视为 502 可 failover。若上游 `response.completed` 但无图片输出, 会记录 ops 诊断摘要并返回 `UpstreamFailoverError{RetryableOnSameAccount:true}`, 先同账号快速重试, 再按 handler 上限换账号。
+
+Grok/xAI 兼容:
+
+- Grok OAuth 管理路由在 `backend/internal/server/routes/admin.go` 的 `registerGrokOAuthRoutes`: `/api/v1/admin/grok/oauth/auth-url`, `/exchange-code`, `/refresh-token`, `/accounts/:id/refresh`, `/accounts/:id/quota`, `/accounts/:id/reset-quota`, `/runtime-sanity`。
+- OAuth/token/账号创建由 `backend/internal/service/grok_oauth_service.go`, `grok_token_provider.go`, `grok_token_refresher.go`, `backend/internal/repository/grok_oauth_client.go` 提供; token cache key 独立为 `GrokTokenCacheKey`。
+- OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 强制 OAuth 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
+- Grok quota 由 `backend/internal/pkg/xai/quota.go` 解析 xAI rate-limit 和 entitlement headers, 快照写入账号 `extra`。管理端主动探测在 `backend/internal/service/grok_quota_service.go`, 使用最小 Responses 请求读取 headers; reset 当前返回不支持。
+- Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。
+- `PlatformGrok` 已加入 `domain/constants.go`, `service/domain_constants.go`, scheduler snapshot 平台列表、token cache invalidator 和 user platform quota 允许列表。新增平台相关能力时要同步这些集中列表。
+- 模型不可用诊断由 `gateway_model_availability.go` 和 `openai_gateway_model_availability.go` 提供; no-account 错误路径会区分"池中无支持该模型账号"并返回 404 `model_not_found`, 避免误报 503。
 
 OpenAI 账号调度:
 

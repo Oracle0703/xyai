@@ -439,6 +439,11 @@
         </div>
         <button type="button" class="btn btn-ghost btn-sm" @click="selectedRequest = null">{{ t('common.close') }}</button>
       </div>
+      <div v-if="extractedUserRequest" class="mb-5">
+        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.userRequest') }}</div>
+        <div class="max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-gray-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-gray-100">{{ extractedUserRequest }}</div>
+        <div class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.userRequestHint') }}</div>
+      </div>
       <dl class="grid grid-cols-2 gap-3 text-sm">
         <template v-for="field in detailFields" :key="field.label">
           <dt class="text-gray-500">{{ field.label }}</dt>
@@ -588,6 +593,13 @@ const indexStatusText = computed(() => {
   if (indexStatus.value?.last_error) return indexStatus.value.last_error
   return formatTimeCN(indexStatus.value?.updated_at)
 })
+
+const extractedUserRequest = computed(() => extractUserRequestTag(requestInput.value?.content || ''))
+
+function extractUserRequestTag(content: string): string {
+  const match = content.match(/<userRequest>([\s\S]*?)<\/userRequest>/i)
+  return match?.[1]?.trim() || ''
+}
 
 const detailFields = computed(() => {
   const item = selectedRequest.value
