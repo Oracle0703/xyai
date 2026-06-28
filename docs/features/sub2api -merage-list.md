@@ -491,3 +491,86 @@ git show --cc 5e115ac6 -- backend/internal/service/openai_gateway_chat_completio
 git diff --stat 4a5665da..85a3b122
 git log --oneline 4a5665da..85a3b122
 ```
+
+## 2026-06-27
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `57dbdc9f2cfb` |
+| Upstream head merged | `c275422251e72` |
+| Merge base | `85a3b122545a` |
+| Merge commit | `pending` |
+| Upstream version | `0.1.139` |
+| Upstream commits | 72 |
+| Files changed from merge base | 236 (`+13272 / -1004`) |
+| Conflict files | `README_CN.md`, `backend/cmd/server/wire_gen.go`, `backend/internal/server/routes/gateway.go`, `backend/internal/server/routes/gateway_test.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `frontend/src/components/account/AccountUsageCell.vue`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/charts/GroupDistributionChart.vue`, `frontend/src/components/charts/ModelDistributionChart.vue`, `frontend/src/views/admin/DashboardView.vue`, `frontend/src/views/auth/EmailVerifyView.vue` |
+
+### Summary
+
+将 Wei-Shaw/sub2api `main`（上游 `c27542225`, 本地上次合并基线 `85a3b122` 之后的 72 个提交）合入当前敏感词过滤分支。VERSION 更新到 `0.1.139`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| Grok/xAI 订阅支持 | 新增 `PlatformGrok`, Grok OAuth 授权/刷新/账号创建、xAI Responses 转发、Grok token provider/refresher、xAI quota header 解析与管理端主动 probe。 |
+| Codex 客户端限制加固 | `codex_cli_only` 增加全局黑/白名单、最低/最高 Codex 版本、engine fingerprint signals、全局/账号级 app-server 放行与检测测试。 |
+| OpenAI 账号认证 | 新增 Codex personal access token(`at-*`)导入与 whoami 校验, PAT 账号清理 OAuth-only credential 字段。 |
+| 网关可靠性 | 上游 `response.failed` verbose sanitize、OpenAI chat 传输错误 failover、模型不支持时返回 404 `model_not_found`、GLM/Codex tool args duplicate 修复、Responses passthrough duplicate function args 修复。 |
+| 支付与计费 | 修复余额扣费持续透支、订阅订单充值倍率、订单币种符号、subscription validity unit 单复数、支付 provider supported_types 空数组展示。 |
+| 管理端与前端 | 管理端用量 cache creation/read token 明细、Grok quota probe cell、Grok platform UI、Codex fingerprint settings、Dashboard/图表 `toFiniteNumber` 防 NaN。 |
+| 文档与资产 | 更新 sponsors/README、sub2api-admin JWT fallback、GPT-5.5 Codex instructions。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `README_CN.md` | 以上游版本为骨架, 补回本分支官方域名提示、在线体验、PinCC/PackyCode/APIKEY.FUN/YLSCode/RunAPI 赞助商和 Windows 本机手动重启记录。 |
+| `backend/cmd/server/wire_gen.go` | 解决 provider 注入后, 用 repo-local `GOCACHE`/`GOTMPDIR` 执行 `go run -mod=mod github.com/google/wire/cmd/wire ./cmd/server` 重新生成。 |
+| `backend/internal/server/routes/gateway.go` | 保留本分支 `RequestArchive`/`RequestIntercept` 中间件, 同时吸收上游 Grok 路由限制; 根级 `/responses` 与 `/chat/completions` 继续带 archive/intercept, Grok 不支持路径返回 404。 |
+| `backend/internal/server/routes/gateway_test.go` | 合并测试 helper 为 `withGatewayRoutesTestConfig` / `withGatewayRoutesTestPlatform`, 同时保留 archive/intercept 路由测试与 Grok route 测试。 |
+| `backend/internal/service/openai_gateway_chat_completions.go` | 先基于原始 body 执行上游新增 `codex_cli_only` 检测, 再保留本分支默认 `reasoning_effort` 注入, 最后进入 Grok raw/APIKey raw 分流。 |
+| `frontend/src/components/account/AccountUsageCell.vue` | `openAIUsageRefreshKey` 变化时采用上游 `requestAutoLoad()`, 同时保留本地用量展示逻辑。 |
+| `frontend/src/components/account/CreateAccountModal.vue` | 同时保留本地 OpenAI-compatible provider presets、Antigravity project/warmup 逻辑与上游 Grok OAuth/Codex app-server 字段; 移除不存在的 `codexCLIOnlyAllowClaudeCodeEnabled`。 |
+| `frontend/src/components/charts/GroupDistributionChart.vue`, `ModelDistributionChart.vue`, `DashboardView.vue` | 采用上游 `toFiniteNumber` 兜底, 避免 null/字符串/NaN 进入图表排序和格式化。 |
+| `frontend/src/views/auth/EmailVerifyView.vue` | 采用上游 payload 细粒度 undefined 判断, 修复合并后的调用换行语法。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 合并未覆盖 `prompt_risk.go`, `prompt_risk_judge.go` 与对应安全说明。 |
+| RequestArchive / RequestIntercept | 保留; 冲突路由中显式保留 archive/intercept 中间件。 |
+| token 分析、图片生成、用户并发方案 | 保留; 上游合并未删除本地核心入口。 |
+| 默认 OpenAI `reasoning_effort` 注入 | 保留; 在 `codex_cli_only` 检测之后、raw 分流之前执行。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `go run -mod=mod github.com/google/wire/cmd/wire ./cmd/server` with repo-local `.gocache-wire/.gotmp-wire` | Passed |
+| `gofmt -w backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go backend/internal/service/openai_gateway_chat_completions.go backend/cmd/server/wire_gen.go` | Passed |
+| `rg -n "^(<<<<<<<|>>>>>>>)"` on conflict files | Passed, no conflict markers |
+| `git diff --check -- <conflict files>` | Passed |
+| `rg -n "^(<<<<<<<|>>>>>>>)" backend frontend docs llm-wiki README.md README_CN.md README_JA.md skills deploy` | Passed, no conflict markers (rg exit 1 with no matches) |
+| `git diff --check` | Passed |
+| `git diff --cached --check` | Passed |
+| `go test -tags=unit -p 1 -count=1 ./cmd/server ./internal/server/routes ./internal/handler ./internal/handler/admin` with repo-local `GOCACHE/GOTMPDIR` | Passed |
+| `go test -tags=unit -p 1 -count=1 ./internal/service` with repo-local `GOCACHE/GOTMPDIR` | Passed |
+| `go test -tags=unit -p 1 -count=1 ./internal/pkg/xai ./internal/pkg/openai ./internal/pkg/apicompat` with repo-local `GOCACHE/GOTMPDIR` | Passed |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `security-and-reliability.md`, `data-and-domain.md`, 记录本次上游合并带来的稳定知识: Grok/xAI OAuth 与 quota, Codex client restriction signals/app-server/PAT, model_not_found 404, payment/billing 修复, frontend Grok/Codex UI 与 Windows Go cache 验证方式。
+
+### Useful Diff Commands
+
+```bash
+git diff --stat 85a3b122545a6c914704f716a612aea00c3d7ecd..c275422251e72750bebe53e41fcf59db7f83fe6b
+git log --oneline 85a3b122545a6c914704f716a612aea00c3d7ecd..c275422251e72750bebe53e41fcf59db7f83fe6b
+git diff --name-only --diff-filter=U
+```
