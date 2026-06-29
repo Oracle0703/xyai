@@ -5468,6 +5468,9 @@ func applyOpenAICompatibleCacheUsageFromJSON(data []byte, usage *OpenAIUsage, us
 	if cacheRead == 0 {
 		cacheRead = int(gjson.GetBytes(data, path("cached_tokens")).Int())
 	}
+	if cacheRead == 0 {
+		cacheRead = int(gjson.GetBytes(data, path("prompt_cache_hit_tokens")).Int())
+	}
 	usage.CacheReadInputTokens = cacheRead
 }
 
@@ -5570,6 +5573,9 @@ func openAIUsageFromGJSON(value gjson.Result) (OpenAIUsage, bool) {
 	}
 	if cacheReadTokens == 0 {
 		cacheReadTokens = value.Get("cached_tokens").Int()
+	}
+	if cacheReadTokens == 0 {
+		cacheReadTokens = value.Get("prompt_cache_hit_tokens").Int()
 	}
 	cacheCreationTokens := value.Get("cache_creation_input_tokens").Int()
 	if cacheCreationTokens == 0 {

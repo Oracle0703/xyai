@@ -652,6 +652,30 @@ func TestBufferRawChatCompletions_CompatibleCacheFieldsFallback(t *testing.T) {
 	require.Equal(t, int64(3), gjson.GetBytes(rec.Body.Bytes(), "usage.prompt_tokens_details.cached_tokens").Int())
 }
 
+func TestBufferRawChatCompletions_DeepSeekPromptCacheHitTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_deepseek_cache"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"id":"chatcmpl_deepseek_cache","object":"chat.completion","model":"deepseek-v4-pro","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1008,"completion_tokens":13,"total_tokens":1021,"prompt_cache_hit_tokens":900,"prompt_cache_miss_tokens":108}}`,
+		)),
+	}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+
+	result, err := svc.bufferRawChatCompletions(c, resp, "deepseek-v4-pro", "deepseek-v4-pro", "deepseek-v4-pro", nil, nil, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1008, result.Usage.InputTokens)
+	require.Equal(t, 13, result.Usage.OutputTokens)
+	require.Equal(t, 900, result.Usage.CacheReadInputTokens)
+	require.Equal(t, int64(900), gjson.GetBytes(rec.Body.Bytes(), "usage.prompt_tokens_details.cached_tokens").Int())
+}
+
 func rawChatCompletionsTestConfig() *config.Config {
 	return &config.Config{
 		Security: config.SecurityConfig{

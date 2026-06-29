@@ -2668,6 +2668,13 @@ func TestExtractOpenAIUsageFromJSONBytes_CompatibleCacheFieldsFallback(t *testin
 	require.Equal(t, 2, usage.OutputTokens)
 	require.Equal(t, 3, usage.CacheReadInputTokens)
 	require.Equal(t, 4, usage.CacheCreationInputTokens)
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"prompt_tokens":1008,"completion_tokens":13,"total_tokens":1021,"prompt_cache_hit_tokens":900,"prompt_cache_miss_tokens":108}}`))
+	require.True(t, ok)
+	require.Equal(t, 1008, usage.InputTokens)
+	require.Equal(t, 13, usage.OutputTokens)
+	require.Equal(t, 900, usage.CacheReadInputTokens)
+	require.Zero(t, usage.CacheCreationInputTokens)
 }
 
 func TestExtractCodexFinalResponse_SampleReplay(t *testing.T) {

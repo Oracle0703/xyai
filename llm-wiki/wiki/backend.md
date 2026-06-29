@@ -89,7 +89,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `/v1/chat/completions` 入口可选注入默认 `reasoning_effort`: 配置 `gateway.openai_default_reasoning_effort`(默认空=关闭)非空时, `applyDefaultOpenAIReasoningEffort` 在 `ForwardAsChatCompletions` 分流前对入站 body 注入一次, 同时覆盖 raw 直转与 CC→Responses 两条上游形状; 注入在 `json.Unmarshal` 前完成, 计费/用量日志自然读到。仅对**映射后** billingModel 命中 `SupportsOpenAIReasoningEffort`(gpt-5.x / o1·o3·o4)的推理模型注入; 客户端经 `reasoning_effort` / `reasoning.effort` / 模型名后缀(`gpt-5-high`)已指定时不覆盖; gate `messages` 存在以排除 Cursor 的 Responses-shape(`input`)透传。非推理模型(gpt-4o 等)不注入, 否则官方上游 400 unsupported parameter。
 - `/v1/chat/completions` raw 直转到 GLM(`glm-*`)上游前会归一化 reasoning effort: `reasoning.effort` 或 `reasoning_effort` 中的 `low`/`medium`/`high` 映射为 `high`, `xhigh`/`extrahigh`/`max`/`ultracode` 映射为 `max`; 其他上游不受影响。
 - Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
-- OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens` 等缓存 token 字段。
+- OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。
 
 OpenAI/Codex 兼容桥:
 
