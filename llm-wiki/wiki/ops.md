@@ -224,3 +224,9 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 修改网关 body/stream 逻辑要验证流式和非流式两类请求。
 - 更改 OpenAI WS 或调度配置要检查 fallback, sticky session 和连接池策略。
 - 修改 Wire provider 或后台服务启动/清理逻辑后运行 `cd backend && go generate ./cmd/server` 与 `go test ./cmd/server -run Wire`。
+
+## 上游历史分支合并注意事项
+
+- `upstream/revert-114-feature/atomic-scheduling` 是 Wei-Shaw/sub2api 在 2026-01-01 创建的旧分支, 单提交 `30326cf2671a` 用于撤销早期 `#114` 负载感知账号调度优化。
+- 当前分支历史已包含后续主线的同内容 revert `c5c12d4c8`, 也包含后续 reapply `7568dc850`; 当前 `GatewaySchedulingConfig`, `SelectAccountWithLoadAwareness`, `ConcurrencyService.GetAccountsLoadBatch`, scheduler snapshot/outbox 与 wait plan 代码是后续演进后的稳定实现。
+- 以后若再次合并该元旦分支或等价历史分支, 冲突处理不应整块接受该旧 revert 的删除侧, 否则会回退当前网关调度、OpenAI/Gemini/Grok 路由选择和并发缓存能力。应先核对 `git log --grep "Reapply.*负载感知"` 与当前调用点, 再决定是否只补齐 merge 拓扑。

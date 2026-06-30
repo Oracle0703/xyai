@@ -574,3 +574,44 @@ git diff --stat 85a3b122545a6c914704f716a612aea00c3d7ecd..c275422251e72750bebe53
 git log --oneline 85a3b122545a6c914704f716a612aea00c3d7ecd..c275422251e72750bebe53e41fcf59db7f83fe6b
 git diff --name-only --diff-filter=U
 ```
+
+## 2026-06-30
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `revert-114-feature/atomic-scheduling` |
+| Base before merge | `33e9233d5640` |
+| Upstream head merged | `30326cf2671a` |
+| Merge commit | `1db79dfc5afcf` |
+| Upstream commit date | `2026-01-01` |
+| Conflict files | `backend/cmd/server/wire_gen.go`, `backend/internal/config/config.go`, `backend/internal/config/config_test.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_helper.go`, `backend/internal/handler/gemini_v1beta_handler.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/pkg/antigravity/request_transformer.go`, `backend/internal/pkg/antigravity/request_transformer_test.go`, `backend/internal/pkg/claude/constants.go`, `backend/internal/repository/concurrency_cache.go`, `backend/internal/repository/concurrency_cache_integration_test.go`, `backend/internal/service/antigravity_gateway_service.go`, `backend/internal/service/concurrency_service.go`, `backend/internal/service/gateway_multiplatform_test.go`, `backend/internal/service/gateway_service.go`, `backend/internal/service/gemini_messages_compat_service.go`, `backend/internal/service/gemini_messages_compat_service_test.go`, `backend/internal/service/gemini_oauth_service.go`, `backend/internal/service/gemini_token_provider.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/wire.go`, `deploy/config.example.yaml`, `frontend/package-lock.json`, `frontend/src/components/account/AccountStatusIndicator.vue` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 元旦分支 `revert-114-feature/atomic-scheduling` 合入当前敏感词过滤分支。该分支只有一个提交 `30326cf26`, 内容是撤销 `8d252303` 的 "feat(gateway): 实现负载感知的账号调度优化 (#114)"。
+
+合并前核对历史发现: 当前分支已包含后续主线提交 `c5c12d4c8`(同内容 revert) 和 `7568dc850`(Reapply #114), 之后负载感知调度、快照调度、OpenAI/Gemini/Grok 网关选择逻辑已继续演进。因此本次冲突处理以保留当前分支实现为准, 只补齐该元旦分支在当前分支历史中的 merge 拓扑, 不回退当前调度代码。
+
+### Conflict Resolution Notes
+
+| File / Area | Resolution |
+|---|---|
+| `backend/internal/config/config.go`, `deploy/config.example.yaml` | 保留当前 `gateway.scheduling` 配置, 包括 `load_batch_enabled`, wait timeout, snapshot/outbox 和后续调度参数; 不按元旦 revert 删除。 |
+| `backend/internal/service/gateway_service.go`, `openai_gateway_service.go`, gateway handlers | 保留当前 `SelectAccountWithLoadAwareness`、sticky session、wait plan、scheduler snapshot 与后续网关能力; 不回退到旧随机/优先级选择路径。 |
+| `backend/internal/repository/concurrency_cache.go`, `concurrency_service.go`, `wire.go` | 保留当前 account load batch、fresh load、wait count TTL 和 slot cleanup 支撑; 不删除当前并发缓存接口。 |
+| `backend/internal/pkg/antigravity/*`, `gemini_*` | 保留当前 Antigravity/Gemini thinking signature、custom tool、tier_id 与 quota 相关演进; 不按元旦 revert 删除后来稳定功能。 |
+| `frontend/package-lock.json` | 维持当前分支删除状态; 本项目使用 pnpm, 不恢复 npm lockfile。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git show --stat --summary --find-renames 1db79dfc5` | Passed, merge commit relative to first parent has no file changes. |
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `Select-String -Path backend/**/*.go,deploy/config.example.yaml,frontend/src/**/*.vue -Pattern '<<<<<<<|>>>>>>>'` | Passed, no conflict markers. |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/ops.md`, 记录 `revert-114-feature/atomic-scheduling` 是 2026-01-01 的旧 revert 分支, 当前分支已包含后续主线同内容 revert 和 reapply, 后续合并时不应据此回退当前负载感知调度实现。
