@@ -53,7 +53,7 @@
 
 `frontend/src/api/client.ts`:
 
-- Axios baseURL: `VITE_API_BASE_URL` 或 `/api/v1`。
+- Axios baseURL 由 `frontend/src/api/url.ts#getAPIBaseURL` 统一归一化: `VITE_API_BASE_URL` 或 `/api/v1`, 会去尾斜杠并支持绝对 URL。
 - 默认 `withCredentials: true`, timeout 30s。
 - 请求拦截:
   - 从 localStorage 读取 `auth_token` 写入 Authorization。
@@ -63,6 +63,7 @@
   - 自动解包 `{ code, message, data }`。
   - 401 时使用 `refresh_token` 调 `/auth/refresh`, 并重试原请求。
   - refresh 失败会清理 localStorage 并跳转 `/login`。
+- 直连 fetch/WebSocket/setup 等不走 Axios 的请求必须使用 `buildApiUrl` 或 `buildGatewayUrl`, 避免部署在自定义 `VITE_API_BASE_URL` 时仍打到当前 origin; `buildGatewayUrl` 用于 `/setup`, `/api/v1/admin/ops/ws/qps` 等网关根路径。
   - ops disabled 的 404 会写缓存并跳转设置页。
 
 API 模块分布:
@@ -127,6 +128,7 @@ API 模块分布:
 
 - `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI 账号创建/编辑能力, 包括 OpenAI-compatible provider preset, endpoint capabilities, Responses WebSocket V2 mode, Codex CLI only 和 Claude Code allowlist。
 - `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。
+- `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
 
 ## 管理端用户筛选
 
@@ -137,10 +139,10 @@ API 模块分布:
 
 - Grok 平台已加入前端 platform 类型: `frontend/src/types/index.ts`, `frontend/src/api/admin/settings.ts`, `frontend/src/api/admin/users.ts`, `frontend/src/utils/platformColors.ts`, `PlatformIcon.vue`, `PlatformTypeBadge.vue`。
 - Grok OAuth 管理 API 在 `frontend/src/api/admin/grok.ts`, 组合逻辑在 `frontend/src/composables/useGrokOAuth.ts`; `CreateAccountModal.vue` 和 `ReAuthAccountModal.vue` 复用 OAuth 授权流, 支持授权码、refresh token 校验和 OAuth credentials 构建。
-- Grok 账号配额展示在 `AccountUsageCell.vue`; `GrokQuotaProbeCell.vue` 提供主动 probe, 只对 `platform === "grok" && type === "oauth"` 显示。xAI 不支持 reset 时前端显示 reset unsupported。
+- Grok 账号配额展示在 `AccountUsageCell.vue`; `GrokQuotaProbeCell.vue` 提供主动 probe, 只对 `platform === "grok" && type === "oauth"` 显示。xAI 不支持 reset 时前端显示 reset unsupported。账号测试 modal 使用 `buildApiUrl` 请求 `/admin/accounts/:id/test`, Grok OAuth 测试会走 xAI Responses 流。
 - `useModelWhitelist.ts` 为 Grok 维护模型候选和常用映射 preset; 修改 Grok 模型名时要同步白名单 selector、平台颜色和 i18n 文案。
 - OpenAI `codex_cli_only` 管理端新增全局 engine fingerprint signals 与 app-server 开关, 设置页入口在 `SettingsView.vue` + `codexFingerprintSignals.ts`; 账号创建/编辑/批量编辑里有账号级 `codex_cli_only_allow_app_server` 开关。
-- Dashboard、Group/Model distribution 图表使用 `toFiniteNumber` 兜底, 避免后端返回字符串、null 或 NaN 时污染图表排序和格式化。
+- Dashboard、Group/Model distribution 图表使用 `toFiniteNumber` 兜底, 避免后端返回字符串、null 或 NaN 时污染图表排序和格式化。`DataTable` sortable 表头使用双三角指示和 `aria-sort`, 修改排序 UI 时要保持可访问性语义。
 
 ## 测试与质量
 

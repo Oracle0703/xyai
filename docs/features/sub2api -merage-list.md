@@ -615,3 +615,76 @@ git diff --name-only --diff-filter=U
 ### Wiki Updates
 
 更新 `llm-wiki/wiki/ops.md`, 记录 `revert-114-feature/atomic-scheduling` 是 2026-01-01 的旧 revert 分支, 当前分支已包含后续主线同内容 revert 和 reapply, 后续合并时不应据此回退当前负载感知调度实现。
+
+## 2026-06-30 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `7bd0a8502684` |
+| Merge base | `c275422251e72` |
+| Upstream head merged | `930326116ed6` |
+| Merge commit | `d49b486893830` |
+| Upstream version | `0.1.140` |
+| Upstream commits | 53 |
+| Files changed | 136 (`+4870 / -461`) |
+| Conflict files | `backend/internal/server/routes/gateway.go`, `backend/internal/server/routes/gateway_test.go` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `930326116ed6`, VERSION 更新到 `0.1.140`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| Grok/xAI 兼容 | Grok group 支持 Messages/Chat/Responses CLI 兼容入口; Grok Responses payload 删除/过滤 xAI 不支持字段和工具; 账号测试走 xAI Responses 并写 quota 快照。 |
+| OpenAI 网关 | 新增 `/v1/messages/count_tokens` 到 OpenAI `/v1/responses/input_tokens` 的桥接; context-window 错误不再误触发账号 runtime block; Codex image bridge tool_choice auto 与 GPT-5.5 instructions 修复。 |
+| 调度与 quota | 新增 `gateway.openai_ws.scheduler_score_weights.quota_headroom`, 可按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 默认关闭。 |
+| 支付与退款 | 订阅订单按套餐 price 直付, 不再被余额充值倍率反算; 新增 `REFUND_PENDING` 与 provider refund query/finalize 流; 匿名 out_trade_no 查单收敛为最小状态字段。 |
+| 数据与审计 | 新增 ops system logs `api_key_id` 字段/索引; content moderation 日志记录 `matched_keyword`; user platform quota CHECK 约束加入 `grok`。 |
+| 前端 | 新增统一 API URL builder, 修复自定义 API base 下 fetch/WebSocket/setup 直连; API Key 列设置; DataTable 排序可访问性; 管理端退款 pending 查询与风险控制命中关键词展示。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/server/routes/gateway.go` | 保留本分支 `RequestArchive` / `RequestIntercept` 中间件链, 同时采用上游 Grok OpenAI-compatible CLI 入口判断: Grok 可走 `/v1/messages`, `/v1/chat/completions`, 根级 `/chat/completions` 与 Responses WebSocket/HTTP; `/v1/messages/count_tokens` 仅 OpenAI group 走新桥接, Grok 仍返回不支持。 |
+| `backend/internal/server/routes/gateway_test.go` | 保留本分支 request archive/intercept 路由回归测试和 helper, 吸收上游 Grok CLI compatibility 与 OpenAI count_tokens 路由测试; test router 继续使用 option 形式支持自定义 config/platform。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 合并未覆盖本地 prompt risk 配置、judge 与审计边界。 |
+| RequestArchive / RequestIntercept | 保留; 冲突路由中显式保留所有相关中间件, 并有路由测试覆盖。 |
+| token 分析、图片生成、用户并发方案 | 保留; 本次上游合并没有删除本地核心入口。 |
+| 默认 OpenAI reasoning_effort 注入与 DeepSeek cache-hit usage 兼容 | 保留; 上游改动自动合并, 未覆盖本地相关逻辑。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend frontend deploy llm-wiki docs README.md README_CN.md README_JA.md AGENTS.md Makefile Dockerfile` | Passed, no conflict markers. |
+| `git diff --check` | Passed. |
+| `git diff --cached --check` | Passed before merge commit. |
+| `go test -tags=unit -p 1 -count=1 ./internal/server/routes ./internal/handler ./internal/handler/admin ./internal/service` | Timed out at 240s after `internal/server/routes`, `internal/handler`, `internal/handler/admin` passed; `internal/service` was rerun separately and passed. |
+| `go test -tags=unit -p 1 -count=1 ./internal/service` with repo-local `GOCACHE/GOTMPDIR` | Passed (`90.165s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/repository ./internal/config` with repo-local `GOCACHE/GOTMPDIR` | Passed. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.140、OpenAI count_tokens bridge、Grok CLI 兼容、quota headroom 调度、ops/risk-control migrations、退款 pending/finalize、前端 API base builder 与相关 UI 约束。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames d49b486893830
+git show --cc d49b486893830 -- backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go
+git diff --stat c275422251e72750bebe53e41fcf59db7f83fe6b..930326116ed6bbc68c64e9536f8ed5778f078aaf
+git log --oneline c275422251e72750bebe53e41fcf59db7f83fe6b..930326116ed6bbc68c64e9536f8ed5778f078aaf
+```

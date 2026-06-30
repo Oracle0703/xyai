@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.139`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.140`。
 - `backend/go.mod` 声明 Go `1.26.4`; CI 的 Go 版本校验也应保持 `go1.26.4`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
 
@@ -192,6 +192,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback。
 - `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。
 - `gateway.openai_ws.scheduler_score_weights.reset`: 默认 `0.0`, 用于给会话窗口最早重置的 OpenAI 账号加分; 关闭时不改变原调度行为。
+- `gateway.openai_ws.scheduler_score_weights.quota_headroom`: 默认 `0.0`, 用于按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 关闭时不改变原调度行为, 小流量灰度可从 `0.3` 起。
 - `gateway.openai_scheduler`: OpenAI sticky session 逃逸配置; 默认开启, 可按 TTFT/error rate 跳过劣化 sticky 账号。
 - `gateway.scheduling.prefer_soonest_reset`: 默认 `false`, 开启后负载感知调度优先选用会话窗口最早重置账号。
 - `gateway.openai_ws`: OpenAI Responses WebSocket v2 和 HTTP bridge 配置; 首包较大时可保持客户端 WS, 改用 HTTP Responses 上游。

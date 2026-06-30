@@ -73,7 +73,7 @@
 关键行为:
 
 - `/v1/messages` 根据 API Key 所属 group platform 分流到 OpenAI 或 Claude 兼容处理。
-- `/v1/messages/count_tokens` 对 OpenAI group 返回不支持。
+- `/v1/messages/count_tokens` 对 OpenAI group 走 Anthropic-compatible 到 OpenAI `/v1/responses/input_tokens` 的桥接; 不占并发槽、不写 usage。Grok 等其他 OpenAI-compatible platform 仍返回本地不支持。
 - `/v1/responses` 和根级 `/responses` 支持 OpenAI Responses API。
 - `/v1/chat/completions` 和根级 `/chat/completions` 支持 OpenAI Chat Completions。
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
@@ -103,21 +103,23 @@ OpenAI/Codex 兼容桥:
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
 - OpenAI/ChatGPT/Codex 账号配额查询与重置由 `backend/internal/service/openai_quota_service.go` 提供(上游 v0.1.137): 调 `chatgpt.com/backend-api/wham/usage` 读 rate-limit 窗口、`/wham/rate-limit-reset-credits/consume` 重置 credits; 管理端入口 `GET /api/v1/admin/openai/accounts/:id/quota` 与 `POST .../reset-quota`。上游对未用窗口返回显式 `null`, 消费方按 nil 指针视作"无数据"。
 - OpenAI Codex PAT 账号由 `backend/internal/service/openai_codex_pat_service.go` 校验 `at-*` token, 使用官方 whoami endpoint 读取 email/account/user/plan/FedRAMP 字段。PAT 账号会清理 OAuth-only credential 字段, refresh 时不走 OAuth refresh token。
-- OpenAI 图片生成 Responses 路径会识别 `response.incomplete`: `content_filter`/moderation 视为 400 非重试, 其他 incomplete 视为 502 可 failover。若上游 `response.completed` 但无图片输出, 会记录 ops 诊断摘要并返回 `UpstreamFailoverError{RetryableOnSameAccount:true}`, 先同账号快速重试, 再按 handler 上限换账号。
+- OpenAI 图片生成 Responses 路径会识别 `response.incomplete`: `content_filter`/moderation 视为 400 非重试, 其他 incomplete 视为 502 可 failover。若上游 `response.completed` 但无图片输出, 会记录 ops 诊断摘要并返回 `UpstreamFailoverError{RetryableOnSameAccount:true}`, 先同账号快速重试, 再按 handler 上限换账号。`/v1/responses` 文本请求若未产生图片输出, 不应误触发图片计费。
+- OpenAI context-window 类上游错误不能触发账号 runtime block, 避免模型上下文长度问题被误判为账号故障切号。
 
 Grok/xAI 兼容:
 
 - Grok OAuth 管理路由在 `backend/internal/server/routes/admin.go` 的 `registerGrokOAuthRoutes`: `/api/v1/admin/grok/oauth/auth-url`, `/exchange-code`, `/refresh-token`, `/accounts/:id/refresh`, `/accounts/:id/quota`, `/accounts/:id/reset-quota`, `/runtime-sanity`。
 - OAuth/token/账号创建由 `backend/internal/service/grok_oauth_service.go`, `grok_token_provider.go`, `grok_token_refresher.go`, `backend/internal/repository/grok_oauth_client.go` 提供; token cache key 独立为 `GrokTokenCacheKey`。
-- OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 强制 OAuth 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
-- Grok quota 由 `backend/internal/pkg/xai/quota.go` 解析 xAI rate-limit 和 entitlement headers, 快照写入账号 `extra`。管理端主动探测在 `backend/internal/service/grok_quota_service.go`, 使用最小 Responses 请求读取 headers; reset 当前返回不支持。
-- Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。
+- OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 强制 OAuth 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier` / `external_web_access`, 过滤不支持的 `tools` 和失配 `tool_choice`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
+- Grok quota 由 `backend/internal/pkg/xai/quota.go` 解析 xAI rate-limit 和 entitlement headers, 快照写入账号 `extra`。管理端主动探测在 `backend/internal/service/grok_quota_service.go`, 使用最小 Responses 请求读取 headers; reset 当前返回不支持。账号连通性测试由 `AccountTestService.testGrokAccountConnection` 直连 xAI Responses API, 并同步 quota header 快照。
+- Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。Grok group 现在可走 `/v1/messages`, `/v1/chat/completions`, 根级 `/chat/completions` 与 Responses WebSocket/HTTP 兼容入口; `/v1/messages/count_tokens` 仍返回不支持。
 - `PlatformGrok` 已加入 `domain/constants.go`, `service/domain_constants.go`, scheduler snapshot 平台列表、token cache invalidator 和 user platform quota 允许列表。新增平台相关能力时要同步这些集中列表。
 - 模型不可用诊断由 `gateway_model_availability.go` 和 `openai_gateway_model_availability.go` 提供; no-account 错误路径会区分"池中无支持该模型账号"并返回 404 `model_not_found`, 避免误报 503。
 
 OpenAI 账号调度:
 
 - `gateway.openai_ws.scheduler_score_weights.reset` 是高级调度得分因子, 默认 `0` 关闭; 大于 0 时, 拥有未来 `SessionWindowEnd` 且剩余重置时间更短的账号得分更高。
+- `gateway.openai_ws.scheduler_score_weights.quota_headroom` 默认 `0` 关闭; 大于 0 时, 基于账号 `extra` 中 `codex_primary_used_percent` / `codex_7d_used_percent` 和 `codex_usage_updated_at` 计算剩余额度健康度, 快照缺失、过期或窗口已重置时使用中性分。
 - `gateway.scheduling.prefer_soonest_reset` 默认 `false`; 开启后负载感知选择会先过滤出会话窗口最早重置的账号, 用于 use-it-or-lose-it 策略。没有活跃窗口时返回原候选集合, 不改变旧行为。
 
 网关链路常见中间件:

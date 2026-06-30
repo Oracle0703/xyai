@@ -66,6 +66,9 @@ go generate ./cmd/server
 - `backend/migrations/151_account_autopause_expiry_index_notx.sql`(上游 v0.1.137)为 `accounts (expires_at)` 加部分索引(`deleted_at IS NULL AND schedulable AND auto_pause_on_expired`), 加速到期自动暂停扫描; `_notx.sql`。
 - `backend/migrations/151_channel_monitor_jitter.sql`(上游 v0.1.137)为渠道监控加 `jitter_seconds`(每次调度在 `interval_seconds` 基础上 ± [0, jitter_seconds] 均匀随机偏移, 0=固定间隔与历史一致), 同步 Ent schema `channel_monitor`。
 - `backend/migrations/152_scheduler_outbox_dedup_key.sql` + `153_scheduler_outbox_pending_dedup_key_index_notx.sql`(上游 v0.1.137)为 scheduler outbox 加 `dedup_key` 列与 pending 部分唯一索引, 配合 claim 时释放 / 消费后清理(10s grace)防止快照事件重复。
+- `backend/migrations/154_add_ops_system_logs_api_key_id.sql` + `155_add_ops_system_logs_api_key_id_index_notx.sql`(上游 v0.1.140)为 `ops_system_logs` 新增 `api_key_id` 与 `(api_key_id, created_at DESC)` 并发索引, 支持系统日志按 API Key 精确筛选和清理。
+- `backend/migrations/156_content_moderation_matched_keyword.sql`(上游 v0.1.140)为 `content_moderation_logs` 新增 `matched_keyword`, 用于风控关键词拦截审计。
+- `backend/migrations/157_user_platform_quotas_add_grok.sql`(上游 v0.1.140)重建 `user_platform_quotas.platform` CHECK 约束, 将 `grok` 纳入允许平台; 这是旧约束的超集, 用于修复注册/补全平台 quota 快照时写入 Grok 默认配额失败。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -98,16 +101,20 @@ go generate ./cmd/server
 - `FAILED`
 - `REFUND_REQUESTED`
 - `REFUNDING`
+- `REFUND_PENDING`
+- `PARTIALLY_REFUNDED`
 - `REFUNDED`
+- `REFUND_FAILED`
 
 支付回调必须验签, 成功后充值, 并支持支付成功但充值失败后的重试。
 
 支付金额与订阅修复口径:
 
-- 余额充值金额计算在 `backend/internal/service/payment_amounts.go`: `calculateCreditedBalance` 按充值倍率入账, `calculateGatewayPaymentAmount` / refund 按币种 fraction digits 四舍五入。
+- 余额充值金额计算在 `backend/internal/service/payment_amounts.go`: `calculateCreditedBalance` 按充值倍率入账; 订阅套餐 price 是直付价, 不再用余额充值倍率反算支付金额; refund 金额按订单金额、实付金额和币种 fraction digits 计算。
 - 余额扣费在 `usage_billing_repo.go` 先尝试 `balance >= amount` 的原子更新; 不足时仍写入负余额并返回 `BalanceOverdrafted`, 调用方必须据此处理防持续透支策略。
-- 订阅订单履约需要应用充值倍率/兑换倍率并保持幂等审计; validity unit 支持单复数输入归一化。
+- 订阅订单履约需要应用兑换倍率并保持幂等审计; validity unit 支持单复数输入归一化。
 - 管理端订单金额展示应优先读取订单自身 `currency` 字段决定币种符号, 不要只依赖当前 provider 默认币种。
+- 退款 provider 可实现 `payment.RefundQueryProvider`; 网关退款返回 pending 时订单进入 `REFUND_PENDING`, 后台 `POST /api/v1/admin/payment/orders/:id/refund/query` 查询并最终落 `REFUNDED`/`REFUND_FAILED`。匿名 public out_trade_no 查单只返回最小状态字段; resume token 查单才返回支付结果页所需完整合同。
 
 ## 外部支付 Admin API
 
@@ -166,7 +173,7 @@ User x platform quota:
 
 网关支持多平台调度, 常见 platform 包括 Claude/Anthropic, OpenAI, Gemini, Antigravity, Grok/xAI。Group 的 platform 决定部分路由行为和协议兼容分流。
 
-- `PlatformGrok = "grok"` 已加入后端 domain/service 常量和前端 `GroupPlatform` / `AccountPlatform`; user x platform quota 的允许平台也包含 `grok`。新增 quota 维度时要同步 Ent schema validate、service `AllowedQuotaPlatforms`、前端 Settings/UserPlatformQuota UI。
+- `PlatformGrok = "grok"` 已加入后端 domain/service 常量和前端 `GroupPlatform` / `AccountPlatform`; user x platform quota 的允许平台和数据库 CHECK 约束都包含 `grok`。新增 quota 维度时要同步 Ent schema validate、service `AllowedQuotaPlatforms`、SQL CHECK 约束、前端 Settings/UserPlatformQuota UI。
 - Grok OAuth 账号的 quota 由 xAI 响应头快照和本地 usage 聚合共同展示: `grok_request_quota`, `grok_token_quota`, `grok_retry_after_seconds`, `grok_entitlement_status`, `grok_local_usage` 等字段属于账号 usage DTO 扩展。
 
 模型映射和白名单相关改动要检查:

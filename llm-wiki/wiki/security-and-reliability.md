@@ -154,6 +154,7 @@ Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `promp
 - judge 走本网关或同域 base_url 时会形成真实 HTTP 回环。出站 judge 请求会携带 `X-Sub2API-Prompt-Risk-Judge`, 头值由 judge API key 和请求体派生; 入站内容审核只在 judge 当前启用且该头能用当前 judge key 与原始请求体校验通过时跳过整个 Prompt Risk stage, 防止二次 judge 或关键词规则反向拦截 judge 请求。不要把该头当作外部可配置开关暴露。
 - 如果 judge 使用本网关 API Key, 仍建议使用专属 API Key / 分组, 便于计费、审计和故障定位; 不要复用普通用户 key。
 - 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
+- 内容审核关键词 block 会把命中的具体关键词写入 `content_moderation_logs.matched_keyword`, 管理端风险控制列表和详情展示该字段; 记录前仍需走既有输入摘要/脱敏边界。
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
@@ -172,7 +173,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
 - OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 避免把 verbose upstream body 直接暴露给用户或前端错误视图。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
-- OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。
+- OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
 
@@ -196,7 +197,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 
 运维监控:
 
-- Ops service, repository, dashboard, alert, cleanup, system logs。
+- Ops service, repository, dashboard, alert, cleanup, system logs。系统日志持久化 `api_key_id`, 后端 `ListSystemLogs` / cleanup 支持按 `api_key_id` 过滤, 前端系统日志表有 KEY ID 筛选。
 - 入口: `backend/internal/server/routes/admin.go` 中 `/api/v1/admin/ops/*`。
 - 前端页面: `frontend/src/views/admin/ops/OpsDashboard.vue`。
 - 告警指标新增 `account_temp_unscheduled_count`(临时摘除账号数, 配合 OpenAI transport failover); 规则配置在前端 `ops/components/OpsAlertRulesCard.vue` 与 `ops_alert_evaluator_service.go`。
@@ -207,3 +208,4 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - TOTP encryption key 生产必须固定, 空值会导致重启后 2FA 配置失效。
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
+- 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
