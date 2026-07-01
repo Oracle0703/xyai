@@ -66,6 +66,11 @@
 - `/v1`, `/v1beta`, `/responses`, `/chat/completions`, `/images/*`: AI 网关兼容接口。
 - `/antigravity/v1`, `/antigravity/v1beta`: Antigravity 专用兼容接口。
 
+用户侧用量接口:
+
+- `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
+- `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。
+
 ## 网关路径
 
 `backend/internal/server/routes/gateway.go` 是网关路由入口。
@@ -89,6 +94,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `/v1/chat/completions` 入口可选注入默认 `reasoning_effort`: 配置 `gateway.openai_default_reasoning_effort`(默认空=关闭)非空时, `applyDefaultOpenAIReasoningEffort` 在 `ForwardAsChatCompletions` 分流前对入站 body 注入一次, 同时覆盖 raw 直转与 CC→Responses 两条上游形状; 注入在 `json.Unmarshal` 前完成, 计费/用量日志自然读到。仅对**映射后** billingModel 命中 `SupportsOpenAIReasoningEffort`(gpt-5.x / o1·o3·o4)的推理模型注入; 客户端经 `reasoning_effort` / `reasoning.effort` / 模型名后缀(`gpt-5-high`)已指定时不覆盖; gate `messages` 存在以排除 Cursor 的 Responses-shape(`input`)透传。非推理模型(gpt-4o 等)不注入, 否则官方上游 400 unsupported parameter。
 - `/v1/chat/completions` raw 直转到 GLM(`glm-*`)上游前会归一化 reasoning effort: `reasoning.effort` 或 `reasoning_effort` 中的 `low`/`medium`/`high` 映射为 `high`, `xhigh`/`extrahigh`/`max`/`ultracode` 映射为 `max`; 其他上游不受影响。
 - Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
+- Anthropic OAuth/SetupToken 转发默认启用客户端 dateline 归一化, 只改写 `system` 或 `<system-reminder>` 内的 `Today's date is YYYY-MM-DD.` 指纹变体, 还原 ASCII 撇号和 `-` 分隔符; API Key 账号和普通用户正文不扫描。
 - OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。
 
 OpenAI/Codex 兼容桥:
@@ -97,6 +103,8 @@ OpenAI/Codex 兼容桥:
 - Chat -> Responses 流式 message item id 是动态生成的, 但同一条消息在 added/done/completed output 中必须保持一致; 测试不应断言固定 `item_msg_0`。
 - Reasoning-only Chat stream 会先输出 reasoning item, 必要时合成可见 message 文本; tool call stream 必须补齐 `function_call_arguments.done` 和 `output_item.done`, 否则 Codex 客户端不会执行工具。
 - OpenAI-compatible API key 走 Chat Completions -> Responses 上游时, `prompt_cache_key` 要写入 Responses body, 并用 API key ID + cache key 派生稳定 `session_id`; 修正模型名时必须先完成上游模型映射再注入缓存 key。
+- Codex OAuth path(`store=false`) 的 reasoning item 不能整项丢弃: 需要保留 `encrypted_content`/`content`/`summary` 等跨轮上下文字段, 但必须剥离 `rs_*` id 防止上游按旧 id 查找 404; 缺失 `summary` 时补 `[]`。请求带 `reasoning` 时要确保 include 包含 `reasoning.encrypted_content`。
+- Codex 模型归一化保留 `gpt-5.5` 和 `gpt-5.5-pro` 原名, 包括 `gpt5.5*`、`openai/gpt5.5*` 和 `-high` 等 effort 后缀别名; 不应回退成旧 `gpt-5.4`/`gpt-5.3-codex`。
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。

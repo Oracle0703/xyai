@@ -688,3 +688,72 @@ git show --cc d49b486893830 -- backend/internal/server/routes/gateway.go backend
 git diff --stat c275422251e72750bebe53e41fcf59db7f83fe6b..930326116ed6bbc68c64e9536f8ed5778f078aaf
 git log --oneline c275422251e72750bebe53e41fcf59db7f83fe6b..930326116ed6bbc68c64e9536f8ed5778f078aaf
 ```
+
+## 2026-07-01 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `f96bab3d1be9` |
+| Merge base | `930326116ed6` |
+| Upstream head merged | `db0414233ce3` |
+| Merge commit | `9c2717951d59` |
+| Upstream version | `0.1.141` |
+| Upstream commits | 9 |
+| Files changed | 49 (`+3022 / -1622`) |
+| Conflict files | 无冲突 |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `db0414233ce3`, VERSION 更新到 `0.1.141`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| 用户用量统计 | 用户侧 `/usage`、stats、trend、models、snapshot-v2 共用过滤口径, 支持 API Key、分组、请求模型、request_type、billing_type、billing_mode 和日期范围; 用户使用量页对齐管理端 token/cache 统计与图表能力。 |
+| Anthropic OAuth 转发 | 新增 `anthropicfp` dateline 归一化, 默认开启 `enable_client_dateline_normalization`, 仅清理 Anthropic OAuth/SetupToken 请求体中 system/system-reminder 的 dateline 隐写指纹。 |
+| Codex/OpenAI 兼容 | Codex OAuth reasoning item 保留 `encrypted_content`/summary/content, 剥离 `rs_*` id 并补空 summary; 请求带 reasoning 时自动 include `reasoning.encrypted_content`; `gpt-5.5`/`gpt-5.5-pro` 模型名保持原样。 |
+| Claude/Sonnet | 默认模型列表加入 `claude-sonnet-5`; `context-1m-2025-08-07` beta 默认只对 Sonnet 5 直连/Vertex/Bedrock ID 变体放行, 其他模型过滤。 |
+| 前端 | 用户侧 UsageView 重构为筛选驱动的统计/图表/日志视图, 列显隐持久化为 `user-usage-hidden-columns`, group/model 图表支持用户侧隐藏 account cost 与禁用下钻。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| 无 | 本次 `git merge --no-ff upstream/main` 自动合并完成, 未产生冲突文件。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 本次上游增量未覆盖本地 prompt risk 配置、judge 与审计边界。 |
+| RequestArchive / RequestIntercept | 保留; 本次上游增量未触碰路由中间件冲突面。 |
+| token 分析、图片生成、用户并发方案 | 保留; 本次合并没有删除本地核心入口。 |
+| 默认 OpenAI reasoning_effort 注入与 DeepSeek cache-hit usage 兼容 | 保留; 上游 Codex reasoning 兼容与本地 usage parser 兼容并存。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend frontend deploy llm-wiki docs README.md README_CN.md README_JA.md AGENTS.md Makefile Dockerfile` | Passed, no conflict markers; `rg` exit 1 because no matches. |
+| `git diff --check` | Passed. |
+| `git diff --cached --check` | Passed. |
+| `go test -tags=unit -p 1 -count=1 ./internal/pkg/anthropicfp ./internal/service ./internal/handler ./internal/repository` with repo-local `GOCACHE/GOTMPDIR` | `anthropicfp`, `service`, `handler` passed; `repository` hit Windows file-lock on `repository.test.exe`, then rerun separately with fresh cache/tmp. |
+| `go test -tags=unit -p 1 -count=1 ./internal/repository` with fresh repo-local `GOCACHE/GOTMPDIR` | Passed (`3.596s`). |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.141、用户侧用量统计过滤/snapshot-v2、Anthropic dateline 归一化、Codex encrypted reasoning 续轮、`gpt-5.5-pro` 模型保真、Sonnet 5 与 1M context beta 默认策略、前端 UsageView 新约束。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 9c2717951d59
+git diff --stat 930326116ed6bbc68c64e9536f8ed5778f078aaf..db0414233ce324903adc72e858374086da158b4b
+git log --oneline 930326116ed6bbc68c64e9536f8ed5778f078aaf..db0414233ce324903adc72e858374086da158b4b
+```

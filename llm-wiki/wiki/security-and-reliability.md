@@ -130,6 +130,11 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
 
+Anthropic OAuth/SetupToken 请求体默认启用客户端 dateline 归一化(`enable_client_dateline_normalization=true`):
+
+- 实现位于 `backend/internal/pkg/anthropicfp` 和 `GatewayService.normalizeClientDatelineIfEnabled`。仅对 Anthropic OAuth/SetupToken 账号生效, API Key 账号和非 Anthropic 平台跳过。
+- 归一化只扫描顶层 `system` 文本或 `messages[].content` 文本里的 `<system-reminder>...</system-reminder>` 块, 将客户端可能注入的撇号/日期分隔符指纹还原为 `Today's date is YYYY-MM-DD.`; 不扫描用户自由正文、tool_use/tool_result 或代码块。
+
 历史 thinking block 过滤是协议感知的(`internal/service/thinking_protocol.go`), 不能跨上游一刀切:
 
 - `ResolveThinkingProtocol(model)` 按厂商前缀判定协议族: `anthropic-strict`(claude-/opus-/sonnet-/haiku-, 缺失/非法签名应剥离)、`passback-required`(deepseek-/kimi-/moonshot-/glm-/minimax-/qwen*-thinking, 历史 thinking block 必须原样回传, 预过滤会导致上游 400)、`unknown`(其他, 保守不剥离)。
@@ -144,6 +149,10 @@ Codex CLI only 客户端限制(`openai_client_restriction_detector.go` / `engine
 - `codex_cli_only_engine_fingerprint_signals` 是 JSON 数组, 每条 `required=true` 之间 AND, 同条 `match` 变体 OR; 默认种子只要求 `x-codex-` header prefix。旧 `codex_cli_only_allow_body_engine_fingerprint` 只作为迁移输入, 运行时看统一 signals。
 - app-server 有全局开关 `codex_cli_only_allow_app_server_clients` 和账号级 `codex_cli_only_allow_app_server`; 任一开启会把未列名 app-server client 作为候选, 但仍需通过 engine fingerprint 门。
 - 白名单条目可设置 skip engine fingerprint, 风险高于默认策略, 只应用于确实不发送 Codex 引擎指纹的可信第三方客户端。
+
+Codex OAuth reasoning 续轮可靠性:
+
+- `applyCodexOAuthTransform` 在请求带 `reasoning` 时补齐 `include:["reasoning.encrypted_content"]`; `filterCodexInput` 保留 reasoning item 的 `encrypted_content`/`content`/`summary`, 但剥离 `rs_*` id 并在缺失时补空 `summary`。不要恢复旧的"丢弃 reasoning item"策略, 否则多轮 Codex 推理上下文会丢失。
 
 Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `prompt_risk_judge.go`):
 
@@ -176,6 +185,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
+- 默认 BetaPolicy 对 `context-1m-2025-08-07` 只放行 Claude Sonnet 5 及其直连/Vertex/Bedrock ID 变体, 其余模型 fallback filter; 修改 Sonnet 5/1M context 能力时要同步 `DefaultBetaPolicySettings` 和 `gateway_beta_test.go`。
 
 后台任务可靠性:
 

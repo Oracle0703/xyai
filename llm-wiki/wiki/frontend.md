@@ -114,6 +114,12 @@ API 模块分布:
 
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 
+用户侧用量页:
+
+- `frontend/src/views/user/UsageView.vue` 使用 `frontend/src/api/usage.ts#getDashboardSnapshotV2` 拉取 trend/group 图表, `getDashboardModels({ model_source: "requested" })` 拉取请求模型分布, 过滤项与后端共享 `api_key_id`、`group_id`、`model`、`request_type`、`billing_type`、`billing_mode` 和日期范围。
+- 用户用量页的列显隐持久化 key 为 `user-usage-hidden-columns`; `created_at` 始终可见, `reasoning_effort` 和 `user_agent` 默认隐藏。CSV 导出沿用当前过滤条件, 并按 `billing_mode`/图片请求修正展示计费模式。
+- `GroupDistributionChart.vue` / `ModelDistributionChart.vue` 可通过 `enableBreakdown=false` 和 `showAccountCost=false` 在用户侧复用, 避免暴露管理端 account cost 或用户拆分下钻。
+
 项目已有组件 README:
 
 - `frontend/src/components/common/README.md`
