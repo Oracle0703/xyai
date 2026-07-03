@@ -312,12 +312,12 @@ func (r *tokenAnalysisRepository) ListUserUsage(ctx context.Context, filters ser
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
 	countQuery := `
 SELECT COUNT(*) FROM (
-    SELECT s.user_id, s.api_key_id
+    SELECT s.user_id
     FROM token_analysis_request_summaries s
     LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
     LEFT JOIN users u ON u.id = s.user_id
     ` + whereSQL + `
-    GROUP BY s.user_id, s.api_key_id
+    GROUP BY s.user_id, u.email
 ) grouped`
 	var total int64
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
@@ -330,8 +330,8 @@ SELECT COUNT(*) FROM (
 SELECT
     s.user_id,
     COALESCE(u.email, '') AS user_email,
-    s.api_key_id,
-    COALESCE(k.name, '') AS api_key_name,
+    NULL::BIGINT AS api_key_id,
+    '' AS api_key_name,
     COUNT(*) AS request_count,
     COUNT(*) FILTER (WHERE s.risk_score > 0) AS risky_request_count,
     COALESCE(SUM(ul.input_tokens + ul.output_tokens + ul.cache_read_tokens + ul.cache_creation_tokens), 0) AS total_tokens,
@@ -345,9 +345,8 @@ SELECT
 FROM token_analysis_request_summaries s
 LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 LEFT JOIN users u ON u.id = s.user_id
-LEFT JOIN api_keys k ON k.id = s.api_key_id
 ` + whereSQL + `
-GROUP BY s.user_id, u.email, s.api_key_id, k.name
+GROUP BY s.user_id, u.email
 ORDER BY actual_cost DESC, total_tokens DESC, request_count DESC
 LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
 

@@ -1538,7 +1538,7 @@ export default {
       indexRunning: 'Indexing…',
       indexDone: 'Indexing finished',
       indexAlreadyRunning: 'An indexing run is already in progress; following its progress',
-      userRanking: 'User / API Key Ranking',
+      userRanking: 'User Ranking',
       projectRanking: 'Project Usage (Member x Project)',
       project: 'Project',
       projectFilterHint: 'exact project name / unattributed',

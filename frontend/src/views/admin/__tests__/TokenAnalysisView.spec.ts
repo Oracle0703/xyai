@@ -170,6 +170,47 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
   })
 
+  it('renders user ranking by user only without API key subtitle', async () => {
+    api.listUsers.mockResolvedValue({
+      items: [
+        {
+          user_id: 7,
+          user_email: 'dev@example.com',
+          api_key_id: 33,
+          api_key_name: 'ranking-key',
+          request_count: 5,
+          risky_request_count: 1,
+          total_tokens: 1200,
+          input_tokens: 700,
+          output_tokens: 100,
+          cache_read_tokens: 300,
+          cache_creation_tokens: 100,
+          actual_cost: 1.5,
+          risky_cost: 0.7,
+          cache_hit_rate: 0.2727,
+          risk_ratio: 0.2,
+          last_event_time: '2026-06-12T10:00:00Z'
+        }
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20
+    })
+
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const userRankingCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.userRanking'))
+    expect(userRankingCard).toBeTruthy()
+    expect(userRankingCard!.text()).toContain('dev@example.com')
+    expect(userRankingCard!.text()).not.toContain('ranking-key')
+
+    const requestDetailsCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.requestDetails'))
+    expect(requestDetailsCard).toBeTruthy()
+    expect(requestDetailsCard!.text()).toContain('dev')
+  })
   it('renders project ranking with compact tokens, UTC+8 time and sortable headers', async () => {
     api.listProjects.mockResolvedValue({
       items: [

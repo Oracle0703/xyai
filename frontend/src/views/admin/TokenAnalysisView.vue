@@ -313,10 +313,9 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="user in users" :key="`${user.user_id || 0}-${user.api_key_id || 0}`">
+                <tr v-for="user in users" :key="user.user_id || 0">
                   <td>
                     <div class="max-w-[180px] truncate font-medium">{{ user.user_email || '-' }}</div>
-                    <div class="text-xs text-gray-500">{{ user.api_key_name || '-' }}</div>
                   </td>
                   <td>{{ formatNumber(user.total_tokens) }}</td>
                   <td>{{ formatCost(user.actual_cost) }}</td>

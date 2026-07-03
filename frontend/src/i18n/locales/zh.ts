@@ -1559,7 +1559,7 @@ export default {
       indexRunning: '索引进行中…',
       indexDone: '索引完成',
       indexAlreadyRunning: '已有索引任务在运行, 正在跟进其进度',
-      userRanking: '用户 / API Key 排行',
+      userRanking: '用户排行',
       projectRanking: '项目消耗排行(成员 × 项目)',
       project: '项目',
       projectFilterHint: '项目名(精确匹配) / unattributed',
