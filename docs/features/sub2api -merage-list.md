@@ -574,3 +574,263 @@ git diff --stat 85a3b122545a6c914704f716a612aea00c3d7ecd..c275422251e72750bebe53
 git log --oneline 85a3b122545a6c914704f716a612aea00c3d7ecd..c275422251e72750bebe53e41fcf59db7f83fe6b
 git diff --name-only --diff-filter=U
 ```
+
+## 2026-06-30
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `revert-114-feature/atomic-scheduling` |
+| Base before merge | `33e9233d5640` |
+| Upstream head merged | `30326cf2671a` |
+| Merge commit | `1db79dfc5afcf` |
+| Upstream commit date | `2026-01-01` |
+| Conflict files | `backend/cmd/server/wire_gen.go`, `backend/internal/config/config.go`, `backend/internal/config/config_test.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_helper.go`, `backend/internal/handler/gemini_v1beta_handler.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/pkg/antigravity/request_transformer.go`, `backend/internal/pkg/antigravity/request_transformer_test.go`, `backend/internal/pkg/claude/constants.go`, `backend/internal/repository/concurrency_cache.go`, `backend/internal/repository/concurrency_cache_integration_test.go`, `backend/internal/service/antigravity_gateway_service.go`, `backend/internal/service/concurrency_service.go`, `backend/internal/service/gateway_multiplatform_test.go`, `backend/internal/service/gateway_service.go`, `backend/internal/service/gemini_messages_compat_service.go`, `backend/internal/service/gemini_messages_compat_service_test.go`, `backend/internal/service/gemini_oauth_service.go`, `backend/internal/service/gemini_token_provider.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/wire.go`, `deploy/config.example.yaml`, `frontend/package-lock.json`, `frontend/src/components/account/AccountStatusIndicator.vue` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 元旦分支 `revert-114-feature/atomic-scheduling` 合入当前敏感词过滤分支。该分支只有一个提交 `30326cf26`, 内容是撤销 `8d252303` 的 "feat(gateway): 实现负载感知的账号调度优化 (#114)"。
+
+合并前核对历史发现: 当前分支已包含后续主线提交 `c5c12d4c8`(同内容 revert) 和 `7568dc850`(Reapply #114), 之后负载感知调度、快照调度、OpenAI/Gemini/Grok 网关选择逻辑已继续演进。因此本次冲突处理以保留当前分支实现为准, 只补齐该元旦分支在当前分支历史中的 merge 拓扑, 不回退当前调度代码。
+
+### Conflict Resolution Notes
+
+| File / Area | Resolution |
+|---|---|
+| `backend/internal/config/config.go`, `deploy/config.example.yaml` | 保留当前 `gateway.scheduling` 配置, 包括 `load_batch_enabled`, wait timeout, snapshot/outbox 和后续调度参数; 不按元旦 revert 删除。 |
+| `backend/internal/service/gateway_service.go`, `openai_gateway_service.go`, gateway handlers | 保留当前 `SelectAccountWithLoadAwareness`、sticky session、wait plan、scheduler snapshot 与后续网关能力; 不回退到旧随机/优先级选择路径。 |
+| `backend/internal/repository/concurrency_cache.go`, `concurrency_service.go`, `wire.go` | 保留当前 account load batch、fresh load、wait count TTL 和 slot cleanup 支撑; 不删除当前并发缓存接口。 |
+| `backend/internal/pkg/antigravity/*`, `gemini_*` | 保留当前 Antigravity/Gemini thinking signature、custom tool、tier_id 与 quota 相关演进; 不按元旦 revert 删除后来稳定功能。 |
+| `frontend/package-lock.json` | 维持当前分支删除状态; 本项目使用 pnpm, 不恢复 npm lockfile。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git show --stat --summary --find-renames 1db79dfc5` | Passed, merge commit relative to first parent has no file changes. |
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `Select-String -Path backend/**/*.go,deploy/config.example.yaml,frontend/src/**/*.vue -Pattern '<<<<<<<|>>>>>>>'` | Passed, no conflict markers. |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/ops.md`, 记录 `revert-114-feature/atomic-scheduling` 是 2026-01-01 的旧 revert 分支, 当前分支已包含后续主线同内容 revert 和 reapply, 后续合并时不应据此回退当前负载感知调度实现。
+
+## 2026-06-30 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `7bd0a8502684` |
+| Merge base | `c275422251e72` |
+| Upstream head merged | `930326116ed6` |
+| Merge commit | `d49b486893830` |
+| Upstream version | `0.1.140` |
+| Upstream commits | 53 |
+| Files changed | 136 (`+4870 / -461`) |
+| Conflict files | `backend/internal/server/routes/gateway.go`, `backend/internal/server/routes/gateway_test.go` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `930326116ed6`, VERSION 更新到 `0.1.140`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| Grok/xAI 兼容 | Grok group 支持 Messages/Chat/Responses CLI 兼容入口; Grok Responses payload 删除/过滤 xAI 不支持字段和工具; 账号测试走 xAI Responses 并写 quota 快照。 |
+| OpenAI 网关 | 新增 `/v1/messages/count_tokens` 到 OpenAI `/v1/responses/input_tokens` 的桥接; context-window 错误不再误触发账号 runtime block; Codex image bridge tool_choice auto 与 GPT-5.5 instructions 修复。 |
+| 调度与 quota | 新增 `gateway.openai_ws.scheduler_score_weights.quota_headroom`, 可按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 默认关闭。 |
+| 支付与退款 | 订阅订单按套餐 price 直付, 不再被余额充值倍率反算; 新增 `REFUND_PENDING` 与 provider refund query/finalize 流; 匿名 out_trade_no 查单收敛为最小状态字段。 |
+| 数据与审计 | 新增 ops system logs `api_key_id` 字段/索引; content moderation 日志记录 `matched_keyword`; user platform quota CHECK 约束加入 `grok`。 |
+| 前端 | 新增统一 API URL builder, 修复自定义 API base 下 fetch/WebSocket/setup 直连; API Key 列设置; DataTable 排序可访问性; 管理端退款 pending 查询与风险控制命中关键词展示。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/server/routes/gateway.go` | 保留本分支 `RequestArchive` / `RequestIntercept` 中间件链, 同时采用上游 Grok OpenAI-compatible CLI 入口判断: Grok 可走 `/v1/messages`, `/v1/chat/completions`, 根级 `/chat/completions` 与 Responses WebSocket/HTTP; `/v1/messages/count_tokens` 仅 OpenAI group 走新桥接, Grok 仍返回不支持。 |
+| `backend/internal/server/routes/gateway_test.go` | 保留本分支 request archive/intercept 路由回归测试和 helper, 吸收上游 Grok CLI compatibility 与 OpenAI count_tokens 路由测试; test router 继续使用 option 形式支持自定义 config/platform。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 合并未覆盖本地 prompt risk 配置、judge 与审计边界。 |
+| RequestArchive / RequestIntercept | 保留; 冲突路由中显式保留所有相关中间件, 并有路由测试覆盖。 |
+| token 分析、图片生成、用户并发方案 | 保留; 本次上游合并没有删除本地核心入口。 |
+| 默认 OpenAI reasoning_effort 注入与 DeepSeek cache-hit usage 兼容 | 保留; 上游改动自动合并, 未覆盖本地相关逻辑。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend frontend deploy llm-wiki docs README.md README_CN.md README_JA.md AGENTS.md Makefile Dockerfile` | Passed, no conflict markers. |
+| `git diff --check` | Passed. |
+| `git diff --cached --check` | Passed before merge commit. |
+| `go test -tags=unit -p 1 -count=1 ./internal/server/routes ./internal/handler ./internal/handler/admin ./internal/service` | Timed out at 240s after `internal/server/routes`, `internal/handler`, `internal/handler/admin` passed; `internal/service` was rerun separately and passed. |
+| `go test -tags=unit -p 1 -count=1 ./internal/service` with repo-local `GOCACHE/GOTMPDIR` | Passed (`90.165s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/repository ./internal/config` with repo-local `GOCACHE/GOTMPDIR` | Passed. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.140、OpenAI count_tokens bridge、Grok CLI 兼容、quota headroom 调度、ops/risk-control migrations、退款 pending/finalize、前端 API base builder 与相关 UI 约束。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames d49b486893830
+git show --cc d49b486893830 -- backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go
+git diff --stat c275422251e72750bebe53e41fcf59db7f83fe6b..930326116ed6bbc68c64e9536f8ed5778f078aaf
+git log --oneline c275422251e72750bebe53e41fcf59db7f83fe6b..930326116ed6bbc68c64e9536f8ed5778f078aaf
+```
+
+## 2026-07-01 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `f96bab3d1be9` |
+| Merge base | `930326116ed6` |
+| Upstream head merged | `db0414233ce3` |
+| Merge commit | `9c2717951d59` |
+| Upstream version | `0.1.141` |
+| Upstream commits | 9 |
+| Files changed | 49 (`+3022 / -1622`) |
+| Conflict files | 无冲突 |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `db0414233ce3`, VERSION 更新到 `0.1.141`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| 用户用量统计 | 用户侧 `/usage`、stats、trend、models、snapshot-v2 共用过滤口径, 支持 API Key、分组、请求模型、request_type、billing_type、billing_mode 和日期范围; 用户使用量页对齐管理端 token/cache 统计与图表能力。 |
+| Anthropic OAuth 转发 | 新增 `anthropicfp` dateline 归一化, 默认开启 `enable_client_dateline_normalization`, 仅清理 Anthropic OAuth/SetupToken 请求体中 system/system-reminder 的 dateline 隐写指纹。 |
+| Codex/OpenAI 兼容 | Codex OAuth reasoning item 保留 `encrypted_content`/summary/content, 剥离 `rs_*` id 并补空 summary; 请求带 reasoning 时自动 include `reasoning.encrypted_content`; `gpt-5.5`/`gpt-5.5-pro` 模型名保持原样。 |
+| Claude/Sonnet | 默认模型列表加入 `claude-sonnet-5`; `context-1m-2025-08-07` beta 默认只对 Sonnet 5 直连/Vertex/Bedrock ID 变体放行, 其他模型过滤。 |
+| 前端 | 用户侧 UsageView 重构为筛选驱动的统计/图表/日志视图, 列显隐持久化为 `user-usage-hidden-columns`, group/model 图表支持用户侧隐藏 account cost 与禁用下钻。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| 无 | 本次 `git merge --no-ff upstream/main` 自动合并完成, 未产生冲突文件。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 本次上游增量未覆盖本地 prompt risk 配置、judge 与审计边界。 |
+| RequestArchive / RequestIntercept | 保留; 本次上游增量未触碰路由中间件冲突面。 |
+| token 分析、图片生成、用户并发方案 | 保留; 本次合并没有删除本地核心入口。 |
+| 默认 OpenAI reasoning_effort 注入与 DeepSeek cache-hit usage 兼容 | 保留; 上游 Codex reasoning 兼容与本地 usage parser 兼容并存。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend frontend deploy llm-wiki docs README.md README_CN.md README_JA.md AGENTS.md Makefile Dockerfile` | Passed, no conflict markers; `rg` exit 1 because no matches. |
+| `git diff --check` | Passed. |
+| `git diff --cached --check` | Passed. |
+| `go test -tags=unit -p 1 -count=1 ./internal/pkg/anthropicfp ./internal/service ./internal/handler ./internal/repository` with repo-local `GOCACHE/GOTMPDIR` | `anthropicfp`, `service`, `handler` passed; `repository` hit Windows file-lock on `repository.test.exe`, then rerun separately with fresh cache/tmp. |
+| `go test -tags=unit -p 1 -count=1 ./internal/repository` with fresh repo-local `GOCACHE/GOTMPDIR` | Passed (`3.596s`). |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.141、用户侧用量统计过滤/snapshot-v2、Anthropic dateline 归一化、Codex encrypted reasoning 续轮、`gpt-5.5-pro` 模型保真、Sonnet 5 与 1M context beta 默认策略、前端 UsageView 新约束。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 9c2717951d59
+git diff --stat 930326116ed6bbc68c64e9536f8ed5778f078aaf..db0414233ce324903adc72e858374086da158b4b
+git log --oneline 930326116ed6bbc68c64e9536f8ed5778f078aaf..db0414233ce324903adc72e858374086da158b4b
+```
+## 2026-07-03 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `43c2c369d604` |
+| Merge base | `db0414233ce3` |
+| Upstream head merged | `a5638a4e5408` |
+| Merge commit | `91d67e816` |
+| Upstream version | `0.1.143` |
+| Upstream commits | 83 |
+| Files changed | 470 (`+16053 / -42421`) |
+| Conflict files | `backend/internal/config/config.go`; `backend/internal/handler/endpoint.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `deploy/config.example.yaml` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `a5638a4e5408`, VERSION 更新到 `0.1.143`, 同步 v0.1.142 / v0.1.143 变更。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| OpenAI/Codex | 新增 `/responses/compact` 默认模型 `gateway.openai_compact_model`, compact 路径保留子路径并可账号级 model mapping; compact 跳过 Codex image bridge 注入。 |
+| Grok/xAI media | Grok group 接入 images generations/edits 与 videos generations/status, `grok-imagine` 图片别名归一, 旧 Grok group 回填 `allow_image_generation`。 |
+| Spark shadow | OpenAI OAuth 母账号可创建 `quota_dimension=spark` 影子账号, 凭据透传母账号但独立调度/分组/spark 配额窗口; 导出备份排除 shadow。 |
+| Group billing | 订阅分组新增高峰时段倍率, 按服务器全局时区判定, 仅叠加 token 倍率, 图片按次倍率不受影响。 |
+| Usage/Admin UI | 用户/管理用量表新增 IP geolocation 单查/批量获取和 24h localStorage cache; 管理端 group column settings; 用户模型统计按 requested model 聚合。 |
+| Subscription/Payment | 订阅支持撤销与恢复; OpenAI subscription expiration / plan type 持久化; reset credit expiration 展示; refund pending 继续沿用终态查询语义。 |
+| OpenAI WS/OAuth | WS ingress 增加 http_bridge 模式和账号选择, setup-token 账号支持 ws mode 编辑; count_tokens 对 OpenAI OAuth scope error 做兼容处理。 |
+| Anthropic/Ollama/Claude | Ollama Anthropic Bearer API Key 认证兼容; Claude Code stream keepalive stall 修复; Claude OAuth 删除 expires_in 依赖。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/config/config.go` | 同时保留本分支 `openai_default_reasoning_effort`、`request_archive`、`request_intercept` 默认值, 并吸收上游 `openai_compact_model` 默认值。 |
+| `backend/internal/handler/endpoint.go` | 同时保留根级 `/responses` 与 `/backend-api/codex/responses` 归一化, 并新增 videos endpoint 归一化。 |
+| `backend/internal/server/routes/gateway.go` | 根级 images/videos 路由使用上游 `imagesHandler` / Grok video handler, 同时显式保留本分支 `RequestArchive` / `RequestIntercept` 中间件链。 |
+| `backend/internal/server/routes/gateway_test.go` | 保留本分支 request archive/intercept 路由回归测试, 吸收上游 Grok images/videos 与非 Grok videos gate 测试, 并适配本地 option-style test router。 |
+| `deploy/config.example.yaml` | 同时保留本分支 reasoning effort / request archive 示例配置, 并追加上游 `openai_compact_model` 示例配置。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 本次上游合并未覆盖本地 prompt risk 配置、judge fail-open 与审计边界。 |
+| RequestArchive / RequestIntercept | 保留; 冲突路由中根级 images/videos 也显式带上 archive/intercept 中间件, 并保留路由测试。 |
+| token 分析、图片生成、用户并发方案 | 保留; 本地归档/分析/并发入口未被删除, Grok media 新增能力与现有图片 gate 并存。 |
+| 默认 OpenAI reasoning_effort 注入与 DeepSeek cache-hit usage 兼容 | 保留; config 冲突中保留默认 effort 注入配置, usage parser 相关逻辑未被覆盖。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend/internal/config/config.go backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go deploy/config.example.yaml` | Passed, no conflict markers; `rg` exit 1 because no matches. |
+| `gofmt -w backend/internal/config/config.go backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go` | Passed. |
+| `git diff --cached --check` | Passed before merge commit. |
+| `go test -tags=unit -p 1 -count=1 ./internal/config` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/config 1.243s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/handler` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/handler 55.178s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/server/routes` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/server/routes 3.439s`). |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.143、`/responses/compact` 模型配置、Grok images/videos media、OpenAI Spark shadow、高峰时段倍率、IP geolocation、订阅撤销/恢复、OpenAI WS http_bridge ingress。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 91d67e816
+git show --cc 91d67e816 -- backend/internal/config/config.go backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go deploy/config.example.yaml
+git diff --stat db0414233ce324903adc72e858374086da158b4b..a5638a4e5408b14f05a63d7d3b118d6359489b32
+git log --oneline db0414233ce324903adc72e858374086da158b4b..a5638a4e5408b14f05a63d7d3b118d6359489b32
+```

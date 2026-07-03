@@ -119,6 +119,7 @@ CSP 注意点:
 - `gateway.max_line_size`
 - `gateway.request_archive`
 - `gateway.request_intercept`
+- `gateway.openai_compact_model`
 - `gateway.openai_ws`
 - `gateway.large_request`
 
@@ -129,6 +130,12 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - Responses API 使用 `reasoning` 表达推理控制, `thinking` 在发送上游前删除。
 - Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
+- `/responses/compact` 上游不接受 `tool_choice`, Codex image-generation bridge 对 compact 请求必须整体跳过工具注入/压缩桥接注入; compact 使用独立默认模型/账号级 mapping, 不应影响普通 Responses。
+
+Anthropic OAuth/SetupToken 请求体默认启用客户端 dateline 归一化(`enable_client_dateline_normalization=true`):
+
+- 实现位于 `backend/internal/pkg/anthropicfp` 和 `GatewayService.normalizeClientDatelineIfEnabled`。仅对 Anthropic OAuth/SetupToken 账号生效, API Key 账号和非 Anthropic 平台跳过。
+- 归一化只扫描顶层 `system` 文本或 `messages[].content` 文本里的 `<system-reminder>...</system-reminder>` 块, 将客户端可能注入的撇号/日期分隔符指纹还原为 `Today's date is YYYY-MM-DD.`; 不扫描用户自由正文、tool_use/tool_result 或代码块。
 
 历史 thinking block 过滤是协议感知的(`internal/service/thinking_protocol.go`), 不能跨上游一刀切:
 
@@ -145,6 +152,10 @@ Codex CLI only 客户端限制(`openai_client_restriction_detector.go` / `engine
 - app-server 有全局开关 `codex_cli_only_allow_app_server_clients` 和账号级 `codex_cli_only_allow_app_server`; 任一开启会把未列名 app-server client 作为候选, 但仍需通过 engine fingerprint 门。
 - 白名单条目可设置 skip engine fingerprint, 风险高于默认策略, 只应用于确实不发送 Codex 引擎指纹的可信第三方客户端。
 
+Codex OAuth reasoning 续轮可靠性:
+
+- `applyCodexOAuthTransform` 在请求带 `reasoning` 时补齐 `include:["reasoning.encrypted_content"]`; `filterCodexInput` 保留 reasoning item 的 `encrypted_content`/`content`/`summary`, 但剥离 `rs_*` id 并在缺失时补空 `summary`。不要恢复旧的"丢弃 reasoning item"策略, 否则多轮 Codex 推理上下文会丢失。
+
 Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `prompt_risk_judge.go`):
 
 - Prompt Risk 是内容审核前置阶段: 先从网关请求体抽取 prompt, 按独立 `prompt_risk_config` 做关键词/正则/等级评估; block 模式下命中拦截会短路请求, observe 只记录后继续既有内容审核。
@@ -154,6 +165,7 @@ Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `promp
 - judge 走本网关或同域 base_url 时会形成真实 HTTP 回环。出站 judge 请求会携带 `X-Sub2API-Prompt-Risk-Judge`, 头值由 judge API key 和请求体派生; 入站内容审核只在 judge 当前启用且该头能用当前 judge key 与原始请求体校验通过时跳过整个 Prompt Risk stage, 防止二次 judge 或关键词规则反向拦截 judge 请求。不要把该头当作外部可配置开关暴露。
 - 如果 judge 使用本网关 API Key, 仍建议使用专属 API Key / 分组, 便于计费、审计和故障定位; 不要复用普通用户 key。
 - 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
+- 内容审核关键词 block 会把命中的具体关键词写入 `content_moderation_logs.matched_keyword`, 管理端风险控制列表和详情展示该字段; 记录前仍需走既有输入摘要/脱敏边界。
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
@@ -172,14 +184,17 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
 - OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 避免把 verbose upstream body 直接暴露给用户或前端错误视图。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
-- OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。
+- Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
+- OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
+- 默认 BetaPolicy 对 `context-1m-2025-08-07` 只放行 Claude Sonnet 5 及其直连/Vertex/Bedrock ID 变体, 其余模型 fallback filter; 修改 Sonnet 5/1M context 能力时要同步 `DefaultBetaPolicySettings` 和 `gateway_beta_test.go`。
 
 后台任务可靠性:
 
 - 多实例周期性后台任务应通过 `LeaderLock`/`leader_lock_cache` 取得单主执行权; 新增会写数据库或刷新全局缓存的 runner/flusher 时, 必须明确是否需要 leader lock。
 - user platform quota flusher 默认关闭, 开启后按批聚合写库; shutdown cleanup 必须 flush/stop, Wire `provideCleanup` 测试要覆盖。
+- Spark 影子账号的凭据不落库且不参与凭据型导出; 401/refresh/privacy 操作要先解析母账号, 不能把母账号 token 错误永久写到 shadow。global 429/overload 不应连坐 spark 影子, 但母账号凭据过期、临时摘除、非 OAuth 仍要阻断 shadow。
 
 用户可见错误:
 
@@ -196,7 +211,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 
 运维监控:
 
-- Ops service, repository, dashboard, alert, cleanup, system logs。
+- Ops service, repository, dashboard, alert, cleanup, system logs。系统日志持久化 `api_key_id`, 后端 `ListSystemLogs` / cleanup 支持按 `api_key_id` 过滤, 前端系统日志表有 KEY ID 筛选。
 - 入口: `backend/internal/server/routes/admin.go` 中 `/api/v1/admin/ops/*`。
 - 前端页面: `frontend/src/views/admin/ops/OpsDashboard.vue`。
 - 告警指标新增 `account_temp_unscheduled_count`(临时摘除账号数, 配合 OpenAI transport failover); 规则配置在前端 `ops/components/OpsAlertRulesCard.vue` 与 `ops_alert_evaluator_service.go`。
@@ -207,3 +222,4 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - TOTP encryption key 生产必须固定, 空值会导致重启后 2FA 配置失效。
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
+- 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
