@@ -143,6 +143,36 @@ $env:GOCACHE = (Resolve-Path .gocache-test).Path
 $env:GOTMPDIR = (Resolve-Path .gotmp-test).Path
 go test -tags=unit -p 1 -count=1 ./...
 ```
+Windows 下 Go 还可能把 module cache / toolchain / sumdb 写到无权限目录。已知本机默认 `GOMODCACHE` 可能是 `D:\project\pkg\mod`, 会出现 `Access is denied`; 若只设置 `GOCACHE/GOTMPDIR`, Go 仍可能回退到用户级 `C:\Users\Admin\AppData\Local\go-build` 或 `C:\Users\Admin\go\pkg\sumdb`。稳定做法是连 `GOPATH/GOMODCACHE` 一起切到仓库内, 并且无论当前在仓库根还是 `backend` 目录, 都先解析仓库根, 避免误拼出 `backend/backend`:
+
+```powershell
+$repo = (git -C . rev-parse --show-toplevel).Trim()
+$backend = Join-Path $repo "backend"
+$cacheRoot = Join-Path $backend ".go-test-cache"
+$env:GOCACHE = Join-Path $cacheRoot "gocache"
+$env:GOTMPDIR = Join-Path $cacheRoot "gotmp"
+$env:GOPATH = Join-Path $cacheRoot "gopath"
+$env:GOMODCACHE = Join-Path $env:GOPATH "pkg\mod"
+New-Item -ItemType Directory -Force -Path $env:GOCACHE,$env:GOTMPDIR,$env:GOMODCACHE | Out-Null
+
+Set-Location $backend
+go test -tags=unit -p 1 -count=1 ./internal/config ./internal/handler ./internal/server/routes
+```
+
+验证后清理缓存目录前必须确认目标仍在仓库内:
+
+```powershell
+$repo = (git -C . rev-parse --show-toplevel).Trim()
+$target = Join-Path $repo "backend\.go-test-cache"
+$resolvedRepo = (Resolve-Path -LiteralPath $repo).Path
+$resolvedTarget = (Resolve-Path -LiteralPath $target).Path
+if (-not $resolvedTarget.StartsWith($resolvedRepo + [System.IO.Path]::DirectorySeparatorChar)) {
+  throw "Refusing to remove outside workspace: $resolvedTarget"
+}
+Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
+```
+
+不要在已经 `cd backend` 后再写 `Join-Path (Get-Location) "backend\..."`, 这会生成 `backend/backend` 缓存目录; 该目录可能被 Go/gopls 暂时锁住, 清理会反复失败并污染后续状态判断。
 
 前端:
 
