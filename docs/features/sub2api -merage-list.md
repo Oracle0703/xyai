@@ -757,3 +757,80 @@ git show --stat --summary --find-renames 9c2717951d59
 git diff --stat 930326116ed6bbc68c64e9536f8ed5778f078aaf..db0414233ce324903adc72e858374086da158b4b
 git log --oneline 930326116ed6bbc68c64e9536f8ed5778f078aaf..db0414233ce324903adc72e858374086da158b4b
 ```
+## 2026-07-03 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `43c2c369d604` |
+| Merge base | `db0414233ce3` |
+| Upstream head merged | `a5638a4e5408` |
+| Merge commit | `91d67e816` |
+| Upstream version | `0.1.143` |
+| Upstream commits | 83 |
+| Files changed | 470 (`+16053 / -42421`) |
+| Conflict files | `backend/internal/config/config.go`; `backend/internal/handler/endpoint.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `deploy/config.example.yaml` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `a5638a4e5408`, VERSION 更新到 `0.1.143`, 同步 v0.1.142 / v0.1.143 变更。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| OpenAI/Codex | 新增 `/responses/compact` 默认模型 `gateway.openai_compact_model`, compact 路径保留子路径并可账号级 model mapping; compact 跳过 Codex image bridge 注入。 |
+| Grok/xAI media | Grok group 接入 images generations/edits 与 videos generations/status, `grok-imagine` 图片别名归一, 旧 Grok group 回填 `allow_image_generation`。 |
+| Spark shadow | OpenAI OAuth 母账号可创建 `quota_dimension=spark` 影子账号, 凭据透传母账号但独立调度/分组/spark 配额窗口; 导出备份排除 shadow。 |
+| Group billing | 订阅分组新增高峰时段倍率, 按服务器全局时区判定, 仅叠加 token 倍率, 图片按次倍率不受影响。 |
+| Usage/Admin UI | 用户/管理用量表新增 IP geolocation 单查/批量获取和 24h localStorage cache; 管理端 group column settings; 用户模型统计按 requested model 聚合。 |
+| Subscription/Payment | 订阅支持撤销与恢复; OpenAI subscription expiration / plan type 持久化; reset credit expiration 展示; refund pending 继续沿用终态查询语义。 |
+| OpenAI WS/OAuth | WS ingress 增加 http_bridge 模式和账号选择, setup-token 账号支持 ws mode 编辑; count_tokens 对 OpenAI OAuth scope error 做兼容处理。 |
+| Anthropic/Ollama/Claude | Ollama Anthropic Bearer API Key 认证兼容; Claude Code stream keepalive stall 修复; Claude OAuth 删除 expires_in 依赖。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/config/config.go` | 同时保留本分支 `openai_default_reasoning_effort`、`request_archive`、`request_intercept` 默认值, 并吸收上游 `openai_compact_model` 默认值。 |
+| `backend/internal/handler/endpoint.go` | 同时保留根级 `/responses` 与 `/backend-api/codex/responses` 归一化, 并新增 videos endpoint 归一化。 |
+| `backend/internal/server/routes/gateway.go` | 根级 images/videos 路由使用上游 `imagesHandler` / Grok video handler, 同时显式保留本分支 `RequestArchive` / `RequestIntercept` 中间件链。 |
+| `backend/internal/server/routes/gateway_test.go` | 保留本分支 request archive/intercept 路由回归测试, 吸收上游 Grok images/videos 与非 Grok videos gate 测试, 并适配本地 option-style test router。 |
+| `deploy/config.example.yaml` | 同时保留本分支 reasoning effort / request archive 示例配置, 并追加上游 `openai_compact_model` 示例配置。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 本次上游合并未覆盖本地 prompt risk 配置、judge fail-open 与审计边界。 |
+| RequestArchive / RequestIntercept | 保留; 冲突路由中根级 images/videos 也显式带上 archive/intercept 中间件, 并保留路由测试。 |
+| token 分析、图片生成、用户并发方案 | 保留; 本地归档/分析/并发入口未被删除, Grok media 新增能力与现有图片 gate 并存。 |
+| 默认 OpenAI reasoning_effort 注入与 DeepSeek cache-hit usage 兼容 | 保留; config 冲突中保留默认 effort 注入配置, usage parser 相关逻辑未被覆盖。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend/internal/config/config.go backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go deploy/config.example.yaml` | Passed, no conflict markers; `rg` exit 1 because no matches. |
+| `gofmt -w backend/internal/config/config.go backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go` | Passed. |
+| `git diff --cached --check` | Passed before merge commit. |
+| `go test -tags=unit -p 1 -count=1 ./internal/config` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/config 1.243s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/handler` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/handler 55.178s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/server/routes` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/server/routes 3.439s`). |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.143、`/responses/compact` 模型配置、Grok images/videos media、OpenAI Spark shadow、高峰时段倍率、IP geolocation、订阅撤销/恢复、OpenAI WS http_bridge ingress。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 91d67e816
+git show --cc 91d67e816 -- backend/internal/config/config.go backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/server/routes/gateway_test.go deploy/config.example.yaml
+git diff --stat db0414233ce324903adc72e858374086da158b4b..a5638a4e5408b14f05a63d7d3b118d6359489b32
+git log --oneline db0414233ce324903adc72e858374086da158b4b..a5638a4e5408b14f05a63d7d3b118d6359489b32
+```

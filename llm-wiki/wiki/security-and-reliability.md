@@ -119,6 +119,7 @@ CSP 注意点:
 - `gateway.max_line_size`
 - `gateway.request_archive`
 - `gateway.request_intercept`
+- `gateway.openai_compact_model`
 - `gateway.openai_ws`
 - `gateway.large_request`
 
@@ -129,6 +130,7 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - Responses API 使用 `reasoning` 表达推理控制, `thinking` 在发送上游前删除。
 - Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
+- `/responses/compact` 上游不接受 `tool_choice`, Codex image-generation bridge 对 compact 请求必须整体跳过工具注入/压缩桥接注入; compact 使用独立默认模型/账号级 mapping, 不应影响普通 Responses。
 
 Anthropic OAuth/SetupToken 请求体默认启用客户端 dateline 归一化(`enable_client_dateline_normalization=true`):
 
@@ -182,6 +184,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
 - OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 避免把 verbose upstream body 直接暴露给用户或前端错误视图。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
+- Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
@@ -191,6 +194,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 
 - 多实例周期性后台任务应通过 `LeaderLock`/`leader_lock_cache` 取得单主执行权; 新增会写数据库或刷新全局缓存的 runner/flusher 时, 必须明确是否需要 leader lock。
 - user platform quota flusher 默认关闭, 开启后按批聚合写库; shutdown cleanup 必须 flush/stop, Wire `provideCleanup` 测试要覆盖。
+- Spark 影子账号的凭据不落库且不参与凭据型导出; 401/refresh/privacy 操作要先解析母账号, 不能把母账号 token 错误永久写到 shadow。global 429/overload 不应连坐 spark 影子, 但母账号凭据过期、临时摘除、非 OAuth 仍要阻断 shadow。
 
 用户可见错误:
 

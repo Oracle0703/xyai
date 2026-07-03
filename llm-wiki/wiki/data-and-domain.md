@@ -6,8 +6,8 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, RPM, 支持模型范围和自定义 `/v1/models` 列表。
-- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only 和允许 Claude Code 客户端。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, RPM, 支持模型范围和自定义 `/v1/models` 列表。
+- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端和 Spark 影子账号。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image metadata 等。
 - SubscriptionPlan/UserSubscription: 套餐和用户订阅。
@@ -69,6 +69,9 @@ go generate ./cmd/server
 - `backend/migrations/154_add_ops_system_logs_api_key_id.sql` + `155_add_ops_system_logs_api_key_id_index_notx.sql`(上游 v0.1.140)为 `ops_system_logs` 新增 `api_key_id` 与 `(api_key_id, created_at DESC)` 并发索引, 支持系统日志按 API Key 精确筛选和清理。
 - `backend/migrations/156_content_moderation_matched_keyword.sql`(上游 v0.1.140)为 `content_moderation_logs` 新增 `matched_keyword`, 用于风控关键词拦截审计。
 - `backend/migrations/157_user_platform_quotas_add_grok.sql`(上游 v0.1.140)重建 `user_platform_quotas.platform` CHECK 约束, 将 `grok` 纳入允许平台; 这是旧约束的超集, 用于修复注册/补全平台 quota 快照时写入 Grok 默认配额失败。
+- `backend/migrations/154_account_spark_shadow.sql` + `154a_account_spark_shadow_indexes_notx.sql`(上游 v0.1.142/v0.1.143)为 `accounts` 增加 `parent_account_id`、`quota_dimension(global|spark)`、父账号外键和 active spark 影子一父一影子部分唯一索引。影子账号不能自持凭据, 软删除后可重建同母账号 shadow。
+- `backend/migrations/158_add_group_peak_rate_multiplier.sql` 为 `groups` 增加 `peak_rate_enabled`, `peak_start`, `peak_end`, `peak_rate_multiplier`; 仅订阅类型分组可启用, 窗口格式 `HH:MM`, 不支持跨天, 高峰因子只乘入 token 计费倍率, 图片按次倍率不受影响。
+- `backend/migrations/158_enable_grok_media_generation_groups.sql` 回填既有 Grok group 的 `allow_image_generation=true`, 支撑 Grok images/videos media 路由复用图片能力 gate。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -177,6 +180,7 @@ User x platform quota:
 
 - `PlatformGrok = "grok"` 已加入后端 domain/service 常量和前端 `GroupPlatform` / `AccountPlatform`; user x platform quota 的允许平台和数据库 CHECK 约束都包含 `grok`。新增 quota 维度时要同步 Ent schema validate、service `AllowedQuotaPlatforms`、SQL CHECK 约束、前端 Settings/UserPlatformQuota UI。
 - Grok OAuth 账号的 quota 由 xAI 响应头快照和本地 usage 聚合共同展示: `grok_request_quota`, `grok_token_quota`, `grok_retry_after_seconds`, `grok_entitlement_status`, `grok_local_usage` 等字段属于账号 usage DTO 扩展。
+- OpenAI Spark 影子账号是 OpenAI 账号的 `quota_dimension=spark` 子账号, 凭据透传母账号, 调度/分组/并发可独立配置, 但导出备份会排除 shadow 并返回 `skipped_shadows`。spark 请求按 `gpt-5.3-codex-spark` 模型路由, 计价固定映射到 `gpt-5.1-codex`。
 
 模型映射和白名单相关改动要检查:
 

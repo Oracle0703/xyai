@@ -109,10 +109,12 @@ API 模块分布:
 - 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
 - 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
 - 操作列的“重置日限”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: false, monthly: false })`, 只归零每日用量, 不修改周/月用量。
+- 管理端订阅支持撤销/恢复: revoked 订阅在列表中保留历史, 操作列显示 restore; 恢复时后端会按当前过期时间决定 active/expired。用户侧和管理侧订阅卡展示 `expires_at` 剩余时长, one-time daily quota 会使用剩余时长文案。
 
 管理端用量统计:
 
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
+- `frontend/src/components/admin/usage/UsageTable.vue` 的 IP 地址列可渲染 `IpGeoCell`, 并提供批量获取地区工具栏; `frontend/src/utils/ipGeoLookup.ts` 调用 geojs 单查/批量接口, 跳过内网 IP, 成功结果缓存到 localStorage `sub2api:ip-geo-cache:v1` 24 小时。用户侧 UsageView 复用同一表格事件处理。
 
 用户侧用量页:
 
@@ -135,6 +137,7 @@ API 模块分布:
 - `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI 账号创建/编辑能力, 包括 OpenAI-compatible provider preset, endpoint capabilities, Responses WebSocket V2 mode, Codex CLI only 和 Claude Code allowlist。
 - `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。
 - `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
+- `frontend/src/views/admin/AccountsView.vue` 支持从 OpenAI OAuth 母账号创建 Spark 影子账号; 影子账号导出时会被排除, 后端返回 `skipped_shadows` 后前端提示。账号 action menu 的 create spark shadow 只应用于可作为母账号的 OpenAI OAuth 账号。
 
 ## 管理端用户筛选
 
@@ -147,6 +150,7 @@ API 模块分布:
 - Grok OAuth 管理 API 在 `frontend/src/api/admin/grok.ts`, 组合逻辑在 `frontend/src/composables/useGrokOAuth.ts`; `CreateAccountModal.vue` 和 `ReAuthAccountModal.vue` 复用 OAuth 授权流, 支持授权码、refresh token 校验和 OAuth credentials 构建。
 - Grok 账号配额展示在 `AccountUsageCell.vue`; `GrokQuotaProbeCell.vue` 提供主动 probe, 只对 `platform === "grok" && type === "oauth"` 显示。xAI 不支持 reset 时前端显示 reset unsupported。账号测试 modal 使用 `buildApiUrl` 请求 `/admin/accounts/:id/test`, Grok OAuth 测试会走 xAI Responses 流。
 - `useModelWhitelist.ts` 为 Grok 维护模型候选和常用映射 preset; 修改 Grok 模型名时要同步白名单 selector、平台颜色和 i18n 文案。
+- Grok media 已接入 images/videos 路由后, 前端平台图标、颜色、Grok quota unknown/reset unsupported 文案要与后端 `allow_image_generation` gate 保持一致; 旧 Grok group 由后端 migration 自动回填图片能力。
 - OpenAI `codex_cli_only` 管理端新增全局 engine fingerprint signals 与 app-server 开关, 设置页入口在 `SettingsView.vue` + `codexFingerprintSignals.ts`; 账号创建/编辑/批量编辑里有账号级 `codex_cli_only_allow_app_server` 开关。
 - Dashboard、Group/Model distribution 图表使用 `toFiniteNumber` 兜底, 避免后端返回字符串、null 或 NaN 时污染图表排序和格式化。`DataTable` sortable 表头使用双三角指示和 `aria-sort`, 修改排序 UI 时要保持可访问性语义。
 

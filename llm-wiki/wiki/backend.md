@@ -82,8 +82,9 @@
 - `/v1/responses` 和根级 `/responses` 支持 OpenAI Responses API。
 - `/v1/chat/completions` 和根级 `/chat/completions` 支持 OpenAI Chat Completions。
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
-- `/v1/images/generations` 和 `/v1/images/edits` 仅 OpenAI platform 支持。
+- `/v1/images/generations` 和 `/v1/images/edits` 对 OpenAI platform 走 OpenAI images handler, 对 Grok platform 走 Grok media handler; 根级别名 `/images/generations`、`/images/edits` 也保留 `RequestArchive` / `RequestIntercept` 中间件链。
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; 当前支持 OAuth 订阅账号的 Responses/Chat 兼容文本与推理流量, API Key 账号不在 Grok 首版范围。
+- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, video model 透传到 xAI `/v1/videos/*`。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `/backend-api/codex/responses` 支持 Codex 直连别名。
 
@@ -107,6 +108,7 @@ OpenAI/Codex 兼容桥:
 - Codex 模型归一化保留 `gpt-5.5` 和 `gpt-5.5-pro` 原名, 包括 `gpt5.5*`、`openai/gpt5.5*` 和 `-high` 等 effort 后缀别名; 不应回退成旧 `gpt-5.4`/`gpt-5.3-codex`。
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
+- `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
 - OpenAI/ChatGPT/Codex 账号配额查询与重置由 `backend/internal/service/openai_quota_service.go` 提供(上游 v0.1.137): 调 `chatgpt.com/backend-api/wham/usage` 读 rate-limit 窗口、`/wham/rate-limit-reset-credits/consume` 重置 credits; 管理端入口 `GET /api/v1/admin/openai/accounts/:id/quota` 与 `POST .../reset-quota`。上游对未用窗口返回显式 `null`, 消费方按 nil 指针视作"无数据"。
@@ -120,7 +122,8 @@ Grok/xAI 兼容:
 - OAuth/token/账号创建由 `backend/internal/service/grok_oauth_service.go`, `grok_token_provider.go`, `grok_token_refresher.go`, `backend/internal/repository/grok_oauth_client.go` 提供; token cache key 独立为 `GrokTokenCacheKey`。
 - OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 强制 OAuth 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier` / `external_web_access`, 过滤不支持的 `tools` 和失配 `tool_choice`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
 - Grok quota 由 `backend/internal/pkg/xai/quota.go` 解析 xAI rate-limit 和 entitlement headers, 快照写入账号 `extra`。管理端主动探测在 `backend/internal/service/grok_quota_service.go`, 使用最小 Responses 请求读取 headers; reset 当前返回不支持。账号连通性测试由 `AccountTestService.testGrokAccountConnection` 直连 xAI Responses API, 并同步 quota header 快照。
-- Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。Grok group 现在可走 `/v1/messages`, `/v1/chat/completions`, 根级 `/chat/completions` 与 Responses WebSocket/HTTP 兼容入口; `/v1/messages/count_tokens` 仍返回不支持。
+- Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。Grok group 现在可走 `/v1/messages`, `/v1/chat/completions`, 根级 `/chat/completions`、images/videos media 路由与 Responses WebSocket/HTTP 兼容入口; `/v1/messages/count_tokens` 仍返回不支持。
+- 旧 Grok group 会由 migration `158_enable_grok_media_generation_groups.sql` 回填 `allow_image_generation=true`, 因为 Grok media 路由复用图片生成能力 gate。
 - `PlatformGrok` 已加入 `domain/constants.go`, `service/domain_constants.go`, scheduler snapshot 平台列表、token cache invalidator 和 user platform quota 允许列表。新增平台相关能力时要同步这些集中列表。
 - 模型不可用诊断由 `gateway_model_availability.go` 和 `openai_gateway_model_availability.go` 提供; no-account 错误路径会区分"池中无支持该模型账号"并返回 404 `model_not_found`, 避免误报 503。
 
@@ -129,6 +132,7 @@ OpenAI 账号调度:
 - `gateway.openai_ws.scheduler_score_weights.reset` 是高级调度得分因子, 默认 `0` 关闭; 大于 0 时, 拥有未来 `SessionWindowEnd` 且剩余重置时间更短的账号得分更高。
 - `gateway.openai_ws.scheduler_score_weights.quota_headroom` 默认 `0` 关闭; 大于 0 时, 基于账号 `extra` 中 `codex_primary_used_percent` / `codex_7d_used_percent` 和 `codex_usage_updated_at` 计算剩余额度健康度, 快照缺失、过期或窗口已重置时使用中性分。
 - `gateway.scheduling.prefer_soonest_reset` 默认 `false`; 开启后负载感知选择会先过滤出会话窗口最早重置的账号, 用于 use-it-or-lose-it 策略。没有活跃窗口时返回原候选集合, 不改变旧行为。
+- OpenAI Spark 影子账号使用 `parent_account_id + quota_dimension=spark`: 影子不持 OAuth 凭据, 运行时通过母账号 token 发起上游请求, 但独立读取 `codex_bengalfox`/spark 配额窗口。母账号 global 429 或过载不能连坐 spark 影子; 母账号凭据过期、临时摘除或非 OAuth 才会阻断影子调度。spark 模型当前只允许 `gpt-5.3-codex-spark` base, 默认 model_mapping 为恒等映射。
 
 网关链路常见中间件:
 
@@ -155,7 +159,7 @@ OpenAI 账号调度:
 - NUL 清洗: 归档 JSON 字符串里合法的 `\u0000` 转义解码后是真实 0x00 字节, Postgres text/jsonb 列拒收(`pq: invalid byte sequence for encoding "UTF8": 0x00`)。所有 body 衍生文本入库前必须过 `sanitizeTokenAnalysisText`(`token_analysis_summary.go`, 剥 NUL + 兜底替换非法 UTF-8): 已接入净输入留存(`RedactTokenAnalysisInputText`, 哈希对剥离后文本计算)、预览(`SanitizeTokenAnalysisPreview`)、`tokenAnalysisString`(model 等)、shape、endpoint、归档行 method/endpoint/path/model 字段、`last_error`(错误消息可内嵌归档原文); 项目归因侧含 NUL 的 cwd 直接拒绝(`validAttributionCwd`), branch 剥离后保留。典型来源是二进制内容被贴进对话; 修复前这类行在 user_inputs upsert 处失败且水位前移不重试(summary 已入库, 只丢净输入留存并污染 failed_rows), 重灌同样靠删水位重索引。(`tokenAnalysisIsCountTokensPath` 按原始 path 判断 -- endpoint 字段已被归一化折叠成 /v1/messages 看不出来), 否则它会与紧邻真实请求匹配到同一条 usage_logs, 概览/聚合把该条计费 token 累加两次; 入库 endpoint 还原为 `/v1/messages/count_tokens` 以便库内区分。历史误匹配行靠重置水位全量重索引原地修正(upsert 按 archive_id)。
 - 概览口径: `GET /api/v1/admin/token-analysis/summary` 统计的是 `token_analysis_request_summaries`(已归档已索引的请求), 不是全量请求; service 层强制 include_unmatched(该参数只影响请求明细列表), 未匹配数/未匹配率卡片才有意义。总 token/费用始终只含匹配上 usage_logs 的行(未匹配行贡献 0)。响应附 `billed_requests`(同期 usage_logs 计费请求数, 只应用时间/用户/密钥/账号/分组/模型过滤)与 `archive_coverage`(matched/billed), 页面以"已归档请求数/同期计费请求数/归档覆盖率"卡片呈现差距。
 
-端点归一化集中在 `backend/internal/handler/endpoint.go`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini 分流测试。
+端点归一化集中在 `backend/internal/handler/endpoint.go`。当前会把根级 `/responses`、`/responses/*`、`/backend-api/codex/responses*` 归一到 `/v1/responses`, 并识别 `/v1/videos/generations` / `/v1/videos/*`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini/Grok 分流测试。
 
 ## 分层约定
 
