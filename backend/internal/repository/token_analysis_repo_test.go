@@ -93,6 +93,39 @@ func TestTokenAnalysisRepositoryFindNearestUsageLogNoRows(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	userID := int64(7)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \([\s\S]*SELECT s\.user_id[\s\S]*GROUP BY s\.user_id, u\.email\s*\) grouped`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
+	mock.ExpectQuery(`SELECT[\s\S]*NULL::BIGINT AS api_key_id[\s\S]*'' AS api_key_name[\s\S]*GROUP BY s\.user_id, u\.email[\s\S]*ORDER BY actual_cost DESC`).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "user_email", "api_key_id", "api_key_name", "request_count", "risky_request_count",
+			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
+			"actual_cost", "risky_cost", "last_event_time",
+		}).AddRow(userID, "dev@example.com", nil, "", int64(5), int64(2), int64(1200), int64(700), int64(100), int64(300), int64(100), 1.5, 0.7, now))
+
+	items, result, err := repo.ListUserUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
+		pagination.PaginationParams{Page: 1, PageSize: 20})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), result.Total)
+	require.Len(t, items, 1)
+	require.Equal(t, userID, *items[0].UserID)
+	require.Equal(t, "dev@example.com", items[0].UserEmail)
+	require.Nil(t, items[0].APIKeyID)
+	require.Empty(t, items[0].APIKeyName)
+	require.Equal(t, int64(1200), items[0].TotalTokens)
+	require.InDelta(t, 300.0/1100.0, items[0].CacheHitRate, 0.0001)
+	require.InDelta(t, 0.4, items[0].RiskRatio, 0.0001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 func TestTokenAnalysisRepositoryListProjectUsageSortable(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)

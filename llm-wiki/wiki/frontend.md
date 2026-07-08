@@ -8,6 +8,7 @@
 - 路由: Vue Router 4。
 - 样式: TailwindCSS, 全局样式在 `frontend/src/style.css` 和 `frontend/src/styles/`。
 - 国际化: `vue-i18n`, 入口 `frontend/src/i18n/index.ts`。
+- `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
 主入口:
@@ -34,6 +35,7 @@
 
 - setup: `/setup`
 - public: `/home`, `/login`, `/register`, OAuth callback, `/key-usage`, `/image-gen`, `/legal/:documentId`
+- batch image: `/batch-image`(alias `/docs/batch-image`) 使用 `BatchImageGuideView.vue`, 侧栏入口由 `useBatchImageAccess` 按用户/分组能力刷新显示。
 - user: `/dashboard`, `/keys`, `/usage`, `/redeem`, `/affiliate`, `/available-channels`, `/profile`, `/subscriptions`, `/purchase`, `/orders`, payment 页面, `/custom/:id`
 - admin: `/admin/dashboard`, `/admin/ops`, `/admin/users`, `/admin/groups`, `/admin/channels/*`, `/admin/accounts`, `/admin/settings`, `/admin/risk-control`, `/admin/request-intercept`, `/admin/token-analysis`, payment admin, affiliate admin
 
@@ -138,6 +140,7 @@ API 模块分布:
 - `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。
 - `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
 - `frontend/src/views/admin/AccountsView.vue` 支持从 OpenAI OAuth 母账号创建 Spark 影子账号; 影子账号导出时会被排除, 后端返回 `skipped_shadows` 后前端提示。账号 action menu 的 create spark shadow 只应用于可作为母账号的 OpenAI OAuth 账号。
+- `AccountsView.vue` 的 `scheduler_score` 默认隐藏; 前端只在列可见时传 `include_scheduler_score=1`, 避免账号列表默认触发高成本调度分计算。
 
 ## 管理端用户筛选
 

@@ -128,6 +128,7 @@ CSP 注意点:
 OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level thinking 字段:
 
 - Responses API 使用 `reasoning` 表达推理控制, `thinking` 在发送上游前删除。
+- Responses passthrough 路径也必须调用 `sanitizeOpenAIResponsesOfficialRequestBody`, 不只是在 native/bridge 路径过滤; OpenAI API Key 透传时要保留 `reasoning`、删除顶层 `thinking`。
 - Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
 - `/responses/compact` 上游不接受 `tool_choice`, Codex image-generation bridge 对 compact 请求必须整体跳过工具注入/压缩桥接注入; compact 使用独立默认模型/账号级 mapping, 不应影响普通 Responses。
@@ -171,6 +172,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
 - 会话级自动屏蔽默认关, 开关 `cyber_session_block_enabled` + `cyber_session_block_ttl_seconds`(默认 3600s), runtime 经 `SettingService.GetCyberSessionBlockRuntime` 进程内缓存(60s)避免热路径 DB 往返。屏蔽 key 仅由显式会话标识派生(header session_id/conversation_id 或 body `prompt_cache_key`, 混入 apiKeyID 后 sha256); 无显式标识返回空串必须放行, 不退化到 user/apikey/内容派生。store 由 repository `gatewayCache` 类型断言接入(`CyberSessionBlockStore`), 测试 stub 不实现时屏蔽能力静默降级关闭。
 
+OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens` 和 `cache_creation_input_tokens`。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 修改流式响应时要同时验证:
 
 - SSE flush。
