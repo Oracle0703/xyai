@@ -834,3 +834,85 @@ git show --cc 91d67e816 -- backend/internal/config/config.go backend/internal/ha
 git diff --stat db0414233ce324903adc72e858374086da158b4b..a5638a4e5408b14f05a63d7d3b118d6359489b32
 git log --oneline db0414233ce324903adc72e858374086da158b4b..a5638a4e5408b14f05a63d7d3b118d6359489b32
 ```
+
+## 2026-07-08 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `62e6a2e99` |
+| Merge base | `a5638a4e5` |
+| Upstream head merged | `6f43986c3` |
+| Merge commit | `未提交（按用户要求不提交）` |
+| Upstream version | `0.1.146` |
+| Upstream commits | 180 |
+| Files changed | 656 (`+118779 / -100144`) |
+| Conflict files | `backend/cmd/server/wire_gen.go`; `backend/go.mod`; `backend/internal/handler/admin/setting_handler.go`; `backend/internal/handler/endpoint.go`; `backend/internal/service/concurrency_service_test.go`; `backend/internal/service/openai_gateway_responses_chat_fallback.go`; `backend/internal/service/openai_gateway_service.go`; `backend/internal/service/setting_service.go`; `frontend/src/components/layout/AppSidebar.vue`; `frontend/src/i18n/locales/en.ts`; `frontend/src/i18n/locales/zh.ts` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。上游 head 为 `6f43986c3`, VERSION 更新到 `0.1.146`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| Batch image | 新增 batch image 任务/事件/下载/结算/清理/worker runtime 体系, 路由为 `/v1/images/batches*`, 并新增用户侧 `/batch-image` 指引页。 |
+| Backend split | `setting_service.go`, `setting_handler.go`, `admin_service.go`, `gateway_service.go`, `openai_gateway_service.go`, `openai_ws_forwarder.go`, `usage_log_repo.go` 等大文件拆分为领域文件。 |
+| Gateway/OpenAI | 新增 shared CC pipeline 拆分、compact body-signal 路由修复、OpenAI official payload sanitizer 继续删除顶层 `thinking` 并保留 `reasoning`。 |
+| Scheduling/Admin | 账号 scheduler score 改为前端列可见时 opt-in 请求, 避免默认列表触发高成本计算。 |
+| Frontend/i18n | `locales/en.ts`、`zh.ts` 拆为域模块并增加 key collision 测试; 侧栏同时保留本地 `/image-gen` 与上游 `/batch-image`。 |
+| Dependencies | `github.com/aws/aws-sdk-go-v2/service/s3` 升级到 `v1.97.3`。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/cmd/server/wire_gen.go` | 保留本地 `tokenAnalysisService`、`userConcurrencyPresetRunner`、`extension`, 同时加入上游 `batchImageCleanupService`、`batchImageWorkerRuntime`。 |
+| `backend/go.mod` | 采用上游 AWS S3 SDK `v1.97.3` 并保留本地依赖约束。 |
+| `backend/internal/handler/admin/setting_handler.go` | 接受上游 settings handler 拆分结构, 并补回 RequestArchive settings DTO/handler 到 runtime 文件。 |
+| `backend/internal/handler/endpoint.go` | 保留根级 Responses alias, 同时采用上游 `/responses/compact` 独立归一化。 |
+| `backend/internal/service/concurrency_service_test.go` | 同时保留本地 cache error 测试与上游 API key slot 测试。 |
+| `backend/internal/service/openai_gateway_responses_chat_fallback.go` / `openai_gateway_service.go` | 接受上游 OpenAI gateway 拆分, 补回 compatible cache usage parser、request body sanitizer 和 Responses fallback usage 写回。 |
+| `backend/internal/service/setting_service.go` | 接受上游 service 拆分, 补回 RequestArchive runtime cache/singleflight 和独立 `setting_request_archive.go`。 |
+| `frontend/src/components/layout/AppSidebar.vue` | 同时保留本地 `/image-gen` 菜单和上游 `/batch-image` 菜单。 |
+| `frontend/src/i18n/locales/en.ts` / `zh.ts` | 接受上游 i18n 域模块拆分, 删除旧单文件, 并把本地 `nav.imageGeneration` 迁入 `common.ts`。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 本次同步未删除本地风险控制入口。 |
+| RequestArchive / RequestIntercept | 保留; setting runtime、service cache 与路由中间件语义继续存在。 |
+| Token Analysis | 保留; 用户排行按用户聚合、隐藏 key 的局部改动继续存在。 |
+| 图片生成 | 保留; 用户侧 `/image-gen` 与上游 `/batch-image` 并存。 |
+| 用户并发方案 | 保留; 并发 preset runner 与 cache-error 语义测试保留。 |
+| OpenAI compatible cache usage | 保留并修复; Chat/Responses fallback 继续识别 `cache_read_input_tokens` / `cached_tokens` / `prompt_cache_hit_tokens`。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `go test -tags=unit -p 1 -count=1 -run TestOpenAIGatewayService_ResponsesCompatPreservesCompatibleCacheUsage ./internal/service` | Passed (`ok .../internal/service 2.152s`). |
+| `go test -tags=unit -p 1 -count=1 -run 'Test(ParseSSEUsage_CompatibleCacheFieldsFallback|ExtractOpenAIUsageFromJSONBytes_CompatibleCacheFieldsFallback|OpenAIGatewayService_APIKeyPassthrough_StripsTopLevelThinkingAndKeepsReasoning)$' ./internal/service` | Passed (`ok .../internal/service 2.228s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/service` with repo-local `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE` | Passed (`ok .../internal/service 95.102s`). |
+| `go test -tags=unit -p 1 -count=1 ./cmd/server ./internal/handler ./internal/server/routes` with repo-local Go cache | Passed (`cmd/server 1.828s`, `handler 26.818s`, `routes 3.358s`). |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend frontend deploy docs llm-wiki README.md README_CN.md README_JA.md AGENTS.md Dockerfile .github` | Passed, no conflict markers; `rg` exit 1 because no matches. |
+| `git diff --check` | Passed. |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录本次上游合并带来的稳定知识: v0.1.146、batch image、i18n 拆分、大文件拆分、Responses/Chat fallback compatible cache usage、OpenAI passthrough sanitizer 和 Windows 验证命令。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames <merge-commit-after-user-approval>
+git show --cc <merge-commit-after-user-approval> -- backend/cmd/server/wire_gen.go backend/internal/handler/endpoint.go backend/internal/service/openai_gateway_response_handling.go backend/internal/service/openai_gateway_passthrough.go frontend/src/components/layout/AppSidebar.vue
+git diff --stat a5638a4e5408..6f43986c3
+git log --oneline a5638a4e5408..6f43986c3
+```

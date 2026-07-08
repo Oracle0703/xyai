@@ -83,6 +83,7 @@
 - `/v1/chat/completions` 和根级 `/chat/completions` 支持 OpenAI Chat Completions。
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
 - `/v1/images/generations` 和 `/v1/images/edits` 对 OpenAI platform 走 OpenAI images handler, 对 Grok platform 走 Grok media handler; 根级别名 `/images/generations`、`/images/edits` 也保留 `RequestArchive` / `RequestIntercept` 中间件链。
+- `/v1/images/batches` 是 batch image 用户侧任务接口族: submit/list/models/get/items/item content/download/cancel/delete/delete outputs。入口在 `backend/internal/handler/batch_image_handler.go`, service/repository 分别在 `backend/internal/service/batch_image*.go` 与 `backend/internal/repository/batch_image*.go`; 受 API Key 用户、分组 `allow_batch_image_generation` 与批量生图折扣/hold multiplier 约束。
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; 当前支持 OAuth 订阅账号的 Responses/Chat 兼容文本与推理流量, API Key 账号不在 Grok 首版范围。
 - Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, video model 透传到 xAI `/v1/videos/*`。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
@@ -107,6 +108,7 @@ OpenAI/Codex 兼容桥:
 - Codex OAuth path(`store=false`) 的 reasoning item 不能整项丢弃: 需要保留 `encrypted_content`/`content`/`summary` 等跨轮上下文字段, 但必须剥离 `rs_*` id 防止上游按旧 id 查找 404; 缺失 `summary` 时补 `[]`。请求带 `reasoning` 时要确保 include 包含 `reasoning.encrypted_content`。
 - Codex 模型归一化保留 `gpt-5.5` 和 `gpt-5.5-pro` 原名, 包括 `gpt5.5*`、`openai/gpt5.5*` 和 `-high` 等 effort 后缀别名; 不应回退成旧 `gpt-5.4`/`gpt-5.3-codex`。
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
+- `openai_gateway_cc_pipeline.go` 是 Chat Completions fallback 共享读写路径; 非流式 JSON 读取后必须同时补 `applyOpenAICompatibleChatUsageDetailsFromJSON` 和 `OpenAIUsage` cache 字段, 否则 Responses fallback 的 `usage.input_tokens_details.cached_tokens` 或计费中的 `cache_read_input_tokens` 会丢失。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
 - `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
@@ -161,6 +163,9 @@ OpenAI 账号调度:
 
 端点归一化集中在 `backend/internal/handler/endpoint.go`。当前会把根级 `/responses`、`/responses/*`、`/backend-api/codex/responses*` 归一到 `/v1/responses`, 并识别 `/v1/videos/generations` / `/v1/videos/*`。新增网关端点时要同步常量, `NormalizeInboundEndpoint`, `DeriveUpstreamEndpoint`, 路由注册和相关 OpenAI/Claude/Gemini/Grok 分流测试。
 
+## 上游拆分约定
+
+上游 v0.1.146 将多处大文件做纯移动拆分: `setting_service.go`、`setting_handler.go`、`admin_service.go`、`gateway_service.go`、`openai_gateway_service.go`、`openai_ws_forwarder.go`、`usage_log_repo.go` 等保留薄入口, 具体能力分散到同目录按领域命名的文件。后续修改时先按函数名 `rg`, 不要把拆分后的文件重新合并回大文件; Wire/provider 变更仍以 `wire.go`/`wire_gen.go` 为准。
 ## 分层约定
 
 - `internal/handler`: HTTP 请求绑定, 参数校验, 调用 service, 返回响应。

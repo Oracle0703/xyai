@@ -10,6 +10,7 @@ Sub2API 的核心对象:
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端和 Spark 影子账号。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image metadata 等。
+- BatchImageJob/Item/Event: 批量生图任务、单项结果与事件流, 配合用户 frozen balance / hold / settlement / download cleanup。
 - SubscriptionPlan/UserSubscription: 套餐和用户订阅。
 - PaymentOrder/PaymentProviderInstance/PaymentAuditLog: 内置支付系统。
 - GrokOAuthClient/Grok quota snapshot: Grok/xAI OAuth 与订阅配额快照支撑, 运行态快照主要保存在账号 `extra`。
@@ -27,6 +28,7 @@ Sub2API 的核心对象:
 - `user.go`, `auth_identity.go`, `auth_identity_channel.go`
 - `api_key.go`, `group.go`, `account.go`, `account_group.go`
 - `usage_log.go`
+- `batch_image_job.go`, `batch_image_item.go`, `batch_image_event.go`
 - `subscription_plan.go`, `user_subscription.go`
 - `payment_order.go`, `payment_provider_instance.go`, `payment_audit_log.go`
 - `channel_monitor.go`, `channel_monitor_history.go`, `channel_monitor_daily_rollup.go`, `channel_monitor_request_template.go`
@@ -72,6 +74,7 @@ go generate ./cmd/server
 - `backend/migrations/154_account_spark_shadow.sql` + `154a_account_spark_shadow_indexes_notx.sql`(上游 v0.1.142/v0.1.143)为 `accounts` 增加 `parent_account_id`、`quota_dimension(global|spark)`、父账号外键和 active spark 影子一父一影子部分唯一索引。影子账号不能自持凭据, 软删除后可重建同母账号 shadow。
 - `backend/migrations/158_add_group_peak_rate_multiplier.sql` 为 `groups` 增加 `peak_rate_enabled`, `peak_start`, `peak_end`, `peak_rate_multiplier`; 仅订阅类型分组可启用, 窗口格式 `HH:MM`, 不支持跨天, 高峰因子只乘入 token 计费倍率, 图片按次倍率不受影响。
 - `backend/migrations/158_enable_grok_media_generation_groups.sql` 回填既有 Grok group 的 `allow_image_generation=true`, 支撑 Grok images/videos media 路由复用图片能力 gate。
+- `backend/migrations/159_batch_image_foundation.sql` 到 `169_batch_image_parent_batch.sql` 是 batch image 任务基础表、用户 frozen balance、provider refs、定价快照、分组 gate、默认折扣/hold、下载/删除、失败隐藏、任务名和 parent batch 的连续迁移; 这些 migration 已进入上游, 只能追加后续编号, 不要改旧文件。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -173,6 +176,7 @@ User x platform quota:
 - `OpsErrorLog` 可向用户侧和管理侧展示失败请求, 用户侧视图必须走脱敏 DTO 和可见性开关。
 - 删除用户/API Key 后仍需要支持错误日志归因和审计查询; 相关 migration 包含 deleted API key audit、ops error log api key prefix、user time index 等。
 - 图片生成计费包含 image token/metadata 路径; 修改图片用量展示或计费时同时检查 `imageUsage` 前端工具、usage log 写入和 rate-limit cooldown/failover 逻辑。
+- OpenAI 图片请求写 usage 时, 若渠道 token 模式没有任何有效 token/image token 定价并触发缺价兜底, 仍写入零费用但 `billing_mode=image`, 避免 Token Analysis 和用量筛选把图片请求误归为 token 计费。
 
 ## 模型与平台
 

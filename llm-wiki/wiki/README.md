@@ -1,12 +1,17 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-03
+更新时间: 2026-07-08
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
 ## 项目一句话
 
 Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端服务, 用 Vue 3 + Vite + Pinia 提供管理与用户前端, 支持 Claude/OpenAI/Gemini/Antigravity/Grok 等上游账号调度, API Key 分发, 用量计费, 支付, 订阅, 运维监控和请求转发。
+
+
+## 最近同步
+
+- 2026-07-08 同步 `Wei-Shaw/sub2api` `main` 到 `feature/hy/0621_敏感词过滤`, 当前后端版本 `0.1.146`。本次上游引入 batch image 基础能力、service/repository/handler 大文件拆分、i18n 域模块拆分、compact body-signal 路由修复、调度分显示 opt-in, 并在本地冲突解决中保留 RequestArchive、Token Analysis、图片生成、敏感词过滤与用户并发能力。
 
 ## 文档地图
 

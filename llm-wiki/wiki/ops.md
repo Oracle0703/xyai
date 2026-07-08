@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.143`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.146`。
 - `backend/go.mod` 声明 Go `1.26.4`; CI 的 Go 版本校验也应保持 `go1.26.4`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
 
@@ -174,6 +174,7 @@ Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
 
 不要在已经 `cd backend` 后再写 `Join-Path (Get-Location) "backend\..."`, 这会生成 `backend/backend` 缓存目录; 该目录可能被 Go/gopls 暂时锁住, 清理会反复失败并污染后续状态判断。
 
+2026-07-08 upstream merge 验证基线: Windows 下继续使用 repo-local `backend/.go-test-cache` 并设置 `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE`, 已验证 `go test -tags=unit -p 1 -count=1 ./internal/service`、`./cmd/server ./internal/handler ./internal/server/routes` 和 `cmd.exe /c pnpm --dir frontend run typecheck`。全包后端测试日志若混入预期 error 日志, 只以 `^--- FAIL:` / `^FAIL` 判定真实失败。
 前端:
 
 ```bash
