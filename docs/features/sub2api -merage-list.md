@@ -916,3 +916,85 @@ git show --cc <merge-commit-after-user-approval> -- backend/cmd/server/wire_gen.
 git diff --stat a5638a4e5408..6f43986c3
 git log --oneline a5638a4e5408..6f43986c3
 ```
+
+## 2026-07-10 main sync
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/0621_敏感词过滤` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `346aca880a13` |
+| Merge base | `6f43986c376d` |
+| Upstream head merged | `ddb1a210ce67` |
+| Merge commits | `c0b00fb1227e` (to `301c99a26c53`); `a1745d11d6a1` (final to `ddb1a210ce67`) |
+| Upstream version | `0.1.149` |
+| Upstream commits | 93 |
+| Files changed | 245 (`+13931 / -761`) |
+| Conflict files | `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`; `backend/internal/pkg/apicompat/types.go`; `backend/internal/service/openai_gateway_chat_completions_raw_test.go`; `backend/internal/service/openai_gateway_responses_chat_fallback.go` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入当前敏感词过滤分支。首次验证期间上游从 `301c99a26c53` 前进到 `ddb1a210ce67`, 因此继续完成第二个增量 merge; 最终 VERSION 为 `0.1.149`, Go 工具链为 `1.26.5`。
+
+主要上游内容:
+
+| Area | Notes |
+|---|---|
+| OpenAI/Codex | GPT-5.6 `max` effort、Codex 0.144.1、model manifest、Responses/Chat `parallel_tool_calls` 与 `response_format` 兼容映射。 |
+| Compact / gateway | body-signal stream 响应恢复 SSE、SSE→JSON raw output preservation、keepalive 与并发写加固; `response.failed` 对齐错误透传/failover。 |
+| Grok/xAI | 官方 Grok 4.5 支持, 图片/视频价格拆分, 视频按分辨率和秒数计费, quota/media flow 加固。 |
+| Admin / usage | 用户角色创建编辑、用户 Token 排行、用量页延迟健康列、Group 已用额度、API Key 当前并发排序和 last used IP。 |
+| Frontend / ops | 最近 3 个历史版本在线回退, site logo/doc URL sanitization, logout/payment/session 可靠性修复, public settings 请求去重与 feature-access fail-safe, i18n 缺失 key 补齐。 |
+| Data / security | migrations 170-172 增加视频定价/usage metadata; Gemini API Key 鉴权、支付履约 lease、订阅窗口同步 CAS/回读、lenient JSON 上限、HTML escape 与渠道共享定价污染修复。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go` | 上游新增的 `ResponsesToChatCompletionsRequest` 与本地已拆出的 options 版本重复; 保留本地独立转换文件, 将上游 `parallel_tool_calls` / `response_format` 映射补入 `ResponsesToChatCompletionsRequestWithOptions`, 避免重复符号并保留第三方上游过滤策略。 |
+| `backend/internal/pkg/apicompat/types.go` | 同时保留本地 `PromptCacheKey` / `PreviousResponseID` 与上游 `ResponseFormat`, 并保留自动合入的 `ParallelToolCalls`。 |
+| `backend/internal/service/openai_gateway_chat_completions_raw_test.go` | 两侧测试均保留: 本地 compatible cache usage streaming 回归和上游 mapped GPT-5.6 max effort 回归。 |
+| `backend/internal/service/openai_gateway_responses_chat_fallback.go` | 保留本地 `ResponsesToChatCompletionsRequestWithOptions` 与兼容过滤, 同时采用上游 `upstreamModel/billingModel/originalModel` 候选 effort 提取顺序。 |
+| `frontend/src/views/auth/__tests__/EmailVerifyView.spec.ts` | 全量测试发现本地历史 affiliate fixture 已带 `AFF123` 但期望遗漏 `aff_code`; 仅补测试期望, 不改业务逻辑。 |
+| `301c99a26c53..ddb1a210ce67` latest increment | 无冲突; `frontend/src/router/index.ts` 自动合并后同时保留本地 `/image-gen`、Token Analysis、Request Intercept、Prompt Metrics 路由与上游 feature-access guard。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 路由、service、judge fail-open、i18n 和定向回归测试均存在。 |
+| RequestArchive / RequestIntercept | 保留; `/v1`、Gemini、Responses/Codex、根级 Chat/images/videos 中间件链和路由回归均通过。 |
+| Token Analysis | 保留; admin route、handler/service/repository 与归档索引入口未被覆盖。 |
+| 图片生成 | 保留; 用户侧 `/image-gen` 与上游 `/batch-image` 并存, AppSidebar/Router 全量测试通过。 |
+| 用户并发方案 | 保留; preset route、service/runner 和 cache invalidation 定向测试通过。 |
+| OpenAI compatible cache usage | 保留; Responses→Chat fallback 继续识别 `cache_read_input_tokens` / `cached_tokens` / `prompt_cache_hit_tokens`, 与上游 GPT-5.6/response format 兼容共存。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git diff --name-only --diff-filter=U` | Passed, no unresolved merge files. |
+| `rg -n "^(<<<<<<< .+|=======$|>>>>>>> .+)$" backend frontend deploy docs llm-wiki README.md README_CN.md README_JA.md AGENTS.md Dockerfile .github` | Passed, no conflict markers; `rg` exit 1 because no matches. |
+| `git diff --cached --check` | Passed before merge commit. |
+| `go test -tags=unit -p 1 -count=1 ./internal/pkg/apicompat` with repo-local caches and fresh `GOTMPDIR` | Passed (`0.837s`). |
+| Focused local-feature tests in `./internal/server/routes ./internal/service ./internal/handler/admin` | Passed (RequestArchive/Intercept, Prompt Risk, concurrency preset, request intercept admin, Token Analysis). |
+| `go test -tags=unit -p 1 -count=1 ./...` on final `ddb1a210ce67` merge with repo-local caches and fresh `GOTMPDIR` | Passed in one complete run; `internal/service` passed in `109.696s`. |
+| `go test -tags=integration -p 1 -count=1 ./...` on final `ddb1a210ce67` merge with repo-local caches and fresh `GOTMPDIR` | Passed; `internal/service` passed in `57.309s`. |
+| `cmd.exe /c pnpm --dir frontend run lint:check` | Passed. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+| `cmd.exe /c pnpm --dir frontend exec vitest run` | Passed: 151 test files, 955 tests. |
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录 v0.1.149、Go 1.26.5、GPT-5.6/Codex/compact 兼容、Grok 视频按秒计费、支付/订阅并发恢复、角色/Token 排行/版本回退、feature-access、migrations 170-172 和安全加固。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames c0b00fb1227e
+git show --cc c0b00fb1227e -- backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go backend/internal/pkg/apicompat/types.go backend/internal/service/openai_gateway_chat_completions_raw_test.go backend/internal/service/openai_gateway_responses_chat_fallback.go
+git show --stat --summary --find-renames a1745d11d6a1
+git diff --stat 6f43986c376d..ddb1a210ce67
+git log --oneline 6f43986c376d..ddb1a210ce67
+```

@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-08
+更新时间: 2026-07-10
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,7 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
-- 2026-07-08 同步 `Wei-Shaw/sub2api` `main` 到 `feature/hy/0621_敏感词过滤`, 当前后端版本 `0.1.146`。本次上游引入 batch image 基础能力、service/repository/handler 大文件拆分、i18n 域模块拆分、compact body-signal 路由修复、调度分显示 opt-in, 并在本地冲突解决中保留 RequestArchive、Token Analysis、图片生成、敏感词过滤与用户并发能力。
+- 2026-07-10 同步 `Wei-Shaw/sub2api` `main` 到 `feature/hy/0621_敏感词过滤`, 当前后端版本 `0.1.149`。本次上游引入 GPT-5.6/Codex 客户端兼容、compact SSE bridge、Grok 4.5 与视频按秒计费、支付/订阅并发恢复、用户角色/Token 排行、版本回退和前端 feature-access 安全加固; 冲突解决继续保留 RequestArchive/RequestIntercept、Token Analysis、图片生成、敏感词过滤、用户并发和 OpenAI-compatible cache usage。
 
 ## 文档地图
 

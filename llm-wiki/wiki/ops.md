@@ -2,8 +2,8 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.146`。
-- `backend/go.mod` 声明 Go `1.26.4`; CI 的 Go 版本校验也应保持 `go1.26.4`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.149`。
+- `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
 
 ## 本地启动
@@ -239,7 +239,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.9`, working-directory `backend`
-- Go 版本校验: `go1.26.4`
+- Go 版本校验: `go1.26.5`
 
 `.github/workflows/security-scan.yml`:
 
@@ -247,7 +247,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 前端: `pnpm audit --prod --audit-level=high --json > audit.json || true`
 - audit 例外检查: `tools/check_pnpm_audit_exceptions.py --audit frontend/audit.json --exceptions .github/audit-exceptions.yml`
 
-`.github/workflows/release.yml` 负责 tag `v*` 发布。
+`.github/workflows/release.yml` 负责 tag `v*` 发布。管理端版本徽章可查询最近 3 个 GitHub release 并触发在线回退; 服务端实现位于 `internal/service/update_service.go` 和 `internal/repository/github_release_service.go`, 回退属于高风险系统操作, 必须保留管理员校验、目标版本校验和执行日志。
 
 ## 配置文件
 

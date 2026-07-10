@@ -6,10 +6,10 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, RPM, 支持模型范围和自定义 `/v1/models` 列表。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, RPM, 支持模型范围和自定义 `/v1/models` 列表。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端和 Spark 影子账号。
 - Channel: 模型平台定价和渠道能力管理。
-- UsageLog: 请求用量记录, billing, token, endpoint, service tier, image metadata 等。
+- UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。
 - BatchImageJob/Item/Event: 批量生图任务、单项结果与事件流, 配合用户 frozen balance / hold / settlement / download cleanup。
 - SubscriptionPlan/UserSubscription: 套餐和用户订阅。
 - PaymentOrder/PaymentProviderInstance/PaymentAuditLog: 内置支付系统。
@@ -75,6 +75,7 @@ go generate ./cmd/server
 - `backend/migrations/158_add_group_peak_rate_multiplier.sql` 为 `groups` 增加 `peak_rate_enabled`, `peak_start`, `peak_end`, `peak_rate_multiplier`; 仅订阅类型分组可启用, 窗口格式 `HH:MM`, 不支持跨天, 高峰因子只乘入 token 计费倍率, 图片按次倍率不受影响。
 - `backend/migrations/158_enable_grok_media_generation_groups.sql` 回填既有 Grok group 的 `allow_image_generation=true`, 支撑 Grok images/videos media 路由复用图片能力 gate。
 - `backend/migrations/159_batch_image_foundation.sql` 到 `169_batch_image_parent_batch.sql` 是 batch image 任务基础表、用户 frozen balance、provider refs、定价快照、分组 gate、默认折扣/hold、下载/删除、失败隐藏、任务名和 parent batch 的连续迁移; 这些 migration 已进入上游, 只能追加后续编号, 不要改旧文件。
+- `backend/migrations/170_add_grok_video_pricing_controls.sql` 为 `groups` 增加视频独立倍率和 480p/720p/1080p 单价; `171_allow_video_usage_without_image_size.sql` 放宽旧 image size 约束; `172_video_per_second_billing_metadata.sql` 为 `usage_logs` 增加视频数量、分辨率、时长并把价格口径明确为 USD/s。视频总成本为分辨率每秒单价乘请求时长; token-mode 渠道的视频行也必须通过约束并完整落 usage。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -119,6 +120,7 @@ go generate ./cmd/server
 - 余额充值金额计算在 `backend/internal/service/payment_amounts.go`: `calculateCreditedBalance` 按充值倍率入账; 订阅套餐 price 是直付价, 不再用余额充值倍率反算支付金额; refund 金额按订单金额、实付金额和币种 fraction digits 计算。
 - 余额扣费在 `usage_billing_repo.go` 先尝试 `balance >= amount` 的原子更新; 不足时仍写入负余额并返回 `BalanceOverdrafted`, 调用方必须据此处理防持续透支策略。
 - 订阅订单履约需要应用兑换倍率并保持幂等审计; validity unit 支持单复数输入归一化。
+- 余额/订阅履约使用 `payment_fulfillment.go` 的 5 分钟 lease: `PAID`/`FAILED` 或超时 `RECHARGING` 订单通过 status + `updated_at` 条件抢占, 完成/失败写回也按 lease version CAS, 防止旧 worker 覆盖新 worker; 通知和 audit action 仍需幂等去重。
 - 管理端订单金额展示应优先读取订单自身 `currency` 字段决定币种符号, 不要只依赖当前 provider 默认币种。
 - 退款 provider 可实现 `payment.RefundQueryProvider`; 网关退款返回 pending 时订单进入 `REFUND_PENDING`, 后台 `POST /api/v1/admin/payment/orders/:id/refund/query` 查询并最终落 `REFUNDED`/`REFUND_FAILED`。匿名 public out_trade_no 查单只返回最小状态字段; resume token 查单才返回支付结果页所需完整合同。
 
@@ -147,6 +149,7 @@ go generate ./cmd/server
 
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
+- API Key 鉴权发现订阅窗口过期时必须同步调用 `EnsureWindowMaintenance`, 用 expected window start 做条件重置并回读数据库快照后再校验限额; 不再异步清零后直接放行。管理员 `ResetUsageWindows` 是显式重置, 会原子更新所选窗口并返回刷新后的订阅。
 - 前端全量“重置配额”会同时传 `daily/weekly/monthly=true`; “重置日限”只传 `daily=true`, 周/月窗口保持不变。
 - 支付订单履约时, 余额充值和订阅购买都会尝试邀请返利。订阅履约先写 `SUBSCRIPTION_ASSIGNED` 审计再执行返利, 最后 `SUBSCRIPTION_SUCCESS`; 历史已有 `SUBSCRIPTION_SUCCESS` 或新审计时不会重复延长订阅。返利幂等通过 `payment_audit_logs` 的 `AFFILIATE_REBATE_APPLIED` / `AFFILIATE_REBATE_SKIPPED` 动作占位和 `order_id, action` 唯一约束防重, SQL 会按 PostgreSQL 与 SQLite 方言分别生成占位符和时间函数。
 
