@@ -393,9 +393,9 @@ func extractCCStreamUsage(payload string) *OpenAIUsage {
 	if !usageResult.Exists() || !usageResult.IsObject() {
 		return nil
 	}
-	u := OpenAIUsage{
-		InputTokens:  int(gjson.Get(payload, "usage.prompt_tokens").Int()),
-		OutputTokens: int(gjson.Get(payload, "usage.completion_tokens").Int()),
+	u, ok := openAIUsageFromGJSON(usageResult)
+	if !ok {
+		return nil
 	}
 	applyOpenAICompatibleCacheUsageFromJSON([]byte(payload), &u, "usage")
 	return &u
