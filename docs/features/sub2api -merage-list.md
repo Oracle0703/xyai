@@ -930,7 +930,7 @@ git log --oneline a5638a4e5408..6f43986c3
 | Merge commits | `c0b00fb1227e` (to `301c99a26c53`); `a1745d11d6a1` (final to `ddb1a210ce67`) |
 | Upstream version | `0.1.149` |
 | Upstream commits | 93 |
-| Files changed | 245 (`+13931 / -761`) |
+| Files changed | 244 (`+13924 / -754`) |
 | Conflict files | `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`; `backend/internal/pkg/apicompat/types.go`; `backend/internal/service/openai_gateway_chat_completions_raw_test.go`; `backend/internal/service/openai_gateway_responses_chat_fallback.go` |
 
 ### Summary
