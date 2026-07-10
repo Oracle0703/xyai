@@ -12,6 +12,8 @@
 
 `APIKeyAuth` 对独占分组(exclusive group)做强制校验: 当 API Key 绑定的用户已不再被授权该独占分组时直接拒绝访问, 避免越权复用; 相关 middleware 单测在 `api_key_auth_test.go`。
 
+Google/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, 不能只解析 `x-goog-api-key` 后跳过 group assignment; 相关边界集中在 `api_key_auth_google.go`。管理端修改用户角色时必须阻止删除/降级最后一名管理员。
+
 前端:
 
 - `frontend/src/stores/auth.ts` 负责 token, refresh token, user, pending auth session。
@@ -41,6 +43,7 @@
 
 - 登录/注册/验证码等认证入口 Redis rate limit。
 - API Key rate limit 和 subscription check。
+- 订阅窗口维护属于鉴权正确性边界: 普通与 Google/Gemini API Key middleware 都必须在放行前同步完成 `EnsureWindowMaintenance` 并使用回读快照复核额度; 维护失败返回 500, 不允许用内存清零值 fail-open。
 - User concurrency 和 account concurrency。
 - RPM cache: user/group/account 维度。
 - Gateway scheduling: sticky session wait, fallback wait, snapshot/outbox, slot cleanup。
@@ -103,6 +106,7 @@ CSP 注意点:
 - 默认策略是 `config.DefaultCSPPolicy`; 部署可用 `security.csp.policy` 覆盖。
 - `security_headers.go` 的 `requiredCSPDirectiveValues` 是"旧自定义策略缺新指令"的运行时补丁列表(支付 SDK 域名、`img-src blob:` 等都走这里)。给 CSP 加新的必需指令时**必须同时改默认串和该列表**, 否则覆盖了 policy 的存量部署不会生效。
 - `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
+- 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
 
 生产环境要谨慎允许 HTTP, private hosts 和 proxy fallback direct, 避免 token 泄露和 SSRF 风险。
 
@@ -184,7 +188,7 @@ OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.
 - 非流式上游错误透传不能二次写响应: `GatewayService` 写完整 JSON 错误后应标记 response committed, handler 层通过 `gatewayForwardErrorAlreadyCommunicated` 跳过通用 fallback; 流式中途错误仍要补协议级终止帧。
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
 - 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
-- OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 避免把 verbose upstream body 直接暴露给用户或前端错误视图。
+- OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 并套用 error passthrough/failover 规则, 不能硬编码 502; 避免把 verbose upstream body 直接暴露给用户或前端错误视图。HTTP 200 SSE 内的失败也要记录 ops error context。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
 - Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。

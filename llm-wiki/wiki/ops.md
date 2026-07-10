@@ -2,8 +2,8 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.146`。
-- `backend/go.mod` 声明 Go `1.26.4`; CI 的 Go 版本校验也应保持 `go1.26.4`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.149`。
+- `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
 
 ## 本地启动
@@ -134,47 +134,85 @@ go test -tags=integration ./...
 golangci-lint run ./...
 ```
 
-Windows 本地验证若遇到 `go-build` / `.test.exe` access denied 或文件锁, 优先使用仓库内 cache 并串行重跑:
+Windows 本地 Go 验证固定入口:
+
+- 不直接用默认 `go env`; 本机默认 `GOMODCACHE` 可能指向 `D:\project\pkg\mod`, 默认 `GOCACHE` 可能指向用户级 `go-build`, 容易出现 `Access is denied` 或 `.test.exe` 文件锁。
+- 固定复用 `backend/.gocache/review-cache` 作为 `GOCACHE`, `backend/.gocache/review-gopath/pkg/mod` 作为 `GOMODCACHE`; 这样第二次以后不需要重新下载 toolchain 和模块。
+- 每一轮测试必须使用新的 `GOTMPDIR`(`backend/.gocache/run-tmp-*`), 不复用上一次的临时目录。Windows 可能短暂占用 `*.test.exe`; 如果复用同一个 `GOTMPDIR`, 下一次容易继续失败。
+- 串行运行 `-p 1 -count=1`; 全包很慢时先跑 smoke 包, 再按风险面追加包。
+- `backend/.gocache` 里若存在历史 `00` 到 `ff` 分片目录、`review-tmp` 或固定 `run-tmp`, 视为旧实验缓存; 稳定入口只依赖 `review-cache`, `review-gopath` 和每轮新建的 `run-tmp-*`。
 
 ```powershell
-cd backend
-New-Item -ItemType Directory -Force -Path .gocache-test,.gotmp-test | Out-Null
-$env:GOCACHE = (Resolve-Path .gocache-test).Path
-$env:GOTMPDIR = (Resolve-Path .gotmp-test).Path
-go test -tags=unit -p 1 -count=1 ./...
-```
-Windows 下 Go 还可能把 module cache / toolchain / sumdb 写到无权限目录。已知本机默认 `GOMODCACHE` 可能是 `D:\project\pkg\mod`, 会出现 `Access is denied`; 若只设置 `GOCACHE/GOTMPDIR`, Go 仍可能回退到用户级 `C:\Users\Admin\AppData\Local\go-build` 或 `C:\Users\Admin\go\pkg\sumdb`。稳定做法是连 `GOPATH/GOMODCACHE` 一起切到仓库内, 并且无论当前在仓库根还是 `backend` 目录, 都先解析仓库根, 避免误拼出 `backend/backend`:
-
-```powershell
+$ErrorActionPreference = "Stop"
 $repo = (git -C . rev-parse --show-toplevel).Trim()
 $backend = Join-Path $repo "backend"
-$cacheRoot = Join-Path $backend ".go-test-cache"
-$env:GOCACHE = Join-Path $cacheRoot "gocache"
-$env:GOTMPDIR = Join-Path $cacheRoot "gotmp"
-$env:GOPATH = Join-Path $cacheRoot "gopath"
+$cacheRoot = Join-Path $backend ".gocache"
+$env:GOCACHE = Join-Path $cacheRoot "review-cache"
+$env:GOPATH = Join-Path $cacheRoot "review-gopath"
 $env:GOMODCACHE = Join-Path $env:GOPATH "pkg\mod"
-New-Item -ItemType Directory -Force -Path $env:GOCACHE,$env:GOTMPDIR,$env:GOMODCACHE | Out-Null
+
+$resolvedRepo = (Resolve-Path -LiteralPath $repo).Path
+foreach ($path in @($env:GOCACHE, $env:GOPATH, $env:GOMODCACHE)) {
+  $parent = Split-Path -Parent $path
+  if (-not (Test-Path -LiteralPath $parent)) {
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+  }
+  $candidate = if (Test-Path -LiteralPath $path) { (Resolve-Path -LiteralPath $path).Path } else { $path }
+  if (-not $candidate.StartsWith($resolvedRepo + [System.IO.Path]::DirectorySeparatorChar)) {
+    throw "Refusing path outside workspace: $candidate"
+  }
+}
+New-Item -ItemType Directory -Force -Path $env:GOCACHE,$env:GOMODCACHE | Out-Null
+
+# 只清理临时执行目录; 不清 review-cache / review-gopath, 否则下次会重新下载和编译。
+Get-ChildItem -LiteralPath $cacheRoot -Directory -Filter "run-tmp-*" -ErrorAction SilentlyContinue |
+  Remove-Item -Recurse -Force
 
 Set-Location $backend
-go test -tags=unit -p 1 -count=1 ./internal/config ./internal/handler ./internal/server/routes
+$packages = @(
+  "./internal/config",
+  "./internal/server/routes",
+  "./internal/handler"
+)
+
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+  $env:GOTMPDIR = Join-Path $cacheRoot ("run-tmp-{0}-{1}" -f (Get-Date -Format "yyyyMMddHHmmss"), $attempt)
+  New-Item -ItemType Directory -Force -Path $env:GOTMPDIR | Out-Null
+  Write-Host "attempt=$attempt GOTMPDIR=$env:GOTMPDIR"
+
+  go test -tags=unit -p 1 -count=1 @packages
+  if ($LASTEXITCODE -eq 0) {
+    break
+  }
+
+  Start-Sleep -Seconds 2
+}
+
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
 ```
 
-验证后清理缓存目录前必须确认目标仍在仓库内:
+常用包组合:
+
+| 场景 | 包 |
+| --- | --- |
+| 后端 smoke / 合并后路由和 handler 基线 | `./internal/config ./internal/server/routes ./internal/handler` |
+| 网关/service 高风险改动 | `./internal/service` |
+| repository 或 SQL 相关改动 | `./internal/repository ./internal/config` |
+| Wire/provider 变更 | `./cmd/server ./internal/handler ./internal/server/routes` |
+
+如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
 ```powershell
-$repo = (git -C . rev-parse --show-toplevel).Trim()
-$target = Join-Path $repo "backend\.go-test-cache"
-$resolvedRepo = (Resolve-Path -LiteralPath $repo).Path
-$resolvedTarget = (Resolve-Path -LiteralPath $target).Path
-if (-not $resolvedTarget.StartsWith($resolvedRepo + [System.IO.Path]::DirectorySeparatorChar)) {
-  throw "Refusing to remove outside workspace: $resolvedTarget"
-}
-Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
+Get-CimInstance Win32_Process |
+  Where-Object { $_.Name -match "^(go|compile|link|vet|.*\.test)\.exe$" } |
+  Select-Object ProcessId,ParentProcessId,Name,CommandLine
 ```
 
 不要在已经 `cd backend` 后再写 `Join-Path (Get-Location) "backend\..."`, 这会生成 `backend/backend` 缓存目录; 该目录可能被 Go/gopls 暂时锁住, 清理会反复失败并污染后续状态判断。
 
-2026-07-08 upstream merge 验证基线: Windows 下继续使用 repo-local `backend/.go-test-cache` 并设置 `GOCACHE/GOTMPDIR/GOPATH/GOMODCACHE`, 已验证 `go test -tags=unit -p 1 -count=1 ./internal/service`、`./cmd/server ./internal/handler ./internal/server/routes` 和 `cmd.exe /c pnpm --dir frontend run typecheck`。全包后端测试日志若混入预期 error 日志, 只以 `^--- FAIL:` / `^FAIL` 判定真实失败。
+2026-07-09 重启后本机复测: 上述固定入口已验证 `go test -tags=unit -p 1 -count=1 ./internal/config ./internal/server/routes ./internal/handler` 通过。复测过程中固定复用同一个 `GOTMPDIR` 曾触发 `config.test.exe` 文件占用; 改为 fresh `run-tmp-*` 后通过。前端同步验证 `cmd.exe /c pnpm --dir frontend run typecheck` 通过。全包后端测试日志若混入预期 error 日志, 只以 `^--- FAIL:` / `^FAIL` 判定真实失败。
 前端:
 
 ```bash
@@ -201,7 +239,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.9`, working-directory `backend`
-- Go 版本校验: `go1.26.4`
+- Go 版本校验: `go1.26.5`
 
 `.github/workflows/security-scan.yml`:
 
@@ -209,7 +247,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 前端: `pnpm audit --prod --audit-level=high --json > audit.json || true`
 - audit 例外检查: `tools/check_pnpm_audit_exceptions.py --audit frontend/audit.json --exceptions .github/audit-exceptions.yml`
 
-`.github/workflows/release.yml` 负责 tag `v*` 发布。
+`.github/workflows/release.yml` 负责 tag `v*` 发布。管理端版本徽章可查询最近 3 个 GitHub release 并触发在线回退; 服务端实现位于 `internal/service/update_service.go` 和 `internal/repository/github_release_service.go`, 回退属于高风险系统操作, 必须保留管理员校验、目标版本校验和执行日志。
 
 ## 配置文件
 

@@ -33,12 +33,13 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 	}
 
 	out := &ChatCompletionsRequest{
-		Model:       req.Model,
-		Messages:    messages,
-		TopP:        req.TopP,
-		Stream:      req.Stream,
-		ToolChoice:  responsesToolChoiceToChatToolChoice(req.ToolChoice),
-		ServiceTier: req.ServiceTier,
+		Model:             req.Model,
+		Messages:          messages,
+		TopP:              req.TopP,
+		Stream:            req.Stream,
+		ParallelToolCalls: req.ParallelToolCalls,
+		ToolChoice:        responsesToolChoiceToChatToolChoice(req.ToolChoice),
+		ServiceTier:       req.ServiceTier,
 	}
 	if !opts.DropTemperature {
 		out.Temperature = req.Temperature
@@ -56,6 +57,9 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 	}
 	if len(req.Tools) > 0 {
 		out.Tools = responsesToolsToChatTools(req.Tools)
+	}
+	if req.Text != nil {
+		out.ResponseFormat = responsesTextFormatToChatResponseFormat(req.Text.Format)
 	}
 
 	return out, nil

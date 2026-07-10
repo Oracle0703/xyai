@@ -46,6 +46,7 @@
 - `requiresAdmin` 检查管理员角色。
 - `requiresPayment` 依赖 public settings 中的 payment 开关。
 - `requiresRiskControl` 依赖 risk control 开关。
+- feature route guard 会先等待 `appStore.fetchPublicSettings()`; 只有 settings 已成功加载且开关显式为 `false` 才重定向。加载失败属于未知状态, 不能误判为功能关闭。`app.ts` 用单一 in-flight promise 合并并发 public-settings 请求, force refresh 也不能让旧请求覆盖新结果。
 - simple mode 会限制部分 SaaS 页面。
 - backend mode 下非管理员只能访问白名单公开路径。
 - chunk load error 会触发一次页面 reload。
@@ -117,6 +118,7 @@ API 模块分布:
 
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 - `frontend/src/components/admin/usage/UsageTable.vue` 的 IP 地址列可渲染 `IpGeoCell`, 并提供批量获取地区工具栏; `frontend/src/utils/ipGeoLookup.ts` 调用 geojs 单查/批量接口, 跳过内网 IP, 成功结果缓存到 localStorage `sub2api:ip-geo-cache:v1` 24 小时。用户侧 UsageView 复用同一表格事件处理。
+- 管理端 UsageView 新增 `UserTokenRanking.vue`, 按筛选条件展示用户 Token 排行; 用量表同时展示由 `latencyHealth.ts` 统一计算的延迟健康等级, 修改阈值或列设置时要同步 `UsageView.spec.ts`、`UserTokenRanking.spec.ts` 和 `latencyHealth.spec.ts`。
 
 用户侧用量页:
 
@@ -138,7 +140,7 @@ API 模块分布:
 
 - `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI 账号创建/编辑能力, 包括 OpenAI-compatible provider preset, endpoint capabilities, Responses WebSocket V2 mode, Codex CLI only 和 Claude Code allowlist。
 - `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。
-- `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
+- `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。Key 列表支持按当前并发排序并展示 last used IP。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
 - `frontend/src/views/admin/AccountsView.vue` 支持从 OpenAI OAuth 母账号创建 Spark 影子账号; 影子账号导出时会被排除, 后端返回 `skipped_shadows` 后前端提示。账号 action menu 的 create spark shadow 只应用于可作为母账号的 OpenAI OAuth 账号。
 - `AccountsView.vue` 的 `scheduler_score` 默认隐藏; 前端只在列可见时传 `include_scheduler_score=1`, 避免账号列表默认触发高成本调度分计算。
 
@@ -146,6 +148,7 @@ API 模块分布:
 
 - `/admin/users` 页面在 `frontend/src/views/admin/UsersView.vue`; 后端 `GET /api/v1/admin/users` 支持 `group_name` 按用户授权分组名模糊过滤, 也支持 `api_key_group_id` 按用户实际拥有的未软删除 API Key 绑定分组精确过滤。
 - API Key 分组筛选选项由 `frontend/src/views/admin/apiKeyGroupFilterOptions.ts` 构建, 会包含停用分组, 便于排查仍绑定到停用分组的 key; 分节 header 使用负数 sentinel, 不要改成 `null` 以免 Select key 冲突。
+- 管理端创建/编辑用户支持显式选择 `user` / `admin` 角色; 后端服务禁止误删最后一名管理员。角色字段或文案变化要同步 User DTO、`UserCreateModal.vue`、`UserEditModal.vue` 和 `admin_service_role_test.go`。
 
 ## Grok 与 Codex 管理端 UI
 
@@ -154,7 +157,9 @@ API 模块分布:
 - Grok 账号配额展示在 `AccountUsageCell.vue`; `GrokQuotaProbeCell.vue` 提供主动 probe, 只对 `platform === "grok" && type === "oauth"` 显示。xAI 不支持 reset 时前端显示 reset unsupported。账号测试 modal 使用 `buildApiUrl` 请求 `/admin/accounts/:id/test`, Grok OAuth 测试会走 xAI Responses 流。
 - `useModelWhitelist.ts` 为 Grok 维护模型候选和常用映射 preset; 修改 Grok 模型名时要同步白名单 selector、平台颜色和 i18n 文案。
 - Grok media 已接入 images/videos 路由后, 前端平台图标、颜色、Grok quota unknown/reset unsupported 文案要与后端 `allow_image_generation` gate 保持一致; 旧 Grok group 由后端 migration 自动回填图片能力。
+- `GroupsView.vue` 的 Grok media 定价把图片与视频控制分离: 视频支持独立倍率以及 480p/720p/1080p 每秒单价, 表单归一化集中在 `groupsImagePricing.ts`; 不要把视频价格回填为图片价格。
 - OpenAI `codex_cli_only` 管理端新增全局 engine fingerprint signals 与 app-server 开关, 设置页入口在 `SettingsView.vue` + `codexFingerprintSignals.ts`; 账号创建/编辑/批量编辑里有账号级 `codex_cli_only_allow_app_server` 开关。
+- `VersionBadge.vue` 展示当前版本及最近 3 个历史版本, 管理员可通过 `frontend/src/api/admin/system.ts` 查询/触发在线回退; 回退按钮必须保留确认、运行状态和失败提示, 不能只改前端版本文本。
 - Dashboard、Group/Model distribution 图表使用 `toFiniteNumber` 兜底, 避免后端返回字符串、null 或 NaN 时污染图表排序和格式化。`DataTable` sortable 表头使用双三角指示和 `aria-sort`, 修改排序 UI 时要保持可访问性语义。
 
 ## 测试与质量

@@ -2,7 +2,7 @@
 
 ## 技术栈与入口
 
-- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.4`。
+- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.5`。
 - HTTP 框架: Gin。
 - ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。
 - 依赖注入: Google Wire, 入口在 `backend/cmd/server/wire.go`, 生成文件 `wire_gen.go`。
@@ -85,9 +85,9 @@
 - `/v1/images/generations` 和 `/v1/images/edits` 对 OpenAI platform 走 OpenAI images handler, 对 Grok platform 走 Grok media handler; 根级别名 `/images/generations`、`/images/edits` 也保留 `RequestArchive` / `RequestIntercept` 中间件链。
 - `/v1/images/batches` 是 batch image 用户侧任务接口族: submit/list/models/get/items/item content/download/cancel/delete/delete outputs。入口在 `backend/internal/handler/batch_image_handler.go`, service/repository 分别在 `backend/internal/service/batch_image*.go` 与 `backend/internal/repository/batch_image*.go`; 受 API Key 用户、分组 `allow_batch_image_generation` 与批量生图折扣/hold multiplier 约束。
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; 当前支持 OAuth 订阅账号的 Responses/Chat 兼容文本与推理流量, API Key 账号不在 Grok 首版范围。
-- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, video model 透传到 xAI `/v1/videos/*`。
+- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
-- `/backend-api/codex/responses` 支持 Codex 直连别名。
+- `/backend-api/codex/responses` 支持 Codex 直连别名; `GET /backend-api/codex/models` 由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 Codex 客户端 model manifest, 入口仍受 API Key 与 group 校验保护。
 
 OpenAI 上游请求会按官方 endpoint 做字段过滤:
 
@@ -95,9 +95,11 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `/v1/chat/completions` raw 直转路径删除 top-level `thinking`, 保留官方 `reasoning_effort`。
 - `/v1/chat/completions` 入口可选注入默认 `reasoning_effort`: 配置 `gateway.openai_default_reasoning_effort`(默认空=关闭)非空时, `applyDefaultOpenAIReasoningEffort` 在 `ForwardAsChatCompletions` 分流前对入站 body 注入一次, 同时覆盖 raw 直转与 CC→Responses 两条上游形状; 注入在 `json.Unmarshal` 前完成, 计费/用量日志自然读到。仅对**映射后** billingModel 命中 `SupportsOpenAIReasoningEffort`(gpt-5.x / o1·o3·o4)的推理模型注入; 客户端经 `reasoning_effort` / `reasoning.effort` / 模型名后缀(`gpt-5-high`)已指定时不覆盖; gate `messages` 存在以排除 Cursor 的 Responses-shape(`input`)透传。非推理模型(gpt-4o 等)不注入, 否则官方上游 400 unsupported parameter。
 - `/v1/chat/completions` raw 直转到 GLM(`glm-*`)上游前会归一化 reasoning effort: `reasoning.effort` 或 `reasoning_effort` 中的 `low`/`medium`/`high` 映射为 `high`, `xhigh`/`extrahigh`/`max`/`ultracode` 映射为 `max`; 其他上游不受影响。
+- GPT-5.6 支持 `max` reasoning effort; effort 提取按 `upstreamModel -> billingModel -> originalModel` 候选顺序判断, 避免账号映射或模型后缀归一化后丢失 `max`/后缀语义。修改模型映射时要同步 raw Chat、Responses fallback、WS ingress 和相关候选测试。
 - Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
 - Anthropic OAuth/SetupToken 转发默认启用客户端 dateline 归一化, 只改写 `system` 或 `<system-reminder>` 内的 `Today's date is YYYY-MM-DD.` 指纹变体, 还原 ASCII 撇号和 `-` 分隔符; API Key 账号和普通用户正文不扫描。
 - OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。
+- Responses/Chat 双向桥接需保留 `parallel_tool_calls`; Responses `text.format` 与 Chat `response_format` 支持 `json_object` / `json_schema` 映射。OpenAI-compatible Responses -> Chat fallback 仍要经过本地 `ResponsesToChatCompletionsRequestWithOptions`, 以保留第三方上游的 temperature/max token 过滤策略。
 
 OpenAI/Codex 兼容桥:
 
@@ -110,9 +112,10 @@ OpenAI/Codex 兼容桥:
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - `openai_gateway_cc_pipeline.go` 是 Chat Completions fallback 共享读写路径; 非流式 JSON 读取后必须同时补 `applyOpenAICompatibleChatUsageDetailsFromJSON` 和 `OpenAIUsage` cache 字段, 否则 Responses fallback 的 `usage.input_tokens_details.cached_tokens` 或计费中的 `cache_read_input_tokens` 会丢失。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
-- `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。
+- `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
+- OpenAI/Grok/Messages 流里的 `response.failed` 要复用 error passthrough 与 failover 规则, 不能硬编码为 502; 已向客户端写入的 in-band SSE 错误同时要落 ops error context, 避免 200 HTTP 流内失败从错误看板消失。
 - OpenAI/ChatGPT/Codex 账号配额查询与重置由 `backend/internal/service/openai_quota_service.go` 提供(上游 v0.1.137): 调 `chatgpt.com/backend-api/wham/usage` 读 rate-limit 窗口、`/wham/rate-limit-reset-credits/consume` 重置 credits; 管理端入口 `GET /api/v1/admin/openai/accounts/:id/quota` 与 `POST .../reset-quota`。上游对未用窗口返回显式 `null`, 消费方按 nil 指针视作"无数据"。
 - OpenAI Codex PAT 账号由 `backend/internal/service/openai_codex_pat_service.go` 校验 `at-*` token, 使用官方 whoami endpoint 读取 email/account/user/plan/FedRAMP 字段。PAT 账号会清理 OAuth-only credential 字段, refresh 时不走 OAuth refresh token。
 - OpenAI 图片生成 Responses 路径会识别 `response.incomplete`: `content_filter`/moderation 视为 400 非重试, 其他 incomplete 视为 502 可 failover。若上游 `response.completed` 但无图片输出, 会记录 ops 诊断摘要并返回 `UpstreamFailoverError{RetryableOnSameAccount:true}`, 先同账号快速重试, 再按 handler 上限换账号。`/v1/responses` 文本请求若未产生图片输出, 不应误触发图片计费。
