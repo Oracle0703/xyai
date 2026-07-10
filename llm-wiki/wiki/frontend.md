@@ -118,7 +118,7 @@ API 模块分布:
 
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 - `frontend/src/components/admin/usage/UsageTable.vue` 的 IP 地址列可渲染 `IpGeoCell`, 并提供批量获取地区工具栏; `frontend/src/utils/ipGeoLookup.ts` 调用 geojs 单查/批量接口, 跳过内网 IP, 成功结果缓存到 localStorage `sub2api:ip-geo-cache:v1` 24 小时。用户侧 UsageView 复用同一表格事件处理。
-- 管理端 UsageView 新增 `UserTokenRanking.vue`, 按筛选条件展示用户 Token 排行; 用量表同时展示由 `latencyHealth.ts` 统一计算的延迟健康等级, 修改阈值或列设置时要同步 `UsageView.spec.ts`、`UserTokenRanking.spec.ts` 和 `latencyHealth.spec.ts`。
+- 管理端 UsageView 新增 `UserTokenRanking.vue`, 按筛选条件展示用户 Token 排行; `frontend/src/api/admin/dashboard.ts` 的 `UserBreakdownParams.request_type` 使用 `UsageRequestType`, 后端 `GetUserBreakdown` 通过 `ParseUsageRequestType` 解析, 不能退回普通 number 造成筛选口径漂移。用量表同时展示由 `latencyHealth.ts` 统一计算的延迟健康等级, 修改阈值或列设置时要同步 `UsageView.spec.ts`、`UserTokenRanking.spec.ts` 和 `latencyHealth.spec.ts`。
 
 用户侧用量页:
 

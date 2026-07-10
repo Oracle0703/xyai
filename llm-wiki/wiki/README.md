@@ -11,7 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
-- 2026-07-10 同步 `Wei-Shaw/sub2api` `main` 到 `feature/hy/0621_敏感词过滤`, 当前后端版本 `0.1.149`。本次上游引入 GPT-5.6/Codex 客户端兼容、compact SSE bridge、Grok 4.5 与视频按秒计费、支付/订阅并发恢复、用户角色/Token 排行、版本回退和前端 feature-access 安全加固; 冲突解决继续保留 RequestArchive/RequestIntercept、Token Analysis、图片生成、敏感词过滤、用户并发和 OpenAI-compatible cache usage。
+- 2026-07-10 同步 `Wei-Shaw/sub2api` `main` 到 `feature/hy/0621_敏感词过滤`, 当前后端版本 `0.1.150`。本次上游引入 GPT-5.6/Codex 客户端兼容与 cache-write 计费、compact SSE bridge、Grok 4.5 与视频按秒计费、支付/订阅并发恢复、用户角色/Token 排行、版本回退、WebSocket 可靠性和前端 feature-access 安全加固; 冲突解决继续保留 RequestArchive/RequestIntercept、Token Analysis、图片生成、敏感词过滤、用户并发和 OpenAI-compatible cache usage。
 
 ## 文档地图
 

@@ -306,20 +306,20 @@
             <table class="table text-sm">
               <thead>
                 <tr>
+                  <th class="w-10">#</th>
                   <th>{{ t('admin.tokenAnalysis.user') }}</th>
                   <th>{{ t('admin.tokenAnalysis.tokens') }}</th>
                   <th>{{ t('admin.tokenAnalysis.cost') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.risk') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="user in users" :key="user.user_id || 0">
+                <tr v-for="(user, index) in users" :key="user.user_id || 0">
+                  <td class="tabular-nums text-gray-500">{{ userRankingRank(index) }}</td>
                   <td>
                     <div class="max-w-[180px] truncate font-medium">{{ user.user_email || '-' }}</div>
                   </td>
-                  <td>{{ formatNumber(user.total_tokens) }}</td>
-                  <td>{{ formatCost(user.actual_cost) }}</td>
-                  <td>{{ percent(user.risk_ratio) }}</td>
+                  <td class="tabular-nums">{{ formatUserRankingTokens(user.total_tokens) }}</td>
+                  <td class="tabular-nums">{{ formatUserRankingCost(user.actual_cost) }}</td>
                 </tr>
                 <tr v-if="!usersLoading && users.length === 0">
                   <td colspan="4" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
@@ -651,6 +651,22 @@ function formatTimeCN(value?: string | null): string {
 
 function formatCost(value: number): string {
   return `$${Number(value || 0).toFixed(4)}`
+}
+
+// 用户排行专用: Token 仅用 M/B(不用 K), 费用统一用 K 单位。
+function formatUserRankingTokens(value: number): string {
+  const n = Number(value || 0)
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
+  return `${(n / 1_000_000).toFixed(1)}M`
+}
+
+function formatUserRankingCost(value: number): string {
+  return `$${(Number(value || 0) / 1000).toFixed(1)}K`
+}
+
+function userRankingRank(index: number): number {
+  return (usersPagination.page - 1) * usersPagination.page_size + index + 1
 }
 
 function percent(value: number): string {

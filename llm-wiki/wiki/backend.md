@@ -95,10 +95,10 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - `/v1/chat/completions` raw 直转路径删除 top-level `thinking`, 保留官方 `reasoning_effort`。
 - `/v1/chat/completions` 入口可选注入默认 `reasoning_effort`: 配置 `gateway.openai_default_reasoning_effort`(默认空=关闭)非空时, `applyDefaultOpenAIReasoningEffort` 在 `ForwardAsChatCompletions` 分流前对入站 body 注入一次, 同时覆盖 raw 直转与 CC→Responses 两条上游形状; 注入在 `json.Unmarshal` 前完成, 计费/用量日志自然读到。仅对**映射后** billingModel 命中 `SupportsOpenAIReasoningEffort`(gpt-5.x / o1·o3·o4)的推理模型注入; 客户端经 `reasoning_effort` / `reasoning.effort` / 模型名后缀(`gpt-5-high`)已指定时不覆盖; gate `messages` 存在以排除 Cursor 的 Responses-shape(`input`)透传。非推理模型(gpt-4o 等)不注入, 否则官方上游 400 unsupported parameter。
 - `/v1/chat/completions` raw 直转到 GLM(`glm-*`)上游前会归一化 reasoning effort: `reasoning.effort` 或 `reasoning_effort` 中的 `low`/`medium`/`high` 映射为 `high`, `xhigh`/`extrahigh`/`max`/`ultracode` 映射为 `max`; 其他上游不受影响。
-- GPT-5.6 支持 `max` reasoning effort; effort 提取按 `upstreamModel -> billingModel -> originalModel` 候选顺序判断, 避免账号映射或模型后缀归一化后丢失 `max`/后缀语义。修改模型映射时要同步 raw Chat、Responses fallback、WS ingress 和相关候选测试。
+- GPT-5.6 支持 `max` reasoning effort; effort 提取按 `upstreamModel -> billingModel -> originalModel` 候选顺序判断, 避免账号映射或模型后缀归一化后丢失 `max`/后缀语义。该候选顺序同时覆盖 WS passthrough usage metadata。修改模型映射时要同步 raw Chat、Responses fallback、WS ingress 和相关候选测试。
 - Anthropic/Gemini 等非 OpenAI 协议的 thinking 映射不复用该过滤规则, 需按各自协议能力单独处理。
 - Anthropic OAuth/SetupToken 转发默认启用客户端 dateline 归一化, 只改写 `system` 或 `<system-reminder>` 内的 `Today's date is YYYY-MM-DD.` 指纹变体, 还原 ASCII 撇号和 `-` 分隔符; API Key 账号和普通用户正文不扫描。
-- OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。
+- OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)以及 `cache_write_tokens` / `cache_creation_input_tokens` 等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。GPT-5.6 cache write 必须从普通 input 中拆出并按官方 cache-write 价格计费, 显式 0 价格也不能被 fallback 覆盖。
 - Responses/Chat 双向桥接需保留 `parallel_tool_calls`; Responses `text.format` 与 Chat `response_format` 支持 `json_object` / `json_schema` 映射。OpenAI-compatible Responses -> Chat fallback 仍要经过本地 `ResponsesToChatCompletionsRequestWithOptions`, 以保留第三方上游的 temperature/max token 过滤策略。
 
 OpenAI/Codex 兼容桥:
@@ -112,6 +112,7 @@ OpenAI/Codex 兼容桥:
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - `openai_gateway_cc_pipeline.go` 是 Chat Completions fallback 共享读写路径; 非流式 JSON 读取后必须同时补 `applyOpenAICompatibleChatUsageDetailsFromJSON` 和 `OpenAIUsage` cache 字段, 否则 Responses fallback 的 `usage.input_tokens_details.cached_tokens` 或计费中的 `cache_read_input_tokens` 会丢失。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
+- OpenAI WebSocket 传输层会把 Windows `WSAECONNRESET` / `WSAECONNABORTED` 等连接重置识别为可分类的网络错误; 不要把这类平台错误文本当作业务响应或未知失败。
 - `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
