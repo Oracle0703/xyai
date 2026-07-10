@@ -176,7 +176,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
 - 会话级自动屏蔽默认关, 开关 `cyber_session_block_enabled` + `cyber_session_block_ttl_seconds`(默认 3600s), runtime 经 `SettingService.GetCyberSessionBlockRuntime` 进程内缓存(60s)避免热路径 DB 往返。屏蔽 key 仅由显式会话标识派生(header session_id/conversation_id 或 body `prompt_cache_key`, 混入 apiKeyID 后 sha256); 无显式标识返回空串必须放行, 不退化到 user/apikey/内容派生。store 由 repository `gatewayCache` 类型断言接入(`CyberSessionBlockStore`), 测试 stub 不实现时屏蔽能力静默降级关闭。
 
-OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens` 和 `cache_creation_input_tokens`。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
+OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 修改流式响应时要同时验证:
 
 - SSE flush。
@@ -184,6 +184,7 @@ OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.
 - 上游错误体截断。
 - client disconnect。
 - OpenAI Responses WebSocket fallback。
+- Windows WebSocket reset/abort 错误分类(`WSAECONNRESET` / `WSAECONNABORTED`)。
 - Chat Completions -> Responses bridge 的 item 生命周期完整性, 包括动态 item id 一致性、reasoning item、content part 和 tool call done 事件。
 - 非流式上游错误透传不能二次写响应: `GatewayService` 写完整 JSON 错误后应标记 response committed, handler 层通过 `gatewayForwardErrorAlreadyCommunicated` 跳过通用 fallback; 流式中途错误仍要补协议级终止帧。
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。

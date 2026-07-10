@@ -164,7 +164,7 @@ go generate ./cmd/server
 
 计费相关修改要同时检查用量写入, dashboard aggregation, subscription progress, billing cache 和前端展示。
 
-用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。修改用量聚合或展示时要保持两者分别统计。
+用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。修改用量聚合或展示时要保持三类 token 互斥统计。
 
 用户侧用量统计已与管理端过滤口径对齐: `UsageLogFilters` 支持 `group_id`、请求模型源(`requested`)、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和日期范围; `/api/v1/usage/dashboard/snapshot-v2` 可以一次返回 trend、model、group 分布。新增 usage 聚合字段时要同时检查 `usage_handler.go`、`usage_service.go`、`usage_log_repo.go`、前端 `frontend/src/api/usage.ts` 和 `UsageView.vue`。
 

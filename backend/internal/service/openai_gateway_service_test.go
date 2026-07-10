@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/model"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
@@ -2835,6 +2836,36 @@ func TestExtractOpenAIUsageFromJSONBytes_AcceptsResponseAndChatUsageShapes(t *te
 	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":20,"output_tokens":2,"cache_creation_input_tokens":19,"input_tokens_details":{"cache_write_tokens":7}}}`))
 	require.True(t, ok)
 	require.Equal(t, 7, usage.CacheCreationInputTokens, "官方嵌套字段应优先于兼容顶层别名")
+}
+
+func TestApplyOpenAICompatibleResponsesUsageDetailsPreservesCacheWrite(t *testing.T) {
+	usage := &apicompat.ResponsesUsage{
+		InputTokensDetails: &apicompat.ResponsesInputTokensDetails{CacheWriteTokens: 4},
+	}
+
+	applyOpenAICompatibleResponsesUsageDetailsFromJSON(
+		[]byte(`{"usage":{"prompt_cache_hit_tokens":2}}`),
+		usage,
+		"usage",
+	)
+
+	require.Equal(t, 2, usage.InputTokensDetails.CachedTokens)
+	require.Equal(t, 4, usage.InputTokensDetails.CacheWriteTokens)
+}
+
+func TestApplyOpenAICompatibleChatUsageDetailsPreservesCacheWrite(t *testing.T) {
+	usage := &apicompat.ChatUsage{
+		PromptTokensDetails: &apicompat.ChatTokenDetails{CacheWriteTokens: 4},
+	}
+
+	applyOpenAICompatibleChatUsageDetailsFromJSON(
+		[]byte(`{"usage":{"prompt_cache_hit_tokens":2}}`),
+		usage,
+		"usage",
+	)
+
+	require.Equal(t, 2, usage.PromptTokensDetails.CachedTokens)
+	require.Equal(t, 4, usage.PromptTokensDetails.CacheWriteTokens)
 }
 
 func TestParseSSEUsage_CompatibleCacheFieldsFallback(t *testing.T) {

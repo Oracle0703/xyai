@@ -692,34 +692,23 @@ func applyOpenAICompatibleCacheUsageFromJSON(data []byte, usage *OpenAIUsage, us
 	if base == "" {
 		base = "usage"
 	}
-	path := func(suffix string) string {
-		return base + "." + suffix
-	}
-
-	cacheCreation := int(gjson.GetBytes(data, path("cache_creation_input_tokens")).Int())
+	usageResult := gjson.GetBytes(data, base)
+	cacheCreation := openAICacheCreationTokensFromUsage(usageResult)
 	if cacheCreation == 0 {
-		cacheCreation5m := int(gjson.GetBytes(data, path("cache_creation.ephemeral_5m_input_tokens")).Int())
-		cacheCreation1h := int(gjson.GetBytes(data, path("cache_creation.ephemeral_1h_input_tokens")).Int())
+		cacheCreation5m := int(usageResult.Get("cache_creation.ephemeral_5m_input_tokens").Int())
+		cacheCreation1h := int(usageResult.Get("cache_creation.ephemeral_1h_input_tokens").Int())
 		if cacheCreation5m > 0 || cacheCreation1h > 0 {
 			cacheCreation = cacheCreation5m + cacheCreation1h
 		}
 	}
-	usage.CacheCreationInputTokens = cacheCreation
+	if cacheCreation > 0 {
+		usage.CacheCreationInputTokens = cacheCreation
+	}
 
-	cacheRead := int(gjson.GetBytes(data, path("cache_read_input_tokens")).Int())
-	if cacheRead == 0 {
-		cacheRead = int(gjson.GetBytes(data, path("prompt_tokens_details.cached_tokens")).Int())
+	cacheRead := openAICacheReadTokensFromUsage(usageResult)
+	if cacheRead > 0 {
+		usage.CacheReadInputTokens = cacheRead
 	}
-	if cacheRead == 0 {
-		cacheRead = int(gjson.GetBytes(data, path("input_tokens_details.cached_tokens")).Int())
-	}
-	if cacheRead == 0 {
-		cacheRead = int(gjson.GetBytes(data, path("cached_tokens")).Int())
-	}
-	if cacheRead == 0 {
-		cacheRead = int(gjson.GetBytes(data, path("prompt_cache_hit_tokens")).Int())
-	}
-	usage.CacheReadInputTokens = cacheRead
 }
 
 func applyOpenAICompatibleResponsesUsageDetailsFromJSON(data []byte, usage *apicompat.ResponsesUsage, usagePath string) {
@@ -728,8 +717,13 @@ func applyOpenAICompatibleResponsesUsageDetailsFromJSON(data []byte, usage *apic
 	}
 	compatUsage := OpenAIUsage{}
 	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
-	if compatUsage.CacheReadInputTokens > 0 && (usage.InputTokensDetails == nil || usage.InputTokensDetails.CachedTokens == 0) {
-		usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{CachedTokens: compatUsage.CacheReadInputTokens}
+	if compatUsage.CacheReadInputTokens > 0 {
+		if usage.InputTokensDetails == nil {
+			usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{}
+		}
+		if usage.InputTokensDetails.CachedTokens == 0 {
+			usage.InputTokensDetails.CachedTokens = compatUsage.CacheReadInputTokens
+		}
 	}
 }
 
@@ -739,8 +733,13 @@ func applyOpenAICompatibleChatUsageDetailsFromJSON(data []byte, usage *apicompat
 	}
 	compatUsage := OpenAIUsage{}
 	applyOpenAICompatibleCacheUsageFromJSON(data, &compatUsage, usagePath)
-	if compatUsage.CacheReadInputTokens > 0 && (usage.PromptTokensDetails == nil || usage.PromptTokensDetails.CachedTokens == 0) {
-		usage.PromptTokensDetails = &apicompat.ChatTokenDetails{CachedTokens: compatUsage.CacheReadInputTokens}
+	if compatUsage.CacheReadInputTokens > 0 {
+		if usage.PromptTokensDetails == nil {
+			usage.PromptTokensDetails = &apicompat.ChatTokenDetails{}
+		}
+		if usage.PromptTokensDetails.CachedTokens == 0 {
+			usage.PromptTokensDetails.CachedTokens = compatUsage.CacheReadInputTokens
+		}
 	}
 }
 func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *OpenAIUsage) {
@@ -842,6 +841,7 @@ func openAICacheReadTokensFromUsage(value gjson.Result) int {
 		value.Get("cache_read_input_tokens"),
 		value.Get("cache_read_tokens"),
 		value.Get("cached_tokens"),
+		value.Get("prompt_cache_hit_tokens"),
 	)
 }
 
