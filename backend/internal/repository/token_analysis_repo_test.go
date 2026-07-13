@@ -104,7 +104,8 @@ func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) 
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM \([\s\S]*SELECT s\.user_id[\s\S]*GROUP BY s\.user_id, u\.email\s*\) grouped`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(1)))
-	mock.ExpectQuery(`SELECT[\s\S]*NULL::BIGINT AS api_key_id[\s\S]*'' AS api_key_name[\s\S]*GROUP BY s\.user_id, u\.email[\s\S]*ORDER BY actual_cost DESC`).
+	// 默认按 total_tokens 降序(与项目排行一致); 次级 actual_cost / request_count。
+	mock.ExpectQuery(`SELECT[\s\S]*NULL::BIGINT AS api_key_id[\s\S]*'' AS api_key_name[\s\S]*GROUP BY s\.user_id, u\.email[\s\S]*ORDER BY total_tokens desc, actual_cost DESC, request_count DESC`).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"user_id", "user_email", "api_key_id", "api_key_name", "request_count", "risky_request_count",
 			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
@@ -112,7 +113,7 @@ func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) 
 		}).AddRow(userID, "dev@example.com", nil, "", int64(5), int64(2), int64(1200), int64(700), int64(100), int64(300), int64(100), 1.5, 0.7, now))
 
 	items, result, err := repo.ListUserUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
-		pagination.PaginationParams{Page: 1, PageSize: 20})
+		pagination.PaginationParams{Page: 1, PageSize: 20, SortBy: "total_tokens", SortOrder: "desc"})
 
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.Total)
@@ -124,6 +125,30 @@ func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) 
 	require.Equal(t, int64(1200), items[0].TotalTokens)
 	require.InDelta(t, 300.0/1100.0, items[0].CacheHitRate, 0.0001)
 	require.InDelta(t, 0.4, items[0].RiskRatio, 0.0001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryListUserUsageSortableByActualCost(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+
+	mock.ExpectQuery("SELECT COUNT").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	// 显式 sort_by=actual_cost 时走费用主序。
+	mock.ExpectQuery("ORDER BY actual_cost asc, total_tokens DESC, request_count DESC").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "user_email", "api_key_id", "api_key_name", "request_count", "risky_request_count",
+			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
+			"actual_cost", "risky_cost", "last_event_time",
+		}))
+
+	_, _, err = repo.ListUserUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
+		pagination.PaginationParams{Page: 1, PageSize: 20, SortBy: "actual_cost", SortOrder: "asc"})
+
+	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 func TestTokenAnalysisRepositoryListProjectUsageSortable(t *testing.T) {
