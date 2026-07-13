@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Pagination from '@/components/common/Pagination.vue'
 import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
+import OrganizationUsageOverview from '@/components/admin/organization-usage/OrganizationUsageOverview.vue'
+import OrganizationUsageSummary from '@/components/admin/organization-usage/OrganizationUsageSummary.vue'
 import type { OrganizationUsageSummaryResponse } from '@/api/admin/organizationUsage'
 import OrganizationUsageView from '../OrganizationUsageView.vue'
 
@@ -307,6 +309,31 @@ describe('OrganizationUsageView', () => {
     await flushPromises()
     expect(wrapper.find('[title="fresh@example.net"]').exists()).toBe(true)
     expect(wrapper.find('[title="stale@example.net"]').exists()).toBe(false)
+  })
+
+  it('hides stale overview and organization totals while a filtered report is loading', async () => {
+    let resolveFiltered!: (value: OrganizationUsageSummaryResponse) => void
+    const filteredRequest = new Promise<OrganizationUsageSummaryResponse>((resolve) => { resolveFiltered = resolve })
+    getSummary.mockReset()
+      .mockResolvedValueOnce(summary())
+      .mockReturnValueOnce(filteredRequest)
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.findComponent(OrganizationUsageOverview).exists()).toBe(true)
+    expect(wrapper.findComponent(OrganizationUsageSummary).exists()).toBe(true)
+
+    await wrapper.get('[data-sort-key="requests"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="people-loading"]').exists()).toBe(true)
+    expect(wrapper.findComponent(OrganizationUsageOverview).exists()).toBe(false)
+    expect(wrapper.findComponent(OrganizationUsageSummary).exists()).toBe(false)
+
+    resolveFiltered(summary())
+    await flushPromises()
+    expect(wrapper.findComponent(OrganizationUsageOverview).exists()).toBe(true)
+    expect(wrapper.findComponent(OrganizationUsageSummary).exists()).toBe(true)
   })
 
   it('aborts an in-flight load when unmounted', async () => {

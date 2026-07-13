@@ -25,13 +25,13 @@
 
       <template v-if="!errorMessage">
         <OrganizationUsageOverview
-          v-if="report"
+          v-if="report && !loading"
           :overview="report.overview"
           :champions="report.champions"
           :range="report.range"
         />
         <OrganizationUsageSummary
-          v-if="report"
+          v-if="report && !loading"
           :organizations="report.organizations"
           :selected-organization="applied.organization"
           @select="selectOrganization"

@@ -204,6 +204,14 @@ if ($LASTEXITCODE -ne 0) {
 
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
+Repository 的纯 PostgreSQL integration 可显式复用外部临时数据库, 不启动 Testcontainers PostgreSQL/Redis。仅在 `-run` 已限定为不依赖 Redis 的数据库测试时设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN`; 默认未设置时仍使用 CI 的 Docker Testcontainers 完整路径。DSN 只通过当前进程环境变量传入, 不写入仓库或测试日志。
+
+```powershell
+$env:SUB2API_POSTGRES_ONLY_INTEGRATION_DSN = "host=127.0.0.1 port=55432 user=postgres dbname=postgres sslmode=disable"
+go test -tags=integration -p 1 -count=1 ./internal/repository -run OrganizationUsage -v
+Remove-Item Env:SUB2API_POSTGRES_ONLY_INTEGRATION_DSN
+```
+
 ```powershell
 Get-CimInstance Win32_Process |
   Where-Object { $_.Name -match "^(go|compile|link|vet|.*\.test)\.exe$" } |

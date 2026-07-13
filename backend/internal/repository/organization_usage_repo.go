@@ -255,7 +255,7 @@ func organizationUsageActiveUsersCTE() string {
     FROM users u
     WHERE u.deleted_at IS NULL
       AND u.status = 'active'
-      AND ($3 = '' OR u.email ILIKE $3)
+      AND ($3 = '' OR u.email ILIKE $3 ESCAPE E'\\')
 )`, organizationUsageOrganizationExpression("u"))
 }
 
@@ -318,7 +318,7 @@ func organizationUsageSummaryItemsCountQuery() string {
     FROM users u
     WHERE u.deleted_at IS NULL
       AND u.status = 'active'
-      AND ($1 = '' OR u.email ILIKE $1)
+      AND ($1 = '' OR u.email ILIKE $1 ESCAPE E'\\')
 )
 SELECT COUNT(*)::bigint
 FROM active_users
@@ -439,7 +439,7 @@ ranked AS (
     SELECT pa.*,
         ROW_NUMBER() OVER (
             PARTITION BY granularity
-            ORDER BY total_tokens DESC, actual_cost DESC, requests DESC, user_id ASC, bucket_start ASC
+            ORDER BY pa.total_tokens DESC, pa.actual_cost DESC, pa.requests DESC, pa.user_id ASC, pa.bucket_start ASC
         ) AS rn
     FROM period_aggregates pa
     JOIN selected_users su ON su.user_id = pa.user_id
@@ -525,5 +525,10 @@ func organizationUsageSearchPattern(q string) string {
 	if q == "" {
 		return ""
 	}
-	return "%" + q + "%"
+	escaped := strings.NewReplacer(
+		`\`, `\\`,
+		`%`, `\%`,
+		`_`, `\_`,
+	).Replace(q)
+	return "%" + escaped + "%"
 }

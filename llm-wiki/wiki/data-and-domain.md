@@ -174,7 +174,7 @@ go generate ./cmd/server
 - 活跃用户是 `users.deleted_at IS NULL AND status='active'`, 角色同时包含 user/admin。组织按当前 `users.email` 的 `@` 后域名做大小写不敏感精确匹配: `xunyou.com -> xunyou`, `wsdashi.com -> wsdashi`, 其他域名及其子域名都归 `other`。
 - 报表指标固定为 requests、input/output/cache creation/cache read tokens、total tokens 和 actual cost; total tokens 是四类 token 之和。`used_users` 表示选区内至少存在一条 usage log 的活跃用户。
 - 个人 peak 与团队 champion 都按 `total_tokens DESC, actual_cost DESC, requests DESC, user_id ASC` 选择; 个人同用户同指标周期再按 period start 保持确定性。没有 usage log 的用户 peak 为 null。
-- `as_of` 快照由 service 按服务器当前时间裁剪后签发, 防止客户端时钟超前; 日期 end 只进一步限制 usage log 查询, 不改变响应中的 signed snapshot。快照不回溯用户状态或邮箱, active user 和组织分类始终按查询时的当前 `users` 数据计算。
+- `as_of` 由 service 规范化为 UTC 并裁剪到不晚于服务器当前时间, 防止客户端时钟超前; 日期 end 只进一步限制 usage log 查询, 不改变响应中的 canonical `as_of`。它不是密码学签名, 也不回溯用户状态或邮箱; active user 和组织分类始终按查询时的当前 `users` 数据计算。
 
 User x platform quota:
 

@@ -49,6 +49,10 @@ func TestMain(m *testing.M) {
 		log.Printf("failed to init timezone: %v", err)
 		os.Exit(1)
 	}
+	if dsn := strings.TrimSpace(os.Getenv("SUB2API_POSTGRES_ONLY_INTEGRATION_DSN")); dsn != "" {
+		runPostgresOnlyIntegrationTests(m, ctx, dsn)
+		return
+	}
 
 	if !dockerIsAvailable(ctx) {
 		// In CI we expect Docker to be available so integration tests should fail loudly.
@@ -131,6 +135,28 @@ func TestMain(m *testing.M) {
 	_ = integrationRedis.Close()
 	_ = integrationDB.Close()
 
+	os.Exit(code)
+}
+
+func runPostgresOnlyIntegrationTests(m *testing.M, ctx context.Context, dsn string) {
+	var err error
+	integrationDB, err = openSQLWithRetry(ctx, dsn, 30*time.Second)
+	if err != nil {
+		log.Printf("failed to open external postgres: %v", err)
+		os.Exit(1)
+	}
+	if err := ApplyMigrations(ctx, integrationDB); err != nil {
+		log.Printf("failed to apply db migrations: %v", err)
+		_ = integrationDB.Close()
+		os.Exit(1)
+	}
+
+	drv := entsql.OpenDB(dialect.Postgres, integrationDB)
+	integrationEntClient = dbent.NewClient(dbent.Driver(drv))
+
+	code := m.Run()
+	_ = integrationEntClient.Close()
+	_ = integrationDB.Close()
 	os.Exit(code)
 }
 

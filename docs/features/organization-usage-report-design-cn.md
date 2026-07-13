@@ -121,12 +121,14 @@ period_start ASC
 1. 前端导出开始时生成候选 `as_of`。
 2. Summary 首次请求将候选值发送到服务端。
 3. Service 将候选值转换为 UTC；若候选值晚于服务端当前时间，则裁剪到服务端当前时间。
-4. Summary 响应在 `range.as_of` 返回 canonical signed snapshot。
-5. 后续 Summary 分页和日/周/月 Periods 分页全部复用该签名值。
+4. Summary 响应在 `range.as_of` 返回服务端裁剪并规范化后的 canonical UTC 时间戳。
+5. 后续 Summary 分页和日/周/月 Periods 分页全部复用该 canonical 值。
 
 实际用量查询上界取日期范围结束时间和 `as_of` 的较早者。若 `as_of` 早于开始时间，查询范围钳制为空区间。
 
 `as_of` 只冻结用量记录上界，不冻结用户表；账号是否 active、当前邮箱和组织归属仍以每次查询时的当前 `users` 数据为准。
+
+`as_of` 不是密码学签名或服务端 snapshot id，不提供防篡改能力；管理员可以显式传入更早的合法时间戳以限制用量查询上界。
 
 ## 系统架构
 
@@ -148,7 +150,7 @@ flowchart LR
 | 层 | 主要职责 | 文件 |
 | --- | --- | --- |
 | Handler | 读取查询参数、严格解析分页、映射 400/500、传播请求 Context | `backend/internal/handler/admin/organization_usage_handler.go` |
-| Service | 日期、枚举、分页、排序校验；北京时间转换；`as_of` 签名 | `backend/internal/service/organization_usage_service.go` |
+| Service | 日期、枚举、分页、排序校验；北京时间转换；`as_of` UTC 规范化与服务端时间裁剪 | `backend/internal/service/organization_usage_service.go` |
 | Repository | active user CTE、组织分类、用量聚合、峰值、Champion、分页 SQL | `backend/internal/repository/organization_usage_repo.go` |
 | Routes/Wire | 注册管理员路由和依赖注入 | `backend/internal/server/routes/admin.go`、各层 `wire.go` |
 
@@ -163,6 +165,8 @@ flowchart LR
 5. 日/周/月 `period_aggregates` 分别聚合周期数据。
 6. 窗口函数按稳定规则选择个人峰值和团队 Champion。
 7. Periods 只从存在用量记录的周期聚合结果返回数据，不生成全零明细。
+
+2026-07-13 的真实 PostgreSQL 性能基线见 `docs/features/organization-usage-report-performance-cn.md`。当前 Summary 人员查询在特定基数下会因三个 peak CTE 嵌套循环重复扫描 `ranked_periods`；后续先收敛 peak 连接形状，再减少导出分页重复查询，不以新增索引或单纯提高超时替代结构修复。
 
 组织汇总查询不应用当前组织筛选，因此页面始终能展示三组横向对比；总体指标、Champion 和人员表应用当前组织筛选。组织汇总仍响应日期范围和邮箱搜索。
 
@@ -201,7 +205,7 @@ GET /api/v1/admin/usage/organization-report/summary
 
 | 字段 | 内容 |
 | --- | --- |
-| `range` | `start_date`、`end_date`、可选签名 `as_of` |
+| `range` | `start_date`、`end_date`、可选 canonical `as_of` |
 | `overview` | 当前筛选下的活跃人数、有用量人数和聚合指标 |
 | `organizations` | 固定三组组织汇总 |
 | `champions` | `day`、`week`、`month` 团队 Champion |
@@ -275,7 +279,7 @@ organization_usage_<start_date>_to_<end_date>.xlsx
 
 - API 分页大小固定为 500。
 - 先完整拉取 Summary，再依次拉取 day、week、month Periods。
-- Summary 首响应签发的 `as_of` 必须用于后续所有分页。
+- Summary 首响应返回的 canonical `as_of` 必须用于后续所有分页。
 - 人员汇总保留零用量活跃账号；周期明细不生成全零行。
 - 人员汇总和三类周期明细合计最多 100,000 行。
 - 单 Sheet 最多 1,048,575 条数据行，为 Excel 最大行数预留一行表头。
@@ -289,7 +293,7 @@ organization_usage_<start_date>_to_<end_date>.xlsx
 - `sort_by`、`sort_order`、`organization`、`granularity` 使用严格 allowlist，排序 SQL 不接受任意字符串。
 - Handler 使用 `c.Request.Context()`，客户端取消请求可向 Repository 传播。
 - 原始 `usage_logs.created_at` 时间条件在聚合前执行，避免先对整表做时区表达式计算。
-- 导出通过服务端签名快照降低新增用量导致分页漂移的风险。
+- 导出通过复用服务端裁剪并规范化的 `as_of` 用量上界，降低新增用量导致分页漂移的风险。
 - 客户端和 Excel 双重行数限制防止浏览器内存和工作簿格式失控。
 
 ## 影响范围
@@ -307,7 +311,7 @@ organization_usage_<start_date>_to_<end_date>.xlsx
 | 层级 | 重点场景 |
 | --- | --- |
 | Repository | 域名精确匹配、大小写、子域名、active/删除过滤、零用量用户、北京时间日界线、周一边界、部分周期、聚合和稳定并列 |
-| Service | 日期解析、366 天限制、`as_of` 签名、枚举和排序白名单、分页默认值 |
+| Service | 日期解析、366 天限制、`as_of` UTC 规范化和服务端时间裁剪、枚举和排序白名单、分页默认值 |
 | Handler/Routes | 查询绑定、400/500 映射、Context 传播、管理员路由注册 |
 | 前端页面 | 路由、侧栏、三种日期模式、组织点击、服务端排序分页、加载/空/错误状态 |
 | Excel | 六 Sheet、表头与数值、零用量人员、有用量明细、取消导出、空工作簿、行数上限 |

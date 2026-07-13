@@ -26,6 +26,14 @@ func TestOrganizationUsageSQL_UsesExactDomainAndActiveUserContract(t *testing.T)
 	require.Contains(t, normalized, "at time zone 'asia/shanghai'")
 	require.Contains(t, normalized, "date_trunc('week'")
 	require.Contains(t, normalized, "order by total_tokens desc, actual_cost desc, requests desc, user_id asc")
+	require.Contains(t, strings.ToLower(organizationUsageChampionsQuery()), "order by pa.total_tokens desc, pa.actual_cost desc, pa.requests desc, pa.user_id asc")
+}
+
+func TestOrganizationUsageSearchPattern_EscapesPostgresLikeWildcards(t *testing.T) {
+	require.Empty(t, organizationUsageSearchPattern(""))
+	require.Equal(t, `%qa\_100\%\\ops%`, organizationUsageSearchPattern(`qa_100%\ops`))
+	require.Contains(t, organizationUsageActiveUsersCTE(), `u.email ILIKE $3 ESCAPE E'\\'`)
+	require.Contains(t, organizationUsageSummaryItemsCountQuery(), `u.email ILIKE $1 ESCAPE E'\\'`)
 }
 
 func TestOrganizationUsageSummarySQL_LeavesZeroUsagePeaksNull(t *testing.T) {
