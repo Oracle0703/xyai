@@ -115,7 +115,7 @@ Grok endpoint 也属于 URL 信任边界:
 
 - Grok OAuth 默认走 CLI subscription proxy; 空 `base_url` 或旧官方 `api.x.ai[/v1]` 值会归一到该 proxy。
 - OAuth 自定义 `base_url` 必须通过 `xai.ValidateTrustedBaseURL`; 未允许 unsafe override 时, 普通第三方 host 回落默认 proxy。
-- Grok API Key 无自定义值时走官方 `https://api.x.ai/v1`。上游模型同步只支持 API Key 并通过 `AccountTestService.validateUpstreamBaseURL` 的通用 upstream allowlist; OAuth 同步显式返回 unsupported。真实转发中, OAuth 自定义 `base_url` 先经 `xai.ValidateTrustedBaseURL` 的可信 host allowlist, API Key 自定义 endpoint 则由 `xai.Build*URL` / `ValidateBaseURL` 约束为公共 HTTPS 且路径为 `/v1`; 不要把模型同步、OAuth 转发和 API Key 转发误认为同一 URL 校验路径。
+- Grok API Key 无自定义值时走官方 `https://api.x.ai/v1`。上游模型同步只支持 API Key, OAuth 同步显式返回 unsupported; 同步路径在 `security.url_allowlist` 开启时通过 `AccountTestService.validateUpstreamBaseURL` 执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发默认安全模式下, OAuth 自定义 `base_url` 经 `xai.ValidateTrustedBaseURL` 的可信 host allowlist, API Key 自定义 endpoint 由 `xai.Build*URL` / `ValidateBaseURL` 约束为公共 HTTPS 且路径为 `/v1`; `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 开启后两者只做格式校验。不要把模型同步、OAuth 转发和 API Key 转发误认为同一 URL 校验路径。
 
 ## 网关可靠性
 

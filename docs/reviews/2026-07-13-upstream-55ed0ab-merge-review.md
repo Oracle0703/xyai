@@ -74,7 +74,7 @@
 
 文档复核发现并修正一处知识库表述：Read 工具收到流式 argument delta 后, `.done` 只关闭 block, 不会再次 sanitize/发送完整参数; 只有非流式, 或流式完全没有 delta 时才 sanitize `.done` 的完整参数。修正后的 `backend.md` 与 `security-and-reliability.md` 已对齐 `responses_to_anthropic.go` 和回归测试。
 
-后端增量复核同时校正了 Grok 边界：模型同步只支持 API Key, 通过 `AccountTestService.validateUpstreamBaseURL` 校验；OAuth 返回 unsupported。真实转发中 OAuth 自定义地址走 `ValidateTrustedBaseURL`, API Key 自定义地址走 `Build*URL` / `ValidateBaseURL`, 均不同于模型同步路径。稳定知识还补充了 pool retry 默认值/范围、usage 周窗口字段、分页 offset 规范化、scheduler cache 单账号编码容错以及 embedded frontend 根级 API 旁路。
+后端增量复核同时校正了 Grok 边界：模型同步只支持 API Key, 通过 `AccountTestService.validateUpstreamBaseURL` 校验；OAuth 返回 unsupported。真实转发中 OAuth 自定义地址走 `ValidateTrustedBaseURL`, API Key 自定义地址走 `Build*URL` / `ValidateBaseURL`, 均不同于模型同步路径；通用 allowlist 关闭或开启 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 时会按配置退化为格式校验。稳定知识还补充了 pool retry 默认值/范围、usage 周窗口字段、分页 offset 规范化、scheduler cache 单账号编码容错以及 embedded frontend 根级 API 旁路。
 
 非阻断测试改进建议：将 Grok 创建测试从源码合同断言扩展为真实挂载后检查提交 payload，并在 compatible preset 测试中直接断言切换后的 placeholder/hint。当前已有测试足以覆盖本次 merge，建议作为后续测试质量改进单独处理。
 
