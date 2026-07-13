@@ -50,10 +50,11 @@ func (h *TokenAnalysisHandler) Users(c *gin.Context) {
 		return
 	}
 	page, pageSize := response.ParsePagination(c)
+	// 用户排行默认按 token 消耗降序; 仓储侧白名单映射 sort_by。
 	params := pagination.PaginationParams{
 		Page:      page,
 		PageSize:  pageSize,
-		SortBy:    c.DefaultQuery("sort_by", "actual_cost"),
+		SortBy:    c.DefaultQuery("sort_by", "total_tokens"),
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	items, result, err := h.service.ListUserUsage(c.Request.Context(), filters, params)
