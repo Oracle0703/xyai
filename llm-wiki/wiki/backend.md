@@ -56,7 +56,7 @@
 - `backend/internal/server/router.go`: 注册全局中间件和业务路由。
 - `backend/internal/server/routes/*.go`: 分组注册路由。
 
-全局中间件包含 recovery, request logger, CORS, security headers, embedded frontend。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端对 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置 `public, max-age=31536000, immutable`; `index.html` 和 SPA fallback 仍保持 no-cache, 不能把长缓存扩到 HTML。
+全局中间件包含 recovery, request logger, CORS, security headers, embedded frontend。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端对 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置 `public, max-age=31536000, immutable`; `index.html` 和 SPA fallback 仍保持 no-cache, 不能把长缓存扩到 HTML。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
 
 路由主分组:
 
@@ -85,7 +85,7 @@
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
 - `/v1/images/generations` 和 `/v1/images/edits` 对 OpenAI platform 走 OpenAI images handler, 对 Grok platform 走 Grok media handler; 根级别名 `/images/generations`、`/images/edits` 也保留 `RequestArchive` / `RequestIntercept` 中间件链。
 - `/v1/images/batches` 是 batch image 用户侧任务接口族: submit/list/models/get/items/item content/download/cancel/delete/delete outputs。入口在 `backend/internal/handler/batch_image_handler.go`, service/repository 分别在 `backend/internal/service/batch_image*.go` 与 `backend/internal/repository/batch_image*.go`; 受 API Key 用户、分组 `allow_batch_image_generation` 与批量生图折扣/hold multiplier 约束。
-- Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。账号测试和上游模型同步必须按账号类型选择相同 endpoint/token 语义。
+- Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。上游模型同步当前只支持 Grok API Key, OAuth 账号会返回 `unsupported`; 模型同步通过 `AccountTestService.validateUpstreamBaseURL` 执行通用 upstream allowlist 校验。真实转发先由 `Account.GetGrokBaseURL` 选择地址: OAuth 自定义地址必须通过 `xai.ValidateTrustedBaseURL`, API Key 自定义地址随后由 `xai.Build*URL` / `ValidateBaseURL` 限制为公共 HTTPS 且路径为 `/v1`; 两条路径不能描述为同一校验链。
 - Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `/backend-api/codex/responses` 支持 Codex 直连别名; `GET /backend-api/codex/models` 由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 Codex 客户端 model manifest, 入口仍受 API Key 与 group 校验保护。
@@ -103,7 +103,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)以及 `cache_write_tokens` / `cache_creation_input_tokens` 等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。GPT-5.6 cache write 必须从普通 input 中拆出并按官方 cache-write 价格计费, 显式 0 价格也不能被 fallback 覆盖。
 - Responses/Chat 双向桥接需保留 `parallel_tool_calls`; Responses `text.format` 与 Chat `response_format` 支持 `json_object` / `json_schema` 映射。OpenAI-compatible Responses -> Chat fallback 仍要经过本地 `ResponsesToChatCompletionsRequestWithOptions`, 以保留第三方上游的 temperature/max token 过滤策略。v0.1.151 起 custom/freeform 工具降级为 function 后必须在回程还原为 `custom_tool_call`; namespace 子工具使用稳定摊平名并在回程还原 namespace; `tool_search` 使用同名代理 function 并还原为 `tool_search_call(execution=client)`。工具名撞名或 tool_choice 指向被丢弃/不存在工具时必须拒绝或删除, 不能把无效选择发给 Chat 上游。
 - v0.1.153 起 Codex 还可能把客户端工具放在 Responses input 的 `{"type":"additional_tools","tools":[...]}` item 中。`EffectiveResponsesTools` 必须把它与顶层 `tools` 合并后交给本地 options adapter, custom/namespace/tool_search 的可逆映射和 tool choice 校验对两种来源一视同仁。
-- Responses -> Anthropic 流式桥对 `Read` 工具的 `function_call_arguments.delta` 要实时转成 `input_json_delta`, 不再等待 `.done` 才一次性发送; 收尾仍使用 sanitize 后的最终参数。Anthropic `stop_reason=max_tokens` 映射为 Responses `response.incomplete` + `max_output_tokens`, Responses incomplete 的 `content_filter` 映射为 Chat `finish_reason=content_filter`。
+- Responses -> Anthropic 流式桥对 `Read` 工具的 `function_call_arguments.delta` 要实时原样转成 `input_json_delta`, 不再等待 `.done` 才一次性发送。已收到 delta 时 `.done` 只关闭 block, 不再二次发送或 sanitize 完整参数; 仅非流式转换, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才调用 `sanitizeAnthropicToolUseInput`。Anthropic `stop_reason=max_tokens` 映射为 Responses `response.incomplete` + `max_output_tokens`, Responses incomplete 的 `content_filter` 映射为 Chat `finish_reason=content_filter`。
 
 OpenAI/Codex 兼容桥:
 
@@ -219,6 +219,7 @@ OpenAI 账号调度:
 - 集中注册 repository, cache, encryptor, external clients。
 - `ProvideSQLDB` 从 Ent driver 暴露 `*sql.DB`, 用于复杂 SQL。
 - `ProvideRedis` 调用 `InitRedis`。
+- 通用分页使用 `internal/pkg/pagination.PaginationParams`; `Offset()` 必须乘以 `Limit()` 的规范化结果, 使小于 1 的 page size 回落 20、超过 1000 的值封顶 1000, 避免 offset 与实际 limit 脱节。
 
 ## 生成代码
 

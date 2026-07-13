@@ -59,7 +59,7 @@ pnpm --dir frontend run build
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
 
-embed 模式会给 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置一年 `immutable` 缓存, HTML/SPA fallback 仍为 no-cache。更改资源路径或 Vite 文件名策略时要同步 `backend/internal/web/static_cache.go` 与测试。
+embed 模式会给 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置一年 `immutable` 缓存, HTML/SPA fallback 仍为 no-cache。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
 
 ## Apple container
 

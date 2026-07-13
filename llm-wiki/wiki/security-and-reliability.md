@@ -115,7 +115,7 @@ Grok endpoint 也属于 URL 信任边界:
 
 - Grok OAuth 默认走 CLI subscription proxy; 空 `base_url` 或旧官方 `api.x.ai[/v1]` 值会归一到该 proxy。
 - OAuth 自定义 `base_url` 必须通过 `xai.ValidateTrustedBaseURL`; 未允许 unsafe override 时, 普通第三方 host 回落默认 proxy。
-- Grok API Key 无自定义值时走官方 `https://api.x.ai/v1`; 自定义 endpoint、账号测试、模型同步与真实转发必须保持同一校验和 token 语义。
+- Grok API Key 无自定义值时走官方 `https://api.x.ai/v1`。上游模型同步只支持 API Key 并通过 `AccountTestService.validateUpstreamBaseURL` 的通用 upstream allowlist; OAuth 同步显式返回 unsupported。真实转发中, OAuth 自定义 `base_url` 先经 `xai.ValidateTrustedBaseURL` 的可信 host allowlist, API Key 自定义 endpoint 则由 `xai.Build*URL` / `ValidateBaseURL` 约束为公共 HTTPS 且路径为 `/v1`; 不要把模型同步、OAuth 转发和 API Key 转发误认为同一 URL 校验路径。
 
 ## 网关可靠性
 
@@ -186,7 +186,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 
 Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。
-Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式参数必须逐 delta 发送, 但最终值仍需 sanitize。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
+Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式 delta 实时原样透传; 一旦收到 delta, `.done` 只关闭 block, 不再二次发送或 sanitize。只有非流式, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才执行 `sanitizeAnthropicToolUseInput`。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
 修改流式响应时要同时验证:
 
 - SSE flush。
@@ -211,6 +211,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 后台任务可靠性:
 
 - 多实例周期性后台任务应通过 `LeaderLock`/`leader_lock_cache` 取得单主执行权; 新增会写数据库或刷新全局缓存的 runner/flusher 时, 必须明确是否需要 leader lock。
+- scheduler cache 写快照时若单个账号包含不可 JSON 编码字段, `writeAccounts` 跳过该账号而不阻断整批快照; `SetAccount` 遇到同类账号会删除其 full/meta cache。`UpdateLastUsed` 重编码失败时同样删除该账号缓存并继续处理其他账号。
 - user platform quota flusher 默认关闭, 开启后按批聚合写库; shutdown cleanup 必须 flush/stop, Wire `provideCleanup` 测试要覆盖。
 - Spark 影子账号的凭据不落库且不参与凭据型导出; 401/refresh/privacy 操作要先解析母账号, 不能把母账号 token 错误永久写到 shadow。global 429/overload 不应连坐 spark 影子, 但母账号凭据过期、临时摘除、非 OAuth 仍要阻断 shadow。
 

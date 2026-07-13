@@ -1156,3 +1156,92 @@ git show --cc 5655815f283e -- backend/internal/handler/endpoint.go backend/inter
 git diff --stat 6dd3274aafbc..42f3c22830b8
 git log --oneline 6dd3274aafbc..42f3c22830b8
 ```
+
+## 2026-07-13 main sync (v0.1.153, pinned)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10153_同步sub2api主线` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main`（合并时固定到目标提交） |
+| Base before merge | `5e6e85568792`（0.1.151 分支基线） |
+| Merge base | `42f3c22830b8` |
+| Upstream head merged | `55ed0ab0da367183d97c15659e33ae9e83f6ff90` |
+| Merge commit | `0d65f65a20df72aa1ec81966898e3be8699270a0` |
+| Upstream version | `0.1.153` |
+| Upstream commits | 58 |
+| Upstream files changed | 157 (`+6184 / -318`) |
+| Merge result vs first parent | 158 files (`+6182 / -319`) |
+| Conflict files | `README_CN.md`; `backend/go.mod`; `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/service/concurrency_service.go`; `frontend/src/components/account/CreateAccountModal.vue` |
+
+### Boundary
+
+本次按用户要求只同步到 `55ed0ab0d`。验证时远端 `upstream/main` 已前进到 `7d239d62e`; 后续 4 个提交 `5aeb03018`、`bb7341673`、`adb5106c1`、`7d239d62e` 均未合入。`git merge-base --is-ancestor 7d239d62e HEAD` 返回 1。
+
+### Summary
+
+| Area | Notes |
+|---|---|
+| OpenAI WS | 新增 completed turn 间空闲超时和 API Key 级分布式 ingress 连接 lease; 默认 300 秒 / 64 连接, 0 可关闭。 |
+| Grok/xAI | 支持 API Key 账号、OAuth CLI proxy 与可信自定义 base URL、视频 edits/extensions、API Key 上游模型同步和 Grok CLI/OpenCode 配置；OAuth 模型同步仍显式不支持。 |
+| Billing / data | alpha search 仅成功 2xx 按次计费, group 新增 `web_search_price_per_call`; 增加 API Key latest-IP 并发索引。 |
+| API compatibility | 合并 Responses `additional_tools`; Read 参数 delta 实时原样透传; 补 Anthropic/Responses/Chat 的 max token/content filter stop reason 映射。 |
+| Security / web | 删除泄露内部 AI 渠道配置的 payment channels endpoint; 嵌入静态资源设置一年 immutable 缓存。 |
+| Frontend / deploy | DataTable 小列表关闭虚拟化并按 row key 缓存高度, 日期范围使用本地日期, OpenAI OAuth 支持 `plan_type`, pool retry 覆盖更多转发路径, 新增 Apple container。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `README_CN.md` | 同时保留本地 Windows 手动重启记录和上游 Apple container; 源码编译顺延为方式四。 |
+| `backend/go.mod` | 保留上游直接依赖 `x/mod`, 同时保留本地直接使用的 `x/sys`、`x/text`; `go mod tidy` 后三者仍为 direct。 |
+| `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go` | 保留本地 `ResponsesToChatCompletionsRequestWithOptions` 唯一入口, 加入上游 `EffectiveResponsesTools`; options adapter 继续执行第三方 temperature/max token 过滤。 |
+| `backend/internal/server/routes/gateway.go` | 保留 RequestArchive/RequestIntercept 中间件链, 加入 Grok videos edits/extensions 的 `/v1` 与根级别名; 非 Grok 仍本地 404 + business-limited。 |
+| `backend/internal/service/concurrency_service.go` | 保留本地 `ConcurrencyCacheError` 与 503 语义, 加入上游 WS ingress lease/refresh/lost-close 生命周期。 |
+| `frontend/src/components/account/CreateAccountModal.vue` | 保留本地 OpenAI-compatible provider preset、动态 placeholder 和 credentials metadata, 同时加入 Grok API Key base URL、`xai-...` 与提交 fallback。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; route/service/UI 与 fail-open 约束未被覆盖。 |
+| RequestArchive / RequestIntercept | 保留; `/v1`、root、Codex、Gemini 与新增 Grok videos 路由维持中间件链。 |
+| Token Analysis | 保留; admin route、handler/service/repository 与前端入口存在。 |
+| 图片生成 | 保留; `/image-gen`、batch image 与 OpenAI/Grok image 路由并存。 |
+| 用户并发方案 | 保留; preset/runner、普通 slot 与 `ConcurrencyCacheError` 均存在。 |
+| OpenAI-compatible preset / options adapter | 保留并接入上游 Grok API Key、`additional_tools`。 |
+| compatible cache usage | 保留; raw/buffered/streaming 和 billing cache 字段未被覆盖。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git rev-list --parents -n 1 0d65f65a` | Passed; parents are `5e6e85568` and `55ed0ab0d`. |
+| Target/later ancestor checks | Passed; target is included, `7d239d62e` is excluded. |
+| Unresolved-file scan, exact conflict-marker scan, `git diff --check` | Passed. |
+| `cd backend; go mod tidy -diff` | Passed; no module diff. |
+| Focused conflict review/tests | Passed; backend apicompat/routes/concurrency and 5 frontend files / 53 tests. |
+| `go test -tags=unit -p 1 -count=1 ./...` | Passed in a complete retry; `internal/service` `101.002s`. First attempt was interrupted by Windows security software holding `web.test.exe`, not by a test assertion. |
+| `go test -tags=integration -p 1 -count=1 ./...` | Passed; `internal/service` `57.799s`. |
+| `cmd.exe /c pnpm --dir frontend run lint:check` | Passed. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+| `cmd.exe /c pnpm --dir frontend exec vitest run` | Passed: 156 files, 997 tests. |
+| `cmd.exe /c pnpm --dir frontend run build` | Passed: 926 modules, `15.56s`; only existing import/chunk warnings. |
+| Frontend build followed by `go build -tags embed -trimpath ./cmd/server` | Passed; Windows artifact 145,468,416 bytes. |
+| `golangci-lint run --new-from-rev HEAD^1 ./...` | Passed: 0 issues introduced by the merge. |
+| Full `golangci-lint run ./...` | 29 existing issues; all affected lines already exist in 0.1.151 first parent, so this is recorded baseline debt rather than a merge regression. |
+
+Windows unit 首轮遇到 `go: unlinkat ... web.test.exe: Access is denied`; 改用仓库外全新 `E:\tmp\xyai-unit-final-*` 作为 `GOTMPDIR` 后完整通过。Apple container shell test 未在无 bash 的 Windows 本机运行; 新增 macOS CI job 负责 `/bin/bash -n` 和 fixture test。
+
+### Documentation Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`; 新增 account/keys 组件 README, 更新 common/DataTable README, 并新增 `docs/reviews/2026-07-13-upstream-55ed0ab-merge-review.md`。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 0d65f65a20df
+git show --cc 0d65f65a20df -- README_CN.md backend/go.mod backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go backend/internal/server/routes/gateway.go backend/internal/service/concurrency_service.go frontend/src/components/account/CreateAccountModal.vue
+git diff --stat 42f3c22830b8..55ed0ab0da36
+git log --oneline 55ed0ab0da36..upstream/main
+```

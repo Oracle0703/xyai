@@ -151,6 +151,7 @@ go generate ./cmd/server
 
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
+- API Key `GET /v1/usage` 的 unrestricted subscription 响应在 `subscription.weekly_window_start` 返回周窗口起点, 与 daily/weekly/monthly usage 和 limit 一起供客户端展示当前周口径。
 - API Key 鉴权发现订阅窗口过期时必须同步调用 `EnsureWindowMaintenance`, 用 expected window start 做条件重置并回读数据库快照后再校验限额; 不再异步清零后直接放行。管理员 `ResetUsageWindows` 是显式重置, 会原子更新所选窗口并返回刷新后的订阅。
 - 前端全量“重置配额”会同时传 `daily/weekly/monthly=true`; “重置日限”只传 `daily=true`, 周/月窗口保持不变。
 - 支付订单履约时, 余额充值和订阅购买都会尝试邀请返利。订阅履约先写 `SUBSCRIPTION_ASSIGNED` 审计再执行返利, 最后 `SUBSCRIPTION_SUCCESS`; 历史已有 `SUBSCRIPTION_SUCCESS` 或新审计时不会重复延长订阅。返利幂等通过 `payment_audit_logs` 的 `AFFILIATE_REBATE_APPLIED` / `AFFILIATE_REBATE_SKIPPED` 动作占位和 `order_id, action` 唯一约束防重, SQL 会按 PostgreSQL 与 SQLite 方言分别生成占位符和时间函数。
