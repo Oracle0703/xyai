@@ -170,6 +170,7 @@ go generate ./cmd/server
 
 组织用量报表口径:
 
+- 完整设计见 `docs/features/organization-usage-report-design-cn.md`。
 - 活跃用户是 `users.deleted_at IS NULL AND status='active'`, 角色同时包含 user/admin。组织按当前 `users.email` 的 `@` 后域名做大小写不敏感精确匹配: `xunyou.com -> xunyou`, `wsdashi.com -> wsdashi`, 其他域名及其子域名都归 `other`。
 - 报表指标固定为 requests、input/output/cache creation/cache read tokens、total tokens 和 actual cost; total tokens 是四类 token 之和。`used_users` 表示选区内至少存在一条 usage log 的活跃用户。
 - 个人 peak 与团队 champion 都按 `total_tokens DESC, actual_cost DESC, requests DESC, user_id ASC` 选择; 个人同用户同指标周期再按 period start 保持确定性。没有 usage log 的用户 peak 为 null。

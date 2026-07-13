@@ -122,6 +122,7 @@ API 模块分布:
 
 管理端组织用量报表:
 
+- 完整设计见 `docs/features/organization-usage-report-design-cn.md`。
 - 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持组织/邮箱筛选、服务端排序分页、三组织汇总和个人/团队日周月峰值。
 - 前端合同在 `frontend/src/api/admin/organizationUsage.ts`; 正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的服务端签名快照继续后续 Summary 与日/周/月分页, 避免导出期间新增 usage 导致 offset 漂移。
 - Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 固定生成“报表概览、组织汇总、人员汇总、月度明细、周度明细、日度明细”六个 Sheet。客户端四类数据合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
