@@ -71,6 +71,14 @@
 - `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
 - `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。
 
+管理端组织用量报表:
+
+- `GET /api/v1/admin/usage/organization-report/summary` 返回组织概览、三组组织汇总、日/周/月 champions 和分页用户摘要; `GET .../periods` 返回有用量的 user-period 明细。二者沿用 `/api/v1/admin` 的管理员认证与合规 guard。
+- 三层边界独立为 `OrganizationUsageRepository`、`OrganizationUsageService` 和 `admin.OrganizationUsageHandler`; SQL 实现在 `internal/repository/organization_usage_repo.go`, 不扩张 `UsageLogRepository` 或 `DashboardHandler`。
+- 日期合同是固定 `Asia/Shanghai` 的 `YYYY-MM-DD` 闭区间, service 转成 UTC 半开区间后查询; 最多 366 个自然日。SQL 先用原始 `usage_logs.created_at >= start AND created_at < end` 收敛, 再按北京时间分日/周/月桶; 周为周一到周日, 跨选区周期会裁剪起止日期并标记 `partial=true`。
+- 可选 `as_of` 必须是严格 RFC3339/RFC3339Nano; service 将其转成 UTC 并按服务端当前时间签发上限, 响应回显 canonical signed snapshot。usage 查询上界再取 signed snapshot 与日期 end 的较早值, 早于范围起点时钳成空用量区间。
+- summary 从 active 且未删除用户出发 LEFT JOIN 范围用量, 因此保留零用量用户; periods 只返回存在用量的 user-period。组织、粒度、排序字段和排序方向均为严格 allowlist, 非法值返回 400。
+
 ## 网关路径
 
 `backend/internal/server/routes/gateway.go` 是网关路由入口。

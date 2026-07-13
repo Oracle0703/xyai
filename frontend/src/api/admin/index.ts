@@ -37,6 +37,7 @@ import requestInterceptAPI from './requestIntercept'
 import userConcurrencyPresetsAPI from './userConcurrencyPresets'
 import promptMetricsAPI from './promptMetrics'
 import adminComplianceAPI from './compliance'
+import organizationUsageAPI from './organizationUsage'
 
 /**
  * Unified admin API object for convenient access
@@ -75,7 +76,8 @@ export const adminAPI = {
   requestIntercept: requestInterceptAPI,
   userConcurrencyPresets: userConcurrencyPresetsAPI,
   promptMetrics: promptMetricsAPI,
-  compliance: adminComplianceAPI
+  compliance: adminComplianceAPI,
+  organizationUsage: organizationUsageAPI
 }
 
 export {
@@ -112,7 +114,8 @@ export {
   requestInterceptAPI,
   userConcurrencyPresetsAPI,
   promptMetricsAPI,
-  adminComplianceAPI
+  adminComplianceAPI,
+  organizationUsageAPI
 }
 
 export default adminAPI
@@ -124,3 +127,31 @@ export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'
 export type { TLSFingerprintProfile, CreateProfileRequest, UpdateProfileRequest } from './tlsFingerprintProfile'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
 export type { RequestInterceptRule, RequestInterceptNormalization, RequestInterceptMatchMode, RequestInterceptMatchScope, RequestInterceptScope, RequestInterceptTestResponse } from './requestIntercept'
+export type {
+  OrganizationUsageMetrics,
+  OrganizationUsageRange,
+  OrganizationUsagePagination,
+  OrganizationUsagePeriod,
+  OrganizationUsageSummaryItem,
+  OrganizationUsageOverview,
+  OrganizationUsageOrganization,
+  OrganizationUsageChampions,
+  OrganizationUsageSummaryResponse,
+  OrganizationUsagePeriodsResponse,
+  OrganizationUsageOrganizationFilter,
+  OrganizationUsageGranularity,
+  OrganizationUsageSortOrder,
+  OrganizationUsageSortBy,
+  OrganizationUsageQuery,
+  OrganizationUsageSummaryQuery,
+  OrganizationUsagePeriodsQuery,
+  OrganizationUsageRequestOptions,
+  OrganizationUsageFetchProgress,
+  OrganizationUsageFetchAllOptions,
+  OrganizationUsageReportData
+} from './organizationUsage'
+export {
+  MAX_CLIENT_EXPORT_ROWS,
+  MAX_XLSX_DATA_ROWS,
+  ORGANIZATION_USAGE_SORT_FIELDS
+} from './organizationUsage'

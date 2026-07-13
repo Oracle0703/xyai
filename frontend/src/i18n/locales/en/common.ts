@@ -153,6 +153,7 @@ export default {
     imageGeneration: 'Image Generation',
     batchImage: 'Batch Images',
     usage: 'Usage',
+    organizationUsage: 'Organization Usage Report',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     affiliateManagement: 'Affiliate Rebates',

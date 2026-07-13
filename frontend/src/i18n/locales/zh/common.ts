@@ -153,6 +153,7 @@ export default {
     imageGeneration: '图片生成',
     batchImage: '批量生图',
     usage: '使用记录',
+    organizationUsage: '组织用量报表',
     redeem: '兑换',
     affiliate: '邀请返利',
     affiliateManagement: '邀请返利',

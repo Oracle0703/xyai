@@ -7,6 +7,7 @@ import settings from './settings'
 import tokenAnalysis from './tokenAnalysis'
 import requestIntercept from './requestIntercept'
 import promptMetrics from './promptMetrics'
+import organizationUsage from './organizationUsage'
 
 export default {
   ...overview,
@@ -18,4 +19,5 @@ export default {
   ...tokenAnalysis,
   ...requestIntercept,
   ...promptMetrics,
+  ...organizationUsage,
 }
