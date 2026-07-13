@@ -1077,3 +1077,82 @@ git show --cc 61fec21ade8c -- backend/internal/pkg/apicompat/chatcompletions_res
 git diff --stat ddb1a210ce67..9a2f11b4e217
 git log --oneline ddb1a210ce67..9a2f11b4e217
 ```
+
+## 2026-07-13 main sync (v0.1.151)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10151_同步sub2api主线` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `89711be2324d` |
+| Merge base | `6dd3274aafbc` |
+| Upstream head merged | `42f3c22830b8` |
+| Merge commit | `5655815f283e` |
+| Upstream version | `0.1.151` |
+| Upstream commits | 47 |
+| Upstream files changed | 87 (`+7043 / -361`) |
+| Merge result vs first parent | 88 files (`+7056 / -379`) |
+| Conflict files | `backend/internal/handler/endpoint.go`; `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`; `backend/internal/pkg/apicompat/types.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/service/openai_gateway_chat_completions_raw.go` |
+
+### Summary
+
+将 Wei-Shaw/sub2api 最新 `main` 合入新分支, VERSION 从 `0.1.150` 更新到 `0.1.151`。主要上游内容如下。
+
+| Area | Notes |
+|---|---|
+| Responses/Chat tools | custom/freeform、namespace 和 tool_search 支持 Chat fallback 与 streaming/non-streaming 回程还原, 并拒绝工具名歧义和无效 tool_choice。 |
+| Codex | 新增三路 alpha search, 修复 OAuth Messages identity、originator/User-Agent 配对和续链 `item_*` ID。 |
+| Fast/Flex policy | 规则新增 `user_ids`, 设置页增加可搜索用户选择器及中英文 key coverage。 |
+| Grok | Free OAuth prompt cache identity、cacheable Chat -> Responses bridge、quota exhausted 恢复与 usage snapshot 加固。 |
+| Reliability | compact keepalive nil/lifecycle 守卫, `remote_compaction_v2` 原生 Responses 保留, ops capture writer 释放后 nil 安全。 |
+| Usage compatibility | Responses/Anthropic streaming 与非流式路径补齐 `cache_creation_input_tokens`。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/handler/endpoint.go` | 同时保留本地裸 `/chat/completions` 归一化和上游 alpha search 归一化/直达 endpoint。 |
+| `backend/internal/server/routes/gateway.go` | 保留 RequestArchive/RequestIntercept 中间件链, 同时加入 `/v1/alpha/search`、`/alpha/search` 与 Codex direct alpha search。 |
+| `backend/internal/service/openai_gateway_chat_completions_raw.go` | 先执行本地 official Chat sanitizer, 再执行上游 Grok Responses-only prompt cache key 清理; 上游 cache identity/endpoint tracking 保留。 |
+| `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go` | 删除与本地 options adapter 重复的上游入口, 保留上游 custom/namespace/tool_search 全套 helper 和回程生命周期。 |
+| `backend/internal/pkg/apicompat/types.go` | 同时保留本地 streaming output DTO 与上游 `tool_search_call` 自定义 JSON 语义。 |
+| Auto-merge follow-up | 将上游 tool conversion/declared-tool choice 接入 `ResponsesToChatCompletionsRequestWithOptions`; 修复 alpha route test helper 参数和 legacy tool-choice fixture。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 敏感词过滤和 LLM judge | 保留; 管理路由、service 与前端 risk-control 入口存在。 |
+| RequestArchive / RequestIntercept | 保留; `/v1`、Gemini、root Responses/Chat/images/videos、Codex direct 和新 bare alpha search 均保留中间件语义。 |
+| Token Analysis | 保留; admin route、handler/service/repository、前端路由/API 未被删除。 |
+| 图片生成 | 保留; `/image-gen` 与上游 `/batch-image` 在 router/sidebar 并存。 |
+| 用户并发方案 | 保留; preset route/service/runner 和前端 dialog 未被删除。 |
+| OpenAI compatible cache usage | 保留; raw/buffered/streaming normalization 与 cache-write additive/fill-missing 约束继续存在。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| Pre-merge focused backend baseline | Passed: config/routes/handler/service. |
+| Pre-merge frontend typecheck and Vitest | Passed: 151 files, 956 tests. |
+| `go test -tags=unit -p 1 -count=1 ./internal/pkg/apicompat` | Passed (`0.771s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/handler ./internal/server/routes` | Passed (`33.188s`, `3.361s`). |
+| `go test -tags=unit -p 1 -count=1 ./internal/service` | Passed (`97.563s`). |
+| Focused frontend local/upstream feature set | Passed: 9 files, 46 tests. |
+| Unresolved-file scan, conflict-marker scan and `git diff --cached --check` | Passed before merge commit. |
+
+Windows 定向测试曾遇到 `.test.exe` `Access is denied` / file-in-use, 按 `llm-wiki/wiki/ops.md` 更换全新 repo-local `GOTMPDIR` 后通过; 未为环境锁修改业务代码。
+
+### Wiki Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `security-and-reliability.md`, 记录 v0.1.151、alpha search、tool bridge、用户级 Fast/Flex、Grok prompt cache/quota recovery 与合并保留约束。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames 5655815f283e
+git show --cc 5655815f283e -- backend/internal/handler/endpoint.go backend/internal/server/routes/gateway.go backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go backend/internal/pkg/apicompat/types.go backend/internal/service/openai_gateway_chat_completions_raw.go
+git diff --stat 6dd3274aafbc..42f3c22830b8
+git log --oneline 6dd3274aafbc..42f3c22830b8
+```
