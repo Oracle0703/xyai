@@ -54,8 +54,12 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 	if req.Reasoning != nil {
 		out.ReasoningEffort = strings.TrimSpace(req.Reasoning.Effort)
 	}
-	if len(req.Tools) > 0 {
-		tools, err := responsesToolsToChatTools(req.Tools)
+	effectiveTools, err := EffectiveResponsesTools(req)
+	if err != nil {
+		return nil, err
+	}
+	if len(effectiveTools) > 0 {
+		tools, err := responsesToolsToChatTools(effectiveTools)
 		if err != nil {
 			return nil, err
 		}
