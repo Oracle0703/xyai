@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.150`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.151`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
 

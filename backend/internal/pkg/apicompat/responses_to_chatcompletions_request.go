@@ -38,7 +38,6 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 		TopP:              req.TopP,
 		Stream:            req.Stream,
 		ParallelToolCalls: req.ParallelToolCalls,
-		ToolChoice:        responsesToolChoiceToChatToolChoice(req.ToolChoice),
 		ServiceTier:       req.ServiceTier,
 	}
 	if !opts.DropTemperature {
@@ -55,8 +54,25 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 	if req.Reasoning != nil {
 		out.ReasoningEffort = strings.TrimSpace(req.Reasoning.Effort)
 	}
-	if len(req.Tools) > 0 {
-		out.Tools = responsesToolsToChatTools(req.Tools)
+	effectiveTools, err := EffectiveResponsesTools(req)
+	if err != nil {
+		return nil, err
+	}
+	if len(effectiveTools) > 0 {
+		tools, err := responsesToolsToChatTools(effectiveTools)
+		if err != nil {
+			return nil, err
+		}
+		out.Tools = tools
+	}
+	if len(out.Tools) > 0 && len(req.ToolChoice) > 0 {
+		declared := make(map[string]bool, len(out.Tools))
+		for _, tool := range out.Tools {
+			if tool.Function != nil {
+				declared[tool.Function.Name] = true
+			}
+		}
+		out.ToolChoice = responsesToolChoiceToChatToolChoice(req.ToolChoice, declared)
 	}
 	if req.Text != nil {
 		out.ResponseFormat = responsesTextFormatToChatResponseFormat(req.Text.Format)
@@ -291,36 +307,6 @@ func convertSingleResponsesContentPartToChat(role string, part map[string]json.R
 	default:
 		return json.Marshal(rawString(part["text"]))
 	}
-}
-
-func responsesToolChoiceToChatToolChoice(raw json.RawMessage) json.RawMessage {
-	if len(bytesTrimSpace(raw)) == 0 {
-		return raw
-	}
-	var choice map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &choice); err != nil {
-		return raw
-	}
-	if rawString(choice["type"]) != "function" {
-		return raw
-	}
-	name := rawString(choice["name"])
-	if name == "" {
-		name = rawNestedString(choice["function"], "name")
-	}
-	if name == "" {
-		return raw
-	}
-	out, err := json.Marshal(map[string]any{
-		"type": "function",
-		"function": map[string]string{
-			"name": name,
-		},
-	})
-	if err != nil {
-		return raw
-	}
-	return out
 }
 
 func normalizeResponsesArguments(raw string) string {

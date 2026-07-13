@@ -480,7 +480,7 @@ func TestChatCompletionsResponseToResponses_DeepSeekReasoningOnlyFallsBackToMess
 		}},
 	}
 
-	out := ChatCompletionsResponseToResponses(resp, "deepseek-reasoner")
+	out := ChatCompletionsResponseToResponses(resp, "deepseek-reasoner", nil, false, nil)
 
 	require.Len(t, out.Output, 2)
 	require.Equal(t, "reasoning", out.Output[0].Type)
@@ -514,7 +514,7 @@ func TestChatCompletionsResponseToResponses_DeepSeekReasoningToolCallDoesNotFall
 		}},
 	}
 
-	out := ChatCompletionsResponseToResponses(resp, "deepseek-reasoner")
+	out := ChatCompletionsResponseToResponses(resp, "deepseek-reasoner", nil, false, nil)
 
 	require.Len(t, out.Output, 2)
 	require.Equal(t, "reasoning", out.Output[0].Type)
@@ -1025,6 +1025,7 @@ func TestResponsesToChatCompletionsRequest_NormalizesLegacyFunctionToolChoice(t 
 	req := &ResponsesRequest{
 		Model:      "glm-5.1",
 		Input:      json.RawMessage(`"hello"`),
+		Tools:      []ResponsesTool{{Type: "function", Name: "lookup"}},
 		ToolChoice: json.RawMessage(`{"type":"function","name":"lookup"}`),
 	}
 

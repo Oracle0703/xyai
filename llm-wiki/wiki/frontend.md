@@ -159,6 +159,7 @@ API 模块分布:
 - Grok media 已接入 images/videos 路由后, 前端平台图标、颜色、Grok quota unknown/reset unsupported 文案要与后端 `allow_image_generation` gate 保持一致; 旧 Grok group 由后端 migration 自动回填图片能力。
 - `GroupsView.vue` 的 Grok media 定价把图片与视频控制分离: 视频支持独立倍率以及 480p/720p/1080p 每秒单价, 表单归一化集中在 `groupsImagePricing.ts`; 不要把视频价格回填为图片价格。
 - OpenAI `codex_cli_only` 管理端新增全局 engine fingerprint signals 与 app-server 开关, 设置页入口在 `SettingsView.vue` + `codexFingerprintSignals.ts`; 账号创建/编辑/批量编辑里有账号级 `codex_cli_only_allow_app_server` 开关。
+- OpenAI Fast/Flex policy 规则支持 `user_ids`; 设置页使用 `OpenAIFastPolicyUserSelector.vue` 按邮箱/ID 搜索并保留已删除用户的可识别标签, API 类型在 `frontend/src/api/admin/settings.ts`。新增文案必须同时补 `locales/en/admin/settings.ts` 与 `locales/zh/admin/settings.ts`, 并通过 `openaiFastPolicyLocales.spec.ts`。
 - `VersionBadge.vue` 展示当前版本及最近 3 个历史版本, 管理员可通过 `frontend/src/api/admin/system.ts` 查询/触发在线回退; 回退按钮必须保留确认、运行状态和失败提示, 不能只改前端版本文本。
 - Dashboard、Group/Model distribution 图表使用 `toFiniteNumber` 兜底, 避免后端返回字符串、null 或 NaN 时污染图表排序和格式化。`DataTable` sortable 表头使用双三角指示和 `aria-sort`, 修改排序 UI 时要保持可访问性语义。
 

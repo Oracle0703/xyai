@@ -94,6 +94,22 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
+	videoEditHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformGrok {
+			h.OpenAIGateway.GrokVideoEdit(c)
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Videos API is not supported for this platform"}})
+	}
+	videoExtensionHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformGrok {
+			h.OpenAIGateway.GrokVideoExtension(c)
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Videos API is not supported for this platform"}})
+	}
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
@@ -159,6 +175,7 @@ func RegisterGatewayRoutes(
 			}
 			h.Gateway.Responses(c)
 		})
+		gateway.POST("/alpha/search", h.OpenAIGateway.AlphaSearch)
 		gateway.GET("/responses", func(c *gin.Context) {
 			h.OpenAIGateway.ResponsesWebSocket(c)
 		})
@@ -196,6 +213,8 @@ func RegisterGatewayRoutes(
 		gateway.DELETE("/images/batches/:id", h.BatchImage.DeleteRecord)
 		gateway.DELETE("/images/batches/:id/outputs", h.BatchImage.DeleteOutputs)
 		gateway.POST("/videos/generations", videoGenerationHandler)
+		gateway.POST("/videos/edits", videoEditHandler)
+		gateway.POST("/videos/extensions", videoExtensionHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 	}
 
@@ -226,6 +245,7 @@ func RegisterGatewayRoutes(
 	}
 	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, responsesHandler)
 	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, responsesHandler)
+	r.POST("/alpha/search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, h.OpenAIGateway.AlphaSearch)
 	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, func(c *gin.Context) {
 		h.OpenAIGateway.ResponsesWebSocket(c)
 	})
@@ -234,6 +254,7 @@ func RegisterGatewayRoutes(
 	{
 		codexDirect.POST("/responses", responsesHandler)
 		codexDirect.POST("/responses/*subpath", responsesHandler)
+		codexDirect.POST("/alpha/search", h.OpenAIGateway.AlphaSearch)
 		codexDirect.GET("/responses", func(c *gin.Context) {
 			h.OpenAIGateway.ResponsesWebSocket(c)
 		})
@@ -263,6 +284,8 @@ func RegisterGatewayRoutes(
 	r.POST("/images/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, imagesHandler)
 	r.POST("/images/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, imagesHandler)
 	r.POST("/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, videoGenerationHandler)
+	r.POST("/videos/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, videoEditHandler)
+	r.POST("/videos/extensions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, videoExtensionHandler)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requestArchive, requestIntercept, videoStatusHandler)
 
 	// Antigravity 模型列表

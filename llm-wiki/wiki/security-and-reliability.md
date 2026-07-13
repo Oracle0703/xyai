@@ -177,6 +177,8 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 - 会话级自动屏蔽默认关, 开关 `cyber_session_block_enabled` + `cyber_session_block_ttl_seconds`(默认 3600s), runtime 经 `SettingService.GetCyberSessionBlockRuntime` 进程内缓存(60s)避免热路径 DB 往返。屏蔽 key 仅由显式会话标识派生(header session_id/conversation_id 或 body `prompt_cache_key`, 混入 apiKeyID 后 sha256); 无显式标识返回空串必须放行, 不退化到 user/apikey/内容派生。store 由 repository `gatewayCache` 类型断言接入(`CyberSessionBlockStore`), 测试 stub 不实现时屏蔽能力静默降级关闭。
 
 OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
+
+Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。
 修改流式响应时要同时验证:
 
 - SSE flush。
@@ -191,6 +193,7 @@ OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.
 - 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
 - OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 并套用 error passthrough/failover 规则, 不能硬编码 502; 避免把 verbose upstream body 直接暴露给用户或前端错误视图。HTTP 200 SSE 内的失败也要记录 ops error context。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
+- Grok prompt cache identity 只能从显式 conversation/prompt cache 线索或稳定消息前缀派生并与账号/模型边界组合; raw Chat 上游不能收到 Responses-only `prompt_cache_key`。健康 quota headers 可以解除此前的 exhausted/rate-limit snapshot, 避免账号永久被误停用。
 - Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
