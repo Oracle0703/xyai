@@ -138,11 +138,13 @@ API 模块分布:
 
 ## 账号与 Key 配置 UI
 
-- `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI 账号创建/编辑能力, 包括 OpenAI-compatible provider preset, endpoint capabilities, Responses WebSocket V2 mode, Codex CLI only 和 Claude Code allowlist。
-- `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。
+- `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI/Grok 账号创建编辑能力。OpenAI API Key 创建保留本地 compatible provider preset、endpoint capabilities、Responses WebSocket V2 mode、Codex CLI only 和 Claude Code allowlist; Grok API Key 默认 `https://api.x.ai/v1`、占位 `xai-...`。两条分支共享同一个 API Key 容器, 修改条件或 placeholder 时要同时跑 `CreateAccountModal.grok.spec.ts` 与 `credentialsBuilder.spec.ts`。
+- OpenAI OAuth 编辑可手动覆盖 `credentials.plan_type`; 仅非 Spark 影子账号生效。空选项表示恢复自动识别, 提交时删除 stale `plan_type`; Plus/Pro/Free 预设之外的 canonical 值要保留。pool mode 的 `pool_mode_retry_count` 默认 3, 前后端都规范化到 `0..10`; 开启时提交规范化值, 关闭时必须和 retry status codes 一起删除。
+- `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI/Grok 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。Grok 默认页签生成 `~/.grok/config.toml` / `%userprofile%\.grok\config.toml`, 使用网关 API Key、Responses backend 和 `grok-4.5`; OpenCode 使用 `@ai-sdk/openai` 与显式 Grok 模型清单。
 - `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。Key 列表支持按当前并发排序并展示 last used IP。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
 - `frontend/src/views/admin/AccountsView.vue` 支持从 OpenAI OAuth 母账号创建 Spark 影子账号; 影子账号导出时会被排除, 后端返回 `skipped_shadows` 后前端提示。账号 action menu 的 create spark shadow 只应用于可作为母账号的 OpenAI OAuth 账号。
 - `AccountsView.vue` 的 `scheduler_score` 默认隐藏; 前端只在列可见时传 `include_scheduler_score=1`, 避免账号列表默认触发高成本调度分计算。
+- `DataTable.vue` 默认仅在桌面行数大于 `virtualizeThreshold`(默认 100)时启用虚拟化, 小列表全量渲染以避免可变行高滚动补偿抖动; 虚拟行高缓存用 `rowKey` 而不是 index。账号表显式使用阈值 50。修改虚拟化时要保持 mobile 非虚拟化、stable sort 和 exposed virtualizer/swipe selection 合同。
 
 ## 管理端用户筛选
 
@@ -162,6 +164,7 @@ API 模块分布:
 - OpenAI Fast/Flex policy 规则支持 `user_ids`; 设置页使用 `OpenAIFastPolicyUserSelector.vue` 按邮箱/ID 搜索并保留已删除用户的可识别标签, API 类型在 `frontend/src/api/admin/settings.ts`。新增文案必须同时补 `locales/en/admin/settings.ts` 与 `locales/zh/admin/settings.ts`, 并通过 `openaiFastPolicyLocales.spec.ts`。
 - `VersionBadge.vue` 展示当前版本及最近 3 个历史版本, 管理员可通过 `frontend/src/api/admin/system.ts` 查询/触发在线回退; 回退按钮必须保留确认、运行状态和失败提示, 不能只改前端版本文本。
 - Dashboard、Group/Model distribution 图表使用 `toFiniteNumber` 兜底, 避免后端返回字符串、null 或 NaN 时污染图表排序和格式化。`DataTable` sortable 表头使用双三角指示和 `aria-sort`, 修改排序 UI 时要保持可访问性语义。
+- 日期筛选默认值必须通过 `frontend/src/utils/format.ts#formatDateLocalInput` 以本地年月日生成 `YYYY-MM-DD`, 不使用 UTC `toISOString().slice(0, 10)`; 用户 Dashboard 与 KeyUsageView 共用该 helper, 避免 UTC 正偏移时日期范围少一天。
 
 ## 测试与质量
 

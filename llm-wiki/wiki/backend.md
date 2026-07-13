@@ -56,7 +56,7 @@
 - `backend/internal/server/router.go`: 注册全局中间件和业务路由。
 - `backend/internal/server/routes/*.go`: 分组注册路由。
 
-全局中间件包含 recovery, request logger, CORS, security headers, embedded frontend。`server.trusted_proxies` 为空时会禁用可信代理解析。
+全局中间件包含 recovery, request logger, CORS, security headers, embedded frontend。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端对 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置 `public, max-age=31536000, immutable`; `index.html` 和 SPA fallback 仍保持 no-cache, 不能把长缓存扩到 HTML。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
 
 路由主分组:
 
@@ -65,6 +65,7 @@
 - `/api/v1/admin`: 管理端接口, 由 admin auth 保护。
 - `/v1`, `/v1beta`, `/responses`, `/chat/completions`, `/images/*`: AI 网关兼容接口。
 - `/antigravity/v1`, `/antigravity/v1beta`: Antigravity 专用兼容接口。
+- 支付用户接口只暴露 config/checkout/plans/limits/orders/refund 等业务合同; 旧 `/api/v1/payment/channels` 已删除, 因其会泄露内部 AI 渠道配置。前端 `paymentAPI` 也不再包含对应 client 方法。
 
 用户侧用量接口:
 
@@ -84,11 +85,11 @@
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
 - `/v1/images/generations` 和 `/v1/images/edits` 对 OpenAI platform 走 OpenAI images handler, 对 Grok platform 走 Grok media handler; 根级别名 `/images/generations`、`/images/edits` 也保留 `RequestArchive` / `RequestIntercept` 中间件链。
 - `/v1/images/batches` 是 batch image 用户侧任务接口族: submit/list/models/get/items/item content/download/cancel/delete/delete outputs。入口在 `backend/internal/handler/batch_image_handler.go`, service/repository 分别在 `backend/internal/service/batch_image*.go` 与 `backend/internal/repository/batch_image*.go`; 受 API Key 用户、分组 `allow_batch_image_generation` 与批量生图折扣/hold multiplier 约束。
-- Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; 当前支持 OAuth 订阅账号的 Responses/Chat 兼容文本与推理流量, API Key 账号不在 Grok 首版范围。
-- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
+- Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。上游模型同步当前只支持 Grok API Key, OAuth 账号会返回 `unsupported`; 模型同步通过 `AccountTestService.validateUpstreamBaseURL` 校验, `security.url_allowlist` 开启时执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发先由 `Account.GetGrokBaseURL` 选择地址: 默认安全模式下 OAuth 自定义地址必须通过 `xai.ValidateTrustedBaseURL` 的可信 host 约束, API Key 自定义地址由 `xai.Build*URL` / `ValidateBaseURL` 限制为公共 HTTPS 且路径为 `/v1`; 开启 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 后两者退化为格式校验。模型同步与真实转发不能描述为同一校验链。
+- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `/backend-api/codex/responses` 支持 Codex 直连别名; `GET /backend-api/codex/models` 由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 Codex 客户端 model manifest, 入口仍受 API Key 与 group 校验保护。
-- Codex standalone search 同时注册 `/v1/alpha/search`、根级 `/alpha/search` 和 `/backend-api/codex/alpha/search`, 由 `openai_alpha_search.go` 按 OAuth/API Key 账号选择 ChatGPT Codex 或 OpenAI 官方 endpoint。三路入口都经过 API Key/group gate; 本地根级与 Codex direct 路由继续经过 RequestArchive/RequestIntercept。
+- Codex standalone search 同时注册 `/v1/alpha/search`、根级 `/alpha/search` 和 `/backend-api/codex/alpha/search`, 由 `openai_alpha_search.go` 按 OAuth/API Key 账号选择 ChatGPT Codex 或 OpenAI 官方 endpoint。三路入口都经过 API Key/group gate; 本地根级与 Codex direct 路由继续经过 RequestArchive/RequestIntercept。只有上游 2xx 成功响应产生 `WebSearchCalls=1` 并进入按次计费, 上游错误原样透传且不计费。
 
 OpenAI 上游请求会按官方 endpoint 做字段过滤:
 
@@ -101,6 +102,8 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - Anthropic OAuth/SetupToken 转发默认启用客户端 dateline 归一化, 只改写 `system` 或 `<system-reminder>` 内的 `Today's date is YYYY-MM-DD.` 指纹变体, 还原 ASCII 撇号和 `-` 分隔符; API Key 账号和普通用户正文不扫描。
 - OpenAI Responses SSE 终止事件的 usage 可能在顶层 `usage` 或 `response.usage`; Chat Completions 和 Messages 的 buffered/streaming 转换及计费解析必须按实际 JSON 路径保留 `input_tokens_details.cached_tokens`、`cache_read_input_tokens`、`prompt_cache_hit_tokens`(DeepSeek Context Cache 命中)以及 `cache_write_tokens` / `cache_creation_input_tokens` 等缓存 token 字段; `prompt_cache_miss_tokens` 仍按普通 prompt/input token 口径计费, 不映射为 cache creation。GPT-5.6 cache write 必须从普通 input 中拆出并按官方 cache-write 价格计费, 显式 0 价格也不能被 fallback 覆盖。
 - Responses/Chat 双向桥接需保留 `parallel_tool_calls`; Responses `text.format` 与 Chat `response_format` 支持 `json_object` / `json_schema` 映射。OpenAI-compatible Responses -> Chat fallback 仍要经过本地 `ResponsesToChatCompletionsRequestWithOptions`, 以保留第三方上游的 temperature/max token 过滤策略。v0.1.151 起 custom/freeform 工具降级为 function 后必须在回程还原为 `custom_tool_call`; namespace 子工具使用稳定摊平名并在回程还原 namespace; `tool_search` 使用同名代理 function 并还原为 `tool_search_call(execution=client)`。工具名撞名或 tool_choice 指向被丢弃/不存在工具时必须拒绝或删除, 不能把无效选择发给 Chat 上游。
+- v0.1.153 起 Codex 还可能把客户端工具放在 Responses input 的 `{"type":"additional_tools","tools":[...]}` item 中。`EffectiveResponsesTools` 必须把它与顶层 `tools` 合并后交给本地 options adapter, custom/namespace/tool_search 的可逆映射和 tool choice 校验对两种来源一视同仁。
+- Responses -> Anthropic 流式桥对 `Read` 工具的 `function_call_arguments.delta` 要实时原样转成 `input_json_delta`, 不再等待 `.done` 才一次性发送。已收到 delta 时 `.done` 只关闭 block, 不再二次发送或 sanitize 完整参数; 仅非流式转换, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才调用 `sanitizeAnthropicToolUseInput`。Anthropic `stop_reason=max_tokens` 映射为 Responses `response.incomplete` + `max_output_tokens`, Responses incomplete 的 `content_filter` 映射为 Chat `finish_reason=content_filter`。
 
 OpenAI/Codex 兼容桥:
 
@@ -114,6 +117,7 @@ OpenAI/Codex 兼容桥:
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - `openai_gateway_cc_pipeline.go` 是 Chat Completions fallback 共享读写路径; 非流式 JSON 读取后必须同时补 `applyOpenAICompatibleChatUsageDetailsFromJSON` 和 `OpenAIUsage` cache 字段, 否则 Responses fallback 的 `usage.input_tokens_details.cached_tokens` 或计费中的 `cache_read_input_tokens` 会丢失。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
+- OpenAI WS ingress 长连接与单 turn 并发槽分离: `max_ingress_connections_per_api_key` 使用 Redis 短租约限制每个 API Key 在多实例上的存活连接数, 默认 64, 0 关闭; lease TTL 60 秒、每 20 秒刷新, 丢失租约时连接 fail-close。`ingress_inter_turn_idle_timeout_seconds` 默认 300 秒, 只限制已完成 turn 之间的客户端空闲, 0 关闭。
 - OpenAI WebSocket 传输层会把 Windows `WSAECONNRESET` / `WSAECONNABORTED` 等连接重置识别为可分类的网络错误; 不要把这类平台错误文本当作业务响应或未知失败。
 - `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
@@ -129,7 +133,8 @@ Grok/xAI 兼容:
 
 - Grok OAuth 管理路由在 `backend/internal/server/routes/admin.go` 的 `registerGrokOAuthRoutes`: `/api/v1/admin/grok/oauth/auth-url`, `/exchange-code`, `/refresh-token`, `/accounts/:id/refresh`, `/accounts/:id/quota`, `/accounts/:id/reset-quota`, `/runtime-sanity`。
 - OAuth/token/账号创建由 `backend/internal/service/grok_oauth_service.go`, `grok_token_provider.go`, `grok_token_refresher.go`, `backend/internal/repository/grok_oauth_client.go` 提供; token cache key 独立为 `GrokTokenCacheKey`。
-- OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 强制 OAuth 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier` / `external_web_access`, 过滤不支持的 `tools` 和失配 `tool_choice`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
+- OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 支持 OAuth/API Key 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier` / `external_web_access`, 过滤不支持的 `tools` 和失配 `tool_choice`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
+- `Account.GetGrokBaseURL` 对 OAuth 空值或官方 `api.x.ai[/v1]` 旧值回落 `xai.DefaultCLIBaseURL`; 显式自定义 URL 只有通过 `xai.ValidateTrustedBaseURL` 才使用, 否则回落 CLI proxy。API Key 空值使用 `xai.DefaultBaseURL`; URL 校验规则或 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 变化必须同步 SSRF/信任边界测试。
 - Grok Free OAuth cacheable Chat 请求会按稳定会话前缀派生 prompt cache identity, 转为 Responses 上游后再桥回 Chat; raw Chat 路径必须删除 Responses-only `prompt_cache_key`。quota headers 由账号级 snapshot 更新, exhausted 状态可在后续健康额度响应中恢复, 不能永久停留在 rate limited。
 - Grok quota 由 `backend/internal/pkg/xai/quota.go` 解析 xAI rate-limit 和 entitlement headers, 快照写入账号 `extra`。管理端主动探测在 `backend/internal/service/grok_quota_service.go`, 使用最小 Responses 请求读取 headers; reset 当前返回不支持。账号连通性测试由 `AccountTestService.testGrokAccountConnection` 直连 xAI Responses API, 并同步 quota header 快照。
 - Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。Grok group 现在可走 `/v1/messages`, `/v1/chat/completions`, 根级 `/chat/completions`、images/videos media 路由与 Responses WebSocket/HTTP 兼容入口; `/v1/messages/count_tokens` 仍返回不支持。
@@ -214,6 +219,7 @@ OpenAI 账号调度:
 - 集中注册 repository, cache, encryptor, external clients。
 - `ProvideSQLDB` 从 Ent driver 暴露 `*sql.DB`, 用于复杂 SQL。
 - `ProvideRedis` 调用 `InitRedis`。
+- 通用分页使用 `internal/pkg/pagination.PaginationParams`; `Offset()` 必须乘以 `Limit()` 的规范化结果, 使小于 1 的 page size 回落 20、超过 1000 的值封顶 1000, 避免 offset 与实际 limit 脱节。
 
 ## 生成代码
 

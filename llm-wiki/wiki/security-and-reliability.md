@@ -45,6 +45,7 @@ Google/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, �
 - API Key rate limit 和 subscription check。
 - 订阅窗口维护属于鉴权正确性边界: 普通与 Google/Gemini API Key middleware 都必须在放行前同步完成 `EnsureWindowMaintenance` 并使用回读快照复核额度; 维护失败返回 500, 不允许用内存清零值 fail-open。
 - User concurrency 和 account concurrency。
+- OpenAI WS ingress 生命周期使用独立于单 turn 槽位的 API Key 级 Redis lease。默认每 key 最多 64 条存活连接, lease TTL 60 秒、20 秒刷新; 容量满返回 WebSocket 1013, 缓存不可用或租约丢失时 fail-close。completed turn 之间默认 300 秒空闲超时, 两个限制都可用 0 显式关闭。
 - RPM cache: user/group/account 维度。
 - Gateway scheduling: sticky session wait, fallback wait, snapshot/outbox, slot cleanup。
 - OpenAI scheduler sticky escape: 当 sticky 账号 TTFT EWMA 或错误率劣化到阈值以上时可临时跳过 sticky, 配置位于 `gateway.openai_scheduler`。
@@ -109,6 +110,12 @@ CSP 注意点:
 - 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
 
 生产环境要谨慎允许 HTTP, private hosts 和 proxy fallback direct, 避免 token 泄露和 SSRF 风险。
+
+Grok endpoint 也属于 URL 信任边界:
+
+- Grok OAuth 默认走 CLI subscription proxy; 空 `base_url` 或旧官方 `api.x.ai[/v1]` 值会归一到该 proxy。
+- OAuth 自定义 `base_url` 必须通过 `xai.ValidateTrustedBaseURL`; 未允许 unsafe override 时, 普通第三方 host 回落默认 proxy。
+- Grok API Key 无自定义值时走官方 `https://api.x.ai/v1`。上游模型同步只支持 API Key, OAuth 同步显式返回 unsupported; 同步路径在 `security.url_allowlist` 开启时通过 `AccountTestService.validateUpstreamBaseURL` 执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发默认安全模式下, OAuth 自定义 `base_url` 经 `xai.ValidateTrustedBaseURL` 的可信 host allowlist, API Key 自定义 endpoint 由 `xai.Build*URL` / `ValidateBaseURL` 约束为公共 HTTPS 且路径为 `/v1`; `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 开启后两者只做格式校验。不要把模型同步、OAuth 转发和 API Key 转发误认为同一 URL 校验路径。
 
 ## 网关可靠性
 
@@ -179,6 +186,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 
 Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。
+Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式 delta 实时原样透传; 一旦收到 delta, `.done` 只关闭 block, 不再二次发送或 sanitize。只有非流式, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才执行 `sanitizeAnthropicToolUseInput`。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
 修改流式响应时要同时验证:
 
 - SSE flush。
@@ -203,6 +211,7 @@ Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_sear
 后台任务可靠性:
 
 - 多实例周期性后台任务应通过 `LeaderLock`/`leader_lock_cache` 取得单主执行权; 新增会写数据库或刷新全局缓存的 runner/flusher 时, 必须明确是否需要 leader lock。
+- scheduler cache 写快照时若单个账号包含不可 JSON 编码字段, `writeAccounts` 跳过该账号而不阻断整批快照; `SetAccount` 遇到同类账号会删除其 full/meta cache。`UpdateLastUsed` 重编码失败时同样删除该账号缓存并继续处理其他账号。
 - user platform quota flusher 默认关闭, 开启后按批聚合写库; shutdown cleanup 必须 flush/stop, Wire `provideCleanup` 测试要覆盖。
 - Spark 影子账号的凭据不落库且不参与凭据型导出; 401/refresh/privacy 操作要先解析母账号, 不能把母账号 token 错误永久写到 shadow。global 429/overload 不应连坐 spark 影子, 但母账号凭据过期、临时摘除、非 OAuth 仍要阻断 shadow。
 
@@ -210,6 +219,7 @@ Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_sear
 
 - 用户侧失败请求视图由配置开关控制并 fail-closed; 后端返回前必须脱敏, 前端隐藏不是唯一保护。
 - API Key name 等用户可控展示字段要进行 HTML 转义, 未授权 key 访问应避免泄露存在性。
+- 用户支付 API 不得暴露内部 AI 渠道配置; 旧 `/api/v1/payment/channels` 及前端 client 已删除。支付方式展示只能使用 payment config/checkout-info 等专用 DTO。
 
 ## 日志与监控
 
