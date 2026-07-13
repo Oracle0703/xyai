@@ -6,7 +6,7 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, RPM, 支持模型范围和自定义 `/v1/models` 列表。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, 支持模型范围和自定义 `/v1/models` 列表。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端和 Spark 影子账号。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。
@@ -76,6 +76,8 @@ go generate ./cmd/server
 - `backend/migrations/158_enable_grok_media_generation_groups.sql` 回填既有 Grok group 的 `allow_image_generation=true`, 支撑 Grok images/videos media 路由复用图片能力 gate。
 - `backend/migrations/159_batch_image_foundation.sql` 到 `169_batch_image_parent_batch.sql` 是 batch image 任务基础表、用户 frozen balance、provider refs、定价快照、分组 gate、默认折扣/hold、下载/删除、失败隐藏、任务名和 parent batch 的连续迁移; 这些 migration 已进入上游, 只能追加后续编号, 不要改旧文件。
 - `backend/migrations/170_add_grok_video_pricing_controls.sql` 为 `groups` 增加视频独立倍率和 480p/720p/1080p 单价; `171_allow_video_usage_without_image_size.sql` 放宽旧 image size 约束; `172_video_per_second_billing_metadata.sql` 为 `usage_logs` 增加视频数量、分辨率、时长并把价格口径明确为 USD/s。视频总成本为分辨率每秒单价乘请求时长; token-mode 渠道的视频行也必须通过约束并完整落 usage。
+- `backend/migrations/174_add_usage_logs_api_key_latest_ip_index_notx.sql` 为每个 API Key 查询最近非空 IP 增加 `(api_key_id, created_at DESC, id DESC) INCLUDE (ip_address)` 部分并发索引; API Key 列表查询还会限制每个 key 的 latest-IP 子查询, 避免扫描全部历史。
+- `backend/migrations/174_group_web_search_price_per_call.sql` 为 `groups` 增加可空 `web_search_price_per_call DECIMAL(20,8)`。NULL 使用内置默认价 0.01 USD/次; 两个 `174_` 文件按完整文件名独立执行, 不得为数字前缀重复而重命名。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -163,6 +165,12 @@ go generate ./cmd/server
 - `usage_cleanup`
 
 计费相关修改要同时检查用量写入, dashboard aggregation, subscription progress, billing cache 和前端展示。
+
+Codex alpha search 按次计费:
+
+- `OpenAIGatewayService.ForwardAlphaSearch` 只有上游 2xx 时返回 `WebSearchCalls=1`; 上游错误已直接透传时返回空结果, 不计费。
+- `BillingService` 对成功调用使用分组 `web_search_price_per_call`; NULL 回落 0.01 USD/次, 显式 0 必须保留为免费, 不能被默认价覆盖。
+- 计费结果仍写 usage log, 需要保持用户余额、订阅和 user x platform quota 的原子扣减/回滚语义。
 
 用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。修改用量聚合或展示时要保持三类 token 互斥统计。
 

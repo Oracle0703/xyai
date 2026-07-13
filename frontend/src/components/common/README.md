@@ -17,6 +17,16 @@ A generic data table component with sorting, loading states, and custom cell ren
 - `defaultSortOrder?: 'asc' | 'desc'` - Default sort order (default: `asc`)
 - `sortStorageKey?: string` - Persist sort state (key + order) to localStorage
 - `rowKey?: string | (row: any) => string | number` - Row key field or resolver (defaults to `row.id`, falls back to index)
+- `estimateRowHeight?: number` - Estimated virtual row height in pixels (default: `56`)
+- `overscan?: number` - Number of virtual rows rendered outside the viewport (default: `5`)
+- `virtualizeThreshold?: number` - Enable desktop virtualization only when the row count is greater than this value (default: `100`)
+
+**Virtualization rules:**
+
+- Small desktop lists render every row. This avoids scroll compensation jitter when rows have variable height.
+- Large desktop lists use `@tanstack/vue-virtual`; mobile cards are not virtualized.
+- Virtual row measurements are keyed by `rowKey`, so sorting and filtering reuse the correct measured height. Callers should provide a stable key when rows do not have a stable `id`.
+- `shouldVirtualize`, `virtualizer`, `sortedData`, `resolveRowKey`, and `tableWrapperEl` are exposed for composables such as swipe selection.
 
 **Slots:**
 
@@ -34,6 +44,8 @@ A generic data table component with sorting, loading states, and custom cell ren
   ]"
   :data="users"
   :loading="isLoading"
+  row-key="id"
+  :virtualize-threshold="100"
 >
   <template #cell-actions="{ row }">
     <button @click="editUser(row)">Edit</button>

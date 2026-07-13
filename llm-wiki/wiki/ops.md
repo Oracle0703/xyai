@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.151`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.153`; 对应固定上游提交 `55ed0ab0da367183d97c15659e33ae9e83f6ff90`, 不包含其后的 `7d239d62e`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。
 
@@ -58,6 +58,21 @@ pnpm --dir frontend run build
 ```
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
+
+embed 模式会给 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置一年 `immutable` 缓存, HTML/SPA fallback 仍为 no-cache。更改资源路径或 Vite 文件名策略时要同步 `backend/internal/web/static_cache.go` 与测试。
+
+## Apple container
+
+Apple 芯片 Mac + macOS 26 可使用 Apple `container` 1.1.0+ 运行本地 Sub2API/PostgreSQL/Redis。入口为 `deploy/apple-container.sh`, 完整限制、持久化和升级说明在 `deploy/APPLE_CONTAINER.md`:
+
+```bash
+cd deploy
+./apple-container.sh init
+./apple-container.sh up
+./apple-container.sh status
+```
+
+该脚本面向本地开发和人工运维, 不提供生产级持续重启监管。shell 语法与 fixture 测试由 `.github/workflows/backend-ci.yml` 的 macOS `shell` job 执行 `/bin/bash -n deploy/apple-container.sh` 和 `/bin/bash deploy/tests/apple-container-test.sh`; Windows 本机没有 bash 时可依赖该 CI 关卡, 不要用 PowerShell 解释脚本。
 
 ## 生产源码部署
 
@@ -235,6 +250,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 
 `.github/workflows/backend-ci.yml`:
 
+- Apple container shell: macOS 15, 检查脚本语法并运行 fixture test。
 - 后端单元测试: `make test-unit`
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
@@ -267,6 +283,8 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_compact_model`: OpenAI `/responses/compact` 上游默认模型, 默认 `gpt-5.4`; 可在 compact endpoint 暂未支持新模型时临时降级, 不影响普通 `/v1/responses`。
 - `gateway.scheduling.prefer_soonest_reset`: 默认 `false`, 开启后负载感知调度优先选用会话窗口最早重置账号。
 - `gateway.openai_ws`: OpenAI Responses WebSocket v2 和 HTTP bridge 配置; 首包较大时可保持客户端 WS, 改用 HTTP Responses 上游; `ingress_mode_default` 支持 `off|ctx_pool|passthrough|http_bridge`, 旧值 `shared/dedicated` 按 `ctx_pool` 兼容。
+- `gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds`: completed turn 之间的客户端空闲上限, 默认 300 秒, 0 关闭, 负数配置拒绝启动。
+- `gateway.openai_ws.max_ingress_connections_per_api_key`: 多实例范围每个 API Key 的存活 ingress 连接上限, 默认 64, 0 关闭; 依赖 Redis lease, 缓存不支持或 lease 丢失时 fail-close。
 - `database`: PostgreSQL 连接池。
 - `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
 - `redis`: Redis 连接池和 TLS。
