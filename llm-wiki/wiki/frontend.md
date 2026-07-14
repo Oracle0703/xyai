@@ -67,6 +67,7 @@
   - 401 时使用 `refresh_token` 调 `/auth/refresh`, 并重试原请求。
   - refresh 失败会清理 localStorage 并跳转 `/login`。
 - 直连 fetch/WebSocket/setup 等不走 Axios 的请求必须使用 `buildApiUrl` 或 `buildGatewayUrl`, 避免部署在自定义 `VITE_API_BASE_URL` 时仍打到当前 origin; `buildGatewayUrl` 用于 `/setup`, `/api/v1/admin/ops/ws/qps` 等网关根路径。
+  - 管理端可观测请求使用 `frontend/src/api/adminUIRequest.ts`, 统一附加 `X-Admin-UI-Request: 1`; 普通用户和第三方请求不要伪造该标记。后端仍会校验已认证 admin role 后才返回 Server-Timing。
   - ops disabled 的 404 会写缓存并跳转设置页。
 
 API 模块分布:
@@ -74,6 +75,12 @@ API 模块分布:
 - 用户侧: `frontend/src/api/auth.ts`, `keys.ts`, `usage.ts`, `user.ts`, `redeem.ts`, `payment.ts`, `groups.ts`, `channels.ts`, `totp.ts`, `channelMonitor.ts`。
 - 管理侧: `frontend/src/api/admin/**`。
 - 统一导出: `frontend/src/api/index.ts` 和 `frontend/src/api/admin/index.ts`。
+
+管理端账号与监控:
+
+- `CreateAccountModal.vue` 的 Grok OAuth 流支持 Web SSO key 批量导入, 每行一个 key, 通过 `adminAPI.grok.createFromSSO` 提交; SSO 模式允许账号名留空, 部分成功时保留失败明细。修改该流程时同步 `OAuthAuthorizationFlow.vue`、`useGrokOAuth.ts`、中英文 `admin/accounts.ts` 和 `CreateAccountModal.spec.ts`。
+- OpenAI OAuth/API Key 账号增加 `openai_long_context_billing_enabled` 开关, 默认关闭; Codex session/PAT 导入只有用户实际触碰开关时才覆盖服务端默认, 避免旧导入流程无意开启长上下文计费。
+- Channel Monitor 支持 Grok provider、模板和筛选; `GrokQuotaProbeCell.vue` 的 Free 配额显示按本地滚动 24 小时 Token 用量估算, 与上游 weekly header 分开展示。
 
 ## Pinia Store
 
