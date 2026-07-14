@@ -82,6 +82,13 @@
 - summary 从 active 且未删除用户出发 LEFT JOIN 范围用量, 因此保留零用量用户; periods 只返回存在用量的 user-period。组织、粒度、排序字段和排序方向均为严格 allowlist, 非法值返回 400。
 - PostgreSQL integration 与 30/90/366 天性能基线见 `backend/internal/repository/organization_usage_repo_integration_test.go`、`organization_usage_explain_integration_test.go` 和 `docs/features/organization-usage-report-performance-cn.md`。600 用户/219,600 logs 的 90 天 Summary items 曾因三个 peak CTE 对 `ranked_periods` 各循环扫描 600 次达到约 11 秒; 显式物化 peak 的诊断候选约 418 ms。现有时间索引不是该慢计划根因, 后续先修 peak 连接形状, 再减少导出分页重复查询。
 
+管理端选中用户用量趋势:
+
+- `GET /api/v1/admin/dashboard/users-trend` 保留兼容双模式: 未传 `user_ids` 时继续返回现有 Top N; 显式传入逗号分隔 `user_ids` 时精确查询所选集合。显式空值、空片段、非法/非正整数或超过 5 个唯一用户返回 400; ID 去重升序后进入 Service/Repository 和 30 秒缓存键, 选人模式忽略 `limit`。
+- 精确选人模式要求 `start_date`/`end_date` 为严格 `YYYY-MM-DD` 北京时间闭区间, `granularity=day|hour`; day 最多 90 个自然日, hour 只允许同一天。Handler 转为 UTC 半开区间, Repository 用 `pq.Array` 绑定 ID, 先按 `(user_id, created_at)` 过滤, 再以 `created_at AT TIME ZONE 'Asia/Shanghai'` 分桶。
+- Repository SQL 在 `internal/repository/usage_log_repo_trend.go`; 总 Token 固定为 input/output/cache creation/cache read 四类之和。已有 `idx_usage_logs_user_created` 对应用户等值 + 时间范围访问, 不新增 migration。PostgreSQL 合同和 opt-in 执行计划测试位于 `usage_log_repo_integration_test.go`、`user_usage_trend_explain_integration_test.go`。
+- 响应沿用 `UserUsageTrendPoint`, 不新增 DTO。`dashboard/snapshot-v2` 显式传空用户集合, 继续保持旧 Top N 行为。
+
 ## 网关路径
 
 `backend/internal/server/routes/gateway.go` 是网关路由入口。

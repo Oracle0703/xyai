@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import TokenAnalysisView from '../TokenAnalysisView.vue'
+import Pagination from '@/components/common/Pagination.vue'
 
 const api = vi.hoisted(() => ({
   getSummary: vi.fn(),
@@ -13,9 +14,22 @@ const api = vi.hoisted(() => ({
   triggerIndex: vi.fn()
 }))
 
+const dashboardApi = vi.hoisted(() => ({
+  getUserUsageTrend: vi.fn()
+}))
+
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    tokenAnalysis: api
+    tokenAnalysis: api,
+    dashboard: dashboardApi
+  }
+}))
+
+vi.mock('vue-chartjs', () => ({
+  Line: {
+    name: 'Line',
+    props: ['data', 'options'],
+    template: '<div data-testid="selected-user-trend-chart" />'
   }
 }))
 
@@ -36,6 +50,38 @@ vi.mock('vue-i18n', async () => {
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
 
+function summaryFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    total_requests: 12,
+    matched_requests: 10,
+    unmatched_requests: 2,
+    total_input_tokens: 5000,
+    total_output_tokens: 3000,
+    total_tokens: 9000,
+    total_actual_cost: 1.23,
+    cache_read_tokens: 4000,
+    cache_creation_tokens: 1000,
+    cache_hit_rate: 0.4,
+    risky_requests: 2,
+    risky_cost: 0.6,
+    unmatched_rate: 0.1667,
+    risk_request_rate: 0.1667,
+    risk_reasons: [{ code: 'huge_input_tiny_output', count: 2 }],
+    billed_requests: 48,
+    archive_coverage: 0.421,
+    ...overrides
+  }
+}
+
+function userFixture(userId: number, email: string) {
+  return {
+    user_id: userId,
+    user_email: email,
+    total_tokens: userId * 100,
+    actual_cost: userId
+  }
+}
+
 describe('TokenAnalysisView', () => {
   beforeEach(() => {
     api.getSummary.mockReset()
@@ -46,6 +92,7 @@ describe('TokenAnalysisView', () => {
     api.getIndexStatus.mockReset()
     api.listArchiveFiles.mockReset()
     api.triggerIndex.mockReset()
+    dashboardApi.getUserUsageTrend.mockReset()
     api.listProjects.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
     api.listArchiveFiles.mockResolvedValue([
       {
@@ -69,26 +116,14 @@ describe('TokenAnalysisView', () => {
       truncated: false,
       quality_version: ''
     })
-    api.getSummary.mockResolvedValue({
-      total_requests: 12,
-      matched_requests: 10,
-      unmatched_requests: 2,
-      total_input_tokens: 5000,
-      total_output_tokens: 3000,
-      total_tokens: 9000,
-      total_actual_cost: 1.23,
-      cache_read_tokens: 4000,
-      cache_creation_tokens: 1000,
-      cache_hit_rate: 0.4,
-      risky_requests: 2,
-      risky_cost: 0.6,
-      unmatched_rate: 0.1667,
-      risk_request_rate: 0.1667,
-      risk_reasons: [{ code: 'huge_input_tiny_output', count: 2 }],
-      billed_requests: 48,
-      archive_coverage: 0.421
-    })
+    api.getSummary.mockResolvedValue(summaryFixture())
     api.listUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    dashboardApi.getUserUsageTrend.mockResolvedValue({
+      trend: [],
+      start_date: '2026-07-01',
+      end_date: '2026-07-01',
+      granularity: 'day'
+    })
     api.listRequests.mockResolvedValue({
       items: [
         {
@@ -170,6 +205,43 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
   })
 
+  it.each([
+    [999_999, '999,999'],
+    [1_000_000, '1.0M'],
+    [1_000_000_000, '1.0B']
+  ])('formats total Token value %s with M/B only and preserves its exact title', async (value, expected) => {
+    api.getSummary.mockResolvedValue(summaryFixture({ total_tokens: value }))
+
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const card = wrapper.findAll('.card').find((item) => item.text().includes('admin.tokenAnalysis.summary.totalTokens'))
+    const valueElement = card!.find('.mt-2')
+    expect(valueElement.text()).toBe(expected)
+    expect(valueElement.attributes('title')).toBe(new Intl.NumberFormat().format(value))
+  })
+
+  it.each([
+    [999, '999'],
+    [1_000, '1.0K'],
+    [1_000_000, '1.0M'],
+    [1_000_000_000, '1.0B']
+  ])('formats total request value %s with K/M/B and preserves its exact title', async (value, expected) => {
+    api.getSummary.mockResolvedValue(summaryFixture({ total_requests: value }))
+
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const card = wrapper.findAll('.card').find((item) => item.text().includes('admin.tokenAnalysis.summary.totalRequests'))
+    const valueElement = card!.find('.mt-2')
+    expect(valueElement.text()).toBe(expected)
+    expect(valueElement.attributes('title')).toBe(new Intl.NumberFormat().format(value))
+  })
+
   it('renders user ranking by user only without API key subtitle', async () => {
     api.listUsers.mockResolvedValue({
       items: [
@@ -210,6 +282,264 @@ describe('TokenAnalysisView', () => {
     const requestDetailsCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.requestDetails'))
     expect(requestDetailsCard).toBeTruthy()
     expect(requestDetailsCard!.text()).toContain('dev')
+  })
+
+  it('formats user ranking Token and cost thresholds while preserving exact titles', async () => {
+    api.listUsers.mockResolvedValue({
+      items: [
+        { user_id: 7, user_email: 'raw@example.com', total_tokens: 1_200, actual_cost: 999.9999 },
+        { user_id: 8, user_email: 'million@example.com', total_tokens: 1_000_000, actual_cost: 1_000 },
+        { user_id: 9, user_email: 'billion@example.com', total_tokens: 1_000_000_000, actual_cost: 1_200_000 }
+      ],
+      total: 3,
+      page: 1,
+      page_size: 20
+    })
+
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const userRankingCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.userRanking'))
+    expect(userRankingCard).toBeTruthy()
+    expect(userRankingCard!.text()).toContain('1,200')
+    expect(userRankingCard!.text()).not.toContain('0.0M')
+    expect(userRankingCard!.text()).toContain('1.0M')
+    expect(userRankingCard!.text()).toContain('1.0B')
+    expect(userRankingCard!.text()).toContain('$999.9999')
+    expect(userRankingCard!.text()).toContain('$1.0K')
+    expect(userRankingCard!.text()).toContain('$1200.0K')
+    expect(userRankingCard!.find('[title="1,200"]').exists()).toBe(true)
+    expect(userRankingCard!.find('[title="$1000.0000"]').exists()).toBe(true)
+    expect(userRankingCard!.find('[title="$1200000.0000"]').exists()).toBe(true)
+  })
+
+  it('selects ranking users and loads authoritative daily usage trend', async () => {
+    api.listUsers.mockResolvedValue({
+      items: [userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')],
+      total: 2,
+      page: 1,
+      page_size: 20
+    })
+    dashboardApi.getUserUsageTrend.mockResolvedValue({
+      trend: [
+        { date: '2026-07-01', user_id: 7, email: 'a@example.com', username: '', requests: 1, tokens: 100, cost: 1, actual_cost: 1 },
+        { date: '2026-07-01', user_id: 8, email: 'b@example.com', username: '', requests: 1, tokens: 200, cost: 2, actual_cost: 2 }
+      ],
+      start_date: '2026-07-01',
+      end_date: '2026-07-01',
+      granularity: 'day'
+    })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const dateInputs = wrapper.findAll('input[type="date"]')
+    await dateInputs[0].setValue('2026-07-01')
+    await dateInputs[1].setValue('2026-07-01')
+    const selectors = wrapper.findAll('input[data-user-trend-select]')
+    await selectors[0].setValue(true)
+    await selectors[1].setValue(true)
+    await flushPromises()
+
+    expect(dashboardApi.getUserUsageTrend).toHaveBeenLastCalledWith({
+      user_ids: [7, 8],
+      start_date: '2026-07-01',
+      end_date: '2026-07-01',
+      granularity: 'day'
+    })
+    const chart = wrapper.findComponent({ name: 'Line' })
+    expect(chart.exists()).toBe(true)
+    expect(chart.props('data')).toMatchObject({
+      labels: ['2026-07-01'],
+      datasets: [
+        { label: 'a@example.com', data: [100] },
+        { label: 'b@example.com', data: [200] }
+      ]
+    })
+  })
+
+  it('disables unselected users after five selections', async () => {
+    api.listUsers.mockResolvedValue({
+      items: Array.from({ length: 6 }, (_, index) => userFixture(index + 1, `user-${index + 1}@example.com`)),
+      total: 6,
+      page: 1,
+      page_size: 20
+    })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    let selectors = wrapper.findAll('input[data-user-trend-select]')
+    for (const selector of selectors.slice(0, 5)) {
+      await selector.setValue(true)
+    }
+    await flushPromises()
+    selectors = wrapper.findAll('input[data-user-trend-select]')
+
+    expect(selectors[5].attributes('disabled')).toBeDefined()
+    for (const selector of selectors.slice(0, 5)) {
+      expect(selector.attributes('disabled')).toBeUndefined()
+    }
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.selectedUsersCount')
+  })
+
+  it('keeps selected users when the ranking page changes', async () => {
+    api.listUsers
+      .mockResolvedValueOnce({ items: [userFixture(7, 'page-one@example.com')], total: 40, page: 1, page_size: 20 })
+      .mockResolvedValueOnce({ items: [userFixture(8, 'page-two@example.com')], total: 40, page: 2, page_size: 20 })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    await wrapper.find('input[data-user-trend-select]').setValue(true)
+    await flushPromises()
+    const userPagination = wrapper.findAllComponents(Pagination)[0]
+    expect(userPagination).toBeTruthy()
+    userPagination.vm.$emit('update:page', 2)
+    await flushPromises()
+
+    expect(api.listUsers).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
+    expect(wrapper.text()).toContain('page-two@example.com')
+    expect(dashboardApi.getUserUsageTrend).toHaveBeenLastCalledWith(expect.objectContaining({ user_ids: [7] }))
+    expect(wrapper.find('input[data-user-trend-select]').element.checked).toBe(false)
+  })
+
+  it('ignores an older trend response after the selection changes and clears stale chart data', async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    api.listUsers.mockResolvedValue({
+      items: [userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')],
+      total: 2,
+      page: 1,
+      page_size: 20
+    })
+    const resolvers: Array<(value: unknown) => void> = []
+    dashboardApi.getUserUsageTrend.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(resolve))
+    )
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const selectors = wrapper.findAll('input[data-user-trend-select]')
+    await selectors[0].setValue(true)
+    await selectors[1].setValue(true)
+    expect(resolvers).toHaveLength(2)
+    expect(wrapper.find('[data-testid="selected-user-trend-chart"]').exists()).toBe(false)
+
+    resolvers[1]({
+      trend: [
+        { date: today, user_id: 7, email: 'a@example.com', username: '', requests: 1, tokens: 10, cost: 0, actual_cost: 0 },
+        { date: today, user_id: 8, email: 'b@example.com', username: '', requests: 1, tokens: 20, cost: 0, actual_cost: 0 }
+      ]
+    })
+    await flushPromises()
+    const latestData = wrapper.findComponent({ name: 'Line' }).props('data') as { datasets: Array<{ data: number[] }> }
+    expect(latestData.datasets.map((dataset) => dataset.data.reduce((sum, value) => sum + value, 0))).toEqual([10, 20])
+
+    resolvers[0]({
+      trend: [{ date: today, user_id: 7, email: 'a@example.com', username: '', requests: 1, tokens: 999, cost: 0, actual_cost: 0 }]
+    })
+    await flushPromises()
+    const settledData = wrapper.findComponent({ name: 'Line' }).props('data') as { datasets: Array<{ data: number[] }> }
+    expect(settledData.datasets.map((dataset) => dataset.data.reduce((sum, value) => sum + value, 0))).toEqual([10, 20])
+  })
+
+  it('fills missing user periods with zero', async () => {
+    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
+    dashboardApi.getUserUsageTrend.mockResolvedValue({
+      trend: [{ date: '2026-07-02', user_id: 7, email: 'a@example.com', username: '', requests: 1, tokens: 42, cost: 0, actual_cost: 0 }]
+    })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    const dateInputs = wrapper.findAll('input[type="date"]')
+    await dateInputs[0].setValue('2026-07-01')
+    await dateInputs[1].setValue('2026-07-03')
+    await wrapper.find('input[data-user-trend-select]').setValue(true)
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'Line' }).props('data')).toMatchObject({
+      labels: ['2026-07-01', '2026-07-02', '2026-07-03'],
+      datasets: [{ data: [0, 42, 0] }]
+    })
+  })
+
+  it('enables hourly mode only for a single selected date', async () => {
+    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+    const dateInputs = wrapper.findAll('input[type="date"]')
+    await dateInputs[0].setValue('2026-07-01')
+    await dateInputs[1].setValue('2026-07-01')
+    await wrapper.find('input[data-user-trend-select]').setValue(true)
+    await flushPromises()
+
+    const hourButton = wrapper.findAll('button').find((button) => button.text().includes('admin.tokenAnalysis.trendHour'))
+    expect(hourButton).toBeTruthy()
+    expect(hourButton!.attributes('disabled')).toBeUndefined()
+    await hourButton!.trigger('click')
+    await flushPromises()
+
+    expect(dashboardApi.getUserUsageTrend).toHaveBeenLastCalledWith(expect.objectContaining({ granularity: 'hour' }))
+    const chartData = wrapper.findComponent({ name: 'Line' }).props('data') as { labels: string[]; datasets: Array<{ data: number[] }> }
+    expect(chartData.labels).toHaveLength(24)
+    expect(chartData.labels[0]).toBe('2026-07-01 00:00')
+    expect(chartData.labels[23]).toBe('2026-07-01 23:00')
+    expect(chartData.datasets[0].data).toEqual(Array(24).fill(0))
+  })
+
+  it('does not request hourly trend for a multi-day range', async () => {
+    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+    const dateInputs = wrapper.findAll('input[type="date"]')
+    await dateInputs[0].setValue('2026-07-01')
+    await dateInputs[1].setValue('2026-07-02')
+    await wrapper.find('input[data-user-trend-select]').setValue(true)
+    await flushPromises()
+
+    const callsBefore = dashboardApi.getUserUsageTrend.mock.calls.length
+    const hourButton = wrapper.findAll('button').find((button) => button.text().includes('admin.tokenAnalysis.trendHour'))
+    expect(hourButton).toBeTruthy()
+    expect(hourButton!.attributes('disabled')).toBeDefined()
+    await hourButton!.trigger('click')
+    expect(dashboardApi.getUserUsageTrend).toHaveBeenCalledTimes(callsBefore)
+  })
+
+  it('clears stale chart data and exposes retry after a load error', async () => {
+    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
+    dashboardApi.getUserUsageTrend.mockRejectedValueOnce(new Error('network'))
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+    await wrapper.find('input[data-user-trend-select]').setValue(true)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.trendLoadFailed')
+    expect(wrapper.find('[data-testid="selected-user-trend-chart"]').exists()).toBe(false)
+
+    dashboardApi.getUserUsageTrend.mockResolvedValueOnce({ trend: [] })
+    const retry = wrapper.findAll('button').find((button) => button.text().includes('admin.tokenAnalysis.trendRetry'))
+    expect(retry).toBeTruthy()
+    await retry!.trigger('click')
+    await flushPromises()
+
+    expect(dashboardApi.getUserUsageTrend).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="selected-user-trend-chart"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.trendNoUsage')
   })
   it('renders project ranking with compact tokens, UTC+8 time and sortable headers', async () => {
     api.listProjects.mockResolvedValue({

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
+	"github.com/lib/pq"
 )
 
 // TrendDataPoint represents a single point in trend data
@@ -82,7 +83,20 @@ func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime,
 }
 
 // GetUserUsageTrend returns usage trend data grouped by user and date
-func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) (results []UserUsageTrendPoint, err error) {
+func (r *usageLogRepository) GetUserUsageTrend(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	granularity string,
+	userIDs []int64,
+	limit int,
+) ([]UserUsageTrendPoint, error) {
+	if len(userIDs) > 0 {
+		return r.getSelectedUserUsageTrend(ctx, startTime, endTime, granularity, append([]int64(nil), userIDs...))
+	}
+	return r.getTopUserUsageTrend(ctx, startTime, endTime, granularity, limit)
+}
+
+func (r *usageLogRepository) getTopUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) (results []UserUsageTrendPoint, err error) {
 	dateFormat := safeDateFormat(granularity)
 
 	query := fmt.Sprintf(`
@@ -136,6 +150,59 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 		return nil, err
 	}
 
+	return results, nil
+}
+
+func selectedUserUsageTrendQuery(granularity string) string {
+	dateFormat := safeDateFormat(granularity)
+	return fmt.Sprintf(`
+		SELECT
+			TO_CHAR(u.created_at AT TIME ZONE 'Asia/Shanghai', '%s') AS date,
+			u.user_id,
+			COALESCE(us.email, '') AS email,
+			COALESCE(us.username, '') AS username,
+			COUNT(*) AS requests,
+			COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) AS tokens,
+			COALESCE(SUM(u.total_cost), 0) AS cost,
+			COALESCE(SUM(u.actual_cost), 0) AS actual_cost
+		FROM usage_logs u
+		LEFT JOIN users us ON us.id = u.user_id
+		WHERE u.user_id = ANY($1)
+		  AND u.created_at >= $2
+		  AND u.created_at < $3
+		GROUP BY date, u.user_id, us.email, us.username
+		ORDER BY date ASC, u.user_id ASC
+	`, dateFormat)
+}
+
+func (r *usageLogRepository) getSelectedUserUsageTrend(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	granularity string,
+	userIDs []int64,
+) (results []UserUsageTrendPoint, err error) {
+	rows, err := r.sql.QueryContext(ctx, selectedUserUsageTrendQuery(granularity), pq.Array(userIDs), startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			results = nil
+		}
+	}()
+
+	results = make([]UserUsageTrendPoint, 0)
+	for rows.Next() {
+		var row UserUsageTrendPoint
+		if err = rows.Scan(&row.Date, &row.UserID, &row.Email, &row.Username, &row.Requests, &row.Tokens, &row.Cost, &row.ActualCost); err != nil {
+			return nil, err
+		}
+		results = append(results, row)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 	return results, nil
 }
 

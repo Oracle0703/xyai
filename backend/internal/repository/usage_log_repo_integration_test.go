@@ -1577,9 +1577,115 @@ func (s *UsageLogRepoSuite) TestGetUserUsageTrend() {
 	startTime := base.Add(-1 * time.Hour)
 	endTime := base.Add(48 * time.Hour)
 
-	trend, err := s.repo.GetUserUsageTrend(s.ctx, startTime, endTime, "day", 10)
+	trend, err := s.repo.GetUserUsageTrend(s.ctx, startTime, endTime, "day", nil, 10)
 	s.Require().NoError(err, "GetUserUsageTrend")
 	s.Require().GreaterOrEqual(len(trend), 2)
+}
+
+func (s *UsageLogRepoSuite) TestGetUserUsageTrend_SelectedUsers_DailyShanghaiBuckets() {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	selectedA := mustCreateUser(s.T(), s.client, &service.User{Email: "selected-a@test.com"})
+	selectedB := mustCreateUser(s.T(), s.client, &service.User{Email: "selected-b@test.com"})
+	unselected := mustCreateUser(s.T(), s.client, &service.User{Email: "unselected@test.com"})
+
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 2)
+	fixtures := []struct {
+		name                                string
+		user                                *service.User
+		createdAt                           time.Time
+		input, output, cacheWrite, cacheHit int
+	}{
+		{"selected-a-day-1", selectedA, start.Add(30 * time.Minute), 10, 20, 30, 40},
+		{"selected-b-day-1", selectedB, start.Add(23*time.Hour + 30*time.Minute), 1, 2, 3, 4},
+		{"selected-a-day-2", selectedA, start.Add(24*time.Hour + 30*time.Minute), 5, 6, 7, 8},
+		{"unselected-day-1", unselected, start.Add(time.Hour), 100, 100, 100, 100},
+	}
+	for _, fixture := range fixtures {
+		apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{
+			UserID: fixture.user.ID,
+			Key:    "sk-" + fixture.name,
+			Name:   fixture.name,
+		})
+		account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-" + fixture.name})
+		_, err := s.repo.Create(s.ctx, &service.UsageLog{
+			UserID:              fixture.user.ID,
+			APIKeyID:            apiKey.ID,
+			AccountID:           account.ID,
+			RequestID:           uuid.NewString(),
+			Model:               "claude-3",
+			InputTokens:         fixture.input,
+			OutputTokens:        fixture.output,
+			CacheCreationTokens: fixture.cacheWrite,
+			CacheReadTokens:     fixture.cacheHit,
+			CreatedAt:           fixture.createdAt,
+		})
+		s.Require().NoError(err)
+	}
+
+	trend, err := s.repo.GetUserUsageTrend(
+		s.ctx,
+		start,
+		end,
+		"day",
+		[]int64{selectedB.ID, selectedA.ID},
+		0,
+	)
+	s.Require().NoError(err)
+	s.Require().Len(trend, 3)
+	tokens := make(map[string]int64, len(trend))
+	for _, point := range trend {
+		tokens[fmt.Sprintf("%d/%s", point.UserID, point.Date)] = point.Tokens
+		s.Require().NotEqual(unselected.ID, point.UserID)
+	}
+	s.Require().Equal(int64(100), tokens[fmt.Sprintf("%d/2026-07-01", selectedA.ID)])
+	s.Require().Equal(int64(10), tokens[fmt.Sprintf("%d/2026-07-01", selectedB.ID)])
+	s.Require().Equal(int64(26), tokens[fmt.Sprintf("%d/2026-07-02", selectedA.ID)])
+}
+
+func (s *UsageLogRepoSuite) TestGetUserUsageTrend_SelectedUsers_HourlyShanghaiBuckets() {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	selected := mustCreateUser(s.T(), s.client, &service.User{Email: "selected-hourly@test.com"})
+	unselected := mustCreateUser(s.T(), s.client, &service.User{Email: "unselected-hourly@test.com"})
+	selectedKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: selected.ID, Key: "sk-selected-hourly", Name: "selected-hourly"})
+	unselectedKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: unselected.ID, Key: "sk-unselected-hourly", Name: "unselected-hourly"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-selected-hourly"})
+
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, loc)
+	end := start.AddDate(0, 0, 1)
+	fixtures := []struct {
+		user      *service.User
+		apiKey    *service.APIKey
+		createdAt time.Time
+		input     int
+		output    int
+	}{
+		{selected, selectedKey, start.Add(30 * time.Minute), 10, 20},
+		{selected, selectedKey, start.Add(23*time.Hour + 30*time.Minute), 30, 40},
+		{selected, selectedKey, end.Add(30 * time.Minute), 100, 100},
+		{unselected, unselectedKey, start.Add(30 * time.Minute), 100, 100},
+	}
+	for _, fixture := range fixtures {
+		_, err := s.repo.Create(s.ctx, &service.UsageLog{
+			UserID:       fixture.user.ID,
+			APIKeyID:     fixture.apiKey.ID,
+			AccountID:    account.ID,
+			RequestID:    uuid.NewString(),
+			Model:        "claude-3",
+			InputTokens:  fixture.input,
+			OutputTokens: fixture.output,
+			CreatedAt:    fixture.createdAt,
+		})
+		s.Require().NoError(err)
+	}
+
+	trend, err := s.repo.GetUserUsageTrend(s.ctx, start, end, "hour", []int64{selected.ID}, 0)
+	s.Require().NoError(err)
+	s.Require().Len(trend, 2)
+	s.Require().Equal("2026-07-01 00:00", trend[0].Date)
+	s.Require().Equal(int64(30), trend[0].Tokens)
+	s.Require().Equal("2026-07-01 23:00", trend[1].Date)
+	s.Require().Equal(int64(70), trend[1].Tokens)
 }
 
 // --- GetAPIKeyUsageTrend ---

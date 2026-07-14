@@ -128,6 +128,14 @@ API 模块分布:
 - Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 固定生成“报表概览、组织汇总、人员汇总、月度明细、周度明细、日度明细”六个 Sheet。客户端四类数据合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
 - 页面组件位于 `frontend/src/components/admin/organization-usage/`; 人员表始终保持宽表横向滚动, 不使用移动端卡片化 DataTable。修改筛选、组织汇总、峰值或导出交互时同步该目录 README、View/Worker 测试与中英文 `admin/organizationUsage.ts` locale。
 
+管理端 Token Analysis 计费用量趋势:
+
+- `frontend/src/views/admin/TokenAnalysisView.vue` 的用户排行可跨分页选择最多 5 名存在 `user_id` 的用户; 选择状态保存用户 ID、邮箱和选择顺序, 达到上限后只禁用未选项, 已选项仍可取消。
+- 趋势面板调用 `adminAPI.dashboard.getUserUsageTrend`, 数据源是后端 `usage_logs` 计费用量而不是归档摘要。`frontend/src/api/admin/dashboard.ts` 把 `number[]` 序列化为逗号分隔 `user_ids`; 空数组不发送该参数, 避免误进入后端严格选人模式。
+- 日粒度按筛选范围生成完整日期轴; 小时粒度只在同一日期可选并生成 24 个北京时间整点。每名用户按选择顺序使用稳定颜色, 缺失周期补 0, 完全无用量仍渲染零值折线并显示空用量提示。
+- 用户/粒度/筛选变化先清空旧点并递增请求序号, 迟到响应不得覆盖最新选择; 错误态在面板内重试。Chart.js 只在页面内注册并复用 `vue-chartjs` 的 `Line`, 不新增全局图表组件或页面路由。
+- 回归测试位于 `frontend/src/views/admin/__tests__/TokenAnalysisView.spec.ts` 与 `frontend/src/api/__tests__/admin.dashboard.spec.ts`; 修改选择上限、分页、时间轴或竞态处理时同步中英文 `admin/tokenAnalysis.ts` 文案和这两组测试。
+
 用户侧用量页:
 
 - `frontend/src/views/user/UsageView.vue` 使用 `frontend/src/api/usage.ts#getDashboardSnapshotV2` 拉取 trend/group 图表, `getDashboardModels({ model_source: "requested" })` 拉取请求模型分布, 过滤项与后端共享 `api_key_id`、`group_id`、`model`、`request_type`、`billing_type`、`billing_mode` 和日期范围。

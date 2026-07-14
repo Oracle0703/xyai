@@ -28,6 +28,7 @@ type organizationUsageExplainPlan struct {
 	JoinType            string                         `json:"Join Type"`
 	Strategy            string                         `json:"Strategy"`
 	RelationName        string                         `json:"Relation Name"`
+	IndexName           string                         `json:"Index Name"`
 	CTEName             string                         `json:"CTE Name"`
 	SortMethod          string                         `json:"Sort Method"`
 	ActualStartupTime   float64                        `json:"Actual Startup Time"`

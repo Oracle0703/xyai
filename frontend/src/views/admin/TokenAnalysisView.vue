@@ -66,7 +66,7 @@
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <div v-for="card in summaryCards" :key="card.label" class="card p-4">
           <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ card.label }}</div>
-          <div class="mt-2 truncate text-xl font-semibold text-gray-900 dark:text-white">{{ card.value }}</div>
+          <div class="mt-2 truncate text-xl font-semibold text-gray-900 dark:text-white" :title="card.title">{{ card.value }}</div>
         </div>
       </div>
 
@@ -306,6 +306,7 @@
             <table class="table text-sm">
               <thead>
                 <tr>
+                  <th class="w-8"></th>
                   <th class="w-10">#</th>
                   <th>{{ t('admin.tokenAnalysis.user') }}</th>
                   <th>{{ t('admin.tokenAnalysis.tokens') }}</th>
@@ -314,19 +315,41 @@
               </thead>
               <tbody>
                 <tr v-for="(user, index) in users" :key="user.user_id || 0">
+                  <td class="w-8">
+                    <input
+                      v-if="user.user_id"
+                      data-user-trend-select
+                      type="checkbox"
+                      class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      :checked="isTrendUserSelected(user.user_id)"
+                      :disabled="trendUserSelectionDisabled(user.user_id)"
+                      :aria-label="t('admin.tokenAnalysis.selectUserTrend', { email: user.user_email || user.user_id })"
+                      @change="toggleTrendUser(user)"
+                    />
+                    <span v-else class="text-gray-300">-</span>
+                  </td>
                   <td class="tabular-nums text-gray-500">{{ userRankingRank(index) }}</td>
                   <td>
                     <div class="max-w-[180px] truncate font-medium">{{ user.user_email || '-' }}</div>
                   </td>
-                  <td class="tabular-nums">{{ formatUserRankingTokens(user.total_tokens) }}</td>
-                  <td class="tabular-nums">{{ formatUserRankingCost(user.actual_cost) }}</td>
+                  <td class="tabular-nums" :title="formatNumber(user.total_tokens)">{{ formatUserRankingTokens(user.total_tokens) }}</td>
+                  <td class="tabular-nums" :title="formatCost(user.actual_cost)">{{ formatUserRankingCost(user.actual_cost) }}</td>
                 </tr>
                 <tr v-if="!usersLoading && users.length === 0">
-                  <td colspan="4" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
+                  <td colspan="5" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          <Pagination
+            v-if="usersPagination.total > 0"
+            :page="usersPagination.page"
+            :page-size="usersPagination.page_size"
+            :total="usersPagination.total"
+            class="mt-3"
+            @update:page="changeUserPage"
+            @update:pageSize="changeUserPageSize"
+          />
         </div>
 
         <div class="card p-4 xl:col-span-2">
@@ -427,6 +450,55 @@
           />
         </div>
       </div>
+
+      <div v-if="selectedTrendUsers.length > 0" class="card p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.usageTrend') }}</h2>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.tokenAnalysis.selectedUsersCount', { count: selectedTrendUsers.length }) }}
+            </p>
+          </div>
+          <div class="inline-flex overflow-hidden rounded-md border border-gray-200 dark:border-dark-700">
+            <button
+              type="button"
+              class="h-8 px-3 text-xs font-medium"
+              :class="userTrendGranularity === 'day' ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              @click="setUserTrendGranularity('day')"
+            >
+              {{ t('admin.tokenAnalysis.trendDay') }}
+            </button>
+            <button
+              type="button"
+              class="h-8 border-l border-gray-200 px-3 text-xs font-medium dark:border-dark-700"
+              :class="userTrendGranularity === 'hour' ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
+              :disabled="!canUseHourlyTrend"
+              :title="canUseHourlyTrend ? '' : t('admin.tokenAnalysis.trendHourSingleDayHint')"
+              @click="setUserTrendGranularity('hour')"
+            >
+              {{ t('admin.tokenAnalysis.trendHour') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="userTrendLoading" class="mt-4 flex h-72 items-center justify-center text-sm text-gray-500 md:h-80">
+          {{ t('common.loading') }}
+        </div>
+        <div v-else-if="userTrendError" class="mt-4 flex h-72 flex-col items-center justify-center gap-3 text-center md:h-80">
+          <p class="text-sm text-red-600 dark:text-red-400">{{ t('admin.tokenAnalysis.trendLoadFailed') }}</p>
+          <button type="button" class="btn btn-secondary btn-sm" @click="loadSelectedUserTrend">
+            {{ t('admin.tokenAnalysis.trendRetry') }}
+          </button>
+        </div>
+        <div v-else class="mt-4">
+          <p v-if="userTrendPoints.length === 0" class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.tokenAnalysis.trendNoUsage') }}
+          </p>
+          <div class="h-72 md:h-80">
+            <Line :data="selectedUserTrendChartData" :options="selectedUserTrendChartOptions" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="selectedRequest" class="fixed inset-0 z-40 bg-black/20" @click="selectedRequest = null"></div>
@@ -495,6 +567,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+  type ChartData,
+  type ChartOptions
+} from 'chart.js'
+import { Line } from 'vue-chartjs'
 import { adminAPI } from '@/api/admin'
 import type {
   TokenAnalysisArchiveFile,
@@ -510,7 +594,10 @@ import type {
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
+import type { UserUsageTrendPoint } from '@/types'
 import { formatBytes, formatCompactNumber, formatDateTime } from '@/utils/format'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -560,6 +647,18 @@ const usersPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const projectsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const requestsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const PROJECT_OUTPUT_INPUT_HEALTHY_RATIO = 0.05
+const MAX_SELECTED_TREND_USERS = 5
+const USER_TREND_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+
+type TrendGranularity = 'day' | 'hour'
+type SelectedTrendUser = { user_id: number; email: string }
+
+const selectedTrendUsers = ref<SelectedTrendUser[]>([])
+const userTrendPoints = ref<UserUsageTrendPoint[]>([])
+const userTrendGranularity = ref<TrendGranularity>('day')
+const userTrendLoading = ref(false)
+const userTrendError = ref(false)
+let userTrendLoadSeq = 0
 
 const cleanFilters = computed(() => {
   const out: TokenAnalysisQueryParams = {}
@@ -572,20 +671,144 @@ const cleanFilters = computed(() => {
 })
 
 const summaryCards = computed(() => [
-  { label: t('admin.tokenAnalysis.summary.totalRequests'), value: formatNumber(summary.value?.total_requests ?? 0) },
+  {
+    label: t('admin.tokenAnalysis.summary.totalRequests'),
+    value: formatRequestMetric(summary.value?.total_requests ?? 0),
+    title: formatNumber(summary.value?.total_requests ?? 0)
+  },
   // 同期计费请求数(usage_logs)与归档覆盖率: 直观呈现归档样本与真实
   // 计费请求量的差距, 避免把"已归档请求数"误读为全量请求数。
-  { label: t('admin.tokenAnalysis.summary.billedRequests'), value: formatNumber(summary.value?.billed_requests ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.archiveCoverage'), value: percent(summary.value?.archive_coverage ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.totalTokens'), value: formatNumber(summary.value?.total_tokens ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.inputTokens'), value: formatNumber(summary.value?.total_input_tokens ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.outputTokens'), value: formatNumber(summary.value?.total_output_tokens ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.totalCost'), value: formatCost(summary.value?.total_actual_cost ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.cacheRead'), value: formatNumber(summary.value?.cache_read_tokens ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.cacheHitRate'), value: percent(summary.value?.cache_hit_rate ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.riskyRequests'), value: formatNumber(summary.value?.risky_requests ?? 0) },
-  { label: t('admin.tokenAnalysis.summary.riskyCost'), value: formatCost(summary.value?.risky_cost ?? 0) }
+  {
+    label: t('admin.tokenAnalysis.summary.billedRequests'),
+    value: formatRequestMetric(summary.value?.billed_requests ?? 0),
+    title: formatNumber(summary.value?.billed_requests ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.archiveCoverage'),
+    value: percent(summary.value?.archive_coverage ?? 0),
+    title: percent(summary.value?.archive_coverage ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.totalTokens'),
+    value: formatTokenMetric(summary.value?.total_tokens ?? 0),
+    title: formatNumber(summary.value?.total_tokens ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.inputTokens'),
+    value: formatTokenMetric(summary.value?.total_input_tokens ?? 0),
+    title: formatNumber(summary.value?.total_input_tokens ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.outputTokens'),
+    value: formatTokenMetric(summary.value?.total_output_tokens ?? 0),
+    title: formatNumber(summary.value?.total_output_tokens ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.totalCost'),
+    value: formatCost(summary.value?.total_actual_cost ?? 0),
+    title: formatCost(summary.value?.total_actual_cost ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.cacheRead'),
+    value: formatTokenMetric(summary.value?.cache_read_tokens ?? 0),
+    title: formatNumber(summary.value?.cache_read_tokens ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.cacheHitRate'),
+    value: percent(summary.value?.cache_hit_rate ?? 0),
+    title: percent(summary.value?.cache_hit_rate ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.riskyRequests'),
+    value: formatRequestMetric(summary.value?.risky_requests ?? 0),
+    title: formatNumber(summary.value?.risky_requests ?? 0)
+  },
+  {
+    label: t('admin.tokenAnalysis.summary.riskyCost'),
+    value: formatCost(summary.value?.risky_cost ?? 0),
+    title: formatCost(summary.value?.risky_cost ?? 0)
+  }
 ])
+
+const canUseHourlyTrend = computed(() => {
+  return Boolean(filters.start_date && filters.end_date && filters.start_date === filters.end_date)
+})
+
+function buildTrendLabels(startDate: string, endDate: string, granularity: TrendGranularity): string[] {
+  if (!startDate || !endDate) return []
+  if (granularity === 'hour') {
+    if (startDate !== endDate) return []
+    return Array.from({ length: 24 }, (_, hour) => `${startDate} ${String(hour).padStart(2, '0')}:00`)
+  }
+
+  const labels: string[] = []
+  const cursor = new Date(`${startDate}T00:00:00Z`)
+  const end = new Date(`${endDate}T00:00:00Z`)
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime()) || cursor > end) return labels
+  while (cursor <= end) {
+    labels.push(cursor.toISOString().slice(0, 10))
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  return labels
+}
+
+const selectedUserTrendChartData = computed<ChartData<'line'>>(() => {
+  const labels = buildTrendLabels(
+    filters.start_date || '',
+    filters.end_date || '',
+    userTrendGranularity.value
+  )
+  const values = new Map<string, number>()
+  for (const point of userTrendPoints.value) {
+    values.set(`${point.user_id}/${point.date}`, point.tokens)
+  }
+  return {
+    labels,
+    datasets: selectedTrendUsers.value.map((user, index) => {
+      const color = USER_TREND_COLORS[index % USER_TREND_COLORS.length]
+      return {
+        label: user.email || `User ${user.user_id}`,
+        data: labels.map((label) => values.get(`${user.user_id}/${label}`) ?? 0),
+        borderColor: color,
+        backgroundColor: `${color}20`,
+        borderWidth: 2,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        fill: false,
+        tension: 0.3
+      }
+    })
+  }
+})
+
+const selectedUserTrendChartOptions: ChartOptions<'line'> = {
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: {
+    intersect: false,
+    mode: 'index'
+  },
+  plugins: {
+    legend: {
+      position: 'bottom',
+      labels: {
+        usePointStyle: true,
+        boxWidth: 8
+      }
+    }
+  },
+  scales: {
+    x: {
+      grid: { display: false }
+    },
+    y: {
+      beginAtZero: true,
+      ticks: {
+        callback: (value) => formatCompactNumber(Number(value))
+      }
+    }
+  }
+}
 
 const indexStatusText = computed(() => {
   if (indexStatus.value?.running) return t('admin.tokenAnalysis.indexRunning')
@@ -631,6 +854,28 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(Math.round(value || 0))
 }
 
+function finiteNumber(value: number): number {
+  const number = Number(value || 0)
+  return Number.isFinite(number) ? number : 0
+}
+
+function formatTokenMetric(value: number): string {
+  const number = finiteNumber(value)
+  const abs = Math.abs(number)
+  if (abs >= 1_000_000_000) return `${(number / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`
+  return formatNumber(number)
+}
+
+function formatRequestMetric(value: number): string {
+  const number = finiteNumber(value)
+  const abs = Math.abs(number)
+  if (abs >= 1_000_000_000) return `${(number / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${(number / 1_000).toFixed(1)}K`
+  return formatNumber(number)
+}
+
 // 时间列固定东八区展示(团队所在时区), 形如 2026-06-10 16:23:45;
 // sv-SE locale 天然输出 YYYY-MM-DD HH:mm:ss, 不带 ISO 的 T 和时区尾巴。
 function formatTimeCN(value?: string | null): string {
@@ -653,20 +898,85 @@ function formatCost(value: number): string {
   return `$${Number(value || 0).toFixed(4)}`
 }
 
-// 用户排行专用: Token 仅用 M/B(不用 K), 费用统一用 K 单位。
+// 用户排行专用: Token 仅用 M/B(不用 K), 费用达到 1000 后使用 K。
 function formatUserRankingTokens(value: number): string {
-  const n = Number(value || 0)
-  const abs = Math.abs(n)
-  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
-  return `${(n / 1_000_000).toFixed(1)}M`
+  return formatTokenMetric(value)
 }
 
 function formatUserRankingCost(value: number): string {
-  return `$${(Number(value || 0) / 1000).toFixed(1)}K`
+  const number = finiteNumber(value)
+  if (Math.abs(number) >= 1_000) return `$${(number / 1_000).toFixed(1)}K`
+  return formatCost(number)
 }
 
 function userRankingRank(index: number): number {
   return (usersPagination.page - 1) * usersPagination.page_size + index + 1
+}
+
+function isTrendUserSelected(userID?: number): boolean {
+  return Boolean(userID && selectedTrendUsers.value.some((user) => user.user_id === userID))
+}
+
+function trendUserSelectionDisabled(userID?: number): boolean {
+  if (!userID) return true
+  return selectedTrendUsers.value.length >= MAX_SELECTED_TREND_USERS && !isTrendUserSelected(userID)
+}
+
+function toggleTrendUser(user: TokenAnalysisUserUsage) {
+  const userID = Number(user.user_id || 0)
+  if (userID <= 0) return
+  const selectedIndex = selectedTrendUsers.value.findIndex((item) => item.user_id === userID)
+  if (selectedIndex >= 0) {
+    selectedTrendUsers.value.splice(selectedIndex, 1)
+  } else if (selectedTrendUsers.value.length < MAX_SELECTED_TREND_USERS) {
+    selectedTrendUsers.value.push({
+      user_id: userID,
+      email: user.user_email || `User ${userID}`
+    })
+  }
+  void loadSelectedUserTrend()
+}
+
+function setUserTrendGranularity(granularity: TrendGranularity) {
+  if (granularity === 'hour' && !canUseHourlyTrend.value) return
+  if (userTrendGranularity.value === granularity) return
+  userTrendGranularity.value = granularity
+  void loadSelectedUserTrend()
+}
+
+async function loadSelectedUserTrend() {
+  const seq = ++userTrendLoadSeq
+  userTrendPoints.value = []
+  userTrendError.value = false
+  if (selectedTrendUsers.value.length === 0) {
+    userTrendLoading.value = false
+    return
+  }
+  if (!filters.start_date || !filters.end_date) {
+    userTrendLoading.value = false
+    userTrendError.value = true
+    return
+  }
+  if (userTrendGranularity.value === 'hour' && !canUseHourlyTrend.value) {
+    userTrendGranularity.value = 'day'
+  }
+
+  userTrendLoading.value = true
+  try {
+    const response = await adminAPI.dashboard.getUserUsageTrend({
+      user_ids: selectedTrendUsers.value.map((user) => user.user_id),
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      granularity: userTrendGranularity.value
+    })
+    if (seq !== userTrendLoadSeq) return
+    userTrendPoints.value = response.trend || []
+  } catch {
+    if (seq !== userTrendLoadSeq) return
+    userTrendError.value = true
+  } finally {
+    if (seq === userTrendLoadSeq) userTrendLoading.value = false
+  }
 }
 
 function percent(value: number): string {
@@ -870,10 +1180,18 @@ function archiveFileStatusClass(status: TokenAnalysisArchiveFileStatus): string 
 }
 
 async function reloadAll() {
+  usersPagination.page = 1
   requestsPagination.page = 1
   projectsPagination.page = 1
+  if (userTrendGranularity.value === 'hour' && !canUseHourlyTrend.value) {
+    userTrendGranularity.value = 'day'
+  }
   try {
-    await Promise.all([loadSummary(), loadUsers(), loadProjects(), loadRequests(), loadIndexStatus(), loadArchiveFiles()])
+    const loaders = [loadSummary(), loadUsers(), loadProjects(), loadRequests(), loadIndexStatus(), loadArchiveFiles()]
+    if (selectedTrendUsers.value.length > 0) {
+      loaders.push(loadSelectedUserTrend())
+    }
+    await Promise.all(loaders)
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
@@ -941,6 +1259,17 @@ function changeRequestPage(page: number) {
   void loadRequests()
 }
 
+function changeUserPage(page: number) {
+  usersPagination.page = page
+  void loadUsers()
+}
+
+function changeUserPageSize(pageSize: number) {
+  usersPagination.page_size = pageSize
+  usersPagination.page = 1
+  void loadUsers()
+}
+
 function changeRequestPageSize(pageSize: number) {
   requestsPagination.page_size = pageSize
   requestsPagination.page = 1
@@ -978,6 +1307,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  userTrendLoadSeq++
   stopIndexPolling()
 })
 </script>
