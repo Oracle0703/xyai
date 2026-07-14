@@ -1245,3 +1245,80 @@ git show --cc 0d65f65a20df -- README_CN.md backend/go.mod backend/internal/pkg/a
 git diff --stat 42f3c22830b8..55ed0ab0da36
 git log --oneline 55ed0ab0da36..upstream/main
 ```
+
+## 2026-07-14 main sync (v0.1.155)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10155_同步sub2api主线` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main` |
+| Base before merge | `20e6379f9243f00aaf84b562af40c7b80793d4fc` |
+| Merge base | `55ed0ab0da367183d97c15659e33ae9e83f6ff90` |
+| Upstream head merged | `7c717365ef728e53cdcf6d639a4dd68226db03b2` |
+| Merge commit | `d294d493705a252a5038287a96643a43a38b330e` |
+| Upstream version | `0.1.155` |
+| Upstream commits | 71 |
+| Upstream files changed | 238 (`+15089 / -880`) |
+| Merge result vs first parent | 238 (`+15087 / -879`) |
+| 双方同时修改文件 | 23 个, 均完成自动合并结果审查 |
+| Conflict files | `backend/internal/repository/redis.go`; `backend/internal/server/router.go`; `backend/internal/service/content_moderation.go` |
+
+### Summary
+
+| Area | Notes |
+|---|---|
+| Observability | 增加 opt-in Admin UI Server-Timing, 汇总 SQL、Redis、外部 HTTP、cache 与总耗时; Ops system logs 增加 host 筛选。 |
+| OpenAI compatibility | 增加 native Responses namespace 可逆摊平/回程恢复, Responses Lite 保留客户端 image tools, 图片非流式 keepalive 和图片终态修正, Codex manifest API Key failover。 |
+| Billing / data | OpenAI 长上下文费率改为账号级 opt-in, 默认关闭并把应用结果写入 usage log; 增加 migrations 174-176 及 Ent 生成代码。 |
+| Grok | 增加 Web SSO -> Build OAuth 批量导入、导入后 probe、Channel Monitor provider、滚动 24h Free 配额估算、OAuth media 官方 API 路由和 reasoning null 清理。 |
+| Reliability | 修复 scheduler 全量重建并发合并/事件延迟、代理到期和账号自动暂停触发重建、HTTP/2 keep-alive PING 与 quota reset credit 检测。 |
+| Frontend | 账号页增加 Grok SSO 和 OpenAI 长上下文计费开关, 监控页展示 Grok/Free 状态, Ops 日志增加 host 条件, 管理请求统一标记 `X-Admin-UI-Request`。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/repository/redis.go` | 保留本地 `InitRedis(...)(*redis.Client,error)`、启动时 Redis 7+/Memurai 校验和失败关闭客户端; 同时在 `server.enable_server_timing` 开启时注册上游 `serverTimingRedisHook`。 |
+| `backend/internal/server/router.go` | 同时挂载上游 `ServerTiming` 和本地 Prompt Metrics `CaptureMiddleware`; 保留 Prompt Metrics 管理路由与合规确认门。 |
+| `backend/internal/service/content_moderation.go` | 保留本地可选 `config.Config`、Prompt Risk judge semaphore 和 LLM 语义审核; 将共享 HTTP client 改为上游 `servertiming.InstrumentClient(nil)`。 |
+| Auto-merge review | 对 23 个双方修改文件逐项检查相对本地 `main` 的删除行和合并结果, 确认 Wire/config/admin routes/OpenAI gateway/usage/frontend account locale 均为上游增量叠加, 未发现本地合同被静默删除。 |
+
+### 本地能力保留确认
+
+| 能力 | 状态 |
+|---|---|
+| Prompt Risk / 内容审核 / LLM judge | 保留; 配置注入、judge fail-open、管理路由、Prompt Metrics 和全量 service tests 均存在。 |
+| RequestArchive / RequestIntercept | 保留; 网关路由、中间件链、运行时设置与管理端入口未被上游覆盖。 |
+| Token Analysis / 图片生成 | 保留; admin service/repository、`/image-gen`、batch image 和 OpenAI/Grok images 路径并存。 |
+| 用户并发与缓存错误 | 保留; preset/runner、普通 slot、`ConcurrencyCacheError` 与 503 语义仍存在。 |
+| OpenAI-compatible options/cache usage | 保留; 本地 Responses→Chat options adapter、provider preset、DeepSeek `prompt_cache_hit_tokens` 和 cache write/read 互不覆盖。 |
+| Redis 启动约束 | 保留; Redis 7+ / Memurai 检查与上游 Server-Timing hook 组合生效。 |
+
+### Verification
+
+| Command | Result |
+|---|---|
+| `git rev-list --parents -n 1 d294d4937` | Passed; parents are local `20e6379f9` and upstream `7c717365e`. |
+| Unresolved-file scan, conflict-marker review and `git diff --check` | Passed; 0 unresolved files, 3 conflict files resolved semantically. |
+| `go generate ./ent` and `go generate ./cmd/server` | Passed after aligning Wire directive to `go run -mod=mod`; Ent output stable, Wire output regenerated. |
+| `go test -tags=unit -p 1 -count=1 ./...` | Passed. First full attempt hit Windows locks in `cmd/server`, `ent/schema`, `internal/service`; all three passed with fresh `GOTMPDIR`, `internal/service` in `100.293s`. |
+| `go test -tags=integration -p 1 -count=1 ./...` | Passed. Packages interrupted by Windows `Access is denied` were rerun individually with fresh `GOTMPDIR`; all passed, `responseheaders` passed on retry 2. |
+| Upstream frontend focused Vitest | Passed: 12 files, 129 tests. |
+| `cmd.exe /c pnpm --dir frontend exec vitest run` | Passed: 163 files, 1055 tests. |
+| `cmd.exe /c pnpm --dir frontend run typecheck` | Passed (`vue-tsc --noEmit`). |
+| `cmd.exe /c pnpm --dir frontend run lint:check` | Passed when run alone; the parallel first attempt only raced a transient Vite timestamp file. |
+| Full `golangci-lint run ./...` | Non-gating: reported 29 existing repository issues; user set this phase acceptance to passing test cases, so no unrelated lint-debt cleanup was included. |
+
+### Documentation Updates
+
+更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`, 记录 v0.1.155、Server-Timing、Responses namespace、Grok SSO/监控、账号级长上下文计费、migrations 174-176 和 Wire 生成命令。
+
+### Useful Diff Commands
+
+```bash
+git show --stat --summary --find-renames d294d493705a
+git show --cc d294d493705a -- backend/internal/repository/redis.go backend/internal/server/router.go backend/internal/service/content_moderation.go
+git diff --stat 55ed0ab0da36..7c717365ef72
+git log --oneline 55ed0ab0da36..7c717365ef72
+```

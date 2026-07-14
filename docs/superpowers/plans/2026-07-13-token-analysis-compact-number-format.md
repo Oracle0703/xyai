@@ -245,7 +245,7 @@ Expected: exit code 0。2026-07-14 当前复核结果为 `2` 个测试文件、`
 pnpm --dir frontend run test:run
 ```
 
-Expected: exit code 0。2026-07-14 当前复核结果为 `167` 个测试文件、`1085/1085` 通过。全量 Vitest 是交付必检项，不降级为可选。
+Expected: exit code 0。2026-07-14 合入 0.1.155 后复核结果为 `174` 个测试文件、`1143/1143` 通过。全量 Vitest 是交付必检项，不降级为可选。
 
 - [x] **Step 3: 运行类型和只读 lint 检查**
 

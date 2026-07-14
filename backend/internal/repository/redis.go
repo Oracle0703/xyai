@@ -26,6 +26,9 @@ import (
 // 3. DialTimeout/ReadTimeout/WriteTimeout: 精确控制各阶段超时
 func InitRedis(cfg *config.Config) (*redis.Client, error) {
 	rdb := redis.NewClient(buildRedisOptions(cfg))
+	if cfg.Server.EnableServerTiming {
+		rdb.AddHook(serverTimingRedisHook{})
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Redis.DialTimeoutSeconds)*time.Second)
 	defer cancel()
 	if err := validateRedisServerVersion(ctx, rdb, ""); err != nil {

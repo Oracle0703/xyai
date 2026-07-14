@@ -981,7 +981,7 @@ cmd.exe /c pnpm --dir frontend run lint:check
 
 Expected: 全部 exit code 0。
 
-2026-07-14 当前结果：全量 Vitest `167` 个测试文件、`1085/1085` 通过；Token Analysis 页面 `24/24`，Dashboard API `2/2`；typecheck 与 lint:check 均通过。
+2026-07-14 合入 0.1.155 后结果：全量 Vitest `174` 个测试文件、`1143/1143` 通过；Token Analysis 页面 `24/24`，Dashboard API `2/2`；typecheck 与 lint:check 均通过。
 
 - [ ] **Step 6: 浏览器验收**
 
@@ -1003,3 +1003,18 @@ git status --short
 Expected: `git diff --check` 无输出；没有 migration、路由或新组件目录；保留当前本地分支，按用户既定要求不提交、不推送。
 
 2026-07-14 当前结果：`git diff --check` exit code 0；未新增 migration、页面路由或组件目录，工作区保留为未提交状态。
+
+## 0.1.155 基线合并验证
+
+2026-07-14 将本地 `feature/hy/10155_同步sub2api主线` 合入本分支，使用 `git merge --no-commit --no-ff` 停在待审核状态：
+
+| 检查项 | 结果 |
+| --- | --- |
+| 文本冲突 / 未解决文件 | 无 |
+| Handler、Service、Repository、Server Routes | 全部通过；Server 包无测试文件 |
+| Repository integration 测试二进制 | `-tags=integration` 编译通过 |
+| 前端全量 Vitest | `174` 个文件、`1143/1143` 通过 |
+| TypeScript / ESLint | `typecheck`、`lint:check` 通过 |
+| 生产构建 | 前端 Vite 构建通过；后端 `-tags embed` 构建 0.1.155 通过 |
+| 真实 PostgreSQL integration / EXPLAIN | 仍待测试环境执行 |
+| 合并提交 | 未创建，等待用户审核 |
