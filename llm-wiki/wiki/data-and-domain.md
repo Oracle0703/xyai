@@ -78,6 +78,9 @@ go generate ./cmd/server
 - `backend/migrations/170_add_grok_video_pricing_controls.sql` 为 `groups` 增加视频独立倍率和 480p/720p/1080p 单价; `171_allow_video_usage_without_image_size.sql` 放宽旧 image size 约束; `172_video_per_second_billing_metadata.sql` 为 `usage_logs` 增加视频数量、分辨率、时长并把价格口径明确为 USD/s。视频总成本为分辨率每秒单价乘请求时长; token-mode 渠道的视频行也必须通过约束并完整落 usage。
 - `backend/migrations/174_add_usage_logs_api_key_latest_ip_index_notx.sql` 为每个 API Key 查询最近非空 IP 增加 `(api_key_id, created_at DESC, id DESC) INCLUDE (ip_address)` 部分并发索引; API Key 列表查询还会限制每个 key 的 latest-IP 子查询, 避免扫描全部历史。
 - `backend/migrations/174_group_web_search_price_per_call.sql` 为 `groups` 增加可空 `web_search_price_per_call DECIMAL(20,8)`。NULL 使用内置默认价 0.01 USD/次; 两个 `174_` 文件按完整文件名独立执行, 不得为数字前缀重复而重命名。
+- `backend/migrations/174_add_usage_log_long_context_billing.sql` 为 `usage_logs` 增加 `long_context_billing_applied`; `175_default_openai_long_context_billing.sql` 将既有 OpenAI 账号的 `extra.openai_long_context_billing_enabled` 默认写为 `false`。是否应用长上下文费率由最终凭据账号控制, Spark shadow 必须先解析母账号。
+- `backend/migrations/175_add_ops_system_logs_host.sql` + `175a_add_ops_system_logs_host_index_notx.sql` 为 `ops_system_logs` 增加有长度边界的 `host` 和 `(host, created_at DESC)` 并发索引, 支持多实例日志按主机筛选。
+- `backend/migrations/176_channel_monitor_grok_provider.sql` 扩展 channel monitor provider CHECK 与请求模板, 允许 `grok`; 同步 Ent schema 和 fixture migration test。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -174,6 +177,8 @@ Codex alpha search 按次计费:
 - 计费结果仍写 usage log, 需要保持用户余额、订阅和 user x platform quota 的原子扣减/回滚语义。
 
 用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。修改用量聚合或展示时要保持三类 token 互斥统计。
+
+OpenAI 长上下文计费是账号级 opt-in: `accounts.extra.openai_long_context_billing_enabled` 默认 `false`, 只有该账号真实上游按 OpenAI API 长上下文阈值收费时才开启。计费结果把是否应用写入 `usage_logs.long_context_billing_applied`, 供审计和管理端用量表展示; shadow 账号沿用母账号策略, 不能按 shadow 的空凭据自行决定。
 
 用户侧用量统计已与管理端过滤口径对齐: `UsageLogFilters` 支持 `group_id`、请求模型源(`requested`)、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和日期范围; `/api/v1/usage/dashboard/snapshot-v2` 可以一次返回 trend、model、group 分布。新增 usage 聚合字段时要同时检查 `usage_handler.go`、`usage_service.go`、`usage_log_repo.go`、前端 `frontend/src/api/usage.ts` 和 `UsageView.vue`。
 

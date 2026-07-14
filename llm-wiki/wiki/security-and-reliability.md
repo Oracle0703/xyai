@@ -108,6 +108,7 @@ CSP 注意点:
 - `security_headers.go` 的 `requiredCSPDirectiveValues` 是"旧自定义策略缺新指令"的运行时补丁列表(支付 SDK 域名、`img-src blob:` 等都走这里)。给 CSP 加新的必需指令时**必须同时改默认串和该列表**, 否则覆盖了 policy 的存量部署不会生效。
 - `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
 - 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
+- `Server-Timing` 默认关闭。开启后只有路径属于 `/api/v1/admin/**` 或带 `X-Admin-UI-Request: 1` 的请求会创建 collector, 且响应前必须确认 context role 为 `admin`; 未认证请求、普通用户请求和第三方网关流量不得返回 SQL/Redis/依赖耗时。CORS 只把该 header 纳入管理端请求所需 allowlist。
 
 生产环境要谨慎允许 HTTP, private hosts 和 proxy fallback direct, 避免 token 泄露和 SSRF 风险。
 
@@ -203,6 +204,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
 - Grok prompt cache identity 只能从显式 conversation/prompt cache 线索或稳定消息前缀派生并与账号/模型边界组合; raw Chat 上游不能收到 Responses-only `prompt_cache_key`。健康 quota headers 可以解除此前的 exhausted/rate-limit snapshot, 避免账号永久被误停用。
 - Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
+- Grok Web SSO 导入只在管理员路由接收 SSO key, 服务端经 Device Flow 换成 Build OAuth 凭据后创建账号; key、device code、access/refresh token 不得写入日志、wiki 或前端持久化。批量导入允许部分成功, 失败项只返回索引和脱敏错误。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
@@ -231,7 +233,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 
 运维监控:
 
-- Ops service, repository, dashboard, alert, cleanup, system logs。系统日志持久化 `api_key_id`, 后端 `ListSystemLogs` / cleanup 支持按 `api_key_id` 过滤, 前端系统日志表有 KEY ID 筛选。
+- Ops service, repository, dashboard, alert, cleanup, system logs。系统日志持久化 `api_key_id` 和有界 `host`, 后端 `ListSystemLogs` / cleanup 支持按 API Key 与 host 过滤, 前端系统日志表有 KEY ID / host 筛选。
 - 入口: `backend/internal/server/routes/admin.go` 中 `/api/v1/admin/ops/*`。
 - 前端页面: `frontend/src/views/admin/ops/OpsDashboard.vue`。
 - 告警指标新增 `account_temp_unscheduled_count`(临时摘除账号数, 配合 OpenAI transport failover); 规则配置在前端 `ops/components/OpsAlertRulesCard.vue` 与 `ops_alert_evaluator_service.go`。
