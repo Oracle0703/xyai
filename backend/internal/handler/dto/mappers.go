@@ -40,6 +40,7 @@ func UserFromService(u *service.User) *User {
 		return nil
 	}
 	out := UserFromServiceShallow(u)
+	out.AdminPermissions = append([]string(nil), u.AdminPermissions...)
 	if len(u.APIKeys) > 0 {
 		out.APIKeys = make([]APIKey, 0, len(u.APIKeys))
 		for i := range u.APIKeys {

@@ -46,6 +46,9 @@ func (User) Fields() []ent.Field {
 		field.String("role").
 			MaxLen(20).
 			Default(domain.RoleUser),
+		field.JSON("admin_permissions", []string{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Default([]string{}),
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),

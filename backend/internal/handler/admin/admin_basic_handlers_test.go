@@ -22,6 +22,7 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	redeemHandler := NewRedeemHandler(adminSvc, nil)
 
 	router.GET("/api/v1/admin/users", userHandler.List)
+	router.GET("/api/v1/admin/permissions/catalog", userHandler.GetPermissionCatalog)
 	router.GET("/api/v1/admin/users/:id", userHandler.GetByID)
 	router.POST("/api/v1/admin/users/:id/auth-identities", userHandler.BindAuthIdentity)
 	router.POST("/api/v1/admin/users", userHandler.Create)
@@ -62,6 +63,44 @@ func setupAdminRouter() (*gin.Engine, *stubAdminService) {
 	router.GET("/api/v1/admin/redeem-codes/:id/stats", redeemHandler.GetStats)
 
 	return router, adminSvc
+}
+
+func TestUserHandlerSubAdminPermissionContract(t *testing.T) {
+	router, _ := setupAdminRouter()
+
+	t.Run("create accepts sub admin permissions", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"email":"sub@example.com","password":"pass123","role":"sub_admin","admin_permissions":["admin.usage"]}`)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users", body)
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Contains(t, rec.Body.String(), `"role":"sub_admin"`)
+		require.Contains(t, rec.Body.String(), `"admin_permissions":["admin.usage"]`)
+	})
+
+	t.Run("unknown permission returns bad request", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"email":"sub@example.com","password":"pass123","role":"sub_admin","admin_permissions":["admin.accounts"]}`)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users", body)
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Contains(t, rec.Body.String(), "unknown admin permission")
+	})
+
+	t.Run("catalog returns fixed permissions", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/permissions/catalog", nil)
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Contains(t, rec.Body.String(), `"code":"admin.subscriptions"`)
+		require.Contains(t, rec.Body.String(), `"code":"admin.usage"`)
+		require.Contains(t, rec.Body.String(), `"code":"admin.token_analysis"`)
+	})
 }
 
 func TestUserHandlerEndpoints(t *testing.T) {

@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-14
+更新时间: 2026-07-15
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,6 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-07-15 新增账号级 `sub_admin` 角色与三项固定管理权限。管理接口使用数据库最新用户数据和 HTTP 方法 + Gin 路由模板白名单鉴权，未知路由默认拒绝；前端按服务端权限目录配置账号，并对订阅、使用记录和 Token 分析页面收口写操作。
 - 2026-07-14 从本地 `main` 创建 `feature/hy/10155_同步sub2api主线`, 合并 `Wei-Shaw/sub2api` `main` 到 `7c717365ef728e53cdcf6d639a4dd68226db03b2`, 当前后端版本 `0.1.155`。本次上游增加管理端 opt-in Server-Timing、OpenAI 账号级长上下文计费、Responses namespace 可逆摊平、图片非流式 keepalive/终态修正、Grok Web SSO 导入与渠道监控、Ops host 筛选、Codex manifest failover 和调度全量重建并发修复; 冲突解决继续保留本地 Redis 7+/Memurai 启动校验、Prompt Metrics、Prompt Risk/LLM judge 与内容审核配置, 并审查了 23 个双方同时修改的自动合并文件。
 - 2026-07-13 基于 `feature/hy/10151_同步sub2api主线` 创建 `feature/hy/10153_同步sub2api主线`, 固定同步 `Wei-Shaw/sub2api` 到 `55ed0ab0da367183d97c15659e33ae9e83f6ff90`, 当前后端版本 `0.1.153`; 明确不包含其后的 `7d239d62e`。本次上游增加 OpenAI WS ingress 空闲/API Key 连接上限、Grok API Key 与视频编辑/扩展、alpha search 按次计费、API Key 最新 IP 索引、Responses `additional_tools`/Read 流式参数/stop reason 兼容、嵌入式静态资源长缓存、Apple container、账号 `plan_type` 和 DataTable 小列表非虚拟化等能力; 冲突解决继续保留本地 RequestArchive/RequestIntercept、Responses→Chat options adapter、`ConcurrencyCacheError` 和 OpenAI-compatible provider preset。
 - 2026-07-13 同步 `Wei-Shaw/sub2api` `main` 到 `feature/hy/10151_同步sub2api主线`, 当前后端版本 `0.1.151`。本次上游引入 Responses/Chat 的 custom、namespace、tool_search 工具桥, Codex alpha search 与 identity 修复, 用户级 Fast/Flex 策略, Grok Free OAuth prompt cache/Chat bridge/quota recovery, compact keepalive 加固和 Responses/Anthropic cache creation 透传; 冲突解决继续保留 RequestArchive/RequestIntercept、Token Analysis、图片生成、敏感词过滤、用户并发、第三方 Responses->Chat options 过滤和 OpenAI-compatible cache usage。

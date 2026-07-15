@@ -132,7 +132,7 @@ func (h *AuthHandler) ensureBackendModeAllowsUser(ctx context.Context, user *ser
 	if user == nil {
 		return infraerrors.Unauthorized("INVALID_USER", "user not found")
 	}
-	if h == nil || !h.isBackendModeEnabled(ctx) || user.IsAdmin() {
+	if h == nil || !h.isBackendModeEnabled(ctx) || service.CanAccessAdmin(user) {
 		return nil
 	}
 	return infraerrors.Forbidden("BACKEND_MODE_ADMIN_ONLY", "Backend mode is active. Only admin login is allowed.")
@@ -674,8 +674,8 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Backend mode: block non-admin token refresh
-	if h.settingSvc.IsBackendModeEnabled(c.Request.Context()) && result.UserRole != "admin" {
+	// Backend mode: allow full admins and sub-admins that still have at least one permission.
+	if h.settingSvc.IsBackendModeEnabled(c.Request.Context()) && !canRefreshInBackendMode(result) {
 		response.Forbidden(c, "Backend mode is active. Only admin login is allowed.")
 		return
 	}
@@ -685,6 +685,16 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		RefreshToken: result.RefreshToken,
 		ExpiresIn:    result.ExpiresIn,
 		TokenType:    "Bearer",
+	})
+}
+
+func canRefreshInBackendMode(result *service.TokenPairWithUser) bool {
+	if result == nil {
+		return false
+	}
+	return service.CanAccessAdmin(&service.User{
+		Role:             result.UserRole,
+		AdminPermissions: result.AdminPermissions,
 	})
 }
 

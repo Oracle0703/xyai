@@ -159,7 +159,7 @@
             >
               <Icon name="questionCircle" size="md" />
             </button>
-            <button @click="showAssignModal = true" class="btn btn-primary">
+            <button v-if="canManageSubscriptions" @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
             </button>
@@ -380,7 +380,7 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
-                v-if="row.status === 'active' || row.status === 'expired'"
+                v-if="canManageSubscriptions && (row.status === 'active' || row.status === 'expired')"
                 @click="handleExtend(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
               >
@@ -406,7 +406,7 @@
                 <span class="text-xs">{{ t('admin.subscriptions.resetDailyQuota') }}</span>
               </button>
               <button
-                v-if="row.status === 'active'"
+                v-if="canManageSubscriptions && row.status === 'active'"
                 @click="handleRevoke(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
@@ -414,7 +414,7 @@
                 <span class="text-xs">{{ t('admin.subscriptions.revoke') }}</span>
               </button>
               <button
-                v-if="row.status === 'revoked'"
+                v-if="canManageSubscriptions && row.status === 'revoked'"
                 @click="handleRestore(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
               >
@@ -428,8 +428,8 @@
             <EmptyState
               :title="t('admin.subscriptions.noSubscriptionsYet')"
               :description="t('admin.subscriptions.assignFirstSubscription')"
-              :action-text="t('admin.subscriptions.assignSubscription')"
-              @action="showAssignModal = true"
+              :action-text="canManageSubscriptions ? t('admin.subscriptions.assignSubscription') : undefined"
+              @action="canManageSubscriptions && (showAssignModal = true)"
             />
           </template>
         </DataTable>
@@ -450,6 +450,7 @@
 
     <!-- Assign Subscription Modal -->
     <BaseDialog
+      v-if="canManageSubscriptions"
       :show="showAssignModal"
       :title="t('admin.subscriptions.assignSubscription')"
       width="normal"
@@ -584,6 +585,7 @@
 
     <!-- Adjust Subscription Modal -->
     <BaseDialog
+      v-if="canManageSubscriptions"
       :show="showExtendModal"
       :title="t('admin.subscriptions.adjustSubscription')"
       width="narrow"
@@ -652,6 +654,7 @@
 
     <!-- Revoke Confirmation Dialog -->
     <ConfirmDialog
+      v-if="canManageSubscriptions"
       :show="showRevokeDialog"
       :title="t('admin.subscriptions.revokeSubscription')"
       :message="t('admin.subscriptions.revokeConfirm', { user: revokingSubscription?.user?.email })"
@@ -664,6 +667,7 @@
 
     <!-- Restore Confirmation Dialog -->
     <ConfirmDialog
+      v-if="canManageSubscriptions"
       :show="showRestoreDialog"
       :title="t('admin.subscriptions.restoreSubscription')"
       :message="t('admin.subscriptions.restoreConfirm', { user: restoringSubscription?.user?.email })"
@@ -769,9 +773,11 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
+import type { SubscriptionGroupFilterOption } from '@/api/admin/subscriptions'
 import type { Column } from '@/components/common/types'
 import { formatDateOnly } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -790,6 +796,8 @@ import { getRemainingDurationParts, isOneTimeDailyQuota, type RemainingDurationP
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const canManageSubscriptions = computed(() => authStore.isAdmin)
 
 interface GroupOption {
   value: number
@@ -926,7 +934,9 @@ const statusOptions = computed(() => [
 ])
 
 const subscriptions = ref<UserSubscription[]>([])
-const groups = ref<Group[]>([])
+type SubscriptionGroupOptionSource = SubscriptionGroupFilterOption & Partial<Group>
+
+const groups = ref<SubscriptionGroupOptionSource[]>([])
 const loading = ref(false)
 let abortController: AbortController | null = null
 
@@ -1031,10 +1041,10 @@ const subscriptionGroupOptions = computed(() =>
     .map((g) => ({
       value: g.id,
       label: g.name,
-      description: g.description,
-      platform: g.platform,
-      subscriptionType: g.subscription_type,
-      rate: g.rate_multiplier
+      description: g.description ?? null,
+      platform: g.platform ?? 'anthropic',
+      subscriptionType: g.subscription_type ?? 'standard',
+      rate: g.rate_multiplier ?? 1
     }))
 )
 
@@ -1088,7 +1098,9 @@ const loadSubscriptions = async () => {
 
 const loadGroups = async () => {
   try {
-    groups.value = await adminAPI.groups.getAll()
+    groups.value = authStore.isAdmin
+      ? await adminAPI.groups.getAll()
+      : await adminAPI.subscriptions.searchGroups()
   } catch (error) {
     console.error('Error loading groups:', error)
   }

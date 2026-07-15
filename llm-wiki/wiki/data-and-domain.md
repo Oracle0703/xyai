@@ -34,6 +34,12 @@ Sub2API 的核心对象:
 - `channel_monitor.go`, `channel_monitor_history.go`, `channel_monitor_daily_rollup.go`, `channel_monitor_request_template.go`
 - `setting.go`, `security_secret.go`, `idempotency_record.go`
 
+`users` 角色与管理权限:
+
+- `role` 支持 `admin`、`sub_admin`、`user`。
+- `admin_permissions` 是 `JSONB NOT NULL DEFAULT '[]'::jsonb`, 仅 `sub_admin` 保存权限码; 用户离开该角色时 service 必须清空数组, 避免 stale 权限复用。
+- 权限按账号保存, 不自动给存量子管理员授予后续新增权限。创建/更新时未知权限码返回 400。
+
 修改 schema 后:
 
 ```bash
@@ -81,6 +87,7 @@ go generate ./cmd/server
 - `backend/migrations/174_add_usage_log_long_context_billing.sql` 为 `usage_logs` 增加 `long_context_billing_applied`; `175_default_openai_long_context_billing.sql` 将既有 OpenAI 账号的 `extra.openai_long_context_billing_enabled` 默认写为 `false`。是否应用长上下文费率由最终凭据账号控制, Spark shadow 必须先解析母账号。
 - `backend/migrations/175_add_ops_system_logs_host.sql` + `175a_add_ops_system_logs_host_index_notx.sql` 为 `ops_system_logs` 增加有长度边界的 `host` 和 `(host, created_at DESC)` 并发索引, 支持多实例日志按主机筛选。
 - `backend/migrations/176_channel_monitor_grok_provider.sql` 扩展 channel monitor provider CHECK 与请求模板, 允许 `grok`; 同步 Ent schema 和 fixture migration test。
+- `backend/migrations/177_add_sub_admin_permissions.sql` 为 `users` 增加非空 JSONB `admin_permissions`, 默认空数组; Ent schema 与生成代码必须同步提交。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 

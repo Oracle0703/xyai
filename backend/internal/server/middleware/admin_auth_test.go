@@ -123,8 +123,84 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	})
 }
 
+func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{JWT: config.JWTConfig{Secret: "test-secret", ExpireHour: 1}}
+	authService := service.NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	current := &service.User{
+		ID:               9,
+		Email:            "sub-admin@example.com",
+		Role:             service.RoleSubAdmin,
+		Status:           service.StatusActive,
+		TokenVersion:     3,
+		AdminPermissions: []string{service.AdminPermissionUsage},
+	}
+	userRepo := &stubUserRepo{getByID: func(_ context.Context, _ int64) (*service.User, error) {
+		clone := *current
+		clone.AdminPermissions = append([]string(nil), current.AdminPermissions...)
+		return &clone, nil
+	}}
+	userService := service.NewUserService(userRepo, nil, nil, nil)
+	token, err := authService.GenerateToken(current)
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(authService, userService, nil)))
+	router.GET("/api/v1/admin/usage", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/api/v1/admin/accounts", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := func(path string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	require.Equal(t, http.StatusNoContent, request("/api/v1/admin/usage").Code)
+	denied := request("/api/v1/admin/accounts")
+	require.Equal(t, http.StatusForbidden, denied.Code)
+	require.Contains(t, denied.Body.String(), "ADMIN_PERMISSION_DENIED")
+
+	current.AdminPermissions = nil
+	revoked := request("/api/v1/admin/usage")
+	require.Equal(t, http.StatusForbidden, revoked.Code)
+	require.Contains(t, revoked.Body.String(), "ADMIN_PERMISSION_DENIED")
+}
+
+func TestAdminAuthAdminAPIKeyBypassesSubAdminRouteCatalog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	admin := &service.User{
+		ID:          1,
+		Role:        service.RoleAdmin,
+		Status:      service.StatusActive,
+		Concurrency: 1,
+	}
+	userRepo := &stubUserRepo{getFirstAdmin: func(context.Context) (*service.User, error) {
+		clone := *admin
+		return &clone, nil
+	}}
+	userService := service.NewUserService(userRepo, nil, nil, nil)
+	settingService := service.NewSettingService(&complianceGuardRepoStub{values: map[string]string{
+		service.SettingKeyAdminAPIKey: "admin-secret",
+	}}, &config.Config{})
+
+	router := gin.New()
+	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService)))
+	router.GET("/api/v1/admin/accounts", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts", nil)
+	req.Header.Set("x-api-key", "admin-secret")
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+}
+
 type stubUserRepo struct {
-	getByID func(ctx context.Context, id int64) (*service.User, error)
+	getByID       func(ctx context.Context, id int64) (*service.User, error)
+	getFirstAdmin func(ctx context.Context) (*service.User, error)
 }
 
 func (s *stubUserRepo) Create(ctx context.Context, user *service.User) error {
@@ -143,7 +219,10 @@ func (s *stubUserRepo) GetByEmail(ctx context.Context, email string) (*service.U
 }
 
 func (s *stubUserRepo) GetFirstAdmin(ctx context.Context) (*service.User, error) {
-	panic("unexpected GetFirstAdmin call")
+	if s.getFirstAdmin == nil {
+		panic("GetFirstAdmin not stubbed")
+	}
+	return s.getFirstAdmin(ctx)
 }
 
 func (s *stubUserRepo) Update(ctx context.Context, user *service.User) error {

@@ -173,6 +173,7 @@ export default {
     promoCodes: '优惠码',
     settings: '系统设置',
     myAccount: '我的账户',
+    adminFeatures: '管理功能',
     lightMode: '浅色模式',
     darkMode: '深色模式',
     collapse: '收起',

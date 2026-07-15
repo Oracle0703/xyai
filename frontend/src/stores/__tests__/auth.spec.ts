@@ -43,6 +43,15 @@ const fakeAdminUser = {
   role: 'admin' as const,
 }
 
+const fakeSubAdminUser = {
+  ...fakeUser,
+  id: 3,
+  username: 'sub-admin',
+  email: 'sub-admin@example.com',
+  role: 'sub_admin' as const,
+  admin_permissions: ['admin.usage'] as const,
+}
+
 const fakeAuthResponse = {
   access_token: 'test-token-123',
   refresh_token: 'refresh-token-456',
@@ -339,6 +348,34 @@ describe('useAuthStore', () => {
     it('未登录时返回 false', () => {
       const store = useAuthStore()
       expect(store.isAdmin).toBe(false)
+    })
+  })
+
+  describe('sub-admin permissions', () => {
+    it('exposes sub-admin role and permission checks', async () => {
+      mockLogin.mockResolvedValue({ ...fakeAuthResponse, user: { ...fakeSubAdminUser } })
+      const store = useAuthStore()
+
+      await store.login({ email: fakeSubAdminUser.email, password: '123456' })
+
+      expect(store.isAdmin).toBe(false)
+      expect(store.isSubAdmin).toBe(true)
+      expect(store.canAccessAdmin).toBe(true)
+      expect(store.hasAdminPermission('admin.usage')).toBe(true)
+      expect(store.hasAdminPermission('admin.subscriptions')).toBe(false)
+    })
+
+    it('does not grant admin access to an empty-permission sub-admin', async () => {
+      mockLogin.mockResolvedValue({
+        ...fakeAuthResponse,
+        user: { ...fakeSubAdminUser, admin_permissions: [] },
+      })
+      const store = useAuthStore()
+
+      await store.login({ email: fakeSubAdminUser.email, password: '123456' })
+
+      expect(store.isSubAdmin).toBe(true)
+      expect(store.canAccessAdmin).toBe(false)
     })
   })
 

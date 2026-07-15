@@ -31,11 +31,39 @@
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
-        <select v-model="form.role" class="input">
+        <select v-model="form.role" class="input" data-testid="role-select">
           <option value="user">{{ t('admin.users.roles.user') }}</option>
+          <option value="sub_admin">{{ t('admin.users.roles.sub_admin') }}</option>
           <option value="admin">{{ t('admin.users.roles.admin') }}</option>
         </select>
       </div>
+      <fieldset v-if="form.role === 'sub_admin'" class="space-y-2">
+        <legend class="input-label">{{ t('admin.users.form.permissionsLabel') }}</legend>
+        <p class="input-hint">{{ t('admin.users.form.permissionsHint') }}</p>
+        <p v-if="permissionsLoading" class="text-sm text-gray-500 dark:text-gray-400">
+          {{ t('common.loading') }}
+        </p>
+        <p v-else-if="permissionsLoadFailed" class="text-sm text-red-600 dark:text-red-400">
+          {{ t('admin.users.form.permissionsLoadFailed') }}
+        </p>
+        <label
+          v-for="permission in adminPermissionOptions"
+          :key="permission.code"
+          class="flex items-start gap-3 rounded border border-gray-200 p-3 dark:border-dark-600"
+        >
+          <input
+            v-model="form.admin_permissions"
+            type="checkbox"
+            :value="permission.code"
+            :data-admin-permission="permission.code"
+            class="mt-1"
+          />
+          <span>
+            <span class="block text-sm font-medium">{{ t(permission.labelKey) }}</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t(permission.descriptionKey) }}</span>
+          </span>
+        </label>
+      </fieldset>
       <div>
         <label class="input-label">{{ t('admin.users.notes') }}</label>
         <textarea v-model="form.notes" rows="3" class="input"></textarea>
@@ -75,7 +103,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, UserAttributeValuesMap } from '@/types'
+import type { AdminPermission, AdminUser, UpdateUserRequest, UserAttributeValuesMap, UserRole } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import UserAttributeForm from '@/components/user/UserAttributeForm.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -85,13 +113,43 @@ const emit = defineEmits(['close', 'success'])
 const { t } = useI18n(); const appStore = useAppStore(); const { copyToClipboard } = useClipboard()
 
 const submitting = ref(false); const passwordCopied = ref(false)
-const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user', concurrency: 1, rpm_limit: 0, customAttributes: {} as UserAttributeValuesMap })
+const adminPermissionOptions = ref<Array<{
+  code: AdminPermission
+  labelKey: string
+  descriptionKey: string
+}>>([])
+const permissionsLoading = ref(false)
+const permissionsLoadFailed = ref(false)
+
+const loadPermissionCatalog = async () => {
+  permissionsLoading.value = true
+  permissionsLoadFailed.value = false
+  try {
+    const catalog = await adminAPI.users.getPermissionCatalog()
+    adminPermissionOptions.value = catalog.map((item) => ({
+      code: item.code,
+      labelKey: `admin.users.permissions.${item.code}.label`,
+      descriptionKey: `admin.users.permissions.${item.code}.description`,
+    }))
+  } catch {
+    adminPermissionOptions.value = []
+    permissionsLoadFailed.value = true
+    appStore.showError(t('admin.users.form.permissionsLoadFailed'))
+  } finally {
+    permissionsLoading.value = false
+  }
+}
+const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as UserRole, admin_permissions: [] as AdminPermission[], concurrency: 1, rpm_limit: 0, customAttributes: {} as UserAttributeValuesMap })
 
 watch(() => props.user, (u) => {
   if (u) {
-    Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', role: u.role || 'user', concurrency: u.concurrency, rpm_limit: u.rpm_limit ?? 0, customAttributes: {} })
+    Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', role: u.role || 'user', admin_permissions: [...(u.admin_permissions ?? [])], concurrency: u.concurrency, rpm_limit: u.rpm_limit ?? 0, customAttributes: {} })
     passwordCopied.value = false
   }
+}, { immediate: true })
+
+watch(() => props.show, (show) => {
+  if (show) void loadPermissionCatalog()
 }, { immediate: true })
 
 const generatePassword = () => {
@@ -116,7 +174,7 @@ const handleUpdateUser = async () => {
   }
   submitting.value = true
   try {
-    const data: any = { email: form.email, username: form.username, notes: form.notes, role: form.role, concurrency: form.concurrency, rpm_limit: form.rpm_limit }
+    const data: UpdateUserRequest = { email: form.email, username: form.username, notes: form.notes, role: form.role, admin_permissions: form.role === 'sub_admin' ? [...form.admin_permissions] : [], concurrency: form.concurrency, rpm_limit: form.rpm_limit }
     if (form.password.trim()) data.password = form.password.trim()
     await adminAPI.users.update(props.user.id, data)
     if (Object.keys(form.customAttributes).length > 0) await adminAPI.userAttributes.updateUserAttributeValues(props.user.id, form.customAttributes)

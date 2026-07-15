@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { post } = vi.hoisted(() => ({
+const { get, post } = vi.hoisted(() => ({
+  get: vi.fn(),
   post: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
   apiClient: {
+    get,
     post,
   },
 }))
 
 import {
   bindUserAuthIdentity,
+  getPermissionCatalog,
   type AdminBindAuthIdentityRequest,
   type AdminBoundAuthIdentity,
 } from '@/api/admin/users'
@@ -66,6 +69,7 @@ const responseContractExact: Assert<
 
 describe('admin users api auth identity binding', () => {
   beforeEach(() => {
+    get.mockReset()
     post.mockReset()
   })
 
@@ -113,5 +117,15 @@ describe('admin users api auth identity binding', () => {
   it('keeps bind auth identity request and response types aligned with the backend contract', () => {
     expect(requestContractExact).toBe(true)
     expect(responseContractExact).toBe(true)
+  })
+
+  it('loads the server-owned sub-admin permission catalog', async () => {
+    const catalog = [
+      { code: 'admin.usage' as const, menu_key: 'usage', route: '/admin/usage' },
+    ]
+    get.mockResolvedValue({ data: catalog })
+
+    await expect(getPermissionCatalog()).resolves.toEqual(catalog)
+    expect(get).toHaveBeenCalledWith('/admin/permissions/catalog')
   })
 })

@@ -102,6 +102,12 @@ func (_c *UserCreate) SetNillableRole(v *string) *UserCreate {
 	return _c
 }
 
+// SetAdminPermissions sets the "admin_permissions" field.
+func (_c *UserCreate) SetAdminPermissions(v []string) *UserCreate {
+	_c.mutation.SetAdminPermissions(v)
+	return _c
+}
+
 // SetBalance sets the "balance" field.
 func (_c *UserCreate) SetBalance(v float64) *UserCreate {
 	_c.mutation.SetBalance(v)
@@ -604,6 +610,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultRole
 		_c.mutation.SetRole(v)
 	}
+	if _, ok := _c.mutation.AdminPermissions(); !ok {
+		v := user.DefaultAdminPermissions
+		_c.mutation.SetAdminPermissions(v)
+	}
 	if _, ok := _c.mutation.Balance(); !ok {
 		v := user.DefaultBalance
 		_c.mutation.SetBalance(v)
@@ -690,6 +700,9 @@ func (_c *UserCreate) check() error {
 		if err := user.RoleValidator(v); err != nil {
 			return &ValidationError{Name: "role", err: fmt.Errorf(`ent: validator failed for field "User.role": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.AdminPermissions(); !ok {
+		return &ValidationError{Name: "admin_permissions", err: errors.New(`ent: missing required field "User.admin_permissions"`)}
 	}
 	if _, ok := _c.mutation.Balance(); !ok {
 		return &ValidationError{Name: "balance", err: errors.New(`ent: missing required field "User.balance"`)}
@@ -795,6 +808,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Role(); ok {
 		_spec.SetField(user.FieldRole, field.TypeString, value)
 		_node.Role = value
+	}
+	if value, ok := _c.mutation.AdminPermissions(); ok {
+		_spec.SetField(user.FieldAdminPermissions, field.TypeJSON, value)
+		_node.AdminPermissions = value
 	}
 	if value, ok := _c.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
@@ -1195,6 +1212,18 @@ func (u *UserUpsert) SetRole(v string) *UserUpsert {
 // UpdateRole sets the "role" field to the value that was provided on create.
 func (u *UserUpsert) UpdateRole() *UserUpsert {
 	u.SetExcluded(user.FieldRole)
+	return u
+}
+
+// SetAdminPermissions sets the "admin_permissions" field.
+func (u *UserUpsert) SetAdminPermissions(v []string) *UserUpsert {
+	u.Set(user.FieldAdminPermissions, v)
+	return u
+}
+
+// UpdateAdminPermissions sets the "admin_permissions" field to the value that was provided on create.
+func (u *UserUpsert) UpdateAdminPermissions() *UserUpsert {
+	u.SetExcluded(user.FieldAdminPermissions)
 	return u
 }
 
@@ -1599,6 +1628,20 @@ func (u *UserUpsertOne) SetRole(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRole() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRole()
+	})
+}
+
+// SetAdminPermissions sets the "admin_permissions" field.
+func (u *UserUpsertOne) SetAdminPermissions(v []string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetAdminPermissions(v)
+	})
+}
+
+// UpdateAdminPermissions sets the "admin_permissions" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateAdminPermissions() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateAdminPermissions()
 	})
 }
 
@@ -2216,6 +2259,20 @@ func (u *UserUpsertBulk) SetRole(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRole() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRole()
+	})
+}
+
+// SetAdminPermissions sets the "admin_permissions" field.
+func (u *UserUpsertBulk) SetAdminPermissions(v []string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetAdminPermissions(v)
+	})
+}
+
+// UpdateAdminPermissions sets the "admin_permissions" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateAdminPermissions() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateAdminPermissions()
 	})
 }
 

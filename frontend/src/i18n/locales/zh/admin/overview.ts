@@ -522,7 +522,22 @@ export default {
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       roles: {
         admin: '管理员',
+        sub_admin: '子管理员',
         user: '用户'
+      },
+      permissions: {
+        'admin.subscriptions': {
+          label: '订阅管理',
+          description: '查看订阅，并可重置全部配额或仅重置日限。'
+        },
+        'admin.usage': {
+          label: '使用记录',
+          description: '查看、筛选和导出用量，包含统计排行、Dashboard 聚合与错误详情。'
+        },
+        'admin.token_analysis': {
+          label: 'Token 分析',
+          description: '查看统计、项目、请求、输入内容和索引状态。'
+        }
       },
       form: {
         emailLabel: '邮箱',
@@ -535,6 +550,9 @@ export default {
         passwordLabel: '密码',
         passwordPlaceholder: '请输入密码（留空则不修改）',
         roleLabel: '角色',
+        permissionsLabel: '管理权限',
+        permissionsHint: '子管理员只能访问已勾选菜单；默认只读，订阅权限额外允许配额重置。',
+        permissionsLoadFailed: '加载管理权限目录失败，请稍后重试',
         selectRole: '选择角色',
         balanceLabel: '余额',
         concurrencyLabel: '并发数',

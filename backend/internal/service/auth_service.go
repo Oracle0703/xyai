@@ -1438,7 +1438,8 @@ type TokenPair struct {
 // TokenPairWithUser extends TokenPair with user role for backend mode checks
 type TokenPairWithUser struct {
 	TokenPair
-	UserRole string
+	UserRole         string
+	AdminPermissions []string
 }
 
 // GenerateTokenPair 生成Access Token和Refresh Token对
@@ -1592,8 +1593,9 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		return nil, err
 	}
 	return &TokenPairWithUser{
-		TokenPair: *pair,
-		UserRole:  user.Role,
+		TokenPair:        *pair,
+		UserRole:         user.Role,
+		AdminPermissions: append([]string(nil), user.AdminPermissions...),
 	}, nil
 }
 

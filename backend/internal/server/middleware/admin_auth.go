@@ -187,9 +187,13 @@ func validateJWTForAdmin(
 		return false
 	}
 
-	// 检查管理员权限
-	if !user.IsAdmin() {
+	// 管理员全量放行；子管理员按数据库中的最新权限和 Gin 路由模板白名单放行。
+	if !user.IsAdmin() && !user.IsSubAdmin() {
 		AbortWithError(c, 403, "FORBIDDEN", "Admin access required")
+		return false
+	}
+	if !service.CanAccessAdminRoute(user, c.Request.Method, c.FullPath()) {
+		AbortWithError(c, 403, "ADMIN_PERMISSION_DENIED", "Admin permission denied")
 		return false
 	}
 
