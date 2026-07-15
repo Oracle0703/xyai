@@ -3,6 +3,8 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -443,19 +445,107 @@ func (h *DashboardHandler) GetAPIKeyUsageTrend(c *gin.Context) {
 	})
 }
 
+const (
+	selectedUserTrendMaxUsers = 5
+	selectedUserTrendMaxDays  = 90
+)
+
+func parseSelectedUserTrendIDs(raw string) ([]int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	seen := make(map[int64]struct{}, len(parts))
+	ids := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, errors.New("user_ids contains an empty value")
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, errors.New("user_ids must contain positive integers")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) > selectedUserTrendMaxUsers {
+		return nil, fmt.Errorf("user_ids supports at most %d users", selectedUserTrendMaxUsers)
+	}
+	slices.Sort(ids)
+	return ids, nil
+}
+
+func parseSelectedUserTrendRange(c *gin.Context, granularity string) (time.Time, time.Time, error) {
+	startRaw := strings.TrimSpace(c.Query("start_date"))
+	endRaw := strings.TrimSpace(c.Query("end_date"))
+	if startRaw == "" || endRaw == "" {
+		return time.Time{}, time.Time{}, errors.New("start_date and end_date are required")
+	}
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start, err := time.ParseInLocation("2006-01-02", startRaw, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, errors.New("invalid start_date")
+	}
+	endDate, err := time.ParseInLocation("2006-01-02", endRaw, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, errors.New("invalid end_date")
+	}
+	if endDate.Before(start) {
+		return time.Time{}, time.Time{}, errors.New("end_date must not be before start_date")
+	}
+	if granularity != "day" && granularity != "hour" {
+		return time.Time{}, time.Time{}, errors.New("granularity must be day or hour")
+	}
+	if granularity == "hour" && !start.Equal(endDate) {
+		return time.Time{}, time.Time{}, errors.New("hour granularity requires a single day")
+	}
+	end := endDate.AddDate(0, 0, 1)
+	if granularity == "day" && int(end.Sub(start).Hours()/24) > selectedUserTrendMaxDays {
+		return time.Time{}, time.Time{}, fmt.Errorf("day granularity supports at most %d days", selectedUserTrendMaxDays)
+	}
+	return start, end, nil
+}
+
 // GetUserUsageTrend handles getting user usage trend data
 // GET /api/v1/admin/dashboard/users-trend
-// Query params: start_date, end_date (YYYY-MM-DD), granularity (day/hour), limit (default 12)
+// Query params: start_date, end_date (YYYY-MM-DD), granularity (day/hour), limit (default 12), user_ids (optional)
 func (h *DashboardHandler) GetUserUsageTrend(c *gin.Context) {
-	startTime, endTime := parseTimeRange(c)
 	granularity := c.DefaultQuery("granularity", "day")
+	var startTime, endTime time.Time
+	var userIDs []int64
+	if rawUserIDs, selectedMode := c.GetQuery("user_ids"); selectedMode {
+		var err error
+		userIDs, err = parseSelectedUserTrendIDs(rawUserIDs)
+		if err != nil || len(userIDs) == 0 {
+			if err == nil {
+				err = errors.New("user_ids must contain at least one positive integer")
+			}
+			response.BadRequest(c, err.Error())
+			return
+		}
+		startTime, endTime, err = parseSelectedUserTrendRange(c, granularity)
+		if err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+	} else {
+		startTime, endTime = parseTimeRange(c)
+	}
 	limitStr := c.DefaultQuery("limit", "12")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
 		limit = 12
 	}
+	if len(userIDs) > 0 {
+		limit = 0
+	}
 
-	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit)
+	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userIDs, limit)
 	if err != nil {
 		response.Error(c, 500, "Failed to get user usage trend")
 		return

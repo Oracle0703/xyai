@@ -59,4 +59,10 @@ describe('AppSidebar navigation entries', () => {
     expect(componentSource).toContain("path: '/image-gen'")
     expect(componentSource).toContain("label: t('nav.imageGeneration')")
   })
+
+  it('places the organization report immediately after admin usage with the same simple-mode visibility', () => {
+    expect(componentSource).toContain(
+      "{ path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },\n    { path: '/admin/organization-usage', label: t('nav.organizationUsage'), icon: ChartIcon },"
+    )
+  })
 })

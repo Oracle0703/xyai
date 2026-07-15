@@ -144,6 +144,9 @@ deploy/docker-compose.override.yml
 vite.config.js
 docs/*
 !docs/features/
+!docs/reviews/
+docs/reviews/*
+!docs/reviews/2026-07-13-organization-usage-report-review.md
 !docs/superpowers/
 !docs/superpowers/**
 !docs/upstream-merge-playbook.md

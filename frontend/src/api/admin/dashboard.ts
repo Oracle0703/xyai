@@ -228,6 +228,7 @@ export async function getApiKeyUsageTrend(
 
 export interface UserTrendParams extends TrendParams {
   limit?: number
+  user_ids?: number[]
 }
 
 export interface UserTrendResponse {
@@ -248,8 +249,12 @@ export interface UserSpendingRankingParams
  * @returns User usage trend data
  */
 export async function getUserUsageTrend(params?: UserTrendParams): Promise<UserTrendResponse> {
+  const { user_ids, ...rest } = params || {}
   const { data } = await apiClient.get<UserTrendResponse>('/admin/dashboard/users-trend', {
-    params
+    params: {
+      ...rest,
+      ...(user_ids?.length ? { user_ids: user_ids.join(',') } : {})
+    }
   })
   return data
 }

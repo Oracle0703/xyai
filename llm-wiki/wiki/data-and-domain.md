@@ -182,6 +182,21 @@ OpenAI 长上下文计费是账号级 opt-in: `accounts.extra.openai_long_contex
 
 用户侧用量统计已与管理端过滤口径对齐: `UsageLogFilters` 支持 `group_id`、请求模型源(`requested`)、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和日期范围; `/api/v1/usage/dashboard/snapshot-v2` 可以一次返回 trend、model、group 分布。新增 usage 聚合字段时要同时检查 `usage_handler.go`、`usage_service.go`、`usage_log_repo.go`、前端 `frontend/src/api/usage.ts` 和 `UsageView.vue`。
 
+Token Analysis 选中用户趋势口径:
+
+- 图表权威来源是 `usage_logs`, 不使用 `token_analysis_request_summaries`; 用户排行仍是归档样本, 因而排行值与“计费用量趋势”可能不同。
+- 首版指标只有总 Token, 计算为 `input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens`; 费用字段虽然沿用现有趋势 DTO 聚合, 前端不提供指标切换。
+- 日/小时桶固定按 `Asia/Shanghai`; 日范围最多 90 个自然日, 小时仅单日。原始 `usage_logs` 的默认保留边界决定该能力不承诺查询 90 天以前的数据, 不新增日/小时预聚合表。
+- 精确选人 SQL 使用已有 `idx_usage_logs_user_created (user_id, created_at)`; 该列序符合 user ID 等值过滤 + created_at 范围过滤。本功能没有 schema/migration 变更, 是否需要新索引只能由真实 `EXPLAIN ANALYZE` 证据决定。
+
+组织用量报表口径:
+
+- 完整设计见 `docs/features/organization-usage-report-design-cn.md`。
+- 活跃用户是 `users.deleted_at IS NULL AND status='active'`, 角色同时包含 user/admin。组织按当前 `users.email` 的 `@` 后域名做大小写不敏感精确匹配: `xunyou.com -> xunyou`, `wsdashi.com -> wsdashi`, 其他域名及其子域名都归 `other`。
+- 报表指标固定为 requests、input/output/cache creation/cache read tokens、total tokens 和 actual cost; total tokens 是四类 token 之和。`used_users` 表示选区内至少存在一条 usage log 的活跃用户。
+- 个人 peak 与团队 champion 都按 `total_tokens DESC, actual_cost DESC, requests DESC, user_id ASC` 选择; 个人同用户同指标周期再按 period start 保持确定性。没有 usage log 的用户 peak 为 null。
+- `as_of` 由 service 规范化为 UTC 并裁剪到不晚于服务器当前时间, 防止客户端时钟超前; 日期 end 只进一步限制 usage log 查询, 不改变响应中的 canonical `as_of`。它不是密码学签名, 也不回溯用户状态或邮箱; active user 和组织分类始终按查询时的当前 `users` 数据计算。
+
 User x platform quota:
 
 - 读取路径使用 billing cache 和 sentinel entry 缓存无 limit 场景; sentinel TTL 由 `billing.user_platform_quota_sentinel_ttl_seconds` 控制, 默认短于正常 quota cache TTL。

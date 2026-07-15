@@ -37,7 +37,7 @@
 - public: `/home`, `/login`, `/register`, OAuth callback, `/key-usage`, `/image-gen`, `/legal/:documentId`
 - batch image: `/batch-image`(alias `/docs/batch-image`) 使用 `BatchImageGuideView.vue`, 侧栏入口由 `useBatchImageAccess` 按用户/分组能力刷新显示。
 - user: `/dashboard`, `/keys`, `/usage`, `/redeem`, `/affiliate`, `/available-channels`, `/profile`, `/subscriptions`, `/purchase`, `/orders`, payment 页面, `/custom/:id`
-- admin: `/admin/dashboard`, `/admin/ops`, `/admin/users`, `/admin/groups`, `/admin/channels/*`, `/admin/accounts`, `/admin/settings`, `/admin/risk-control`, `/admin/request-intercept`, `/admin/token-analysis`, payment admin, affiliate admin
+- admin: `/admin/dashboard`, `/admin/ops`, `/admin/users`, `/admin/groups`, `/admin/channels/*`, `/admin/accounts`, `/admin/settings`, `/admin/risk-control`, `/admin/request-intercept`, `/admin/usage`, `/admin/organization-usage`, `/admin/token-analysis`, payment admin, affiliate admin
 
 守卫要点:
 
@@ -126,6 +126,22 @@ API 模块分布:
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 - `frontend/src/components/admin/usage/UsageTable.vue` 的 IP 地址列可渲染 `IpGeoCell`, 并提供批量获取地区工具栏; `frontend/src/utils/ipGeoLookup.ts` 调用 geojs 单查/批量接口, 跳过内网 IP, 成功结果缓存到 localStorage `sub2api:ip-geo-cache:v1` 24 小时。用户侧 UsageView 复用同一表格事件处理。
 - 管理端 UsageView 新增 `UserTokenRanking.vue`, 按筛选条件展示用户 Token 排行; `frontend/src/api/admin/dashboard.ts` 的 `UserBreakdownParams.request_type` 使用 `UsageRequestType`, 后端 `GetUserBreakdown` 通过 `ParseUsageRequestType` 解析, 不能退回普通 number 造成筛选口径漂移。用量表同时展示由 `latencyHealth.ts` 统一计算的延迟健康等级, 修改阈值或列设置时要同步 `UsageView.spec.ts`、`UserTokenRanking.spec.ts` 和 `latencyHealth.spec.ts`。
+
+管理端组织用量报表:
+
+- 完整设计见 `docs/features/organization-usage-report-design-cn.md`。
+- 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持组织/邮箱筛选、服务端排序分页、三组织汇总和个人/团队日周月峰值。
+- 前端合同在 `frontend/src/api/admin/organizationUsage.ts`; 正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页, 避免导出期间新增 usage 导致 offset 漂移。该值只固定用量查询上界, 不是密码学签名。
+- Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 固定生成“报表概览、组织汇总、人员汇总、月度明细、周度明细、日度明细”六个 Sheet。客户端四类数据合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
+- 页面组件位于 `frontend/src/components/admin/organization-usage/`; 人员表始终保持宽表横向滚动, 不使用移动端卡片化 DataTable。修改筛选、组织汇总、峰值或导出交互时同步该目录 README、View/Worker 测试与中英文 `admin/organizationUsage.ts` locale。
+
+管理端 Token Analysis 计费用量趋势:
+
+- `frontend/src/views/admin/TokenAnalysisView.vue` 的用户排行可跨分页选择最多 5 名存在 `user_id` 的用户; 选择状态保存用户 ID、邮箱和选择顺序, 达到上限后只禁用未选项, 已选项仍可取消。
+- 趋势面板调用 `adminAPI.dashboard.getUserUsageTrend`, 数据源是后端 `usage_logs` 计费用量而不是归档摘要。`frontend/src/api/admin/dashboard.ts` 把 `number[]` 序列化为逗号分隔 `user_ids`; 空数组不发送该参数, 避免误进入后端严格选人模式。
+- 日粒度按筛选范围生成完整日期轴; 小时粒度只在同一日期可选并生成 24 个北京时间整点。每名用户按选择顺序使用稳定颜色, 缺失周期补 0, 完全无用量仍渲染零值折线并显示空用量提示。
+- 用户/粒度/筛选变化先清空旧点并递增请求序号, 迟到响应不得覆盖最新选择; 错误态在面板内重试。Chart.js 只在页面内注册并复用 `vue-chartjs` 的 `Line`, 不新增全局图表组件或页面路由。
+- 回归测试位于 `frontend/src/views/admin/__tests__/TokenAnalysisView.spec.ts` 与 `frontend/src/api/__tests__/admin.dashboard.spec.ts`; 修改选择上限、分页、时间轴或竞态处理时同步中英文 `admin/tokenAnalysis.ts` 文案和这两组测试。
 
 用户侧用量页:
 

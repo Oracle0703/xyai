@@ -1,0 +1,2 @@
+export const MAX_XLSX_DATA_ROWS = 1_048_575
+export const MAX_CLIENT_EXPORT_ROWS = 100_000
