@@ -2,7 +2,7 @@
 
 ## 总结
 
-已在 `feature/hy/10157_同步sub2api主线` 中，以本地 `main@4c456aad3` 为第一父、`Wei-Shaw/sub2api main@d515c3045` 为固定第二父完成无提交合并。3 个文本冲突与 29 个双方修改交集已审查，10 类本地能力均保留或与上游组合，当前仍保留 `MERGE_HEAD` 等待用户审核。
+已在 `feature/hy/10157_同步sub2api主线` 中完成 merge commit `b5b54af2129bd5c7cc3d3b54e941deb8a35f31d9`。其第一父为本地 `main@4c456aad3`，第二父为 `Wei-Shaw/sub2api main@d515c3045` 固定边界。3 个文本冲突与 29 个双方修改交集已审查，10 类本地能力均保留或与上游组合。
 
 ## 交付内容
 
@@ -25,6 +25,7 @@
 | 生产构建 | 前端 build 后 embed build 退出 0，产物 147,534,336 bytes。 |
 | 生成与格式 | Wire 连续两次稳定生成；gofmt 和三种 diff check 通过。 |
 | 最终 Git 硬门 | 274 files / `+32475 -1728`；双父边界正确，无 unstaged/untracked/unmerged、冲突标记、CRLF/BOM、敏感模式或 `docs/features` 删除。 |
+| Merge topology | `b5b54af2129b` 为双父提交，父提交顺序为 `4c456aad32c0 d515c3045ce8`。 |
 
 详细命令、RED/GREEN 与环境诊断见 `docs/delivery/2026-07-16-sub2api-v0.1.156-sync/test-review.md`。
 
@@ -43,8 +44,8 @@
 
 - 本机 360 安全软件会持续锁定 integration 版本的 `openai_compat.test.exe`，即使换目录、改文件名和有限重试也无法执行；未更改安全软件配置。
 - 全量 lint 的 29 条历史债务和前端构建 warning 未在本次上游同步中扩范围清理。
-- merge commit 尚未创建；ledger 中如实记录 `MERGE_HEAD`，用户批准后才能提交。
+- 用户已在知悉上述限制后批准本地提交；merge commit 已创建，未 push、未创建 PR、未部署。
 
 ## 下一步
 
-用户审核 staged diff、merge review、测试证据与环境限制。批准后再创建 merge commit，并回填 ledger 的真实 merge commit SHA；当前不 push、不创建 PR、不部署。
+本地 merge commit 与文档回填提交保留在 `feature/hy/10157_同步sub2api主线` 供用户复核；当前不 push、不创建 PR、不部署。

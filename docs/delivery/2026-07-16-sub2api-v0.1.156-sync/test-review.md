@@ -4,12 +4,12 @@
 
 | 验收标准 | 证据 | 结论 |
 | --- | --- | --- |
-| AC-1 / AC-2 固定双父边界 | `HEAD/main/ORIG_HEAD=4c456aad3`；`MERGE_HEAD=d515c3045`；`v0.1.156=12f991d`；后续 `eb2b8632d` 排除 | 通过 |
+| AC-1 / AC-2 固定双父边界 | merge `b5b54af2129b` 的父提交顺序为 `4c456aad3 d515c3045`；`v0.1.156=12f991d`；后续 `eb2b8632d` 排除 | 通过 |
 | AC-3 冲突与交集审查 | 3 个文本冲突、29 个双方修改交集；后端、网关、前端独立审查 | 通过，无开放 P0-P3 |
 | AC-4 本地功能保留 | merge review 中 10 类“保留/组合/上游替代”映射；`docs/features` 无删除 | 通过 |
 | AC-5 文档 | 6 个 wiki、追加型 ledger、merge review 与交付材料 | 通过 |
 | AC-6 测试与构建 | 下方验证日志 | 已执行；一项 integration 二进制受 360 环境阻断 |
-| AC-7 commit 前审核 | `MERGE_HEAD` 保留，未执行 commit/push/PR | 通过 |
+| AC-7 commit 前审核 | 提交前保留 `MERGE_HEAD` 并通知用户；用户回复“允许”后才创建 merge commit；未 push/PR | 通过 |
 
 ## 规格与代码审查
 
@@ -41,12 +41,13 @@
 | 连续两次 `go generate ./cmd/server` | `backend` | 两次退出 0；`wire_gen.go` SHA-256 均为 `233A9D6C1D53E981CD6069A198E0D8B74A85864F62415BA73BAE77215914601E`。 |
 | gofmt 与 `git diff --check` | 仓库根 | 12 个未暂存 Go 文件无 gofmt 差异；worktree/cached/HEAD 三种 diff check 退出 0。 |
 | 最终 staged Git / 边界 / LF / 敏感信息硬门 | 仓库根 | 通过：274 files / `+32475 -1728`；`HEAD/main/ORIG_HEAD=4c456aad3`，`MERGE_HEAD=d515c3045`；无 unstaged/untracked/unmerged、冲突标记、whitespace error、CRLF/BOM、敏感模式或 `docs/features` 删除。 |
+| Merge commit topology | 仓库根 | `b5b54af2129b` 为双父提交，父提交顺序严格为本地 `main@4c456aad3`、上游 `d515c3045`。 |
 
 ## 残余风险
 
 | 风险 | 处置 |
 | --- | --- |
-| 360 拦截 integration 版本 `openai_compat.test.exe` | 未关闭安全软件、未添加白名单、未修改业务代码规避。保留完整失败日志、文件集合等价证据和 unit 通过证据，由用户决定是否接受后提交。 |
+| 360 拦截 integration 版本 `openai_compat.test.exe` | 未关闭安全软件、未添加白名单、未修改业务代码规避。保留完整失败日志、文件集合等价证据和 unit 通过证据；用户已在知悉限制后批准本地提交。 |
 | 全量 lint 29 条既有债务 | 相对 `main` 的合并差异 lint 为 0；不在上游同步中清理历史债务。 |
 | `go mod tidy -diff` 与 Wire 工具校验和循环 | 当前模块文件与本地 `main` 完全相同，Wire 连续生成稳定；不制造无关 go.sum churn。 |
 | 前端构建 warning | 构建退出 0；warning 属于既有 chunk/import 结构，本次未扩范围重构。 |

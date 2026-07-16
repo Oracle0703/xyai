@@ -1429,3 +1429,17 @@ git diff --name-only 7c717365ef72..4c456aad32c0
 git diff --name-only 7c717365ef72..d515c3045ce8
 git log --oneline d515c3045ce8..eb2b8632ded6
 ```
+
+## 2026-07-16 v0.1.156 merge commit 回填
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10157_同步sub2api主线` |
+| Upstream branch / pinned commit | `Wei-Shaw/sub2api main@d515c3045ce838976ebedab87846aaaf893dbbf6` |
+| Merge commit | `b5b54af2129bd5c7cc3d3b54e941deb8a35f31d9` |
+| Parent order | `4c456aad32c086bb32c650d0e8c659450cc6de3f`（本地 `main`）; `d515c3045ce838976ebedab87846aaaf893dbbf6`（上游固定边界） |
+| Conflict files | `backend/internal/config/config.go`; `backend/internal/config/config_test.go`; `backend/internal/service/content_moderation.go` |
+| Conflict handling | 配置与测试保留本地默认 reasoning effort 并合入上游 timeout/token-refresh 边界；moderation 采用上游 runtime snapshot/matcher，同时保留本地 Prompt Risk/LLM judge 与 fail-open，并补总开关即时更新。 |
+| Local features | 10 类 `docs/features` 本地能力均保留或与上游组合；tracked feature 文件删除数为 0。 |
+| Verification | Unit 50 个测试包通过；integration 44 个测试包通过，唯一 `openai_compat.test.exe` 被本机 360 阻断且已如实披露；合并差异 lint 0 issues；前端 176 files / 1214 tests、lint、typecheck、build 与 embed build 通过。提交前 staged 硬门为 274 files / `+32475 -1728`，无 unstaged/untracked/unmerged、精确冲突标记、whitespace、CRLF/BOM、敏感模式或 `docs/features` 删除。 |
+| Approval / delivery | 用户在知悉环境限制后明确回复“允许”；仅创建本地提交，未 push、未创建 PR、未部署。 |
