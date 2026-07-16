@@ -494,6 +494,9 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	if settings == nil {
 		return
 	}
+	if s.onRiskControlUpdate != nil {
+		s.onRiskControlUpdate(settings.RiskControlEnabled)
+	}
 
 	// 先使 inflight singleflight 失效，再刷新缓存，缩小旧值覆盖新值的竞态窗口
 	versionBoundsSF.Forget("version_bounds")

@@ -47,6 +47,16 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 - Grok OAuth 默认使用 CLI subscription proxy；旧的官方 API base URL 会在运行时归一到 CLI proxy。
 - 自定义 OAuth base URL 必须通过 `xai.ValidateTrustedBaseURL`。未显式允许不安全覆盖时，普通第三方 URL回落到默认 CLI proxy。
 
+### 管理端账号复制
+
+- 账号操作菜单只为 API Key、upstream、Bedrock、service account 等静态凭据账号显示复制入口；OAuth/cookie 等旋转凭据和 credential shadow 不可复制。
+- 前端 `adminAPI.accounts.duplicate` 为同一账号在内存和 sessionStorage 中复用 `Idempotency-Key`, 成功后才清理；超时/网络失败时保留 key 供重试恢复同一个副本。
+- 后端返回的新账号默认不可调度，前端只刷新列表和显示结果，不自动启用。
+
+### Antigravity refresh token
+
+- 批量 refresh-token 导入必须把管理员原始输入继续传入 OAuth 组合逻辑；解析结果不能替代原始 refresh token，否则手工 token 会在授权流程中丢失。
+
 ## 验证
 
 ```powershell
@@ -55,4 +65,3 @@ cmd.exe /c pnpm --dir frontend run typecheck
 ```
 
 修改 credentials 时还应运行后端账号与网关聚焦测试，确认 UI payload 和服务端读取契约一致。
-

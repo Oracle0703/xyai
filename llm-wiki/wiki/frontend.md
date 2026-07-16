@@ -62,6 +62,7 @@
   - 从 localStorage 读取 `auth_token` 写入 Authorization。
   - 写入 `Accept-Language`。
   - GET 请求追加 `timezone`。
+  - 管理端页面请求继续按路径/页面附加 `X-Admin-UI-Request: 1`; allowlist 内的已认证用户 Web API 还会附加 `X-User-UI-Request: 1`, 供 opt-in Server-Timing 确定采集范围。两个 header 都不是授权凭据, 后端仍按认证角色和路径决定是否返回 timing; public payment/webhook、登录和网关请求不加用户标记。
 - 响应拦截:
   - 自动解包 `{ code, message, data }`。
   - 401 时使用 `refresh_token` 调 `/auth/refresh`, 并重试原请求。
@@ -79,6 +80,7 @@ API 模块分布:
 管理端账号与监控:
 
 - `CreateAccountModal.vue` 的 Grok OAuth 流支持 Web SSO key 批量导入, 每行一个 key, 通过 `adminAPI.grok.createFromSSO` 提交; SSO 模式允许账号名留空, 部分成功时保留失败明细。修改该流程时同步 `OAuthAuthorizationFlow.vue`、`useGrokOAuth.ts`、中英文 `admin/accounts.ts` 和 `CreateAccountModal.spec.ts`。
+- `CreateAccountModal.vue` 的 Antigravity 批量 refresh-token 导入会保留管理员原始输入并传给 OAuth 组合逻辑, 不能只传解析后的 credential 结果, 否则手工 refresh token 会在后续流程中丢失。
 - OpenAI OAuth/API Key 账号增加 `openai_long_context_billing_enabled` 开关, 默认关闭; Codex session/PAT 导入只有用户实际触碰开关时才覆盖服务端默认, 避免旧导入流程无意开启长上下文计费。
 - Channel Monitor 支持 Grok provider、模板和筛选; `GrokQuotaProbeCell.vue` 的 Free 配额显示按本地滚动 24 小时 Token 用量估算, 与上游 weekly header 分开展示。
 
@@ -163,11 +165,13 @@ API 模块分布:
 
 - `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI/Grok 账号创建编辑能力。OpenAI API Key 创建保留本地 compatible provider preset、endpoint capabilities、Responses WebSocket V2 mode、Codex CLI only 和 Claude Code allowlist; Grok API Key 默认 `https://api.x.ai/v1`、占位 `xai-...`。两条分支共享同一个 API Key 容器, 修改条件或 placeholder 时要同时跑 `CreateAccountModal.grok.spec.ts` 与 `credentialsBuilder.spec.ts`。
 - OpenAI OAuth 编辑可手动覆盖 `credentials.plan_type`; 仅非 Spark 影子账号生效。空选项表示恢复自动识别, 提交时删除 stale `plan_type`; Plus/Pro/Free 预设之外的 canonical 值要保留。pool mode 的 `pool_mode_retry_count` 默认 3, 前后端都规范化到 `0..10`; 开启时提交规范化值, 关闭时必须和 retry status codes 一起删除。
-- `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI/Grok 使用示例。本地 Codex 模板使用 `model_provider = "xunyou"` 与 `[model_providers.xunyou]` 配套, 修改 provider 名时必须同步配置段名称。Grok 默认页签生成 `~/.grok/config.toml` / `%userprofile%\.grok\config.toml`, 使用网关 API Key、Responses backend 和 `grok-4.5`; OpenCode 使用 `@ai-sdk/openai` 与显式 Grok 模型清单。
+- `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI/Grok 使用示例。普通 Codex 模板继续使用本地 `model_provider = "xunyou"` 与 `[model_providers.xunyou]`; WebSocket v2 模板使用 `OpenAI` provider。两种模板都支持 Legacy Login(`requires_openai_auth=true`)与 API Key Mode(`requires_openai_auth=false` + `x-openai-actor-authorization`)切换并同时生成 `auth.json`; 修改 provider 名或认证模式时必须同步两种模板和 `UseKeyModal.spec.ts`。Grok 默认页签生成 `~/.grok/config.toml` / `%userprofile%\.grok\config.toml`, provider/model key 统一为 `grok`, 使用网关 API Key、Responses backend 和 `grok-4.5`; OpenCode 使用 `@ai-sdk/openai` 与显式 Grok 模型清单。
 - `frontend/src/views/user/KeysView.vue` 的列显隐设置持久化在 localStorage: `api-key-hidden-columns` 与 `api-key-column-settings-version`; `name` 和 `actions` 始终可见。Key 列表支持按当前并发排序并展示 last used IP。编辑 quota exhausted / expired key 时, 只有用户明确改回 active 才提交 `status`, 防止无限额度 key 被误保持耗尽态。
 - `frontend/src/views/admin/AccountsView.vue` 支持从 OpenAI OAuth 母账号创建 Spark 影子账号; 影子账号导出时会被排除, 后端返回 `skipped_shadows` 后前端提示。账号 action menu 的 create spark shadow 只应用于可作为母账号的 OpenAI OAuth 账号。
+- 账号 action menu 对可复制的静态凭据账号提供一键复制, 调用 `POST /admin/accounts/:id/duplicate`; API client 为同一账号复用 session-scoped `Idempotency-Key`, 只有成功后才清理 key, 让网络重试可恢复同一个副本。复制成功后刷新列表; shadow 与旋转凭据账号不显示该入口。
 - `AccountsView.vue` 的 `scheduler_score` 默认隐藏; 前端只在列可见时传 `include_scheduler_score=1`, 避免账号列表默认触发高成本调度分计算。
-- `DataTable.vue` 默认仅在桌面行数大于 `virtualizeThreshold`(默认 100)时启用虚拟化, 小列表全量渲染以避免可变行高滚动补偿抖动; 虚拟行高缓存用 `rowKey` 而不是 index。账号表显式使用阈值 50。修改虚拟化时要保持 mobile 非虚拟化、stable sort 和 exposed virtualizer/swipe selection 合同。
+- `DataTable.vue` 默认仅在桌面行数大于 `virtualizeThreshold`(默认 100)时启用虚拟化, 小列表全量渲染以避免可变行高滚动补偿抖动; 虚拟行高缓存用 `rowKey` 而不是 index。分页/筛选换成不同 row identity 集合时必须清理旧 element/size cache, 仅同一组稳定 row key 或同一批对象的纯重排可复用缓存; duplicate/缺失 key 要保守失效。账号表显式使用阈值 50。修改虚拟化时要保持 mobile 非虚拟化、stable sort 和 exposed virtualizer/swipe selection 合同。
+- 用户 Key 列表和管理端 Group 列表可选显示 ID 列, 默认隐藏并沿用各自列设置持久化；新增/调整列时不能覆盖用户现有显隐选择。
 
 ## 管理端用户筛选
 

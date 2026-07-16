@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.155`; 对应固定上游提交 `7c717365ef728e53cdcf6d639a4dd68226db03b2`。
+- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.156`; 对应固定上游提交 `d515c3045ce838976ebedab87846aaaf893dbbf6`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 
@@ -59,7 +59,7 @@ pnpm --dir frontend run build
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
 
-embed 模式会给 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置一年 `immutable` 缓存, HTML/SPA fallback 仍为 no-cache。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
+embed 模式只给 Vite `assets/` 下文件名带 8 字符 fingerprint 的资源设置一年 `immutable` 缓存; unhashed assets、`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 只负责 TLS/反向代理, 不重复按路径强制 immutable, fingerprint 判定由后端 `static_cache.go` 统一负责。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
 
 ## Apple container
 
@@ -219,6 +219,8 @@ if ($LASTEXITCODE -ne 0) {
 
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
+如果同一测试二进制在多个 fresh `GOTMPDIR` 中持续 `Access is denied`, 且连 `Get-Acl` 或只读文件句柄都被拒绝, 应通过 `Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct` 核对第三方安全软件, 不要只查 Windows Defender。未经授权不得关闭杀软或添加白名单; 也不能把 `go list -tags=...` 的文件集合等价、其他 tag 通过或 `go test -c` 编译成功写成被阻断命令的“通过”。交付记录必须分别列出完整命令的通过包、被阻断包、独立重跑和环境证据。
+
 Repository 的纯 PostgreSQL integration 可显式复用外部临时数据库, 不启动 Testcontainers PostgreSQL/Redis。仅在 `-run` 已限定为不依赖 Redis 的数据库测试时设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN`; 默认未设置时仍使用 CI 的 Docker Testcontainers 完整路径。DSN 只通过当前进程环境变量传入, 不写入仓库或测试日志。
 
 ```powershell
@@ -289,9 +291,12 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_ws.scheduler_score_weights.quota_headroom`: 默认 `0.0`, 用于按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 关闭时不改变原调度行为, 小流量灰度可从 `0.3` 起。
 - `gateway.openai_scheduler`: OpenAI sticky session 逃逸配置; 默认开启, 可按 TTFT/error rate 跳过劣化 sticky 账号。
 - `gateway.openai_compact_model`: OpenAI `/responses/compact` 上游默认模型, 默认 `gpt-5.4`; 可在 compact endpoint 暂未支持新模型时临时降级, 不影响普通 `/v1/responses`。
+- `gateway.openai_first_output_timeout_seconds`: 默认 `0` 关闭; 非零必须为 30-600 秒, 否则启动校验失败。只保护 native OpenAI HTTP streaming Responses, deadline 包含响应头等待, 不作用于 passthrough/WS; 首次语义输出前单次 attempt 暂存上限 8 MiB, 超时最多切号一次。原 attempt 可能已产生上游用量, 开启后必须接受重复上游计费风险。
+- `gateway.openai_high_effort_first_output_timeout_seconds`: 默认 `0`, 表示 high/xhigh/max 继承标准 first-output timeout; 非零必须为 30-1800 秒, 且只有标准 timeout 已启用时才生效。
 - `gateway.image_nonstream_keepalive_interval`: OpenAI 非流式图片 JSON 心跳秒数, 默认 `0` 关闭; 非零只允许 5-60 秒。首个心跳会提交 HTTP 200, 开启前必须确认调用方能接受已提交状态后的错误语义。
 - `gateway.scheduling.prefer_soonest_reset`: 默认 `false`, 开启后负载感知调度优先选用会话窗口最早重置账号。
 - `gateway.openai_ws`: OpenAI Responses WebSocket v2 和 HTTP bridge 配置; 首包较大时可保持客户端 WS, 改用 HTTP Responses 上游; `ingress_mode_default` 支持 `off|ctx_pool|passthrough|http_bridge`, 旧值 `shared/dedicated` 按 `ctx_pool` 兼容。
+- `gateway.openai_ws.client_first_message_timeout_seconds`: 默认 30 秒, 必须为正数, 否则启动校验失败; 覆盖首条客户端 `response.create` 的完整读取和解压。大请求或慢链路可调到 120-300 秒, 但值越大会越久占用 ingress 连接和 lease 资源。
 - `gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds`: completed turn 之间的客户端空闲上限, 默认 300 秒, 0 关闭, 负数配置拒绝启动。
 - `gateway.openai_ws.max_ingress_connections_per_api_key`: 多实例范围每个 API Key 的存活 ingress 连接上限, 默认 64, 0 关闭; 依赖 Redis lease, 缓存不支持或 lease 丢失时 fail-close。
 - `database`: PostgreSQL 连接池。
@@ -304,6 +309,19 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
 
+`token_refresh` 的运行时有效值会对非正数回退默认值、对超过上限的正数封顶:
+
+| 配置 | 默认值 | 运行时上限 | 含义与风险 |
+| --- | ---: | ---: | --- |
+| `candidate_page_size` | 200 | 1000 | 游标页越大, 单页内存和单周期待处理量越高。 |
+| `provider_concurrency` | 4 | 32 | 每 provider 并发 attempt; 过高会放大上游和代理压力。 |
+| `provider_qps` | 2 | 100 | 每进程、每 provider QPS; 后台与 admin reconcile 共用 gate。 |
+| `provider_failure_threshold` | 3 | 100 | 当前周期连续临时失败熔断阈值; 过高会延迟 provider 隔离。 |
+| `attempt_timeout_seconds` | 15 | 300 | 单次刷新 attempt; 还会被分布式刷新锁 lease 的安全余量进一步收紧。 |
+| `cycle_timeout_seconds` | 240 | 3600 | 单个后台周期总时限; 到期后保留未完整页游标供后续恢复。 |
+
+候选账号按 ID 游标分页, 各 provider 独立处理和熔断; 一个 provider 失败不阻断其他 provider。调整并发/QPS/超时时要同时评估上游限流、代理容量、周期能否扫完整页和多实例总压力。
+
 修改配置要同步代码默认值, 示例配置, 校验逻辑和文档。
 
 ## 部署入口
@@ -312,7 +330,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - Compose: `deploy/docker-compose.yml`, `deploy/docker-compose.local.yml`, `deploy/docker-compose.dev.yml`, `deploy/docker-compose.standalone.yml`。
 - systemd: `deploy/sub2api.service`, `deploy/sub2api-datamanagementd.service`。
 - 安装脚本: `deploy/install.sh`, `deploy/docker-deploy.sh`, `deploy/install-datamanagementd.sh`。
-- Caddy 示例: `deploy/Caddyfile`。
+- Caddy 示例: `deploy/Caddyfile`; 只负责 TLS/反向代理, 不负责静态资源 immutable 分类, 该规则由 embedded backend 按 filename fingerprint 判定。
 
 ## 常见维护陷阱
 

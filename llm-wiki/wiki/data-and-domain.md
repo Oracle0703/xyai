@@ -7,7 +7,7 @@ Sub2API 的核心对象:
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
 - Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, 支持模型范围和自定义 `/v1/models` 列表。
-- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端和 Spark 影子账号。
+- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。
 - BatchImageJob/Item/Event: 批量生图任务、单项结果与事件流, 配合用户 frozen balance / hold / settlement / download cleanup。
@@ -209,6 +209,13 @@ User x platform quota:
 - 删除用户/API Key 后仍需要支持错误日志归因和审计查询; 相关 migration 包含 deleted API key audit、ops error log api key prefix、user time index 等。
 - 图片生成计费包含 image token/metadata 路径; 修改图片用量展示或计费时同时检查 `imageUsage` 前端工具、usage log 写入和 rate-limit cooldown/failover 逻辑。
 - OpenAI 图片请求写 usage 时, 若渠道 token 模式没有任何有效 token/image token 定价并触发缺价兜底, 仍写入零费用但 `billing_mode=image`, 避免 Token Analysis 和用量筛选把图片请求误归为 token 计费。
+
+## 账号复制与凭据所有权
+
+- `POST /api/v1/admin/accounts/:id/duplicate` 只接受 API Key、upstream、Bedrock 和 service account 等自持静态凭据类型；OAuth/cookie 等旋转凭据及 Spark/其他 credential shadow 必须拒绝，shadow 应从母账号重新创建。
+- 副本深拷贝静态 credentials、业务配置、proxy 和有序 account-group priority；若源账号处于 proxy fallback，复制配置 origin 而不是暂态 fallback 目标。账号与 group 关系通过 `AccountDuplicateRepository.CreateWithAccountGroups` 在同一事务创建，并写 scheduler outbox。
+- 副本名称追加 ` (Copy)`、`schedulable=false`，需要管理员检查后再启用。外部同步 identity、配额窗口、provider probe、quota snapshot、调度暂态和旧 duplicate operation id 不得继承。
+- 幂等 identity 由 admin actor scope、源账号 ID 和 `Idempotency-Key` 派生后存入副本 `extra.duplicate_operation_id`; coordinator 不确定响应是否持久化时只做只读恢复，不重复创建副本。
 
 ## 模型与平台
 

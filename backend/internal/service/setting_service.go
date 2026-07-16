@@ -50,6 +50,7 @@ type SettingService struct {
 	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
 	cfg                         *config.Config
 	onUpdate                    func() // Callback when settings are updated (for cache invalidation)
+	onRiskControlUpdate         func(bool)
 	version                     string // Application version
 	webSearchManagerBuilder     WebSearchManagerBuilder
 	antigravityUAVersionCache   atomic.Value // *cachedAntigravityUserAgentVersion
@@ -249,6 +250,12 @@ func (s *SettingService) GetAllSettings(ctx context.Context) (*SystemSettings, e
 // This is used for cache invalidation (e.g., HTML cache in frontend server)
 func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
+}
+
+// SetRiskControlUpdateCallback keeps the moderation hot-path snapshot aligned
+// with a successfully persisted system-level feature switch.
+func (s *SettingService) SetRiskControlUpdateCallback(callback func(bool)) {
+	s.onRiskControlUpdate = callback
 }
 
 // SetVersion sets the application version for injection into public settings

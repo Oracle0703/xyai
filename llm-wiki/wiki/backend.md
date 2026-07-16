@@ -42,6 +42,8 @@
 
 很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner 和 user platform quota flusher。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
 
+OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `candidate_page_size=200`; 每个平台独立并行处理, 并共享各自的进程内并发、QPS 和当前周期熔断闸门。默认 `provider_concurrency=4`、`provider_qps=2`、`provider_failure_threshold=3`、`attempt_timeout_seconds=15`、`cycle_timeout_seconds=240`; 单个平台连续失败只隔离该 provider, 不阻断其他 provider 的刷新页。周期中断时不会越过未完整处理的页, 后续从保存的游标恢复。
+
 代理有效期与失败回退(`ProvideProxyExpiryService`, 每分钟扫描):
 
 - `backend/internal/service/proxy_expiry_service.go` 定时 `SweepExpiredProxies`; `proxy_fallback.go` 的 `ResolveProxyFallbackTarget` 按 `fallback_mode`(`none` / `proxy` / `direct`)沿 `backup_proxy_id` 链解析过期代理应改投的目标, `RevertProxyFallback` 支持手动回切。
@@ -56,7 +58,7 @@
 - `backend/internal/server/router.go`: 注册全局中间件和业务路由。
 - `backend/internal/server/routes/*.go`: 分组注册路由。
 
-全局中间件包含 recovery, request logger, CORS, security headers, opt-in Server-Timing, Prompt Metrics 和 embedded frontend。`server.enable_server_timing` 默认关闭; 开启后只为管理端 Web UI 请求创建 request-scoped collector, 汇总 SQL、Redis、外部 HTTP、cache 和总耗时。Prompt Metrics 的 `CaptureMiddleware` 继续在同一链路中挂载, 合并时不能二选一。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端对 Vite `assets/`、`logo.png` 和 `favicon.ico` 设置 `public, max-age=31536000, immutable`; `index.html` 和 SPA fallback 仍保持 no-cache, 不能把长缓存扩到 HTML。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
+全局中间件包含 recovery, request logger, CORS, security headers, opt-in Server-Timing, Prompt Metrics 和 embedded frontend。`server.enable_server_timing` 默认关闭; 开启后为 admin UI 和 allowlist 内的 authenticated user UI 请求创建 request-scoped collector, 汇总 SQL、Redis、外部 HTTP、cache 和总耗时。`X-Admin-UI-Request` / `X-User-UI-Request` 只提供 UI scope signal, 响应写出前仍由 context role 和 user path allowlist 做最终 gate; 公开 payment/webhook 路由和 AI gateway 不返回 `Server-Timing`。Prompt Metrics 的 `CaptureMiddleware` 继续在同一链路中挂载, 合并时不能二选一。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端只对 Vite `assets/` 下文件名含 8 字符 fingerprint 的资源设置 `public, max-age=31536000, immutable`; unhashed assets、`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 不再重复强制静态 immutable 规则, 缓存判定由后端统一负责。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
 
 路由主分组:
 
@@ -66,6 +68,11 @@
 - `/v1`, `/v1beta`, `/responses`, `/chat/completions`, `/images/*`: AI 网关兼容接口。
 - `/antigravity/v1`, `/antigravity/v1beta`: Antigravity 专用兼容接口。
 - 支付用户接口只暴露 config/checkout/plans/limits/orders/refund 等业务合同; 旧 `/api/v1/payment/channels` 已删除, 因其会泄露内部 AI 渠道配置。前端 `paymentAPI` 也不再包含对应 client 方法。
+
+管理端账号合同:
+
+- OpenAI Agent Identity 账号使用 `auth_mode=agentIdentity`, 凭据包含 PKCS#8 Ed25519 `agent_private_key`、`agent_runtime_id` 和运行期 `task_id`。缺失 task 时按账号串行注册; 上游判定 task 失效时单次恢复并持久化新 task, 随后使旧 WS 连接失效。account test、quota 查询、usage 查询及 HTTP/WS gateway 都支持该认证模式; quota reset credit 明确不支持。私钥和其他 secret 在管理端 DTO 中剥离; 上游错误、日志与 ops 输出还会防御性脱敏 runtime/task ID、assertion 及可能回显的凭据值。
+- `POST /api/v1/admin/accounts/:id/duplicate` 只复制 API Key、upstream、Bedrock、service account 等静态凭据账号。账号、精确 groups priority 和 scheduler outbox 在同一事务创建; 新账号固定 `schedulable=false`, 不复制 quota、capability probe、cache 或临时调度等运行态。提供 `Idempotency-Key` 时以 admin actor + source account + key 建立恢复身份, 模糊提交结果只做只读恢复、不重复创建; credential shadow 和 OAuth/Agent Identity 等旋转凭据账号直接拒绝。
 
 用户侧用量接口:
 
@@ -105,7 +112,7 @@
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。管理端还可通过 `POST /api/v1/admin/grok/sso-to-oauth` 批量提交 Web SSO key, 后端走 xAI Device Flow 转换为 Build OAuth 凭据; 导入后会做最小 probe, 但单个失败不能覆盖已成功创建的账号。上游模型同步当前只支持 Grok API Key, OAuth 账号会返回 `unsupported`; 模型同步通过 `AccountTestService.validateUpstreamBaseURL` 校验, `security.url_allowlist` 开启时执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发先由 `Account.GetGrokBaseURL` 选择地址: 默认安全模式下 OAuth 自定义地址必须通过 `xai.ValidateTrustedBaseURL` 的可信 host 约束, API Key 自定义地址由 `xai.Build*URL` / `ValidateBaseURL` 限制为公共 HTTPS 且路径为 `/v1`; 开启 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 后两者退化为格式校验。模型同步与真实转发不能描述为同一校验链。
 - Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
-- `/backend-api/codex/responses` 支持 Codex 直连别名; `GET /backend-api/codex/models` 由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 Codex 客户端 model manifest, 入口仍受 API Key 与 group 校验保护。
+- `GET /v1/models` 与根级 `GET /models` 共用 platform-aware handler: OpenAI group 且带 `client_version` 时返回 Codex manifest, 其他客户端继续返回 OpenAI-style model list。`GET /backend-api/codex/models` 仍由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 manifest; `/backend-api/codex/responses` 继续作为 Codex 直连别名, 所有入口都受 API Key 与 group 校验保护。
 - Codex standalone search 同时注册 `/v1/alpha/search`、根级 `/alpha/search` 和 `/backend-api/codex/alpha/search`, 由 `openai_alpha_search.go` 按 OAuth/API Key 账号选择 ChatGPT Codex 或 OpenAI 官方 endpoint。三路入口都经过 API Key/group gate; 本地根级与 Codex direct 路由继续经过 RequestArchive/RequestIntercept。只有上游 2xx 成功响应产生 `WebSearchCalls=1` 并进入按次计费, 上游错误原样透传且不计费。
 
 OpenAI 上游请求会按官方 endpoint 做字段过滤:
@@ -135,10 +142,12 @@ OpenAI/Codex 兼容桥:
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - `openai_gateway_cc_pipeline.go` 是 Chat Completions fallback 共享读写路径; 非流式 JSON 读取后必须同时补 `applyOpenAICompatibleChatUsageDetailsFromJSON` 和 `OpenAIUsage` cache 字段, 否则 Responses fallback 的 `usage.input_tokens_details.cached_tokens` 或计费中的 `cache_read_input_tokens` 会丢失。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
+- native OpenAI HTTP streaming Responses 可用 `gateway.openai_first_output_timeout_seconds` 启用首次语义输出 deadline, 默认 `0` 关闭, 非零合法范围 30-600 秒; `gateway.openai_high_effort_first_output_timeout_seconds` 默认 `0` 继承标准值, high/xhigh/max 的非零 override 合法范围 30-1800 秒。deadline 包含等待上游响应头, 不作用于 passthrough 或 WebSocket transport; 首次语义输出前单次 attempt 最多暂存 8 MiB, 超时或溢出时最多切换账号一次且不向客户端暴露不完整 SSE。原 attempt 可能已产生上游用量, 切号重放存在重复上游计费风险。
+- `gateway.openai_ws.client_first_message_timeout_seconds` 默认 30 秒且必须为正数, 覆盖客户端首条 `response.create` 的完整读取与解压, 不是只限制首字节到达时间。
 - OpenAI WS ingress 长连接与单 turn 并发槽分离: `max_ingress_connections_per_api_key` 使用 Redis 短租约限制每个 API Key 在多实例上的存活连接数, 默认 64, 0 关闭; lease TTL 60 秒、每 20 秒刷新, 丢失租约时连接 fail-close。`ingress_inter_turn_idle_timeout_seconds` 默认 300 秒, 只限制已完成 turn 之间的客户端空闲, 0 关闭。
 - OpenAI WebSocket 传输层会把 Windows `WSAECONNRESET` / `WSAECONNABORTED` 等连接重置识别为可分类的网络错误; 不要把这类平台错误文本当作业务响应或未知失败。
 - `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
-- OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。
+- OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。native Responses、raw/compatible pipeline、passthrough 和 Grok producer 都要把上游 response headers 留在内部 failover error, 但账号耗尽时只允许向客户端恢复安全的 `Retry-After`: 数字必须为 1-604800 秒, HTTP 日期必须晚于当前且不超过 7 天; CR/LF、超长或超界值一律丢弃, 其他上游 header 不恢复。
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
 - OpenAI/Grok/Messages 流里的 `response.failed` 要复用 error passthrough 与 failover 规则, 不能硬编码为 502; 已向客户端写入的 in-band SSE 错误同时要落 ops error context, 避免 200 HTTP 流内失败从错误看板消失。
 - OpenAI/ChatGPT/Codex 账号配额查询与重置由 `backend/internal/service/openai_quota_service.go` 提供(上游 v0.1.137): 调 `chatgpt.com/backend-api/wham/usage` 读 rate-limit 窗口、`/wham/rate-limit-reset-credits/consume` 重置 credits; 管理端入口 `GET /api/v1/admin/openai/accounts/:id/quota` 与 `POST .../reset-quota`。上游对未用窗口返回显式 `null`, 消费方按 nil 指针视作"无数据"。
@@ -151,6 +160,7 @@ OpenAI/Codex 兼容桥:
 Grok/xAI 兼容:
 
 - Grok OAuth 管理路由在 `backend/internal/server/routes/admin.go` 的 `registerGrokOAuthRoutes`: `/api/v1/admin/grok/oauth/auth-url`, `/exchange-code`, `/refresh-token`, `/accounts/:id/refresh`, `/accounts/:id/quota`, `/accounts/:id/reset-quota`, `/runtime-sanity`。
+- `POST /api/v1/admin/grok/oauth/reconcile` 默认 dry-run, 通过 `after_id` 游标扫描 Grok OAuth 缺失 refresh/access token、缺失或非法 expiry 及临期凭据; 只有显式 `apply=true,dry_run=false` 才执行 refresh/block。后台 token refresh 与 reconcile 共用 Grok provider 的进程内并发和 QPS gate, 防止两种入口叠加上游压力; 两条路径各自按 `provider_failure_threshold` 在当前周期隔离该 provider。
 - OAuth/token/账号创建由 `backend/internal/service/grok_oauth_service.go`, `grok_token_provider.go`, `grok_token_refresher.go`, `backend/internal/repository/grok_oauth_client.go` 提供; token cache key 独立为 `GrokTokenCacheKey`。
 - OpenAI-compatible 转发入口在 `backend/internal/service/openai_gateway_grok.go`: `forwardGrokResponses` 支持 OAuth/API Key 账号, 按账号模型映射替换 `model`, 删除 xAI 不支持的 `prompt_cache_retention` / `safety_identifier` / `external_web_access`, 过滤不支持的 `tools` 和失配 `tool_choice`, 发送到 `account.GetGrokBaseURL()` 下的 Responses endpoint。
 - `Account.GetGrokBaseURL` 对 OAuth 空值或官方 `api.x.ai[/v1]` 旧值回落 `xai.DefaultCLIBaseURL`; 显式自定义 URL 只有通过 `xai.ValidateTrustedBaseURL` 才使用, 否则回落 CLI proxy。API Key 空值使用 `xai.DefaultBaseURL`; URL 校验规则或 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 变化必须同步 SSRF/信任边界测试。
@@ -160,6 +170,12 @@ Grok/xAI 兼容:
 - 旧 Grok group 会由 migration `158_enable_grok_media_generation_groups.sql` 回填 `allow_image_generation=true`, 因为 Grok media 路由复用图片生成能力 gate。
 - `PlatformGrok` 已加入 `domain/constants.go`, `service/domain_constants.go`, scheduler snapshot 平台列表、token cache invalidator 和 user platform quota 允许列表。新增平台相关能力时要同步这些集中列表。
 - 模型不可用诊断由 `gateway_model_availability.go` 和 `openai_gateway_model_availability.go` 提供; no-account 错误路径会区分"池中无支持该模型账号"并返回 404 `model_not_found`, 避免误报 503。
+
+内容审核运行态:
+
+- `risk_control_enabled`、`content_moderation_config` 和 `prompt_risk_config` 合并读取为同一个 stale-while-refresh runtime snapshot。snapshot 过期时热路径继续使用旧值并异步刷新, 避免每个网关请求查询 settings; 管理端通用 settings 成功保存 `risk_control_enabled` 后通过 SettingService callback 立即原子替换已有 snapshot 的总开关, 开启/关闭都不等待 TTL。
+- `content_moderation_config.blocked_keywords` 在 snapshot 构建时预编译 matcher; 保存内容审核配置或 Prompt Risk 配置后会立即原子替换对应 snapshot 部分, 无需等待 TTL。
+- 后台刷新失败时保留最后一个有效 snapshot, 并按 runtime TTL 退避后再尝试, 不能因 settings 短暂故障清空审核策略或阻塞请求热路径。
 
 OpenAI 账号调度:
 
