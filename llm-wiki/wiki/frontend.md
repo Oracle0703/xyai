@@ -37,7 +37,7 @@
 - public: `/home`, `/login`, `/register`, OAuth callback, `/key-usage`, `/image-gen`, `/legal/:documentId`
 - batch image: `/batch-image`(alias `/docs/batch-image`) 使用 `BatchImageGuideView.vue`, 侧栏入口由 `useBatchImageAccess` 按用户/分组能力刷新显示。
 - user: `/dashboard`, `/keys`, `/usage`, `/redeem`, `/affiliate`, `/available-channels`, `/profile`, `/subscriptions`, `/purchase`, `/orders`, payment 页面, `/custom/:id`
-- admin: `/admin/dashboard`, `/admin/ops`, `/admin/users`, `/admin/groups`, `/admin/channels/*`, `/admin/accounts`, `/admin/audit-logs`, `/admin/settings`, `/admin/risk-control`, `/admin/request-intercept`, `/admin/usage`, `/admin/organization-usage`, `/admin/token-analysis`, payment admin, affiliate admin
+- admin: `/admin/dashboard`, `/admin/ops`, `/admin/users`, `/admin/groups`, `/admin/channels/*`, `/admin/accounts`, `/admin/audit-logs`, `/admin/settings`, `/admin/risk-control`, `/admin/prompt-audit`, `/admin/request-intercept`, `/admin/usage`, `/admin/organization-usage`, `/admin/token-analysis`, payment admin, affiliate admin
 
 守卫要点:
 
@@ -117,6 +117,12 @@ API 模块分布:
 - `frontend/src/utils`: 纯工具函数。
 - `frontend/src/types`: TS 类型。
 - `frontend/src/constants`: 常量。
+
+提示词审计管理端:
+
+- `/admin/prompt-audit` 懒加载 `frontend/src/features/prompt-audit/PromptAuditView.vue`, 并通过 `requiresRiskControl` 与管理端权限守卫。侧栏把既有 Risk Control 与 Prompt Audit 放在 Security Audit 分组中, 本地 `/admin/request-intercept` 仍保持独立入口。
+- `frontend/src/features/prompt-audit/api.ts` 维护配置、运行态、节点 probe 和事件删除合同；`components/` 下的 policy、endpoint pool、runtime、event workspace/detail 和 filter-delete dialog 组成页面。筛选删除必须先拿 preview 的 `snapshot_max_id` / `filter_hash`, 再显式确认。
+- `frontend/src/views/admin/BackupView.vue` 保存 S3 配置时必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。
 
 订阅管理:
 
@@ -204,6 +210,7 @@ API 模块分布:
 - `pnpm run lint:check`: ESLint 检查。
 - `pnpm run typecheck`: `vue-tsc --noEmit`
 - `pnpm run test:run`: Vitest。
+- locale message compile 测试直接使用 `@intlify/message-compiler@9.14.5`; 该依赖已在 `devDependencies` 和 `pnpm-lock.yaml` 显式声明。
 
 `frontend/vitest.config.ts`:
 

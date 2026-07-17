@@ -25,8 +25,15 @@ OpenAI Agent Identity:
 管理面安全链:
 
 - 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。
-- 账号/代理导出、S3 配置修改、备份下载、管理员角色提升等敏感动作使用 step-up grant; admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。
+- 账号/代理导出、S3 配置修改、备份下载、管理员角色提升等敏感动作使用 step-up grant; admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。前端 `BackupView.vue` 的 S3 保存也必须经 `backupStepUp.run`, 不能只依赖后端拒绝后再补 UI。
 - `api_key_acl_trust_forwarded_ip` 默认 false。false 时 API Key ACL、会话绑定和审计使用可信代理链/直连地址; true 时才读取转发客户端 IP。必须同时正确配置 `server.trusted_proxies`, 否则伪造 forwarded header 会扩大 ACL 绕过面。
+
+Prompt Audit 安全与隐私边界:
+
+- `backend/internal/securityaudit/` 叠加在既有内容审核链上, 默认关闭。blocking 模式对 Guard 不可用或非法响应 fail-closed 为 503；async 入队失败不阻断当前请求, legacy moderation 仍照常执行。
+- Guard endpoint 只接受 HTTP(S) URL, 禁止 userinfo/query/fragment, HTTP client 不继承代理且 HTTPS 最低 TLS 1.2；当前标准 dialer 允许管理员配置私网、loopback 和保留地址, 因而 endpoint 是管理员信任边界, 不是面向不可信用户的 URL 输入。
+- Guard token 通过现有 `SecretEncryptor` 加密后写入 `prompt_audit_config`, 管理 API 只返回 `has_token` / `token_status`, 不回显明文。Prompt Risk judge 的内部签名头必须从 handler 经 `securityaudit.Request` 继续传给 legacy moderation, 防止上游 Prompt Audit coordinator 接入后恢复 HTTP 回环递归。
+- async 扫描原文在 Redis 最长保留 30 分钟；job 表不存原文, 但 migration 182 后 event 的 `full_prompt` 会持久化最多 65,536 rune 的未脱敏文本并在管理员详情返回。该字段属于高敏数据, 数据库访问、备份、保留周期和事件删除权限必须按原始提示词处理, 不能沿用 181 migration 的早期“原文不进 PostgreSQL”假设。
 
 前端:
 

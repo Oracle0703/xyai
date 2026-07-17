@@ -35,12 +35,16 @@
 - `config.ProviderSet`
 - `repository.ProviderSet`
 - `service.ProviderSet`
+- `promptmetrics.ProviderSet`
+- `securityaudit.ProviderSet`
 - `payment.ProviderSet`
 - `middleware.ProviderSet`
 - `handler.ProviderSet`
 - `server.ProviderSet`
 
 很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner 和 user platform quota flusher。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
+
+Prompt Audit 由 `backend/internal/securityaudit/` 提供。`Application.PromptAudit` 在 `main.go` 启动, `provideCleanup` 调用 `PromptService.Shutdown`; 配置默认关闭。`Coordinator` 始终保留既有内容审核：off 只执行 legacy moderation, async 先 best-effort 入队再执行 legacy, blocking 并行执行 Prompt Audit 与 legacy 并按阻断优先级合并结果。
 
 OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `candidate_page_size=200`; 每个平台独立并行处理, 并共享各自的进程内并发、QPS 和当前周期熔断闸门。默认 `provider_concurrency=4`、`provider_qps=2`、`provider_failure_threshold=3`、`attempt_timeout_seconds=15`、`cycle_timeout_seconds=240`; 单个平台连续失败只隔离该 provider, 不阻断其他 provider 的刷新页。周期中断时不会越过未完整处理的页, 后续从保存的游标恢复。
 
@@ -69,6 +73,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - `/antigravity/v1`, `/antigravity/v1beta`: Antigravity 专用兼容接口。
 - 支付用户接口只暴露 config/checkout/plans/limits/orders/refund 等业务合同; 旧 `/api/v1/payment/channels` 已删除, 因其会泄露内部 AI 渠道配置。前端 `paymentAPI` 也不再包含对应 client 方法。
 - 管理端 `GET /api/v1/admin/audit-logs[/:id]` 查询 append-only 操作审计, `POST .../clear` 必须现场 TOTP; `POST /api/v1/admin/users/batch-limits` 批量覆盖 concurrency/RPM, `concurrency=0` 仍表示不限。
+- 管理端 `/api/v1/admin/prompt-audit` 提供 config 更新、节点 probe、runtime、事件列表/详情、单条/批量删除和带预览确认的筛选删除；路由受 admin auth 和全局 risk-control feature gate 约束。
 
 管理端账号合同:
 
@@ -113,7 +118,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - `/v1/images/generations/async`, `/v1/images/edits/async` 和 `GET /v1/images/tasks/:task_id`（含根级别名）先把任务状态写入 Redis, 再在进程内 goroutine 复用同步 image handler; `image_storage` 启用且 S3 凭据齐全时才开放, 结果会转存对象存储后以短 URL 回写。路由继续经过 API Key、group gate、RequestArchive 与 RequestIntercept。
 - `/v1/images/batches` 是 batch image 用户侧任务接口族: submit/list/models/get/items/item content/download/cancel/delete/delete outputs。入口在 `backend/internal/handler/batch_image_handler.go`, service/repository 分别在 `backend/internal/service/batch_image*.go` 与 `backend/internal/repository/batch_image*.go`; 受 API Key 用户、分组 `allow_batch_image_generation` 与批量生图折扣/hold multiplier 约束。
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。管理端还可通过 `POST /api/v1/admin/grok/sso-to-oauth` 批量提交 Web SSO key, 后端走 xAI Device Flow 转换为 Build OAuth 凭据; 导入后会做最小 probe, 但单个失败不能覆盖已成功创建的账号。上游模型同步当前只支持 Grok API Key, OAuth 账号会返回 `unsupported`; 模型同步通过 `AccountTestService.validateUpstreamBaseURL` 校验, `security.url_allowlist` 开启时执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发先由 `Account.GetGrokBaseURL` 选择地址: 默认安全模式下 OAuth 自定义地址必须通过 `xai.ValidateTrustedBaseURL` 的可信 host 约束, API Key 自定义地址由 `xai.Build*URL` / `ValidateBaseURL` 限制为公共 HTTPS 且路径为 `/v1`; 开启 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 后两者退化为格式校验。模型同步与真实转发不能描述为同一校验链。
-- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
+- Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。新 generation 请求还要求账号通过 `grok_media_generation` capability：显式 `extra.grok_media_eligible=false` 或 billing probe 观察到 403 时不再调度, 缺少观察值保持旧行为, 已提交任务的 status 查询不受该 gate 影响；scheduler cache 必须保留资格与 billing snapshot。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费；image/edit/reference payload 的 `image_url` 会规范为上游 `url` 字段。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `GET /v1/models` 与根级 `GET /models` 共用 platform-aware handler: OpenAI group 且带 `client_version` 时返回 Codex manifest, 其他客户端继续返回 OpenAI-style model list。`GET /backend-api/codex/models` 仍由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 manifest; `/backend-api/codex/responses` 继续作为 Codex 直连别名, 所有入口都受 API Key 与 group 校验保护。
 - Codex standalone search 同时注册 `/v1/alpha/search`、根级 `/alpha/search` 和 `/backend-api/codex/alpha/search`, 由 `openai_alpha_search.go` 按 OAuth/API Key 账号选择 ChatGPT Codex 或 OpenAI 官方 endpoint。三路入口都经过 API Key/group gate; 本地根级与 Codex direct 路由继续经过 RequestArchive/RequestIntercept。只有上游 2xx 成功响应产生 `WebSearchCalls=1` 并进入按次计费, 上游错误原样透传且不计费。
