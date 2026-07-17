@@ -38,6 +38,7 @@ import userConcurrencyPresetsAPI from './userConcurrencyPresets'
 import promptMetricsAPI from './promptMetrics'
 import adminComplianceAPI from './compliance'
 import organizationUsageAPI from './organizationUsage'
+import auditAPI from './audit'
 
 /**
  * Unified admin API object for convenient access
@@ -77,7 +78,8 @@ export const adminAPI = {
   userConcurrencyPresets: userConcurrencyPresetsAPI,
   promptMetrics: promptMetricsAPI,
   compliance: adminComplianceAPI,
-  organizationUsage: organizationUsageAPI
+  organizationUsage: organizationUsageAPI,
+  audit: auditAPI
 }
 
 export {
@@ -115,12 +117,14 @@ export {
   userConcurrencyPresetsAPI,
   promptMetricsAPI,
   adminComplianceAPI,
-  organizationUsageAPI
+  organizationUsageAPI,
+  auditAPI
 }
 
 export default adminAPI
 
 // Re-export types used by components
+export type { AuditLog, AuditLogQuery, AuditLogListResponse } from './audit'
 export type { BalanceHistoryItem } from './users'
 export type { ErrorPassthroughRule, CreateRuleRequest, UpdateRuleRequest } from './errorPassthrough'
 export type { BackupAgentHealth, DataManagementConfig } from './dataManagement'

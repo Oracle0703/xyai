@@ -61,6 +61,7 @@ func newGatewayRoutesTestRouter(options ...gatewayRoutesTestOption) *gin.Engine 
 		&handler.Handlers{
 			Gateway:       &handler.GatewayHandler{},
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			AsyncImage:    handler.NewAsyncImageHandler(nil, nil),
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := int64(1)
@@ -226,6 +227,25 @@ rules:
 	require.NotContains(t, records[1], "body")
 	require.Greater(t, records[1]["body_size"], float64(0))
 	require.NotEmpty(t, records[1]["body_sha256"])
+}
+
+func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+
+	for _, route := range []string{
+		"POST /v1/images/generations/async",
+		"POST /v1/images/edits/async",
+		"GET /v1/images/tasks/:task_id",
+		"POST /images/generations/async",
+		"POST /images/edits/async",
+		"GET /images/tasks/:task_id",
+	} {
+		require.True(t, registered[route], "%s should be registered", route)
+	}
 }
 
 func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {

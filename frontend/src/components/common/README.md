@@ -26,6 +26,7 @@ A generic data table component with sorting, loading states, and custom cell ren
 - Small desktop lists render every row. This avoids scroll compensation jitter when rows have variable height.
 - Large desktop lists use `@tanstack/vue-virtual`; mobile cards are not virtualized.
 - Virtual row measurements are keyed by `rowKey`, so sorting and filtering reuse the correct measured height. Callers should provide a stable key when rows do not have a stable `id`.
+- Replacing a page/filter result with a different row identity set clears stale element and size caches. Pure reordering keeps caches only when stable keys are unique, or when keyless rows are the same object instances; duplicate or unstable keys invalidate conservatively.
 - `shouldVirtualize`, `virtualizer`, `sortedData`, `resolveRowKey`, and `tableWrapperEl` are exposed for composables such as swipe selection.
 
 **Slots:**

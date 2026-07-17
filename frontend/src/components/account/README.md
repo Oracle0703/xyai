@@ -11,6 +11,8 @@
 | `credentialsBuilder.ts` | 纯函数形式构建、清理和规范化账号 credentials |
 | `AccountUsageCell.vue` / `UsageProgressBar.vue` | 账号额度、剩余额度和未知状态展示 |
 | `OAuthAuthorizationFlow.vue` | OAuth 授权输入和状态复用 |
+| `UpstreamBillingRateCell.vue` | OpenAI API Key 账号的上游计费倍率快照、stale 状态和手动 probe |
+| `GrokBaseUrlPresets.vue` / `HeaderOverrideEditor.vue` | Grok 上游地址 preset 与自定义请求头编辑 |
 
 ## API Key 创建契约
 
@@ -47,6 +49,22 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 - Grok OAuth 默认使用 CLI subscription proxy；旧的官方 API base URL 会在运行时归一到 CLI proxy。
 - 自定义 OAuth base URL 必须通过 `xai.ValidateTrustedBaseURL`。未显式允许不安全覆盖时，普通第三方 URL回落到默认 CLI proxy。
 
+### 管理端账号复制
+
+- 账号操作菜单只为 API Key、upstream、Bedrock、service account 等静态凭据账号显示复制入口；OAuth/cookie 等旋转凭据和 credential shadow 不可复制。
+- 前端 `adminAPI.accounts.duplicate` 为同一账号在内存和 sessionStorage 中复用 `Idempotency-Key`, 成功后才清理；超时/网络失败时保留 key 供重试恢复同一个副本。
+- 后端返回的新账号默认不可调度，前端只刷新列表和显示结果，不自动启用。
+
+### 上游计费倍率与账号外链
+
+- upstream billing probe 只适用于 `platform=openai && type=apikey`; 单个/批量 probe 结果更新 `account.extra.upstream_billing_probe`，UI 根据采集时间显示 stale 状态。
+- 账号名称只有在上游 URL 可安全解析为 HTTP(S) 站点时才渲染外链；缺失、非法或凭据型值保持纯文本，不能拼接为可点击 URL。
+- probe 设置、账号快照和调度成本倍率属于同一合同；修改 `UpstreamBillingRateCell.vue` 时同步 API client、账号类型和对应 spec。
+
+### Antigravity refresh token
+
+- 批量 refresh-token 导入必须把管理员原始输入继续传入 OAuth 组合逻辑；解析结果不能替代原始 refresh token，否则手工 token 会在授权流程中丢失。
+
 ## 验证
 
 ```powershell
@@ -55,4 +73,3 @@ cmd.exe /c pnpm --dir frontend run typecheck
 ```
 
 修改 credentials 时还应运行后端账号与网关聚焦测试，确认 UI payload 和服务端读取契约一致。
-

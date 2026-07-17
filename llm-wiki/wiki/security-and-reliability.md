@@ -9,6 +9,9 @@
 - API Key 网关认证: `backend/internal/server/middleware/api_key_auth.go`
 - Google/Gemini API Key 认证兼容: `api_key_auth_google.go`
 - backend mode guard: `backend_mode_guard.go`
+- 操作审计: `backend/internal/server/middleware/audit_log.go`
+- 会话 IP/UA 绑定: `backend/internal/server/middleware/session_binding.go`
+- 敏感操作 step-up: `backend/internal/server/middleware/step_up.go`
 
 `APIKeyAuth` 对独占分组(exclusive group)做强制校验: 当 API Key 绑定的用户已不再被授权该独占分组时直接拒绝访问, 避免越权复用; 相关 middleware 单测在 `api_key_auth_test.go`。
 
@@ -23,6 +26,17 @@ Google/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, �
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。
+
+OpenAI Agent Identity:
+
+- `auth_mode=agentIdentity` 要求 PKCS#8 Ed25519 `agent_private_key` 和非空 `agent_runtime_id`; `task_id` 可缺省, 首次使用时按账号锁注册并持久化。私钥不得返回前端, runtime/task ID、AgentAssertion 和上游可能回显的凭据值在错误、日志与 ops 事件前也必须脱敏。
+- task 被上游判定失效时每个调用链只允许恢复一次; 新 task 持久化后必须使该账号旧 WS 连接失效, 防止连接继续使用旧 assertion。account test、quota/usage query 及 HTTP/WS gateway 共用该认证边界。
+
+管理面安全链:
+
+- 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。
+- 账号/代理导出、S3 配置修改、备份下载、管理员角色提升等敏感动作使用 step-up grant; admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。
+- `api_key_acl_trust_forwarded_ip` 默认 false。false 时 API Key ACL、会话绑定和审计使用可信代理链/直连地址; true 时才读取转发客户端 IP。必须同时正确配置 `server.trusted_proxies`, 否则伪造 forwarded header 会扩大 ACL 绕过面。
 
 前端:
 
@@ -91,6 +105,8 @@ Google/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, �
 
 新增关键写接口, 尤其支付, 余额, 订阅, 系统操作, 应考虑 `Idempotency-Key` 和失败重试语义。
 
+`POST /api/v1/admin/accounts/:id/duplicate` 只允许复制静态凭据账号。账号、groups priority 和 scheduler outbox 必须原子落库, 新账号默认 `schedulable=false`, quota/probe/cache/临时调度状态不得复制; credential shadow 和 OAuth/Agent Identity 等旋转凭据账号拒绝。幂等恢复身份绑定 admin actor、source account 和 `Idempotency-Key`; ambiguous commit 只能查询已创建副本, 不能重放 create side effect。
+
 幂等响应入库前会做脱敏和长度裁剪; `MaxStoredResponseLen` 截断必须使用 UTF-8 安全边界(`truncateUTF8`), 避免把多字节字符切坏后写入不可解析响应。
 
 ## URL, CSP 与响应头
@@ -118,7 +134,8 @@ CSP 注意点:
 - `security_headers.go` 的 `requiredCSPDirectiveValues` 是"旧自定义策略缺新指令"的运行时补丁列表(支付 SDK 域名、`img-src blob:` 等都走这里)。给 CSP 加新的必需指令时**必须同时改默认串和该列表**, 否则覆盖了 policy 的存量部署不会生效。
 - `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
 - 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
-- `Server-Timing` 默认关闭。开启后只有路径属于 `/api/v1/admin/**` 或带 `X-Admin-UI-Request: 1` 的请求会创建 collector, 且响应前必须确认 context role 为 `admin`; 未认证请求、普通用户请求和第三方网关流量不得返回 SQL/Redis/依赖耗时。CORS 只把该 header 纳入管理端请求所需 allowlist。
+- `Server-Timing` 默认关闭。开启后只为 admin UI 或 allowlist 内的 authenticated user UI scope 收集; `X-Admin-UI-Request: 1` / `X-User-UI-Request: 1` 只是 scope signal, 不能替代认证。响应写出前必须再按 context role 与 user path allowlist gate: 管理员可读取已收集的 admin/user UI timing, 普通已认证用户只能读取 allowlisted user API; 未认证请求、公开 payment/webhook 和 AI gateway 不得返回 SQL/Redis/依赖耗时。CORS allow/expose headers 必须与两类 UI signal 和 `Server-Timing` 保持同步。
+- embedded static cache 只信任 `assets/` 下文件名中的 8 字符 fingerprint; 只有这类资源可返回一年 immutable。unhashed assets、logo、favicon、HTML/SPA 和根级 API fallback 都不得长缓存; Caddy 不应覆盖后端的 fingerprint 判定。
 
 生产环境要谨慎允许 HTTP, private hosts 和 proxy fallback direct, 避免 token 泄露和 SSRF 风险。
 
@@ -146,6 +163,8 @@ Grok endpoint 也属于 URL 信任边界:
 - `gateway.large_request`
 
 请求链路会记录 request id, ops error, request archive, 并可使用 request intercept 动态改写/阻断。
+
+native OpenAI HTTP streaming Responses 的 first-output guard 默认关闭。启用后 deadline 从 attempt 开始并包含响应头等待; 首次语义输出前最多暂存 8 MiB, 只允许 keepalive 等非语义字节先行, 超时/溢出后清理 attempt 并最多换账号一次。该机制不覆盖 passthrough/WS, 也不能撤销已经发生的上游计算或用量, 因而 failover 重放可能造成重复上游计费; 开启前必须把该风险纳入成本与幂等评估。
 
 OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level thinking 字段:
 
@@ -189,6 +208,7 @@ Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `promp
 - 如果 judge 使用本网关 API Key, 仍建议使用专属 API Key / 分组, 便于计费、审计和故障定位; 不要复用普通用户 key。
 - 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
 - 内容审核关键词 block 会把命中的具体关键词写入 `content_moderation_logs.matched_keyword`, 管理端风险控制列表和详情展示该字段; 记录前仍需走既有输入摘要/脱敏边界。
+- `risk_control_enabled`、`content_moderation_config` 和 `prompt_risk_config` 共用 stale-while-refresh runtime snapshot; blocked keywords 在 snapshot 构建时预编译 matcher。保存内容审核或 Prompt Risk 配置会立即替换对应 snapshot 部分, 通用 settings 成功保存总开关后也必须通过回调立即原子替换已有 snapshot 的 enabled 状态; 后台刷新失败继续使用最后一个有效快照并按 TTL 退避, 不得清空策略或把 settings 故障扩散到网关热路径。
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。
@@ -211,10 +231,13 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - OpenAI endpoint capability 会按账号能力限制 chat completions / embeddings 等入口; 本地 feature gate 拒绝要标记 ops business-limited, 避免污染上游 SLA。
 - 模型不可用诊断会在 no-account 错误路径返回 404 `model_not_found`, 仅当配置池里没有任何账号支持请求模型时触发; 查询失败或无法判断时保守回到 503, 避免把瞬时故障误判为模型不存在。
 - OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 并套用 error passthrough/failover 规则, 不能硬编码 502; 避免把 verbose upstream body 直接暴露给用户或前端错误视图。HTTP 200 SSE 内的失败也要记录 ops error context。
+- OpenAI failover error 可在服务内部保留上游 response headers, 供账号耗尽后的 handler 恢复退避提示; 客户端只允许收到通过统一 allowlist 校验的 `Retry-After`。数字必须为 1-604800 秒, HTTP 日期必须处于未来 7 天内, 且 header 不得含 CR/LF 或超过 128 字符; Authorization、Cookie、proxy、upstream detail 等其他 header 不得随 failover 恢复。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
 - Grok prompt cache identity 只能从显式 conversation/prompt cache 线索或稳定消息前缀派生并与账号/模型边界组合; raw Chat 上游不能收到 Responses-only `prompt_cache_key`。健康 quota headers 可以解除此前的 exhausted/rate-limit snapshot, 避免账号永久被误停用。
 - Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
 - Grok Web SSO 导入只在管理员路由接收 SSO key, 服务端经 Device Flow 换成 Build OAuth 凭据后创建账号; key、device code、access/refresh token 不得写入日志、wiki 或前端持久化。批量导入允许部分成功, 失败项只返回索引和脱敏错误。
+- Grok OAuth credential failure 必须按 scope 隔离: 缺失/吊销/entitlement/proxy 等账号级问题只对选中账号执行 next-account retry 和隔离; provider 配置、共享状态或上游整体不可用属于 provider 级问题, 停止本请求继续切号, 不批量污染账号状态。永久/临时账号 mutation 以请求选中时的 credentials/token version/proxy snapshot 做 CAS; CAS miss 要回读并接受并发 refresh 的新 token, 不得覆盖新凭据。
+- `POST /api/v1/admin/grok/oauth/reconcile` 默认 dry-run, 用游标列出缺失或临期凭据; apply 必须显式 `apply=true,dry_run=false`, destructive block 同样要求凭据 CAS 未变化。reconcile 与后台 refresh 共用 provider QPS/并发 gate, 防止并行入口绕过限速; 两条路径各自的当前周期熔断仍保持 provider scope。
 - OpenAI 上游传输层错误(持久网络/代理故障)经 `handleOpenAIUpstreamTransportError`(`openai_upstream_transport_error.go`)在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障临时摘除账号(temp unscheduled), 详见 `backend.md`。context-window 错误不应走 runtime block, 防止超上下文请求误伤账号可用性。
 - Bedrock Claude Code 兼容由 `ApplyBedrockCCCompat` 统一清理 body 专有字段并过滤 `anthropic-beta` header; `context-management-2025-06-27` 是 Bedrock 支持 token, 不能被通用 beta 过滤误删。
 - Vertex Anthropic service account 路径会对 `anthropic-beta` 做白名单过滤: 保留 Vertex 支持 token(如 `interleaved-thinking-2025-05-14`, `context-management-2025-06-27`), 剥离 Claude Code/OAuth 身份 token 和 Vertex 不支持 token(如 `advisor-tool`, `prompt-caching-scope`, `redact-thinking`, `thinking-token-count`)。最终 beta 为空时不下发 header; body sanitize 以最终 beta 为准。管理员 BetaPolicy block 规则仍先执行并可直接拒绝请求。
@@ -255,3 +278,9 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
 - 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
+
+当前上游已知限制:
+
+- `backend/internal/service/image_storage.go` 会下载上游生图响应的 `data[].url` 后转存 S3, 当前上游默认 HTTP client 只有 timeout/大小限制, 没有私网、云元数据、DNS rebinding 或 redirect SSRF 防护。合并分支按用户要求不做本地修补; upstream 修复前不要在可被不可信自定义上游影响的环境启用 `image_storage`。
+- async image 任务只由请求进程启动 goroutine, 没有持久 worker/recovery; 服务重启后 Redis 中的 `processing` 任务可能保留到默认 24h TTL。upstream 修复前要把滚动重启和任务可恢复性纳入运维预期。
+- 管理端批量用户限额会先更新数据库再失效 API Key cache; 当前 cache 删除实现吞掉 Redis 错误, 且 `all=true` 会把全部 user ID 展开为 PostgreSQL bind 参数。大用户量或 Redis 故障场景可能出现短期旧认证快照或参数上限失败, 本合并分支只记录并等待 upstream 修复。
