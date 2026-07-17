@@ -154,22 +154,30 @@ func (s *handlerPresetUserRepoStub) BatchSetConcurrency(_ context.Context, userI
 
 type userConcurrencyPresetUserRepoAdapter struct{}
 
-func (s *userConcurrencyPresetUserRepoAdapter) Create(context.Context, *service.User) error { panic("unexpected") }
+func (s *userConcurrencyPresetUserRepoAdapter) Create(context.Context, *service.User) error {
+	panic("unexpected")
+}
 func (s *userConcurrencyPresetUserRepoAdapter) GetByEmail(context.Context, string) (*service.User, error) {
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) GetFirstAdmin(context.Context) (*service.User, error) {
 	panic("unexpected")
 }
-func (s *userConcurrencyPresetUserRepoAdapter) Update(context.Context, *service.User) error { panic("unexpected") }
-func (s *userConcurrencyPresetUserRepoAdapter) Delete(context.Context, int64) error { panic("unexpected") }
+func (s *userConcurrencyPresetUserRepoAdapter) Update(context.Context, *service.User) error {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) Delete(context.Context, int64) error {
+	panic("unexpected")
+}
 func (s *userConcurrencyPresetUserRepoAdapter) GetUserAvatar(context.Context, int64) (*service.UserAvatar, error) {
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) UpsertUserAvatar(context.Context, int64, service.UpsertUserAvatarInput) (*service.UserAvatar, error) {
 	panic("unexpected")
 }
-func (s *userConcurrencyPresetUserRepoAdapter) DeleteUserAvatar(context.Context, int64) error { panic("unexpected") }
+func (s *userConcurrencyPresetUserRepoAdapter) DeleteUserAvatar(context.Context, int64) error {
+	panic("unexpected")
+}
 func (s *userConcurrencyPresetUserRepoAdapter) List(context.Context, pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error) {
 	panic("unexpected")
 }
@@ -186,10 +194,19 @@ func (s *userConcurrencyPresetUserRepoAdapter) GetLatestUsedAtByUserID(context.C
 func (s *userConcurrencyPresetUserRepoAdapter) UpdateUserLastActiveAt(context.Context, int64, time.Time) error {
 	panic("unexpected")
 }
-func (s *userConcurrencyPresetUserRepoAdapter) UpdateBalance(context.Context, int64, float64) error { panic("unexpected") }
-func (s *userConcurrencyPresetUserRepoAdapter) DeductBalance(context.Context, int64, float64) error { panic("unexpected") }
-func (s *userConcurrencyPresetUserRepoAdapter) UpdateConcurrency(context.Context, int64, int) error { panic("unexpected") }
+func (s *userConcurrencyPresetUserRepoAdapter) UpdateBalance(context.Context, int64, float64) error {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) DeductBalance(context.Context, int64, float64) error {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) UpdateConcurrency(context.Context, int64, int) error {
+	panic("unexpected")
+}
 func (s *userConcurrencyPresetUserRepoAdapter) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) BatchUpdateLimits(context.Context, []int64, *int, *int) (int, error) {
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) ExistsByEmail(context.Context, string) (bool, error) {
@@ -213,8 +230,12 @@ func (s *userConcurrencyPresetUserRepoAdapter) UnbindUserAuthProvider(context.Co
 func (s *userConcurrencyPresetUserRepoAdapter) UpdateTotpSecret(context.Context, int64, *string) error {
 	panic("unexpected")
 }
-func (s *userConcurrencyPresetUserRepoAdapter) EnableTotp(context.Context, int64) error { panic("unexpected") }
-func (s *userConcurrencyPresetUserRepoAdapter) DisableTotp(context.Context, int64) error { panic("unexpected") }
+func (s *userConcurrencyPresetUserRepoAdapter) EnableTotp(context.Context, int64) error {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) DisableTotp(context.Context, int64) error {
+	panic("unexpected")
+}
 
 func TestUserConcurrencyPresetHandlerJSONShape(t *testing.T) {
 	run := service.UserConcurrencyPresetRun{ID: 1, Trigger: service.UserConcurrencyPresetTriggerManual}

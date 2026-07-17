@@ -15,11 +15,17 @@
 ## Grok 配置契约
 
 - Grok 页签使用网关 API base URL，不直写上游 xAI 地址。
-- `generateGrokFiles` 生成 `sub2api-grok` provider，默认模型 `grok-4.5`、`api_backend = "responses"`，并启用 backend search。
+- `generateGrokFiles` 生成 `grok` provider/model key，默认模型 `grok-4.5`、`api_backend = "responses"`，并启用 backend search。
 - Windows 路径使用 `%userprofile%\.grok`，macOS/Linux 使用 `~/.grok`。
 - Grok OpenCode 配置使用 `@ai-sdk/openai`，模型清单包含 `grok-4.5`、`grok-4.3`、`grok-build-0.1` 和 `grok-composer-2.5-fast`。
 - 切换 platform 时必须同时重置 client tab 和 OS tab，避免复用上一平台的配置模板。
 - 展示代码经过 HTML escape 后再添加高亮，API Key 和 URL 不能以未转义 HTML 注入。
+
+## Codex 认证模式
+
+- 普通 Codex 模板保留本地 `model_provider = "xunyou"` / `[model_providers.xunyou]`; WebSocket v2 模板使用 `OpenAI` provider，并设置 `supports_websockets = true`。
+- Legacy Login 输出 `requires_openai_auth = true`。API Key Mode 输出 `requires_openai_auth = false` 和 `x-openai-actor-authorization = "local-image-extension"`; 两种模式都生成 `auth.json`。
+- provider 选择器测试必须分别按普通模板的 `xunyou` 和 WebSocket 模板的 `supports_websockets = true` 定位，不能假设两个模板使用同一 provider 名。
 
 ## 验证
 
@@ -29,4 +35,3 @@ cmd.exe /c pnpm --dir frontend run typecheck
 ```
 
 修改 provider 名、路径或模型清单时，必须同步 `UseKeyModal.spec.ts` 和对应 i18n key。
-

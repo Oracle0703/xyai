@@ -1322,3 +1322,143 @@ git show --cc d294d493705a -- backend/internal/repository/redis.go backend/inter
 git diff --stat 55ed0ab0da36..7c717365ef72
 git log --oneline 55ed0ab0da36..7c717365ef72
 ```
+
+## 2026-07-16 main sync (v0.1.156, pinned; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10157_同步sub2api主线` |
+| Upstream remote | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git` |
+| Upstream branch | `main`（按提交固定边界） |
+| Base before merge / first parent | `4c456aad32c086bb32c650d0e8c659450cc6de3f`（本地 `main`、`HEAD`、`ORIG_HEAD`） |
+| Merge base | `7c717365ef728e53cdcf6d639a4dd68226db03b2` |
+| Release tag target | `v0.1.156` -> `12f991dde8a58e183d4bd16a87ef6fd0df714757` |
+| Upstream head merged / second parent | `d515c3045ce838976ebedab87846aaaf893dbbf6` |
+| Merge commit | **尚未创建；`MERGE_HEAD=d515c3045ce838976ebedab87846aaaf893dbbf6`，等待用户审核** |
+| Upstream version | `0.1.156` |
+| Upstream commits | 132 |
+| Upstream files changed | 253 (`+31408 / -1710`) |
+| 双方同时修改文件 | 29 个，已完成逐文件语义审查 |
+| Conflict files | `backend/internal/config/config.go`; `backend/internal/config/config_test.go`; `backend/internal/service/content_moderation.go` |
+
+### Boundary
+
+本次从本地 `main@4c456aad32c0` 创建新分支，只合并上游 `main` 历史中的固定提交 `d515c3045ce8`。该边界包含 `v0.1.156@12f991dde8a5` 及其后的版本同步提交，不包含验证时已前进到 `eb2b8632ded614bf991d7d36abfa38b513ad8c2d` 的后续上游代码，也不包含本地 `feature/hy/10156_新增子管理员角色` 的提交。
+
+### Summary
+
+| Area | Notes |
+|---|---|
+| OpenAI reliability | 增加 native Responses 首次语义输出超时保护、attempt 级切号、响应头退避信息保留，以及 WS 首消息超时等配置边界。 |
+| Grok / token refresh | 增加凭据失败 scope 隔离、OAuth reconcile、候选游标分页、provider QPS/并发 gate 与周期熔断。 |
+| Accounts / scheduler | 增加静态凭据账号安全复制、幂等恢复、默认不可调度副本，以及 scheduler projection/batch 查询与生命周期加固。 |
+| API compatibility | 增加 Chat Completions <-> Anthropic bridge、Responses Lite/custom tools 处理、Agent Identity 与更多 failover/cancellation 保护。 |
+| Frontend / deploy | Codex 模板区分本地 `xunyou` 与 WS v2 `OpenAI` provider，DataTable identity cache 加固，embedded 静态缓存改为只信任 fingerprint 资源。 |
+| Local extensions | 本地归档/拦截、Prompt Metrics/Risk、Token Analysis、组织用量、ImageGen/支付、并发 preset、compatible 适配、默认 reasoning effort 与 quota flusher 均保留或与上游组合。 |
+
+### Conflict Resolution Notes
+
+| File | Resolution |
+|---|---|
+| `backend/internal/config/config.go` | 保留本地 `gateway.openai_default_reasoning_effort` 的字段、默认值与校验，同时合入上游 first-output timeout、WS client-first-message timeout、token refresh 等配置；没有用任一侧整文件覆盖。 |
+| `backend/internal/config/config_test.go` | 合并双方配置默认值、环境变量和非法值测试，保留本地 reasoning effort 回归并加入上游新配置边界。 |
+| `backend/internal/service/content_moderation.go` | 采用上游 stale-while-refresh runtime snapshot 与预编译 keyword matcher，保留本地 Prompt Risk / LLM judge、semaphore 和 fail-open 语义；补 `risk_control_enabled` 持久化成功后的即时回调，使总开关与 config/prompt-risk snapshot 更新一致。 |
+
+### 本地能力保留确认
+
+| 能力 | 处理 | 代码锚点 | 测试锚点 |
+|---|---|---|---|
+| RequestArchive / RequestIntercept | **组合**：保留本地 middleware、运行时设置和管理端入口，并覆盖上游新增/调整后的 gateway 路由。 | `backend/internal/server/middleware/request_archive.go`; `backend/internal/server/middleware/request_intercept.go`; `backend/internal/server/routes/gateway.go` | `backend/internal/server/middleware/request_archive_test.go`; `backend/internal/server/middleware/request_intercept_test.go`; `backend/internal/server/routes/gateway_test.go` |
+| Prompt Metrics | **保留**：采集 middleware、extension 和管理端页面未被替代。 | `backend/internal/service/promptmetrics/middleware.go`; `backend/internal/server/router.go`; `frontend/src/views/admin/PromptMetricsView.vue` | `backend/internal/service/promptmetrics/middleware_test.go` |
+| Prompt Risk / LLM judge | **组合**：上游 runtime snapshot/matcher 与本地规则、judge、并发限制及 fail-open 合并为单条审核链。 | `backend/internal/service/content_moderation.go`; `backend/internal/service/prompt_risk.go`; `backend/internal/service/prompt_risk_judge.go` | `backend/internal/service/content_moderation_runtime_cache_test.go`; `backend/internal/service/prompt_risk_test.go`; `backend/internal/service/prompt_risk_judge_test.go` |
+| Token Analysis | **保留**：handler/service/repository、归档索引和前端入口完整。 | `backend/internal/handler/admin/token_analysis_handler.go`; `backend/internal/service/token_analysis_service.go`; `backend/internal/repository/token_analysis_repo.go`; `frontend/src/views/admin/TokenAnalysisView.vue` | `backend/internal/handler/admin/token_analysis_handler_test.go`; `backend/internal/service/token_analysis_summary_test.go`; `backend/internal/repository/token_analysis_repo_test.go` |
+| 组织用量 | **保留**：独立报表 API、服务、仓储与导出 UI 继续存在。 | `backend/internal/handler/admin/organization_usage_handler.go`; `backend/internal/service/organization_usage_service.go`; `backend/internal/repository/organization_usage_repo.go`; `frontend/src/views/admin/OrganizationUsageView.vue` | `backend/internal/handler/admin/organization_usage_handler_test.go`; `backend/internal/service/organization_usage_service_test.go`; `frontend/src/views/admin/__tests__/OrganizationUsageView.spec.ts` |
+| ImageGen / 支付 | **组合**：保留本地 ImageGen 状态/UI 和完整支付域；与上游图片 intent、OpenAI/Grok image 路径组合。 | `frontend/src/views/ImageGenView.vue`; `backend/internal/service/image_generation_intent.go`; `backend/internal/server/routes/payment.go`; `backend/internal/service/payment_service.go` | `frontend/src/views/__tests__/ImageGenView.spec.ts`; `backend/internal/service/image_generation_intent_test.go`; `backend/internal/handler/admin/payment_handler_test.go` |
+| 用户并发 presets / `ConcurrencyCacheError` | **保留**：preset runner、缓存错误类型和 503 映射未被上游调度改动覆盖。 | `backend/internal/service/user_concurrency_preset_service.go`; `backend/internal/service/user_concurrency_preset_runner.go`; `backend/internal/service/concurrency_service.go` | `backend/internal/service/user_concurrency_preset_service_test.go`; `backend/internal/service/concurrency_service_test.go`; `backend/internal/handler/concurrency_error_response_test.go` |
+| OpenAI-compatible preset / options / cache usage | **组合**：本地 provider preset、Responses -> Chat options 和 cache read/write 补缺逻辑，与上游 bridge/failover 增量共同生效。 | `frontend/src/components/account/openaiCompatibleProviderPresets.ts`; `backend/internal/pkg/apicompat/responses_to_chatcompletions_request.go`; `backend/internal/service/openai_gateway_response_handling.go` | `frontend/src/components/account/__tests__/openaiCompatibleProviderPresets.spec.ts`; `backend/internal/pkg/apicompat/chatcompletions_responses_test.go`; `backend/internal/service/openai_gateway_service_test.go` |
+| 默认 reasoning effort | **组合**：本地默认注入能力与上游 first-output/WS 配置在同一 config 冲突中共同保留。 | `backend/internal/config/config.go`; `backend/internal/service/openai_gateway_chat_completions.go` | `backend/internal/config/config_test.go`; `backend/internal/service/openai_gateway_chat_completions_test.go` |
+| user-platform quota flusher | **保留**：Redis 脏集快照批量落库、TimingWheel 注册和 shutdown 清理仍在 Wire 图中。 | `backend/internal/service/user_platform_quota_flusher.go`; `backend/internal/service/wire.go`; `backend/cmd/server/wire_gen.go` | `backend/internal/service/user_platform_quota_flusher_test.go`; `backend/internal/repository/user_platform_quota_upsert_test.go` |
+
+本轮没有发现可由上游完整等价替代并安全删除的上述本地功能；因此没有把“上游互补”误写成“上游替代”。`docs/features/` 下 tracked 文件删除数为 0。
+
+### Review Findings Fixed Before Commit
+
+| Finding | Resolution | Regression evidence |
+|---|---|---|
+| Wire 缺少 `GrokOAuthTokenService -> *GrokOAuthService` binding，`go generate ./cmd/server` 失败 | 在 `backend/internal/service/wire.go` 增加接口绑定并重新生成 `wire_gen.go`。 | Wire 连续生成成功且输出稳定。 |
+| `UseKeyModal.spec.ts` 把普通本地 Codex 模板误判为上游 `OpenAI` provider | 普通模板继续断言 `xunyou`，仅 WS v2 模板使用 `OpenAI`。 | 修复前 1/9 失败，修复后 9/9 通过；合并相关 19 个前端测试文件 131/131 通过。 |
+| native Responses failover 未保留上游响应头 | 构造 failover error 时克隆 `ResponseHeaders`，只由统一安全过滤恢复允许的 `Retry-After`。 | `backend/internal/service/openai_gateway_forward_sanitize_test.go`; `backend/internal/handler/openai_gateway_credential_failover_test.go` 定向通过。 |
+| `risk_control_enabled` 保存后 moderation snapshot 不即时生效 | SettingService 在持久化成功后触发回调，原子替换 snapshot 的 enabled 状态，覆盖 false -> true 与 true -> false。 | `TestContentModerationRuntimeSnapshotRiskControlSettingUpdateIsImmediate` 等 runtime cache 定向测试通过。 |
+| passthrough/failover 可接受无上限 `Retry-After` | 统一校验原始值：拒绝 CR/LF 和超过 128 字节；数字只允许 `1..604800` 秒；HTTP date 必须在未来且不超过 7 天。 | service 与 handler 的数字、日期、注入和超界定向用例通过。 |
+
+最终代码审查没有开放的 P0-P3；提交仍受下方完整验证门约束。
+
+### Verification Status
+
+| Check | Current result |
+|---|---|
+| 3 个文本冲突逐项语义审查、29 个双方修改交集审查 | 已完成；没有待解决文本冲突。 |
+| `git ls-files -u` / conflict-marker / scoped `git diff --check` | 已完成定向检查；未发现 unmerged index、残留标记或 whitespace error。 |
+| Wire generation | 修复 binding 后连续生成成功，第二次无漂移。 |
+| 审查问题定向 RED -> GREEN | 已完成；Wire、UseKeyModal、native header、runtime switch、Retry-After 相关回归通过。 |
+| 合并相关前端定向回归 | 19 files / 131 tests passed。 |
+| Frontend full Vitest | 176 files / 1214 tests passed。 |
+| Backend full unit | 完整重跑退出 0：50 个测试包通过、53 个无测试包、失败 0。首轮 `internal/repository` 的 Windows 启动锁已独立和全量双重重跑通过。 |
+| Backend full integration | 完整运行到结尾：44 个测试包通过、57 个无测试包；仅 `internal/pkg/openai_compat` 的测试二进制被本机 360 安全软件持续拒绝执行。该包在 unit/integration tag 下文件集合完全相同，完整 unit 已通过；本条目不把环境拦截写成 integration 退出 0。 |
+| Backend lint / module | `golangci-lint run ./...` 报 29 条本地 `main` 既有债务；`--new-from-rev main` 为 0 issues。`go mod tidy -diff` 只建议删除本地 `main` 已存在的 Wire CLI 校验和，模块文件未改。 |
+| Frontend / embed | Vitest 176 files / 1214 tests；lint、typecheck、build 均退出 0；build 944 modules / 13.57s。随后 embed build 退出 0，产物 147,534,336 bytes。 |
+| Wire / formatting | Wire 连续两次生成退出 0 且 SHA-256 稳定为 `233A9D6C...601E`；gofmt 与 worktree/cached/HEAD 三种 `diff --check` 均通过。 |
+| Final staged snapshot | 274 files / `+32475 -1728`；无 unstaged/untracked/unmerged、精确冲突标记、whitespace error、CRLF/BOM、敏感模式或 `docs/features` 删除。 |
+
+### Wiki Updates
+
+已按实际源码边界更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，覆盖 0.1.156 固定提交、账号复制、Agent Identity、first-output guard、token refresh/reconcile、moderation snapshot、failover `Retry-After` 与静态缓存边界。测试与环境限制记录在 merge review 和交付报告，不混入稳定架构结论。
+
+### Commit Gate
+
+当前仍处于 `git merge --no-commit --no-ff` 状态。验证已形成真实终态，并明确披露 360 integration 二进制拦截、全量 lint 既有债务和前端 warning；仍必须由用户审核本条目、merge review 与 diff 后，才能创建 merge commit。
+
+### Useful Review Commands
+
+```bash
+git rev-parse HEAD
+git rev-parse MERGE_HEAD
+git diff --stat HEAD
+git diff HEAD -- backend/internal/config/config.go backend/internal/config/config_test.go backend/internal/service/content_moderation.go
+git diff --name-only 7c717365ef72..4c456aad32c0
+git diff --name-only 7c717365ef72..d515c3045ce8
+git log --oneline d515c3045ce8..eb2b8632ded6
+```
+
+## 2026-07-16 v0.1.156 merge commit 回填
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10157_同步sub2api主线` |
+| Upstream branch / pinned commit | `Wei-Shaw/sub2api main@d515c3045ce838976ebedab87846aaaf893dbbf6` |
+| Merge commit | `b5b54af2129bd5c7cc3d3b54e941deb8a35f31d9` |
+| Parent order | `4c456aad32c086bb32c650d0e8c659450cc6de3f`（本地 `main`）; `d515c3045ce838976ebedab87846aaaf893dbbf6`（上游固定边界） |
+| Conflict files | `backend/internal/config/config.go`; `backend/internal/config/config_test.go`; `backend/internal/service/content_moderation.go` |
+| Conflict handling | 配置与测试保留本地默认 reasoning effort 并合入上游 timeout/token-refresh 边界；moderation 采用上游 runtime snapshot/matcher，同时保留本地 Prompt Risk/LLM judge 与 fail-open，并补总开关即时更新。 |
+| Local features | 10 类 `docs/features` 本地能力均保留或与上游组合；tracked feature 文件删除数为 0。 |
+| Verification | Unit 50 个测试包通过；integration 44 个测试包通过，唯一 `openai_compat.test.exe` 被本机 360 阻断且已如实披露；合并差异 lint 0 issues；前端 176 files / 1214 tests、lint、typecheck、build 与 embed build 通过。提交前 staged 硬门为 274 files / `+32475 -1728`，无 unstaged/untracked/unmerged、精确冲突标记、whitespace、CRLF/BOM、敏感模式或 `docs/features` 删除。 |
+| Approval / delivery | 用户在知悉环境限制后明确回复“允许”；仅创建本地提交，未 push、未创建 PR、未部署。 |
+
+## 2026-07-17 main sync (v0.1.159; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10157_同步sub2api主线` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `b5c9726262ca65bddc8ca4bc5a35ed26e1208cb3` |
+| Merge base | `d515c3045ce838976ebedab87846aaaf893dbbf6` |
+| Upstream head / second parent | `c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc`** |
+| Upstream version / delta | `0.1.159`; 114 commits、399 files、`+28829/-1666` |
+| Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/server/http.go`; `backend/internal/server/router.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/openai_gateway_forward.go`; `frontend/src/api/admin/index.ts`; `frontend/src/components/layout/AppSidebar.vue`; `frontend/src/i18n/locales/en/admin/index.ts`; `frontend/src/i18n/locales/zh/admin/index.ts` |
+| Conflict handling | Wire 从双方 provider 源图重新生成；server/router/gateway 组合上游 Audit、StepUp、SessionBinding、async image、billing 与本地 Prompt Metrics、RequestArchive/Intercept；OpenAI failover 采用上游 helper 并保留本地 413/header/thinking 语义；前端 API、侧栏和 locale key 做并集。 |
+| Local features | RequestArchive/Intercept、Prompt Metrics/Risk、Token Analysis、组织用量、用户并发 preset/`ConcurrencyCacheError`、OpenAI-compatible options/cache usage、quota flusher 均保留；`docs/features/` tracked 删除数为 0。只有两个本地并发 preset 测试桩适配上游新增 `BatchUpdateLimits` 接口。 |
+| Upstream issues | 异步图片 URL 下载缺 SSRF 防护、进程内任务无重启恢复、批量限额 cache/参数上限风险，以及 locale compile 测试未声明直接依赖。按用户要求仅记录，不修改对应生产代码或依赖清单，等待 upstream 修复。 |
+| Verification | Wire 连续两次生成稳定，SHA-256 `92D6F616...12A61`；backend unit、增量 lint、embed build 通过；integration 的 5 个 360 启动拦截包均经 fresh 目录或系统临时目录独立执行通过；frontend lint/typecheck/build 通过，Vitest 188 files / 1300 tests passed、1 个上游清单 suite 无法收集；`go mod tidy -diff` 只报告 12 行继承旧校验项。收尾 fetch 确认 `upstream/main=MERGE_HEAD=c2c19a7cb`。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`、组件 README、merge review 与 delivery 文档。 |
+| Approval / delivery | staged 门禁为 416 files / `+29294 -1677`，无 unmerged/unstaged/untracked/marker/features 删除/未解析敏感模式。保持 `git merge --no-commit --no-ff` 并等待用户审核；不 commit、不 push、不创建 PR、不部署。 |

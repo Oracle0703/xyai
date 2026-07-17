@@ -7,7 +7,7 @@ Sub2API 的核心对象:
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
 - Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, 支持模型范围和自定义 `/v1/models` 列表。
-- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端和 Spark 影子账号。
+- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。
 - BatchImageJob/Item/Event: 批量生图任务、单项结果与事件流, 配合用户 frozen balance / hold / settlement / download cleanup。
@@ -81,6 +81,10 @@ go generate ./cmd/server
 - `backend/migrations/174_add_usage_log_long_context_billing.sql` 为 `usage_logs` 增加 `long_context_billing_applied`; `175_default_openai_long_context_billing.sql` 将既有 OpenAI 账号的 `extra.openai_long_context_billing_enabled` 默认写为 `false`。是否应用长上下文费率由最终凭据账号控制, Spark shadow 必须先解析母账号。
 - `backend/migrations/175_add_ops_system_logs_host.sql` + `175a_add_ops_system_logs_host_index_notx.sql` 为 `ops_system_logs` 增加有长度边界的 `host` 和 `(host, created_at DESC)` 并发索引, 支持多实例日志按主机筛选。
 - `backend/migrations/176_channel_monitor_grok_provider.sql` 扩展 channel monitor provider CHECK 与请求模板, 允许 `grok`; 同步 Ent schema 和 fixture migration test。
+- `backend/migrations/177_add_subscription_plan_currency.sql` 为订阅套餐增加 display-only ISO 4217 `currency`; 空字符串保持旧套餐无币种标签。
+- `backend/migrations/178_channel_image_input_price.sql` 与 `179_usage_log_image_input_tokens.sql` 分别增加渠道 `image_input_price` 和 usage log 的 `image_input_tokens` / `image_input_cost`; 图生图/图片编辑可把图片输入 token 与文本输入 token 分价, 但 `total_cost` 口径不变。
+- `backend/migrations/180_audit_logs.sql` 新增 append-only `audit_logs` 及 created/actor/action/client IP 索引; request body 和 credential 只保存脱敏/截断值。
+- `backend/migrations/181_group_duplicate_operation_id.sql` 为 group duplicate 增加 active partial unique operation identity, 用于模糊提交后的幂等恢复。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -209,6 +213,13 @@ User x platform quota:
 - 删除用户/API Key 后仍需要支持错误日志归因和审计查询; 相关 migration 包含 deleted API key audit、ops error log api key prefix、user time index 等。
 - 图片生成计费包含 image token/metadata 路径; 修改图片用量展示或计费时同时检查 `imageUsage` 前端工具、usage log 写入和 rate-limit cooldown/failover 逻辑。
 - OpenAI 图片请求写 usage 时, 若渠道 token 模式没有任何有效 token/image token 定价并触发缺价兜底, 仍写入零费用但 `billing_mode=image`, 避免 Token Analysis 和用量筛选把图片请求误归为 token 计费。
+
+## 账号复制与凭据所有权
+
+- `POST /api/v1/admin/accounts/:id/duplicate` 只接受 API Key、upstream、Bedrock 和 service account 等自持静态凭据类型；OAuth/cookie 等旋转凭据及 Spark/其他 credential shadow 必须拒绝，shadow 应从母账号重新创建。
+- 副本深拷贝静态 credentials、业务配置、proxy 和有序 account-group priority；若源账号处于 proxy fallback，复制配置 origin 而不是暂态 fallback 目标。账号与 group 关系通过 `AccountDuplicateRepository.CreateWithAccountGroups` 在同一事务创建，并写 scheduler outbox。
+- 副本名称追加 ` (Copy)`、`schedulable=false`，需要管理员检查后再启用。外部同步 identity、配额窗口、provider probe、quota snapshot、调度暂态和旧 duplicate operation id 不得继承。
+- 幂等 identity 由 admin actor scope、源账号 ID 和 `Idempotency-Key` 派生后存入副本 `extra.duplicate_operation_id`; coordinator 不确定响应是否持久化时只做只读恢复，不重复创建副本。
 
 ## 模型与平台
 

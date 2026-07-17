@@ -53,7 +53,9 @@ Navigation sidebar with user and admin sections.
   - Accounts
   - Proxies
   - Redeem Codes
+  - Audit Logs
   - Prompt Metrics
+- 本地扩展入口还包括 Request Intercept、Organization Usage 和 Token Analysis；上游合并时必须与 Audit Logs 等新入口做并集，不能整段替换导航数组。
 - Simple mode hides navigation items marked with `hideInSimpleMode`, including Prompt Metrics.
 - Collapsible sidebar with toggle button
 - Active route highlighting
