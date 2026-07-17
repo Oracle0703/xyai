@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
-import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
+import type { User, LoginRequest, RegisterRequest, AuthResponse, AdminPermission } from '@/types'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -89,6 +89,16 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => {
     return user.value?.role === 'admin'
   })
+
+  const isSubAdmin = computed(() => user.value?.role === 'sub_admin')
+  const canAccessAdmin = computed(
+    () => isAdmin.value || (isSubAdmin.value && (user.value?.admin_permissions?.length ?? 0) > 0),
+  )
+
+  function hasAdminPermission(permission: AdminPermission | string): boolean {
+    if (isAdmin.value) return true
+    return isSubAdmin.value && (user.value?.admin_permissions ?? []).includes(permission as AdminPermission)
+  }
 
   const isSimpleMode = computed(() => runMode.value === 'simple')
   const hasPendingAuthSession = computed(() => pendingAuthSession.value !== null)
@@ -481,6 +491,8 @@ export const useAuthStore = defineStore('auth', () => {
     // Computed
     isAuthenticated,
     isAdmin,
+    isSubAdmin,
+    canAccessAdmin,
     isSimpleMode,
     hasPendingAuthSession,
 
@@ -492,6 +504,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     checkAuth,
     refreshUser,
+    hasAdminPermission,
     setPendingAuthSession,
     clearPendingAuthSession
   }

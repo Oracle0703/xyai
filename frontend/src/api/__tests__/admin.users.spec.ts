@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { post } = vi.hoisted(() => ({
+const { get, post } = vi.hoisted(() => ({
+  get: vi.fn(),
   post: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
   apiClient: {
+    get,
     post,
   },
 }))
@@ -13,6 +15,7 @@ vi.mock('@/api/client', () => ({
 import {
   batchUpdateLimits,
   bindUserAuthIdentity,
+  getPermissionCatalog,
   type AdminBindAuthIdentityRequest,
   type AdminBoundAuthIdentity,
   type BatchUpdateUserLimitsRequest,
@@ -83,6 +86,7 @@ const batchResponseContractExact: Assert<
 
 describe('admin users api auth identity binding', () => {
   beforeEach(() => {
+    get.mockReset()
     post.mockReset()
   })
 
@@ -130,6 +134,16 @@ describe('admin users api auth identity binding', () => {
   it('keeps bind auth identity request and response types aligned with the backend contract', () => {
     expect(requestContractExact).toBe(true)
     expect(responseContractExact).toBe(true)
+  })
+
+  it('loads the server-owned sub-admin permission catalog', async () => {
+    const catalog = [
+      { code: 'admin.usage' as const, menu_key: 'usage', route: '/admin/usage' },
+    ]
+    get.mockResolvedValue({ data: catalog })
+
+    await expect(getPermissionCatalog()).resolves.toEqual(catalog)
+    expect(get).toHaveBeenCalledWith('/admin/permissions/catalog')
   })
 
   it('posts batch limit updates once with only the supplied limit fields', async () => {

@@ -18,6 +18,11 @@ const dashboardApi = vi.hoisted(() => ({
   getUserUsageTrend: vi.fn()
 }))
 
+const authState = vi.hoisted(() => ({
+  isAdmin: true,
+  isSubAdmin: false
+}))
+
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     tokenAnalysis: api,
@@ -38,6 +43,10 @@ vi.mock('@/stores/app', () => ({
     showError: vi.fn(),
     showSuccess: vi.fn()
   })
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => authState
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -93,6 +102,8 @@ describe('TokenAnalysisView', () => {
     api.listArchiveFiles.mockReset()
     api.triggerIndex.mockReset()
     dashboardApi.getUserUsageTrend.mockReset()
+    authState.isAdmin = true
+    authState.isSubAdmin = false
     api.listProjects.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
     api.listArchiveFiles.mockResolvedValue([
       {
@@ -203,6 +214,18 @@ describe('TokenAnalysisView', () => {
     // 归档文件: 水位追平的文件进度显示"已读完", 并标注请求行合计。
     expect(wrapper.text()).toContain('100% · admin.tokenAnalysis.fullyRead')
     expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
+  })
+
+  it('hides the manual index action for sub admins', async () => {
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+
+    const wrapper = mount(TokenAnalysisView, {
+      global: { stubs: { AppLayout: AppLayoutStub } }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('admin.tokenAnalysis.indexNow')
   })
 
   it.each([

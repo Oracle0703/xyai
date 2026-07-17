@@ -20,6 +20,11 @@ const { list, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs } =
   }
 })
 
+const authState = vi.hoisted(() => ({
+  isAdmin: true,
+  isSubAdmin: false,
+}))
+
 const messages: Record<string, string> = {
   'admin.dashboard.timeRange': 'Time Range',
   'admin.dashboard.day': 'Day',
@@ -69,6 +74,10 @@ vi.mock('@/stores/app', () => ({
   }),
 }))
 
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => authState,
+}))
+
 vi.mock('@/utils/format', () => ({
   formatReasoningEffort: (value: string | null | undefined) => value ?? '-',
 }))
@@ -90,10 +99,14 @@ vi.mock('vue-router', () => ({
 }))
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
-const UsageFiltersStub = { template: '<div><slot name="after-reset" /></div>' }
+const UsageFiltersStub = {
+  props: ['allowCleanup'],
+  template: '<div data-test="usage-filters" :data-allow-cleanup="String(allowCleanup)"><slot name="after-reset" /></div>'
+}
 const UsageTableStub = {
+  props: ['userClickable'],
   emits: ['userClick'],
-  template: '<div data-test="usage-table"><button class="user-click" @click="$emit(\'userClick\', 2)">user</button></div>',
+  template: '<div data-test="usage-table" :data-user-clickable="String(userClickable)"><button v-if="userClickable" class="user-click" @click="$emit(\'userClick\', 2)">user</button></div>',
 }
 const UserTokenRankingStub = {
   emits: ['select-user'],
@@ -128,6 +141,8 @@ describe('admin UsageView distribution metric toggles', () => {
     getSnapshotV2.mockReset()
     getById.mockReset()
     getModelStats.mockReset()
+    authState.isAdmin = true
+    authState.isSubAdmin = false
 
     list.mockResolvedValue({
       items: [],
@@ -251,6 +266,8 @@ describe('admin UsageView handleUserClick', () => {
     getStats.mockReset()
     getSnapshotV2.mockReset()
     getById.mockReset()
+    authState.isAdmin = true
+    authState.isSubAdmin = false
 
     list.mockResolvedValue({ items: [], total: 0, pages: 0 })
     getStats.mockResolvedValue({
@@ -298,6 +315,47 @@ describe('admin UsageView handleUserClick', () => {
     await flushPromises()
 
     expect(getById).toHaveBeenCalledWith(2, true)
+  })
+
+  it('disables cleanup and user detail entry points for sub admins', async () => {
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: UsageTableStub,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          AuditLogModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
+          UserTokenRanking: true,
+          OpsErrorLogTable: true,
+          OpsErrorDetailModal: true,
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="usage-filters"]').attributes('data-allow-cleanup')).toBe('false')
+    expect(wrapper.get('[data-test="usage-table"]').attributes('data-user-clickable')).toBe('false')
+    expect(wrapper.find('[data-test="usage-table"] .user-click').exists()).toBe(false)
+
+    await (wrapper.vm as any).handleUserClick(2)
+    expect(getById).not.toHaveBeenCalled()
   })
 })
 

@@ -56,7 +56,7 @@
             <button type="button" class="btn btn-secondary h-9 flex-1 text-sm" @click="reloadAll">
               {{ t('common.refresh') }}
             </button>
-            <button type="button" class="btn btn-primary h-9 flex-1 text-sm" :disabled="indexing" @click="triggerIndex">
+            <button v-if="canTriggerIndex" type="button" class="btn btn-primary h-9 flex-1 text-sm" :disabled="indexing" @click="triggerIndex">
               {{ indexing ? t('common.loading') : t('admin.tokenAnalysis.indexNow') }}
             </button>
           </div>
@@ -594,6 +594,7 @@ import type {
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import type { UserUsageTrendPoint } from '@/types'
 import { formatBytes, formatCompactNumber, formatDateTime } from '@/utils/format'
 
@@ -601,6 +602,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const canTriggerIndex = computed(() => authStore.isAdmin)
 
 const today = new Date().toISOString().slice(0, 10)
 const filters = reactive<TokenAnalysisQueryParams>({

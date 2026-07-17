@@ -14,6 +14,10 @@ const authStore = vi.hoisted(() => ({
   checkAuth: vi.fn(),
   isAuthenticated: true,
   isAdmin: false,
+  isSubAdmin: false,
+  canAccessAdmin: false,
+  user: null as null | { admin_permissions?: string[] },
+  hasAdminPermission: vi.fn(() => false),
   isSimpleMode: false,
   hasPendingAuthSession: false,
 }))
@@ -113,6 +117,11 @@ describe('feature route guard', () => {
   beforeEach(() => {
     authStore.isAuthenticated = true
     authStore.isAdmin = false
+    authStore.isSubAdmin = false
+    authStore.canAccessAdmin = false
+    authStore.user = null
+    authStore.hasAdminPermission.mockReset()
+    authStore.hasAdminPermission.mockReturnValue(false)
     authStore.isSimpleMode = false
     appStore.publicSettingsLoaded = false
     appStore.cachedPublicSettings = null
@@ -173,5 +182,21 @@ describe('feature route guard', () => {
     expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith(target)
+  })
+
+  it.each([
+    ['an empty permission set', []],
+    ['an unrelated admin permission', ['admin.token_analysis']],
+  ])('keeps simple-mode user routes restricted for sub admins with %s', async (_name, permissions) => {
+    authStore.isSubAdmin = true
+    authStore.canAccessAdmin = permissions.length > 0
+    authStore.user = { admin_permissions: permissions }
+    authStore.isSimpleMode = true
+
+    const { navigation, next } = runGuard({}, '/subscriptions')
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith('/dashboard')
   })
 })

@@ -77,7 +77,9 @@ type stubAdminService struct {
 		sortOrder string
 		calls     int
 	}
-	mu sync.Mutex
+	lastCreateUser *service.CreateUserInput
+	lastUpdateUser *service.UpdateUserInput
+	mu             sync.Mutex
 }
 
 func newStubAdminService() *stubAdminService {
@@ -173,12 +175,24 @@ func (s *stubAdminService) GetUserIncludeDeleted(ctx context.Context, id int64) 
 }
 
 func (s *stubAdminService) CreateUser(ctx context.Context, input *service.CreateUserInput) (*service.User, error) {
-	user := service.User{ID: 100, Email: input.Email, Status: service.StatusActive}
+	clone := *input
+	permissions, err := service.NormalizeAdminPermissions(input.Role, input.AdminPermissions)
+	if err != nil {
+		return nil, err
+	}
+	clone.AdminPermissions = permissions
+	s.lastCreateUser = &clone
+	user := service.User{ID: 100, Email: input.Email, Role: input.Role, AdminPermissions: clone.AdminPermissions, Status: service.StatusActive}
 	return &user, nil
 }
 
 func (s *stubAdminService) UpdateUser(ctx context.Context, id int64, input *service.UpdateUserInput) (*service.User, error) {
-	user := service.User{ID: id, Email: "updated@example.com", Status: service.StatusActive}
+	clone := *input
+	s.lastUpdateUser = &clone
+	user := service.User{ID: id, Email: "updated@example.com", Role: input.Role, Status: service.StatusActive}
+	if input.AdminPermissions != nil {
+		user.AdminPermissions = append([]string(nil), (*input.AdminPermissions)...)
+	}
 	return &user, nil
 }
 

@@ -31,3 +31,25 @@ func TestUserFromServiceAdmin_MapsActivityTimestamps(t *testing.T) {
 	require.WithinDuration(t, lastActiveAt, *out.LastActiveAt, time.Second)
 	require.WithinDuration(t, lastUsedAt, *out.LastUsedAt, time.Second)
 }
+
+func TestUserFromServiceMapsAdminPermissions(t *testing.T) {
+	input := &service.User{
+		Role:             service.RoleSubAdmin,
+		AdminPermissions: []string{service.AdminPermissionUsage},
+	}
+
+	output := UserFromService(input)
+
+	require.Equal(t, []string{service.AdminPermissionUsage}, output.AdminPermissions)
+}
+
+func TestUserFromServiceShallowOmitsAdminPermissions(t *testing.T) {
+	input := &service.User{
+		Role:             service.RoleSubAdmin,
+		AdminPermissions: []string{service.AdminPermissionUsage},
+	}
+
+	output := UserFromServiceShallow(input)
+
+	require.Nil(t, output.AdminPermissions)
+}

@@ -13,6 +13,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { getAdminLandingPath } from '@/utils/adminPermissions'
 
 /**
  * Route definitions with lazy loading
@@ -506,6 +507,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'admin.subscriptions',
       title: 'Subscription Management',
       titleKey: 'admin.subscriptions.title',
       descriptionKey: 'admin.subscriptions.description'
@@ -628,6 +630,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'admin.usage',
       title: 'Usage Records',
       titleKey: 'admin.usage.title',
       descriptionKey: 'admin.usage.description'
@@ -652,6 +655,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'admin.token_analysis',
       title: 'Token Analysis',
       titleKey: 'admin.tokenAnalysis.title',
       descriptionKey: 'admin.tokenAnalysis.description'
@@ -837,6 +841,7 @@ router.beforeEach(async (to, _from, next) => {
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
+	const adminPermission = to.meta.adminPermission
 
   if (to.path === '/setup') {
     try {
@@ -856,12 +861,17 @@ router.beforeEach(async (to, _from, next) => {
     if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/register')) {
       // In backend mode, non-admin users should NOT be redirected away from login
       // (they are blocked from all protected routes, so redirecting would cause a loop)
-      if (appStore.backendModeEnabled && !authStore.isAdmin) {
+		if (appStore.backendModeEnabled && !authStore.canAccessAdmin) {
         next()
         return
       }
-      // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+		if (authStore.isAdmin) {
+			next('/admin/dashboard')
+		} else if (authStore.isSubAdmin) {
+			next(getAdminLandingPath(authStore.user?.admin_permissions, appStore.backendModeEnabled))
+		} else {
+			next('/dashboard')
+		}
       return
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
@@ -887,13 +897,22 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // Check admin requirement
-  if (requiresAdmin && !authStore.isAdmin) {
+	if (requiresAdmin && !authStore.canAccessAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
-    next('/dashboard')
+		next(appStore.backendModeEnabled ? '/login' : '/dashboard')
     return
   }
 
-  if (requiresAdmin && authStore.isAdmin) {
+	if (
+		requiresAdmin &&
+		authStore.isSubAdmin &&
+		(!adminPermission || !authStore.hasAdminPermission(adminPermission))
+	) {
+		next(getAdminLandingPath(authStore.user?.admin_permissions, appStore.backendModeEnabled))
+		return
+	}
+
+	if (requiresAdmin && authStore.canAccessAdmin) {
     const adminComplianceStore = useAdminComplianceStore()
     if (!adminComplianceStore.initialized) {
       try {
@@ -940,7 +959,7 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // 简易模式下限制访问某些页面
-  if (authStore.isSimpleMode) {
+	if (authStore.isSimpleMode) {
     const restrictedPaths = [
       '/admin/groups',
       '/admin/subscriptions',
@@ -958,10 +977,18 @@ router.beforeEach(async (to, _from, next) => {
 
   // Backend mode: admin gets full access, non-admin blocked
   if (appStore.backendModeEnabled) {
-    if (authStore.isAuthenticated && authStore.isAdmin) {
+		if (authStore.isAuthenticated && authStore.isAdmin) {
       next()
       return
     }
+		if (authStore.isAuthenticated && authStore.isSubAdmin) {
+			if (requiresAdmin) {
+				next()
+				return
+			}
+			next(getAdminLandingPath(authStore.user?.admin_permissions, true))
+			return
+		}
     const isAllowed = isBackendModePublicRouteAllowed(to.path, authStore.hasPendingAuthSession)
     if (!isAllowed) {
       next('/login')

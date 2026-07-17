@@ -43,12 +43,12 @@
 
 - 首次导航调用 `authStore.checkAuth()` 恢复 localStorage 会话。
 - `requiresAuth` 默认 true, 显式 false 才是公开页。
-- `requiresAdmin` 检查管理员角色。
+- `requiresAdmin` 使用 `authStore.canAccessAdmin`; 子管理员路由还必须声明 `meta.adminPermission`, 缺失或不匹配时跳到安全落点。
 - `requiresPayment` 依赖 public settings 中的 payment 开关。
 - `requiresRiskControl` 依赖 risk control 开关。
 - feature route guard 会先等待 `appStore.fetchPublicSettings()`; 只有 settings 已成功加载且开关显式为 `false` 才重定向。加载失败属于未知状态, 不能误判为功能关闭。`app.ts` 用单一 in-flight promise 合并并发 public-settings 请求, force refresh 也不能让旧请求覆盖新结果。
-- simple mode 会限制部分 SaaS 页面。
-- backend mode 下非管理员只能访问白名单公开路径。
+- simple mode 对用户侧受限页面一视同仁, 不能因裸 `sub_admin` 角色绕过。
+- backend mode 下完整管理员进入管理总览; 至少有一项权限的子管理员进入首个授权页; 空权限子管理员只能停留在登录页。
 - chunk load error 会触发一次页面 reload。
 - 页面标题由 `frontend/src/router/title.ts` 的 `resolveRouteDocumentTitle` 统一生成; `CustomPage` 会优先使用公开自定义菜单项或管理员自定义菜单项 label, 语言切换、站点名变化、自定义菜单加载后都会重新解析标题。
 
@@ -90,7 +90,7 @@ API 模块分布:
 
 `frontend/src/stores/`:
 
-- `auth.ts`: 登录, 注册, 2FA, OAuth callback token, refresh token, pending auth session, localStorage 持久化。
+- `auth.ts`: 登录, 注册, 2FA, OAuth callback token, refresh token, pending auth session, localStorage 持久化; 角色支持 `admin` / `sub_admin` / `user`, 并提供 `isSubAdmin`、`canAccessAdmin`、`hasAdminPermission`。
 - `app.ts`: 全局 UI, theme, public settings, toast, backend mode 等。
 - `subscriptions.ts`: 当前用户订阅轮询。
 - `announcements.ts`: 公告拉取和已读状态。
@@ -186,7 +186,16 @@ API 模块分布:
 
 - `/admin/users` 页面在 `frontend/src/views/admin/UsersView.vue`; 后端 `GET /api/v1/admin/users` 支持 `group_name` 按用户授权分组名模糊过滤, 也支持 `api_key_group_id` 按用户实际拥有的未软删除 API Key 绑定分组精确过滤。
 - API Key 分组筛选选项由 `frontend/src/views/admin/apiKeyGroupFilterOptions.ts` 构建, 会包含停用分组, 便于排查仍绑定到停用分组的 key; 分节 header 使用负数 sentinel, 不要改成 `null` 以免 Select key 冲突。
-- 管理端创建/编辑用户支持显式选择 `user` / `admin` 角色; 后端服务禁止误删最后一名管理员。角色字段或文案变化要同步 User DTO、`UserCreateModal.vue`、`UserEditModal.vue` 和 `admin_service_role_test.go`。
+- 管理端创建/编辑用户支持 `user` / `sub_admin` / `admin`; 子管理员权限清单从 `GET /api/v1/admin/permissions/catalog` 获取, 不在弹窗内硬编码。后端服务禁止误删或降级最后一名管理员。角色字段或文案变化要同步 User DTO、两个用户弹窗、列表筛选和角色测试。
+
+## 子管理员菜单与页面
+
+- 权限路由顺序和 backend landing 的最小映射在 `frontend/src/utils/adminPermissions.ts`; 权限目录本身由后端 API 返回。
+- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、使用记录、Token 分析; 账号、风控、请求拦截、设置和管理员自定义菜单不显示。
+- `SubscriptionsView.vue` 对子管理员只显示全量配额重置和仅日限重置; 分配、延期、撤销、恢复及其弹窗仅完整管理员可见。
+- `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
+- `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
+- API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新。标准模式回 `/dashboard`; backend 模式无剩余权限时先 logout 再回 `/login`。
 
 ## Grok 与 Codex 管理端 UI
 

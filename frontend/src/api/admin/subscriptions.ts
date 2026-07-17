@@ -13,6 +13,11 @@ import type {
   PaginatedResponse
 } from '@/types'
 
+export interface SubscriptionGroupFilterOption {
+  id: number
+  name: string
+}
+
 /**
  * List all subscriptions with pagination
  * @param page - Page number (default: 1)
@@ -45,6 +50,15 @@ export async function list(
       },
       signal: options?.signal
     }
+  )
+  return data
+}
+
+/** Load compact group options for subscription filters without group-management fields. */
+export async function searchGroups(keyword = ''): Promise<SubscriptionGroupFilterOption[]> {
+  const { data } = await apiClient.get<SubscriptionGroupFilterOption[]>(
+    '/admin/subscriptions/search-groups',
+    { params: { q: keyword } }
   )
   return data
 }
@@ -192,6 +206,7 @@ export async function listByUser(
 
 export const subscriptionsAPI = {
   list,
+  searchGroups,
   getById,
   getProgress,
   assign,

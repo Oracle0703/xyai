@@ -50,19 +50,19 @@ vi.mock('vue-i18n', async () => {
 // Mock the admin API module — we control searchUsers return value per test
 const mockSearchUsers = vi.fn()
 const mockSearchApiKeys = vi.fn().mockResolvedValue([])
-const mockGroupsList = vi.fn().mockResolvedValue({ items: [] })
+const mockSearchAccounts = vi.fn().mockResolvedValue([])
+const mockSearchGroups = vi.fn().mockResolvedValue([])
 const mockGetModelStats = vi.fn().mockResolvedValue({ models: [] })
-const mockAccountsList = vi.fn().mockResolvedValue({ items: [] })
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     usage: {
       searchUsers: (...args: any[]) => mockSearchUsers(...args),
       searchApiKeys: (...args: any[]) => mockSearchApiKeys(...args),
+      searchAccounts: (...args: any[]) => mockSearchAccounts(...args),
+      searchGroups: (...args: any[]) => mockSearchGroups(...args),
     },
-    groups: { list: (...args: any[]) => mockGroupsList(...args) },
     dashboard: { getModelStats: (...args: any[]) => mockGetModelStats(...args) },
-    accounts: { list: (...args: any[]) => mockAccountsList(...args) },
   },
 }))
 
@@ -104,6 +104,8 @@ describe('UsageFilters — user search dropdown', () => {
     vi.useFakeTimers()
     mockSearchUsers.mockReset()
     mockSearchApiKeys.mockResolvedValue([])
+    mockSearchAccounts.mockResolvedValue([])
+    mockSearchGroups.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -169,7 +171,7 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
   beforeEach(() => {
     vi.useFakeTimers()
     mockGetModelStats.mockClear()
-    mockGroupsList.mockClear()
+    mockSearchGroups.mockClear()
   })
   afterEach(() => { vi.useRealTimers() })
 
@@ -191,5 +193,52 @@ describe('UsageFilters — model options come from prop (no dup request)', () =>
 
     const opts = (wrapper.vm as any).modelOptions as Array<{ value: string | null; label: string }>
     expect(opts.map((o) => o.value)).toEqual([null, 'claude-3', 'gpt-4o'])
+  })
+})
+
+describe('UsageFilters — sub admin restrictions', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    mockSearchAccounts.mockReset()
+    mockSearchGroups.mockReset()
+    mockSearchAccounts.mockResolvedValue([{ id: 3, name: 'compact-account' }])
+    mockSearchGroups.mockResolvedValue([{ id: 2, name: 'compact-group' }])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('hides cleanup when allowCleanup is false', async () => {
+    const wrapper = mount(UsageFilters, {
+      props: {
+        modelValue: defaultFilters(),
+        exporting: false,
+        startDate: '2026-05-01',
+        endDate: '2026-05-28',
+        allowCleanup: false,
+        modelOptions: [],
+      },
+      global: { stubs: { Select: true, Teleport: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Cleanup')
+    expect(wrapper.text()).toContain('Export')
+  })
+
+  it('loads account and group options through compact usage endpoints', async () => {
+    const wrapper = mountFilters()
+    await flushPromises()
+
+    expect(mockSearchGroups).toHaveBeenCalledWith('')
+
+    const accountInput = wrapper.find('input[placeholder="Search account..."]')
+    await accountInput.setValue('compact')
+    await accountInput.trigger('input')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+
+    expect(mockSearchAccounts).toHaveBeenCalledWith('compact')
   })
 })
