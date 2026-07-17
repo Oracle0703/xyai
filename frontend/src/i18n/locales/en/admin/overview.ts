@@ -489,6 +489,9 @@ export default {
         passwordLabel: 'Password',
         passwordPlaceholder: 'Enter password (leave empty to keep unchanged)',
         roleLabel: 'Role',
+        permissionsLabel: 'Management permissions',
+        permissionsHint: 'Only selected menus are available. Access is read-only by default; subscription access also permits quota resets.',
+        permissionsLoadFailed: 'Failed to load the management permission catalog. Please try again.',
         selectRole: 'Select role',
         balanceLabel: 'Balance',
         concurrencyLabel: 'Concurrency',
@@ -652,7 +655,22 @@ export default {
       totalRecharged: 'Total Recharged',
       roles: {
         admin: 'Admin',
+        sub_admin: 'Sub-admin',
         user: 'User'
+      },
+      permissions: {
+        'admin.subscriptions': {
+          label: 'Subscription management',
+          description: 'View subscriptions and reset all or daily quotas.'
+        },
+        'admin.usage': {
+          label: 'Usage records',
+          description: 'View, filter and export usage, including rankings, dashboard aggregates and error details.'
+        },
+        'admin.token_analysis': {
+          label: 'Token analysis',
+          description: 'View token statistics, projects, requests, inputs and index status.'
+        }
       },
       // Settings Dropdowns
       filterSettings: 'Filter Settings',

@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey } from '@/types'
+import type { AdminPermission, AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey, UserRole } from '@/types'
 
 export interface AdminBindAuthIdentityChannelRequest {
   channel: string
@@ -44,6 +44,17 @@ export interface AdminBoundAuthIdentity {
   channel?: AdminBoundAuthIdentityChannel | null
 }
 
+export interface AdminPermissionCatalogItem {
+  code: AdminPermission
+  menu_key: string
+  route: string
+}
+
+export async function getPermissionCatalog(): Promise<AdminPermissionCatalogItem[]> {
+  const { data } = await apiClient.get<AdminPermissionCatalogItem[]>('/admin/permissions/catalog')
+  return data
+}
+
 export interface BatchUpdateUserLimitsRequest {
   user_ids: number[]
   all?: boolean
@@ -68,7 +79,7 @@ export async function list(
   pageSize: number = 20,
   filters?: {
     status?: 'active' | 'disabled'
-    role?: 'admin' | 'user'
+    role?: UserRole
     search?: string
     group_name?: string         // fuzzy filter by allowed group name
     api_key_group_id?: number   // filter users by the group their API keys are bound to
@@ -132,7 +143,8 @@ export async function create(userData: {
   password: string
   username?: string
   notes?: string
-  role?: 'admin' | 'user'
+  role?: UserRole
+  admin_permissions?: AdminPermission[]
   balance?: number
   concurrency?: number
   rpm_limit?: number
@@ -400,6 +412,7 @@ export async function resetPlatformQuotaWindow(
 }
 
 export const usersAPI = {
+  getPermissionCatalog,
   list,
   getById,
   create,

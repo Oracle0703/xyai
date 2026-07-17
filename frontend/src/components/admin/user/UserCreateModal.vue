@@ -27,11 +27,39 @@
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
-        <select v-model="form.role" class="input">
+        <select v-model="form.role" class="input" data-testid="role-select">
           <option value="user">{{ t('admin.users.roles.user') }}</option>
+          <option value="sub_admin">{{ t('admin.users.roles.sub_admin') }}</option>
           <option value="admin">{{ t('admin.users.roles.admin') }}</option>
         </select>
       </div>
+      <fieldset v-if="form.role === 'sub_admin'" class="space-y-2">
+        <legend class="input-label">{{ t('admin.users.form.permissionsLabel') }}</legend>
+        <p class="input-hint">{{ t('admin.users.form.permissionsHint') }}</p>
+        <p v-if="permissionsLoading" class="text-sm text-gray-500 dark:text-gray-400">
+          {{ t('common.loading') }}
+        </p>
+        <p v-else-if="permissionsLoadFailed" class="text-sm text-red-600 dark:text-red-400">
+          {{ t('admin.users.form.permissionsLoadFailed') }}
+        </p>
+        <label
+          v-for="permission in adminPermissionOptions"
+          :key="permission.code"
+          class="flex items-start gap-3 rounded border border-gray-200 p-3 dark:border-dark-600"
+        >
+          <input
+            v-model="form.admin_permissions"
+            type="checkbox"
+            :value="permission.code"
+            :data-admin-permission="permission.code"
+            class="mt-1"
+          />
+          <span>
+            <span class="block text-sm font-medium">{{ t(permission.labelKey) }}</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t(permission.descriptionKey) }}</span>
+          </span>
+        </label>
+      </fieldset>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="input-label">{{ t('admin.users.columns.balance') }}</label>
@@ -77,12 +105,40 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import type { AdminPermission, UserRole } from '@/types'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n()
 const appStore = useAppStore()
 
-const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as 'user' | 'admin', balance: '', concurrency: 1, rpm_limit: 0 })
+const adminPermissionOptions = ref<Array<{
+  code: AdminPermission
+  labelKey: string
+  descriptionKey: string
+}>>([])
+const permissionsLoading = ref(false)
+const permissionsLoadFailed = ref(false)
+
+const loadPermissionCatalog = async () => {
+  permissionsLoading.value = true
+  permissionsLoadFailed.value = false
+  try {
+    const catalog = await adminAPI.users.getPermissionCatalog()
+    adminPermissionOptions.value = catalog.map((item) => ({
+      code: item.code,
+      labelKey: `admin.users.permissions.${item.code}.label`,
+      descriptionKey: `admin.users.permissions.${item.code}.description`,
+    }))
+  } catch {
+    adminPermissionOptions.value = []
+    permissionsLoadFailed.value = true
+    appStore.showError(t('admin.users.form.permissionsLoadFailed'))
+  } finally {
+    permissionsLoading.value = false
+  }
+}
+
+const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as UserRole, admin_permissions: [] as AdminPermission[], balance: '', concurrency: 1, rpm_limit: 0 })
 
 const stepUp = useStepUp()
 const loading = ref(false)
@@ -91,9 +147,12 @@ const submit = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    const { balance: rawBalance, ...rest } = { ...form }
+    const { balance: rawBalance, admin_permissions: requestedPermissions, ...rest } = { ...form }
     const balance = String(rawBalance).trim()
-    const payload: typeof rest & { balance?: number } = { ...rest }
+    const payload: typeof rest & { admin_permissions: AdminPermission[]; balance?: number } = {
+      ...rest,
+      admin_permissions: rest.role === 'sub_admin' ? [...requestedPermissions] : [],
+    }
     if (balance !== '') {
       payload.balance = Number(balance)
     }
@@ -116,7 +175,12 @@ const submit = async () => {
   } finally { loading.value = false }
 }
 
-watch(() => props.show, (v) => { if(v) Object.assign(form, { email: '', password: '', username: '', notes: '', role: 'user', balance: '', concurrency: 1, rpm_limit: 0 }) })
+watch(() => props.show, (v) => {
+  if (v) {
+    Object.assign(form, { email: '', password: '', username: '', notes: '', role: 'user', admin_permissions: [], balance: '', concurrency: 1, rpm_limit: 0 })
+    void loadPermissionCatalog()
+  }
+}, { immediate: true })
 
 const generateRandomPassword = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'

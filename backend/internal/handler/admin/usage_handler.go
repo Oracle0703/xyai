@@ -424,6 +424,46 @@ func (h *UsageHandler) SearchAPIKeys(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// SearchAccounts returns a compact account list for usage filters without exposing account credentials or settings.
+func (h *UsageHandler) SearchAccounts(c *gin.Context) {
+	accounts, _, err := h.adminService.ListAccounts(
+		c.Request.Context(), 1, 30, "", "", "", strings.TrimSpace(c.Query("q")), 0, "", "name", "asc",
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	type compactOption struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+	result := make([]compactOption, len(accounts))
+	for i := range accounts {
+		result[i] = compactOption{ID: accounts[i].ID, Name: accounts[i].Name}
+	}
+	response.Success(c, result)
+}
+
+// SearchGroups returns a compact group list for usage filters without exposing management-only group fields.
+func (h *UsageHandler) SearchGroups(c *gin.Context) {
+	groups, _, err := h.adminService.ListGroups(
+		c.Request.Context(), 1, 1000, "", "", strings.TrimSpace(c.Query("q")), nil, "name", "asc",
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	type compactOption struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+	result := make([]compactOption, len(groups))
+	for i := range groups {
+		result[i] = compactOption{ID: groups[i].ID, Name: groups[i].Name}
+	}
+	response.Success(c, result)
+}
+
 // ListCleanupTasks handles listing usage cleanup tasks
 // GET /api/v1/admin/usage/cleanup-tasks
 func (h *UsageHandler) ListCleanupTasks(c *gin.Context) {

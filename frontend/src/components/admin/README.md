@@ -1,0 +1,21 @@
+# 管理端组件权限约定
+
+## 子管理员角色
+
+管理端用户弹窗支持 `admin`、`sub_admin`、`user`。`sub_admin` 的权限清单必须通过 `GET /api/v1/admin/permissions/catalog` 获取, 不在组件中维护第二份目录。
+
+## 页面能力
+
+| 权限 | 页面 | 子管理员能力 |
+| --- | --- | --- |
+| `admin.subscriptions` | `/admin/subscriptions` | 查看、筛选、重置全部配额、仅重置日限 |
+| `admin.usage` | `/admin/usage` | 查询、统计、排行、错误详情、导出 |
+| `admin.token_analysis` | `/admin/token-analysis` | 查看统计、项目、请求输入和索引状态 |
+
+订阅分配/延期/撤销/恢复、使用记录清理、Token 立即索引只对完整管理员显示。隐藏按钮只是体验控制, 后端白名单必须独立拒绝。
+
+## 依赖接口
+
+- 使用记录账号/分组筛选走 `/admin/usage/search-accounts` 和 `/admin/usage/search-groups`。
+- 订阅分组筛选走 `/admin/subscriptions/search-groups`; 不得调用 `/admin/groups/all`。
+- 新增管理权限时同步后端 catalog/路由白名单、前端路由 `adminPermission`、侧边栏、i18n 和测试。

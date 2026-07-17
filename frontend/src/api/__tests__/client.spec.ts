@@ -305,6 +305,27 @@ describe('API Client', () => {
 
       window.removeEventListener('admin-compliance-required', listener)
     })
+
+    it('子管理员权限被拒绝时广播权限刷新事件', async () => {
+      const listener = vi.fn()
+      window.addEventListener('admin-permission-denied', listener)
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 403,
+          data: { code: 'ADMIN_PERMISSION_DENIED', message: 'Admin permission denied' },
+        },
+        config: { url: '/admin/accounts', headers: {} },
+        code: 'ERR_BAD_REQUEST',
+      })
+      apiClient.defaults.adapter = adapter
+
+      await expect(apiClient.get('/admin/accounts')).rejects.toEqual(
+        expect.objectContaining({ status: 403, code: 'ADMIN_PERMISSION_DENIED' }),
+      )
+
+      expect(listener).toHaveBeenCalledTimes(1)
+      window.removeEventListener('admin-permission-denied', listener)
+    })
   })
 
   // --- 401 Token 刷新 ---

@@ -7,23 +7,24 @@ import (
 )
 
 type User struct {
-	ID             int64
-	Email          string
-	Username       string
-	Notes          string
-	AvatarURL      string
-	AvatarSource   string
-	AvatarMIME     string
-	AvatarByteSize int
-	AvatarSHA256   string
-	PasswordHash   string
-	Role           string
-	Balance        float64
-	FrozenBalance  float64
-	Concurrency    int
-	Status         string
-	AllowedGroups  []int64
-	TokenVersion   int64 // Incremented on password change to invalidate existing tokens
+	ID               int64
+	Email            string
+	Username         string
+	Notes            string
+	AvatarURL        string
+	AvatarSource     string
+	AvatarMIME       string
+	AvatarByteSize   int
+	AvatarSHA256     string
+	PasswordHash     string
+	Role             string
+	AdminPermissions []string
+	Balance          float64
+	FrozenBalance    float64
+	Concurrency      int
+	Status           string
+	AllowedGroups    []int64
+	TokenVersion     int64 // Incremented on password change to invalidate existing tokens
 	// TokenVersionResolved indicates TokenVersion already contains the fingerprint-derived
 	// value expected in JWT claims and refresh-token state.
 	TokenVersionResolved bool
@@ -66,6 +67,10 @@ type User struct {
 
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
+}
+
+func (u *User) IsSubAdmin() bool {
+	return u.Role == RoleSubAdmin
 }
 
 func (u *User) IsActive() bool {

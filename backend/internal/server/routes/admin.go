@@ -283,6 +283,7 @@ func registerDashboardRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 }
 
 func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	admin.GET("/permissions/catalog", h.Admin.User.GetPermissionCatalog)
 	users := admin.Group("/users")
 	{
 		users.GET("", h.Admin.User.List)
@@ -623,6 +624,7 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	subscriptions := admin.Group("/subscriptions")
 	{
 		subscriptions.GET("", h.Admin.Subscription.List)
+		subscriptions.GET("/search-groups", h.Admin.Usage.SearchGroups)
 		subscriptions.GET("/:id", h.Admin.Subscription.GetByID)
 		subscriptions.GET("/:id/progress", h.Admin.Subscription.GetProgress)
 		subscriptions.POST("/assign", h.Admin.Subscription.Assign)
@@ -648,6 +650,8 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.GET("/stats", h.Admin.Usage.Stats)
 		usage.GET("/search-users", h.Admin.Usage.SearchUsers)
 		usage.GET("/search-api-keys", h.Admin.Usage.SearchAPIKeys)
+		usage.GET("/search-accounts", h.Admin.Usage.SearchAccounts)
+		usage.GET("/search-groups", h.Admin.Usage.SearchGroups)
 		usage.GET("/organization-report/summary", h.Admin.OrganizationUsage.Summary)
 		usage.GET("/organization-report/periods", h.Admin.OrganizationUsage.Periods)
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)

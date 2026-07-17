@@ -5,13 +5,19 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { Group, User, UserSubscription } from '@/types'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { listSubscriptions, resetQuota, getAllGroups, searchUsers, showError, showSuccess } = vi.hoisted(() => ({
+const { listSubscriptions, resetQuota, searchSubscriptionGroups, getAllGroups, searchUsers, showError, showSuccess } = vi.hoisted(() => ({
   listSubscriptions: vi.fn(),
   resetQuota: vi.fn(),
+  searchSubscriptionGroups: vi.fn(),
   getAllGroups: vi.fn(),
   searchUsers: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn()
+}))
+
+const authState = vi.hoisted(() => ({
+  isAdmin: true,
+  isSubAdmin: false
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -21,7 +27,8 @@ vi.mock('@/api/admin', () => ({
       assign: vi.fn(),
       extend: vi.fn(),
       revoke: vi.fn(),
-      resetQuota
+      resetQuota,
+      searchGroups: searchSubscriptionGroups
     },
     groups: {
       getAll: getAllGroups
@@ -37,6 +44,10 @@ vi.mock('@/stores/app', () => ({
     showError,
     showSuccess
   })
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => authState
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -173,10 +184,13 @@ describe('admin SubscriptionsView quota reset actions', () => {
     localStorage.clear()
     listSubscriptions.mockReset()
     resetQuota.mockReset()
+    searchSubscriptionGroups.mockReset()
     getAllGroups.mockReset()
     searchUsers.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
+    authState.isAdmin = true
+    authState.isSubAdmin = false
 
     listSubscriptions.mockResolvedValue({
       items: [testSubscription],
@@ -186,6 +200,12 @@ describe('admin SubscriptionsView quota reset actions', () => {
       pages: 1
     })
     resetQuota.mockResolvedValue({ ...testSubscription, daily_usage_usd: 0 })
+    searchSubscriptionGroups.mockResolvedValue([{
+      id: testGroup.id,
+      name: testGroup.name,
+      platform: testGroup.platform,
+      subscription_type: testGroup.subscription_type
+    }])
     getAllGroups.mockResolvedValue([testGroup])
     searchUsers.mockResolvedValue([])
   })
@@ -220,5 +240,22 @@ describe('admin SubscriptionsView quota reset actions', () => {
     await flushPromises()
 
     expect(resetQuota).toHaveBeenCalledWith(31, { daily: true, weekly: true, monthly: true })
+  })
+
+  it('shows sub admins only the two permitted quota reset actions', async () => {
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+
+    const wrapper = await mountView()
+    const buttonTexts = wrapper.findAll('button').map((button) => button.text())
+
+    expect(buttonTexts).toContain('admin.subscriptions.resetQuota')
+    expect(buttonTexts).toContain('admin.subscriptions.resetDailyQuota')
+    expect(buttonTexts).not.toContain('admin.subscriptions.assignSubscription')
+    expect(buttonTexts).not.toContain('admin.subscriptions.adjust')
+    expect(buttonTexts).not.toContain('admin.subscriptions.revoke')
+    expect(buttonTexts).not.toContain('admin.subscriptions.restore')
+    expect(searchSubscriptionGroups).toHaveBeenCalledTimes(1)
+    expect(getAllGroups).not.toHaveBeenCalled()
   })
 })

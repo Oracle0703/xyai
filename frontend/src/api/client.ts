@@ -181,6 +181,14 @@ apiClient.interceptors.response.use(
         })
       }
 
+			if (status === 403 && apiData.code === 'ADMIN_PERMISSION_DENIED') {
+				try {
+					window.dispatchEvent(new CustomEvent('admin-permission-denied'))
+				} catch {
+					// Ignore event dispatch failures; the backend denial remains authoritative.
+				}
+			}
+
       // 401: Try to refresh the token if we have a refresh token
       // This handles TOKEN_EXPIRED, INVALID_TOKEN, TOKEN_REVOKED, etc.
       if (status === 401 && !originalRequest._retry) {

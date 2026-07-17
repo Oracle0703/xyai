@@ -126,6 +126,44 @@
         </div>
       </template>
 
+			<!-- Sub-admin: user navigation plus explicitly granted management pages. -->
+			<template v-else-if="isSubAdmin">
+				<div v-if="!appStore.backendModeEnabled" class="sidebar-section">
+					<router-link
+						v-for="item in userNavItems"
+						:key="item.path"
+						:to="item.path"
+						class="sidebar-link mb-1"
+						:class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
+						:title="sidebarCollapsed ? item.label : undefined"
+						@click="handleMenuItemClick(item.path)"
+					>
+						<component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+						<span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ item.label }}</span>
+					</router-link>
+				</div>
+
+				<div v-if="subAdminNavItems.length" class="sidebar-section">
+					<div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }">
+						<span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
+							{{ t('nav.adminFeatures') }}
+						</span>
+					</div>
+					<router-link
+						v-for="item in subAdminNavItems"
+						:key="item.path"
+						:to="item.path"
+						class="sidebar-link mb-1"
+						:class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
+						:title="sidebarCollapsed ? item.label : undefined"
+						@click="handleMenuItemClick(item.path)"
+					>
+						<component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+						<span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ item.label }}</span>
+					</router-link>
+				</div>
+			</template>
+
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
         <div class="sidebar-section">
@@ -197,6 +235,7 @@ import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { getAdminLandingPath } from '@/utils/adminPermissions'
 
 interface NavItem {
   path: string
@@ -247,10 +286,17 @@ const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
+const isSubAdmin = computed(() => authStore.isSubAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
-const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
+const homePath = computed(() => {
+	if (isAdmin.value) return '/admin/dashboard'
+	if (isSubAdmin.value) {
+		return getAdminLandingPath(authStore.user?.admin_permissions, appStore.backendModeEnabled)
+	}
+	return '/dashboard'
+})
 
 // Track which parent nav groups are expanded
 const expandedGroups = ref<Set<string>>(new Set())
@@ -750,6 +796,20 @@ const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(tru
 // Admins access 可用渠道 from this section just like regular users — there is no
 // separate admin entry, since the page is purely a user-facing view.
 const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
+
+const subAdminNavItems = computed((): NavItem[] => {
+	const items: NavItem[] = []
+	if (authStore.hasAdminPermission('admin.subscriptions')) {
+		items.push({ path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon })
+	}
+	if (authStore.hasAdminPermission('admin.usage')) {
+		items.push({ path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon })
+	}
+	if (authStore.hasAdminPermission('admin.token_analysis')) {
+		items.push({ path: '/admin/token-analysis', label: t('nav.tokenAnalysis'), icon: ChartIcon })
+	}
+	return items
+})
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {

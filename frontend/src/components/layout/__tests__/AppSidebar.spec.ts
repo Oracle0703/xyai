@@ -65,4 +65,11 @@ describe('AppSidebar navigation entries', () => {
       "{ path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },\n    { path: '/admin/organization-usage', label: t('nav.organizationUsage'), icon: ChartIcon },"
     )
   })
+
+  it('renders a permission-filtered management section for sub-admins', () => {
+    expect(componentSource).toContain('v-else-if="isSubAdmin"')
+    expect(componentSource).toContain("t('nav.adminFeatures')")
+    expect(componentSource).toContain('subAdminNavItems')
+    expect(componentSource).toContain('authStore.hasAdminPermission')
+  })
 })

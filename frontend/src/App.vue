@@ -8,6 +8,7 @@ import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
+import { resolveAdminPermissionDeniedRecovery } from '@/utils/adminPermissions'
 
 const router = useRouter()
 const route = useRoute()
@@ -79,11 +80,37 @@ function onAdminComplianceRequired(event: Event) {
   adminComplianceStore.requireAcknowledgement(detail)
 }
 
+let permissionRefreshPromise: Promise<void> | null = null
+
+function onAdminPermissionDenied() {
+	if (permissionRefreshPromise) return
+	permissionRefreshPromise = (async () => {
+		try {
+			await authStore.refreshUser()
+		} catch (error) {
+			console.error('Failed to refresh sub-admin permissions:', error)
+		}
+
+		const recovery = resolveAdminPermissionDeniedRecovery({
+			backendMode: appStore.backendModeEnabled,
+			isAdmin: authStore.isAdmin,
+			isSubAdmin: authStore.isSubAdmin,
+			permissions: authStore.user?.admin_permissions,
+		})
+		if (recovery.logout) {
+			await authStore.logout()
+		}
+		await router.replace(recovery.target)
+	})().finally(() => {
+		permissionRefreshPromise = null
+	})
+}
+
 watch(
   () => authStore.isAuthenticated,
   (isAuthenticated, oldValue) => {
     if (isAuthenticated) {
-      if (authStore.isAdmin) {
+			if (authStore.canAccessAdmin) {
         adminComplianceStore.fetchStatus().catch((error) => {
           console.error('Failed to fetch admin compliance status:', error)
         })
@@ -127,10 +154,12 @@ router.afterEach(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('admin-compliance-required', onAdminComplianceRequired)
+	window.removeEventListener('admin-permission-denied', onAdminPermissionDenied)
 })
 
 onMounted(async () => {
   window.addEventListener('admin-compliance-required', onAdminComplianceRequired)
+	window.addEventListener('admin-permission-denied', onAdminPermissionDenied)
 
   // Check if setup is needed
   try {

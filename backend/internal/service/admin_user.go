@@ -111,8 +111,8 @@ func normalizeUserRole(role, fallback string) (string, error) {
 	if role == "" {
 		return fallback, nil
 	}
-	if role != RoleAdmin && role != RoleUser {
-		return "", fmt.Errorf("invalid role: %q (must be %s or %s)", role, RoleAdmin, RoleUser)
+	if role != RoleAdmin && role != RoleSubAdmin && role != RoleUser {
+		return "", fmt.Errorf("invalid role: %q (must be %s, %s or %s)", role, RoleAdmin, RoleSubAdmin, RoleUser)
 	}
 	return role, nil
 }
@@ -130,17 +130,22 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	if err != nil {
 		return nil, err
 	}
+	adminPermissions, err := NormalizeAdminPermissions(role, input.AdminPermissions)
+	if err != nil {
+		return nil, err
+	}
 
 	user := &User{
-		Email:         input.Email,
-		Username:      input.Username,
-		Notes:         input.Notes,
-		Role:          role,
-		Balance:       balance,
-		Concurrency:   input.Concurrency,
-		RPMLimit:      input.RPMLimit,
-		Status:        StatusActive,
-		AllowedGroups: input.AllowedGroups,
+		Email:            input.Email,
+		Username:         input.Username,
+		Notes:            input.Notes,
+		Role:             role,
+		AdminPermissions: adminPermissions,
+		Balance:          balance,
+		Concurrency:      input.Concurrency,
+		RPMLimit:         input.RPMLimit,
+		Status:           StatusActive,
+		AllowedGroups:    input.AllowedGroups,
 	}
 	if err := user.SetPassword(input.Password); err != nil {
 		return nil, err
@@ -149,9 +154,9 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 		return nil, err
 	}
 	// 创建管理员属权限敏感操作，落审计日志（含操作者），便于事后追溯。
-	if user.Role == RoleAdmin {
-		logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d",
-			input.ActorAdminID, user.ID)
+	if user.Role == RoleAdmin || user.Role == RoleSubAdmin {
+		logger.LegacyPrintf("service.admin", "audit: privileged user created actor_admin_id=%d target_user_id=%d role=%s admin_permissions=%v",
+			input.ActorAdminID, user.ID, user.Role, user.AdminPermissions)
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
 	return user, nil
@@ -215,6 +220,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	oldConcurrency := user.Concurrency
 	oldStatus := user.Status
 	oldRole := user.Role
+	oldAdminPermissions := append([]string(nil), user.AdminPermissions...)
 	oldRPMLimit := user.RPMLimit
 	oldAllowedGroups := append([]int64(nil), user.AllowedGroups...)
 
@@ -246,13 +252,23 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 		}
 		// 防锁死保护：不允许降级系统中最后一个管理员（自我降级已在 handler 层拦截，
 		// 此处兜底覆盖跨管理员互降导致零 admin 的场景）。
-		if user.Role == RoleAdmin && role == RoleUser {
+		if user.Role == RoleAdmin && role != RoleAdmin {
 			if err := s.ensureNotLastAdmin(ctx); err != nil {
 				return nil, err
 			}
 		}
 		user.Role = role
 	}
+
+	requestedPermissions := user.AdminPermissions
+	if input.AdminPermissions != nil {
+		requestedPermissions = *input.AdminPermissions
+	}
+	normalizedPermissions, err := NormalizeAdminPermissions(user.Role, requestedPermissions)
+	if err != nil {
+		return nil, err
+	}
+	user.AdminPermissions = normalizedPermissions
 
 	if input.Concurrency != nil {
 		user.Concurrency = *input.Concurrency
@@ -275,6 +291,10 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 		logger.LegacyPrintf("service.admin", "audit: user role changed actor_admin_id=%d target_user_id=%d old_role=%s new_role=%s",
 			input.ActorAdminID, user.ID, oldRole, user.Role)
 	}
+	if !sameStringSet(user.AdminPermissions, oldAdminPermissions) {
+		logger.LegacyPrintf("service.admin", "audit: user admin permissions changed actor_admin_id=%d target_user_id=%d old_permissions=%v new_permissions=%v",
+			input.ActorAdminID, user.ID, oldAdminPermissions, user.AdminPermissions)
+	}
 
 	// 同步用户专属分组倍率
 	if input.GroupRates != nil && s.userGroupRateRepo != nil {
@@ -286,7 +306,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	if s.authCacheInvalidator != nil {
 		// RPMLimit 直接参与 billing_cache_service.checkRPM 的三级级联，
 		// allowed_groups 参与 API Key 专属分组授权判断；不失效缓存会让修改在一个 L2 TTL 内失去效果。
-		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || user.RPMLimit != oldRPMLimit || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) {
+		if user.Concurrency != oldConcurrency || user.Status != oldStatus || user.Role != oldRole || !sameStringSet(user.AdminPermissions, oldAdminPermissions) || user.RPMLimit != oldRPMLimit || !sameInt64Set(user.AllowedGroups, oldAllowedGroups) {
 			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, user.ID)
 		}
 	}
@@ -331,6 +351,23 @@ func sameInt64Set(a, b []int64) bool {
 			return false
 		}
 		counts[v]--
+	}
+	return true
+}
+
+func sameStringSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	counts := make(map[string]int, len(a))
+	for _, value := range a {
+		counts[value]++
+	}
+	for _, value := range b {
+		if counts[value] == 0 {
+			return false
+		}
+		counts[value]--
 	}
 	return true
 }

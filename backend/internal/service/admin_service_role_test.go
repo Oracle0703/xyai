@@ -141,3 +141,35 @@ func TestAdminService_UpdateUser_PromoteDoesNotCountAdmins(t *testing.T) {
 	require.Equal(t, RoleAdmin, updated.Role)
 	require.Equal(t, 0, repo.listCalls, "升级路径不应触发管理员计数")
 }
+
+func TestAdminService_CreateUser_WithSubAdminPermissions(t *testing.T) {
+	repo := &userRepoStub{nextID: 33}
+	svc := &adminServiceImpl{userRepo: repo}
+
+	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email:            "sub-admin@test.com",
+		Password:         "strong-pass",
+		Role:             RoleSubAdmin,
+		AdminPermissions: []string{AdminPermissionUsage, AdminPermissionSubscriptions},
+	})
+	require.NoError(t, err)
+	require.Equal(t, RoleSubAdmin, user.Role)
+	require.Equal(t, []string{AdminPermissionSubscriptions, AdminPermissionUsage}, user.AdminPermissions)
+}
+
+func TestAdminService_UpdateUser_ClearsPermissionsWhenLeavingSubAdmin(t *testing.T) {
+	base := &userRepoStub{user: &User{
+		ID:               42,
+		Email:            "sub-admin@example.com",
+		Role:             RoleSubAdmin,
+		AdminPermissions: []string{AdminPermissionUsage},
+	}}
+	repo := &rpmUserRepoStub{userRepoStub: base}
+	svc := &adminServiceImpl{userRepo: repo, redeemCodeRepo: &redeemRepoStub{}}
+
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleUser})
+	require.NoError(t, err)
+	require.Equal(t, RoleUser, updated.Role)
+	require.Empty(t, updated.AdminPermissions)
+	require.Empty(t, repo.lastUpdated.AdminPermissions)
+}
