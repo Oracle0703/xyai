@@ -9,6 +9,9 @@
 - API Key 网关认证: `backend/internal/server/middleware/api_key_auth.go`
 - Google/Gemini API Key 认证兼容: `api_key_auth_google.go`
 - backend mode guard: `backend_mode_guard.go`
+- 操作审计: `backend/internal/server/middleware/audit_log.go`
+- 会话 IP/UA 绑定: `backend/internal/server/middleware/session_binding.go`
+- 敏感操作 step-up: `backend/internal/server/middleware/step_up.go`
 
 `APIKeyAuth` 对独占分组(exclusive group)做强制校验: 当 API Key 绑定的用户已不再被授权该独占分组时直接拒绝访问, 避免越权复用; 相关 middleware 单测在 `api_key_auth_test.go`。
 
@@ -18,6 +21,12 @@ OpenAI Agent Identity:
 
 - `auth_mode=agentIdentity` 要求 PKCS#8 Ed25519 `agent_private_key` 和非空 `agent_runtime_id`; `task_id` 可缺省, 首次使用时按账号锁注册并持久化。私钥不得返回前端, runtime/task ID、AgentAssertion 和上游可能回显的凭据值在错误、日志与 ops 事件前也必须脱敏。
 - task 被上游判定失效时每个调用链只允许恢复一次; 新 task 持久化后必须使该账号旧 WS 连接失效, 防止连接继续使用旧 assertion。account test、quota/usage query 及 HTTP/WS gateway 共用该认证边界。
+
+管理面安全链:
+
+- 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。
+- 账号/代理导出、S3 配置修改、备份下载、管理员角色提升等敏感动作使用 step-up grant; admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。
+- `api_key_acl_trust_forwarded_ip` 默认 false。false 时 API Key ACL、会话绑定和审计使用可信代理链/直连地址; true 时才读取转发客户端 IP。必须同时正确配置 `server.trusted_proxies`, 否则伪造 forwarded header 会扩大 ACL 绕过面。
 
 前端:
 
@@ -259,3 +268,9 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
 - 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
+
+当前上游已知限制:
+
+- `backend/internal/service/image_storage.go` 会下载上游生图响应的 `data[].url` 后转存 S3, 当前上游默认 HTTP client 只有 timeout/大小限制, 没有私网、云元数据、DNS rebinding 或 redirect SSRF 防护。合并分支按用户要求不做本地修补; upstream 修复前不要在可被不可信自定义上游影响的环境启用 `image_storage`。
+- async image 任务只由请求进程启动 goroutine, 没有持久 worker/recovery; 服务重启后 Redis 中的 `processing` 任务可能保留到默认 24h TTL。upstream 修复前要把滚动重启和任务可恢复性纳入运维预期。
+- 管理端批量用户限额会先更新数据库再失效 API Key cache; 当前 cache 删除实现吞掉 Redis 错误, 且 `all=true` 会把全部 user ID 展开为 PostgreSQL bind 参数。大用户量或 Redis 故障场景可能出现短期旧认证快照或参数上限失败, 本合并分支只记录并等待 upstream 修复。

@@ -1443,3 +1443,22 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Local features | 10 类 `docs/features` 本地能力均保留或与上游组合；tracked feature 文件删除数为 0。 |
 | Verification | Unit 50 个测试包通过；integration 44 个测试包通过，唯一 `openai_compat.test.exe` 被本机 360 阻断且已如实披露；合并差异 lint 0 issues；前端 176 files / 1214 tests、lint、typecheck、build 与 embed build 通过。提交前 staged 硬门为 274 files / `+32475 -1728`，无 unstaged/untracked/unmerged、精确冲突标记、whitespace、CRLF/BOM、敏感模式或 `docs/features` 删除。 |
 | Approval / delivery | 用户在知悉环境限制后明确回复“允许”；仅创建本地提交，未 push、未创建 PR、未部署。 |
+
+## 2026-07-17 main sync (v0.1.159; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10157_同步sub2api主线` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `b5c9726262ca65bddc8ca4bc5a35ed26e1208cb3` |
+| Merge base | `d515c3045ce838976ebedab87846aaaf893dbbf6` |
+| Upstream head / second parent | `c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc`** |
+| Upstream version / delta | `0.1.159`; 114 commits、399 files、`+28829/-1666` |
+| Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/server/http.go`; `backend/internal/server/router.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/openai_gateway_forward.go`; `frontend/src/api/admin/index.ts`; `frontend/src/components/layout/AppSidebar.vue`; `frontend/src/i18n/locales/en/admin/index.ts`; `frontend/src/i18n/locales/zh/admin/index.ts` |
+| Conflict handling | Wire 从双方 provider 源图重新生成；server/router/gateway 组合上游 Audit、StepUp、SessionBinding、async image、billing 与本地 Prompt Metrics、RequestArchive/Intercept；OpenAI failover 采用上游 helper 并保留本地 413/header/thinking 语义；前端 API、侧栏和 locale key 做并集。 |
+| Local features | RequestArchive/Intercept、Prompt Metrics/Risk、Token Analysis、组织用量、用户并发 preset/`ConcurrencyCacheError`、OpenAI-compatible options/cache usage、quota flusher 均保留；`docs/features/` tracked 删除数为 0。只有两个本地并发 preset 测试桩适配上游新增 `BatchUpdateLimits` 接口。 |
+| Upstream issues | 异步图片 URL 下载缺 SSRF 防护、进程内任务无重启恢复、批量限额 cache/参数上限风险，以及 locale compile 测试未声明直接依赖。按用户要求仅记录，不修改对应生产代码或依赖清单，等待 upstream 修复。 |
+| Verification | Wire 连续两次生成稳定，SHA-256 `92D6F616...12A61`；backend unit、增量 lint、embed build 通过；integration 的 5 个 360 启动拦截包均经 fresh 目录或系统临时目录独立执行通过；frontend lint/typecheck/build 通过，Vitest 188 files / 1300 tests passed、1 个上游清单 suite 无法收集；`go mod tidy -diff` 只报告 12 行继承旧校验项。收尾 fetch 确认 `upstream/main=MERGE_HEAD=c2c19a7cb`。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`、组件 README、merge review 与 delivery 文档。 |
+| Approval / delivery | staged 门禁为 416 files / `+29294 -1677`，无 unmerged/unstaged/untracked/marker/features 删除/未解析敏感模式。保持 `git merge --no-commit --no-ff` 并等待用户审核；不 commit、不 push、不创建 PR、不部署。 |

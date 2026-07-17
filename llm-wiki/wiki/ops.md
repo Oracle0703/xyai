@@ -2,9 +2,10 @@
 
 ## 当前版本基线
 
-- 当前合并后的 `backend/cmd/server/VERSION` 为 `0.1.156`; 对应固定上游提交 `d515c3045ce838976ebedab87846aaaf893dbbf6`。
+- 当前未提交合并树的 `backend/cmd/server/VERSION` 为 `0.1.159`; 对应上游提交 `c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
+- 当前上游 `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 直接导入 `@intlify/message-compiler`, 但 `frontend/package.json` 未声明该直接依赖。pnpm 严格链接下完整 Vitest 会在 suite 收集阶段失败; 本合并分支按范围不补本地依赖, 等待 upstream 修复清单。
 
 ## 本地启动
 
@@ -308,6 +309,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `pricing`: 模型价格远程源, hash 校验和 fallback 文件。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
+- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。
 
 `token_refresh` 的运行时有效值会对非正数回退默认值、对超过上限的正数封顶:
 

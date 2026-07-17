@@ -58,7 +58,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - `backend/internal/server/router.go`: 注册全局中间件和业务路由。
 - `backend/internal/server/routes/*.go`: 分组注册路由。
 
-全局中间件包含 recovery, request logger, CORS, security headers, opt-in Server-Timing, Prompt Metrics 和 embedded frontend。`server.enable_server_timing` 默认关闭; 开启后为 admin UI 和 allowlist 内的 authenticated user UI 请求创建 request-scoped collector, 汇总 SQL、Redis、外部 HTTP、cache 和总耗时。`X-Admin-UI-Request` / `X-User-UI-Request` 只提供 UI scope signal, 响应写出前仍由 context role 和 user path allowlist 做最终 gate; 公开 payment/webhook 路由和 AI gateway 不返回 `Server-Timing`。Prompt Metrics 的 `CaptureMiddleware` 继续在同一链路中挂载, 合并时不能二选一。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端只对 Vite `assets/` 下文件名含 8 字符 fingerprint 的资源设置 `public, max-age=31536000, immutable`; unhashed assets、`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 不再重复强制静态 immutable 规则, 缓存判定由后端统一负责。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
+全局中间件包含 recovery, request logger, session binding context, CORS, security headers, opt-in Server-Timing, Prompt Metrics 和 embedded frontend。`SessionBindingContext(cfg)` 把客户端 IP/UA 注入 context, 供 token 签发、会话绑定和审计统一读取; IP 口径与 API Key ACL 共用 `api_key_acl_trust_forwarded_ip` 运行时设置。`server.enable_server_timing` 默认关闭; 开启后为 admin UI 和 allowlist 内的 authenticated user UI 请求创建 request-scoped collector, 汇总 SQL、Redis、外部 HTTP、cache 和总耗时。`X-Admin-UI-Request` / `X-User-UI-Request` 只提供 UI scope signal, 响应写出前仍由 context role 和 user path allowlist 做最终 gate; 公开 payment/webhook 路由和 AI gateway 不返回 `Server-Timing`。Prompt Metrics 的 `CaptureMiddleware` 继续在同一链路中挂载, 合并时不能二选一。`server.trusted_proxies` 为空时会禁用可信代理解析。嵌入前端只对 Vite `assets/` 下文件名含 8 字符 fingerprint 的资源设置 `public, max-age=31536000, immutable`; unhashed assets、`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 不再重复强制静态 immutable 规则, 缓存判定由后端统一负责。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
 
 路由主分组:
 
@@ -68,11 +68,13 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - `/v1`, `/v1beta`, `/responses`, `/chat/completions`, `/images/*`: AI 网关兼容接口。
 - `/antigravity/v1`, `/antigravity/v1beta`: Antigravity 专用兼容接口。
 - 支付用户接口只暴露 config/checkout/plans/limits/orders/refund 等业务合同; 旧 `/api/v1/payment/channels` 已删除, 因其会泄露内部 AI 渠道配置。前端 `paymentAPI` 也不再包含对应 client 方法。
+- 管理端 `GET /api/v1/admin/audit-logs[/:id]` 查询 append-only 操作审计, `POST .../clear` 必须现场 TOTP; `POST /api/v1/admin/users/batch-limits` 批量覆盖 concurrency/RPM, `concurrency=0` 仍表示不限。
 
 管理端账号合同:
 
 - OpenAI Agent Identity 账号使用 `auth_mode=agentIdentity`, 凭据包含 PKCS#8 Ed25519 `agent_private_key`、`agent_runtime_id` 和运行期 `task_id`。缺失 task 时按账号串行注册; 上游判定 task 失效时单次恢复并持久化新 task, 随后使旧 WS 连接失效。account test、quota 查询、usage 查询及 HTTP/WS gateway 都支持该认证模式; quota reset credit 明确不支持。私钥和其他 secret 在管理端 DTO 中剥离; 上游错误、日志与 ops 输出还会防御性脱敏 runtime/task ID、assertion 及可能回显的凭据值。
 - `POST /api/v1/admin/accounts/:id/duplicate` 只复制 API Key、upstream、Bedrock、service account 等静态凭据账号。账号、精确 groups priority 和 scheduler outbox 在同一事务创建; 新账号固定 `schedulable=false`, 不复制 quota、capability probe、cache 或临时调度等运行态。提供 `Idempotency-Key` 时以 admin actor + source account + key 建立恢复身份, 模糊提交结果只做只读恢复、不重复创建; credential shadow 和 OAuth/Agent Identity 等旋转凭据账号直接拒绝。
+- OpenAI API Key 账号可启用 upstream billing probe: 设置与单个/批量 probe 路由位于 `/api/v1/admin/accounts/upstream-billing-probe/*` 和 `/:id/upstream-billing-probe`; snapshot 存入账号 `extra.upstream_billing_probe`, 调度可按上游倍率参与成本评分。API Key 自省入口 `GET /v1/sub2api/billing` 只返回当前 key 的计费倍率合同。
 
 用户侧用量接口:
 
@@ -108,12 +110,14 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - `/v1/chat/completions` 和根级 `/chat/completions` 支持 OpenAI Chat Completions。
 - `/v1/embeddings` 和根级 `/embeddings` 仅 OpenAI platform 支持。
 - `/v1/images/generations` 和 `/v1/images/edits` 对 OpenAI platform 走 OpenAI images handler, 对 Grok platform 走 Grok media handler; 根级别名 `/images/generations`、`/images/edits` 也保留 `RequestArchive` / `RequestIntercept` 中间件链。
+- `/v1/images/generations/async`, `/v1/images/edits/async` 和 `GET /v1/images/tasks/:task_id`（含根级别名）先把任务状态写入 Redis, 再在进程内 goroutine 复用同步 image handler; `image_storage` 启用且 S3 凭据齐全时才开放, 结果会转存对象存储后以短 URL 回写。路由继续经过 API Key、group gate、RequestArchive 与 RequestIntercept。
 - `/v1/images/batches` 是 batch image 用户侧任务接口族: submit/list/models/get/items/item content/download/cancel/delete/delete outputs。入口在 `backend/internal/handler/batch_image_handler.go`, service/repository 分别在 `backend/internal/service/batch_image*.go` 与 `backend/internal/repository/batch_image*.go`; 受 API Key 用户、分组 `allow_batch_image_generation` 与批量生图折扣/hold multiplier 约束。
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。管理端还可通过 `POST /api/v1/admin/grok/sso-to-oauth` 批量提交 Web SSO key, 后端走 xAI Device Flow 转换为 Build OAuth 凭据; 导入后会做最小 probe, 但单个失败不能覆盖已成功创建的账号。上游模型同步当前只支持 Grok API Key, OAuth 账号会返回 `unsupported`; 模型同步通过 `AccountTestService.validateUpstreamBaseURL` 校验, `security.url_allowlist` 开启时执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发先由 `Account.GetGrokBaseURL` 选择地址: 默认安全模式下 OAuth 自定义地址必须通过 `xai.ValidateTrustedBaseURL` 的可信 host 约束, API Key 自定义地址由 `xai.Build*URL` / `ValidateBaseURL` 限制为公共 HTTPS 且路径为 `/v1`; 开启 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 后两者退化为格式校验。模型同步与真实转发不能描述为同一校验链。
 - Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
 - `GET /v1/models` 与根级 `GET /models` 共用 platform-aware handler: OpenAI group 且带 `client_version` 时返回 Codex manifest, 其他客户端继续返回 OpenAI-style model list。`GET /backend-api/codex/models` 仍由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 manifest; `/backend-api/codex/responses` 继续作为 Codex 直连别名, 所有入口都受 API Key 与 group 校验保护。
 - Codex standalone search 同时注册 `/v1/alpha/search`、根级 `/alpha/search` 和 `/backend-api/codex/alpha/search`, 由 `openai_alpha_search.go` 按 OAuth/API Key 账号选择 ChatGPT Codex 或 OpenAI 官方 endpoint。三路入口都经过 API Key/group gate; 本地根级与 Codex direct 路由继续经过 RequestArchive/RequestIntercept。只有上游 2xx 成功响应产生 `WebSearchCalls=1` 并进入按次计费, 上游错误原样透传且不计费。
+- alpha search 的账号选择必须包含 OpenAI API Key 账号, 不可只调度 OAuth/PAT; API Key 走官方 endpoint, OAuth/PAT 继续走 Codex/Responses fallback。
 
 OpenAI 上游请求会按官方 endpoint 做字段过滤:
 
