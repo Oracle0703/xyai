@@ -92,6 +92,8 @@ go generate ./cmd/server
 - `backend/migrations/178_channel_image_input_price.sql` 与 `179_usage_log_image_input_tokens.sql` 分别增加渠道 `image_input_price` 和 usage log 的 `image_input_tokens` / `image_input_cost`; 图生图/图片编辑可把图片输入 token 与文本输入 token 分价, 但 `total_cost` 口径不变。
 - `backend/migrations/180_audit_logs.sql` 新增 append-only `audit_logs` 及 created/actor/action/client IP 索引; request body 和 credential 只保存脱敏/截断值。
 - `backend/migrations/181_group_duplicate_operation_id.sql` 为 group duplicate 增加 active partial unique operation identity, 用于模糊提交后的幂等恢复。
+- `backend/migrations/181_prompt_audit.sql` 新增 `prompt_audit_jobs` 与 `prompt_audit_events` 及调度、request/user/API key/group/hash/时间查询索引。job 只存 hash、脱敏 preview、长度和状态等元数据；event 保存 scanner 决策、证据和策略版本。
+- `backend/migrations/182_prompt_audit_full_prompt.sql` 为 `prompt_audit_events` 增加 `full_prompt TEXT NOT NULL DEFAULT ''`。当前源码会把未脱敏审计原文持久化到 event, 最多 65,536 rune, 仅详情查询加载；这条后续 migration 已改变 181 文件头部“raw prompts 不进 PostgreSQL”的早期说明, 数据保护判断必须以 182 和当前 repository 为准。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 

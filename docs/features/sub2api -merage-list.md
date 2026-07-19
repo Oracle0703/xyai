@@ -1462,3 +1462,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Wire 连续两次生成稳定，SHA-256 `92D6F616...12A61`；backend unit、增量 lint、embed build 通过；integration 的 5 个 360 启动拦截包均经 fresh 目录或系统临时目录独立执行通过；frontend lint/typecheck/build 通过，Vitest 188 files / 1300 tests passed、1 个上游清单 suite 无法收集；`go mod tidy -diff` 只报告 12 行继承旧校验项。收尾 fetch 确认 `upstream/main=MERGE_HEAD=c2c19a7cb`。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`、组件 README、merge review 与 delivery 文档。 |
 | Approval / delivery | staged 门禁为 416 files / `+29294 -1677`，无 unmerged/unstaged/untracked/marker/features 删除/未解析敏感模式。保持 `git merge --no-commit --no-ff` 并等待用户审核；不 commit、不 push、不创建 PR、不部署。 |
+
+## 2026-07-17 main sync (v0.1.160; committed)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10160_合并1.160版本` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `5d5f157854b9a88cc57da1600095bb404b78ed45`（本地 `main`） |
+| Merge base | `c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc` |
+| Upstream head / second parent | `57914967cbb127ff715719c3879d881c10d75274` |
+| Merge commit | `8a022e9756d9dab36a3963b1e023d77d6fce0c75`（第一父 `5d5f157854b9a88cc57da1600095bb404b78ed45`；第二父 `57914967cbb127ff715719c3879d881c10d75274`） |
+| Upstream version / delta | `0.1.160`; 20 commits、133 files、`+19766/-113`。`v0.1.160` tag target 的 `VERSION` 仍为 `0.1.159`, 因此固定采用后续 version-sync commit。 |
+| Conflict files | `backend/cmd/server/wire.go`; `backend/cmd/server/wire_gen.go`; `frontend/src/components/layout/AppSidebar.vue`; `frontend/src/router/index.ts` |
+| Conflict handling | Wire 同时保留本地 Prompt Metrics、Token Analysis、用户并发 preset、quota flusher 与上游 Prompt Audit；前端采用上游 Security Audit 分组, 同时保留本地 Request Intercept 和全部本地 admin 路由。 |
+| Local features | RequestArchive/Intercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、图片生成/支付、用户并发、compatible preset/options/cache usage、默认 reasoning effort、quota flusher 均保留或组合；`docs/features/` tracked 删除数为 0。为保留 judge 防递归合同, 安全审计 request 继续向 legacy moderation 传递内部签名头。 |
+| Upstream issues | Prompt Audit Wire ProviderSet 缺少 admin service binding；source-freeze patch 自带 whitespace；migration 182 将完整 prompt 持久化到 event, 改变 migration 181 的早期隐私说明。按用户要求只记录, 不修改上游实现。 |
+| Verification | Backend targeted、完整 unit、完整 integration 通过；全量 lint 28 条本地 main 既有债务, 增量 lint 0 issues；frontend lint/typecheck、194 files / 1330 tests、979-module build 通过；embed build 通过（149,248,512 bytes）；`go mod tidy -diff` 仅提示既有 Wire CLI 传递校验和。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；新增本次 merge review 并追加本记录。 |
+| Approval / delivery | 提交前 staged 门禁为 143 files / `+20209 -118`；`HEAD=main@5d5f157`, `MERGE_HEAD=upstream/main@57914967c`。无 unstaged/untracked/unmerged/marker/features 删除；排除上游 source-freeze patch 后 diff check 退出 0。用户随后授权创建上述 merge commit；未 push、未创建 PR、未部署。 |
+| Post-commit local main sync | 本地 `main` 通过 `git pull --ff-only` 从 `github/main` 快进到 `864bb85e80163b7b4601a272e3a92919b102cbba`，再以 `--no-commit --no-ff` 合回本分支。唯一冲突为 `llm-wiki/wiki/README.md`，处理为同时保留 v0.1.160 与子管理员知识条目；当前子管理员 migration、后端 DB 权限/路由白名单、前端路由/侧栏过滤均存在。按用户要求不重复执行测试，第二次 merge 保持未提交等待审核。 |

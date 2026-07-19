@@ -196,6 +196,9 @@ export default {
     tokenAnalysis: 'Token 分析',
     promptMetrics: 'Prompt 指标',
     riskControl: '风控中心',
+    securityAudit: '安全审计',
+    contentModeration: '内容审核',
+    promptAudit: '提示词审计',
     auditLogs: '操作日志',
   },
 

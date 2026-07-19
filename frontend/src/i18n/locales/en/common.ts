@@ -196,6 +196,9 @@ export default {
     tokenAnalysis: 'Token Analysis',
     promptMetrics: 'Prompt Metrics',
     riskControl: 'Risk Control',
+    securityAudit: 'Security Audit',
+    contentModeration: 'Content Moderation',
+    promptAudit: 'Prompt Audit',
     auditLogs: 'Audit Logs',
   },
 

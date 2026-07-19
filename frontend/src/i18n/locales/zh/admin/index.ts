@@ -9,6 +9,7 @@ import requestIntercept from './requestIntercept'
 import promptMetrics from './promptMetrics'
 import organizationUsage from './organizationUsage'
 import audit from './audit'
+import promptAudit from './promptAudit'
 
 export default {
   ...overview,
@@ -22,4 +23,5 @@ export default {
   ...promptMetrics,
   ...organizationUsage,
   ...audit,
+  ...promptAudit,
 }
