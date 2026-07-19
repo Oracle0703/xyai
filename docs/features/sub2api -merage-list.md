@@ -1483,7 +1483,7 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Approval / delivery | 提交前 staged 门禁为 143 files / `+20209 -118`；`HEAD=main@5d5f157`, `MERGE_HEAD=upstream/main@57914967c`。无 unstaged/untracked/unmerged/marker/features 删除；排除上游 source-freeze patch 后 diff check 退出 0。用户随后授权创建上述 merge commit；未 push、未创建 PR、未部署。 |
 | Post-commit local main sync | 本地 `main` 通过 `git pull --ff-only` 从 `github/main` 快进到 `864bb85e80163b7b4601a272e3a92919b102cbba`，再以 `--no-commit --no-ff` 合回本分支。唯一冲突为 `llm-wiki/wiki/README.md`，处理为同时保留 v0.1.160 与子管理员知识条目；当前子管理员 migration、后端 DB 权限/路由白名单、前端路由/侧栏过滤均存在。按用户要求不重复执行测试，第二次 merge 保持未提交等待审核。 |
 
-## 2026-07-19 main sync (v0.1.161; awaiting review)
+## 2026-07-19 main sync (v0.1.161; committed)
 
 | Item | Value |
 |---|---|
@@ -1492,7 +1492,7 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Base before merge / first parent | `332fdbd0b84619cfb1da6fcb57b65d4d9263b2e9`（本地 `main`） |
 | Merge base | `57914967cbb127ff715719c3879d881c10d75274` |
 | Upstream head / second parent | `d4b9797ff72024960a035cf22fdd8f213e149169` |
-| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=d4b9797ff72024960a035cf22fdd8f213e149169`** |
+| Merge commit | `e3e6b52da43a5be351cf59089976759eebc28376`（第一父 `332fdbd0b84619cfb1da6fcb57b65d4d9263b2e9`；第二父 `d4b9797ff72024960a035cf22fdd8f213e149169`） |
 | Upstream version / delta | `0.1.161`; 62 commits、257 files、`+13643/-1523`。`v0.1.161` tag commit `19149ca196e` 的 `VERSION` 仍为 `0.1.160`，因此固定采用后续 version-sync commit。 |
 | Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/server/routes/gateway.go`; `frontend/src/App.vue`; `frontend/src/components/account/CreateAccountModal.vue` |
 | Conflict handling | Wire 重新生成并保留本地服务与上游 ingress/auth-cache 生命周期；gateway 保留 RequestArchive/RequestIntercept 并合入 text body limit、Grok video content；App 保留子管理员拒绝恢复并采用上游 branding helper；账号创建同时保留 compatible preset 与 upstream billing auto probe。 |
@@ -1501,4 +1501,4 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Upstream behavior / issue boundary | 采用上游删除 API Key 明文 deleted-audit 归因与 hash/outbox 安全实现，不恢复旧测试。完整验证未发现需要在本分支修复的 upstream-native bug；本地 `main` 既有 `/auth/me` `admin_permissions: null` contract mismatch 只记录，不在本次合并修复。 |
 | Verification | Backend targeted 通过；完整 unit 仅上述本地基线 contract 失败，完整 integration 退出 0；全量 lint 28 条既有债务，增量 lint 0 issues；`go mod tidy -diff` 仅提示 `main` 已有的 6 组 Wire CLI 校验和。Wire 连续生成稳定，SHA-256 `5F2930F8...3237AC`；frontend lint/typecheck、200 files / 1373 tests、981-module build 通过；embed build 通过（149,794,304 bytes）。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`、账号组件 README、执行计划与本次 merge review。 |
-| Approval / delivery | 最终 staged snapshot 为 267 files / `+14033 -1540`；无 unmerged/unstaged/untracked/marker/whitespace/features 删除，收尾 fetch 确认 `upstream/main=MERGE_HEAD=d4b9797ff`。保持 `git merge --no-commit --no-ff` 并通知用户审核；不 commit、不 push、不创建 PR、不部署。 |
+| Approval / delivery | 最终 staged snapshot 为 267 files / `+14033 -1540`；无 unmerged/unstaged/untracked/marker/whitespace/features 删除，收尾 fetch 确认 `upstream/main=MERGE_HEAD=d4b9797ff`。用户审核后明确接受本地 `main` 既有 `/auth/me` contract 失败暂不修复，并授权创建上述 merge commit；未 push、未创建 PR、未部署。 |
