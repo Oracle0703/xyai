@@ -91,6 +91,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 固定权限为 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
 - 订阅权限只允许查看、`POST /subscriptions/:id/reset-quota` 和 compact 用户/分组筛选。分组筛选走 `/admin/subscriptions/search-groups`, 不得重新放行返回完整 `AdminGroup` 的 `/admin/groups/all`。
 - 使用记录权限允许 usage、Dashboard 聚合/排行与 Ops 错误只读接口; 账号和分组筛选使用 `/admin/usage/search-accounts`、`search-groups` 的 `{id,name}` 响应。Token 分析权限只允许相关 GET 和选中用户趋势查询。
+- 0.1.161 新增的 `/admin/ops/ingress-rejections`、`/admin/ops/ingress-rejections/health` 与 `/admin/ops/auth-cache-invalidation/health` 不在 `admin.usage` 白名单，当前仅完整管理员可访问。它们包含入口拒绝身份维度和鉴权缓存安全运行态；未知路由默认拒绝是既有 fail-closed 合同，后续若向子管理员开放必须先做显式产品与最小权限评审。
 - backend mode 仅允许至少有一项权限的子管理员登录/刷新 token; 权限清空后不能继续保留 backend 会话。管理端合规查询/确认是所有已认证子管理员的公共白名单, 不代表业务管理权限。
 
 用户侧用量接口:
