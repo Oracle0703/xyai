@@ -15,6 +15,8 @@
 
 `APIKeyAuth` 对独占分组(exclusive group)做强制校验: 当 API Key 绑定的用户已不再被授权该独占分组时直接拒绝访问, 避免越权复用; 相关 middleware 单测在 `api_key_auth_test.go`。
 
+API Key 认证缓存 miss 受 `api_key_auth_cache.lookup_concurrency` 约束, confirmed invalid/missing/malformed/deprecated-query 凭据还会进入进程内有界 abuse limiter；有效凭据和 Redis/DB 故障不消耗该预算。数据库侧 `auth_cache_invalidation_outbox` 只保存 key SHA-256, 通过两阶段 Redis invalidation 和本机 cache 清理让 API Key、用户、分组/授权变化在多实例收敛；健康端点不得回显明文凭据。
+
 Google/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, 不能只解析 `x-goog-api-key` 后跳过 group assignment; 相关边界集中在 `api_key_auth_google.go`。管理端修改用户角色时必须阻止删除/降级最后一名管理员。
 
 管理端角色与细粒度权限:
@@ -35,7 +37,8 @@ OpenAI Agent Identity:
 管理面安全链:
 
 - 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。
-- 账号/代理导出、S3 配置修改、备份下载、管理员角色提升等敏感动作使用 step-up grant; admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。前端 `BackupView.vue` 的 S3 保存也必须经 `backupStepUp.run`, 不能只依赖后端拒绝后再补 UI。
+- `session_binding_enabled` 与 `step_up_enabled` 都默认关闭；管理设置请求使用可空字段, 旧客户端省略新字段时保持数据库现值。step-up 开启后, 账号/代理导出、S3 配置修改、备份创建/下载/恢复、管理员角色提升等敏感动作使用 15 分钟会话 grant；admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。开启前要求当前管理员已启用 TOTP, 关闭开关本身也必须二次验证。前端 `BackupView.vue` 的 S3 保存和 `SettingsView.vue` 的保存都必须经 `useStepUp`。
+- Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
 - `api_key_acl_trust_forwarded_ip` 默认 false。false 时 API Key ACL、会话绑定和审计使用可信代理链/直连地址; true 时才读取转发客户端 IP。必须同时正确配置 `server.trusted_proxies`, 否则伪造 forwarded header 会扩大 ACL 绕过面。
 
 Prompt Audit 安全与隐私边界:
@@ -76,9 +79,11 @@ Prompt Audit 安全与隐私边界:
 - API Key rate limit 和 subscription check。
 - 订阅窗口维护属于鉴权正确性边界: 普通与 Google/Gemini API Key middleware 都必须在放行前同步完成 `EnsureWindowMaintenance` 并使用回读快照复核额度; 维护失败返回 500, 不允许用内存清零值 fail-open。
 - User concurrency 和 account concurrency。
+- 纯文本 embeddings/alpha search 使用 `gateway.text_max_body_size`（默认 32 MiB）, 多模态/media 继续使用 `gateway.max_body_size`（默认 256 MiB）；HTTP request header 另受 10 秒读取超时和 64 KiB 上限约束, 不设置全局 `WriteTimeout`。
 - OpenAI WS ingress 生命周期使用独立于单 turn 槽位的 API Key 级 Redis lease。默认每 key 最多 64 条存活连接, lease TTL 60 秒、20 秒刷新; 容量满返回 WebSocket 1013, 缓存不可用或租约丢失时 fail-close。completed turn 之间默认 300 秒空闲超时, 两个限制都可用 0 显式关闭。
 - RPM cache: user/group/account 维度。
 - Gateway scheduling: sticky session wait, fallback wait, snapshot/outbox, slot cleanup。
+- 管理员配置的临时不可调度规则在已知请求模型时写入 model rate-limit, 只隔离 `(account, model)`；401 或无法确定模型时保留账号级语义。pool mode 仍应用显式规则, 但不能把模型级失败扩大为整账号阻断。
 - OpenAI scheduler sticky escape: 当 sticky 账号 TTFT EWMA 或错误率劣化到阈值以上时可临时跳过 sticky, 配置位于 `gateway.openai_scheduler`。
 - User message queue 可选串行/节流。
 - 并发 slot 获取失败由 `backend/internal/handler/concurrency_error_response.go` 统一映射; `ConcurrencyCacheError` 必须返回 503 和明确的 service-unavailable 文案, 不应被归类为普通 429 限流。
@@ -274,6 +279,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 运维监控:
 
 - Ops service, repository, dashboard, alert, cleanup, system logs。系统日志持久化 `api_key_id` 和有界 `host`, 后端 `ListSystemLogs` / cleanup 支持按 API Key 与 host 过滤, 前端系统日志表有 KEY ID / host 筛选。
+- ingress rejection 先在进程内按分钟、有界 8192 维聚合, 每 5 秒批量 upsert 到 `ops_ingress_reject_aggregates`; pending batch 最多 4 个, overflow/drop/flush failure 都进入 health。它避免拒绝风暴逐请求写库, 但不是边缘 DDoS 防护。
 - 入口: `backend/internal/server/routes/admin.go` 中 `/api/v1/admin/ops/*`。
 - 前端页面: `frontend/src/views/admin/ops/OpsDashboard.vue`。
 - 告警指标新增 `account_temp_unscheduled_count`(临时摘除账号数, 配合 OpenAI transport failover); 规则配置在前端 `ops/components/OpsAlertRulesCard.vue` 与 `ops_alert_evaluator_service.go`。
@@ -284,10 +290,10 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - TOTP encryption key 生产必须固定, 空值会导致重启后 2FA 配置失效。
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
+- API Key 删除只 tombstone 原 key 以释放唯一约束, 不再把明文 key 复制到 `deleted_api_key_audits`；Ops 入口拒绝只保留有界聚合维度。旧明文审计表/列的 finalizer 必须在滚动升级全部完成并确认恢复点后人工执行。
 - 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
 
 当前上游已知限制:
 
 - `backend/internal/service/image_storage.go` 会下载上游生图响应的 `data[].url` 后转存 S3, 当前上游默认 HTTP client 只有 timeout/大小限制, 没有私网、云元数据、DNS rebinding 或 redirect SSRF 防护。合并分支按用户要求不做本地修补; upstream 修复前不要在可被不可信自定义上游影响的环境启用 `image_storage`。
 - async image 任务只由请求进程启动 goroutine, 没有持久 worker/recovery; 服务重启后 Redis 中的 `processing` 任务可能保留到默认 24h TTL。upstream 修复前要把滚动重启和任务可恢复性纳入运维预期。
-- 管理端批量用户限额会先更新数据库再失效 API Key cache; 当前 cache 删除实现吞掉 Redis 错误, 且 `all=true` 会把全部 user ID 展开为 PostgreSQL bind 参数。大用户量或 Redis 故障场景可能出现短期旧认证快照或参数上限失败, 本合并分支只记录并等待 upstream 修复。

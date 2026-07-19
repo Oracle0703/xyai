@@ -13,8 +13,8 @@
 
 主入口:
 
-- `frontend/src/main.ts`: 初始化主题, Pinia, 注入配置, i18n, router, mount。
-- `frontend/src/App.vue`: 全局导航进度, RouterView, Toast, AnnouncementPopup, setup 检查, 公共设置加载。
+- `frontend/src/main.ts`: 初始化主题, Pinia, 注入配置, 首屏标题/favicon, i18n, router, mount。
+- `frontend/src/App.vue`: 全局导航进度, RouterView, Toast, AnnouncementPopup, setup 检查, 公共设置加载, branding 热更新和子管理员权限拒绝恢复。
 
 ## Vite 构建行为
 
@@ -25,7 +25,7 @@
 - dev server 默认端口来自 `VITE_DEV_PORT` 或 `3000`。
 - dev proxy 转发 `/api`, `/v1`, `/setup` 到 `VITE_DEV_PROXY_TARGET` 或 `http://localhost:8080`。
 - build 输出到 `../backend/internal/web/dist`, 供后端嵌入。
-- dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 模拟生产 HTML 注入行为。
+- dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 并在 HTML 返回前注入安全转义的站点标题/favicon, 模拟生产 embedded HTML 注入行为。favicon 只接受相对路径、HTTP(S) 或 `data:image/*`; runtime 统一复用 `frontend/src/utils/branding.ts`。
 
 ## 路由与守卫
 
@@ -82,8 +82,9 @@ API 模块分布:
 - `CreateAccountModal.vue` 的 Grok OAuth 流支持 Web SSO key 批量导入, 每行一个 key, 通过 `adminAPI.grok.createFromSSO` 提交; SSO 模式允许账号名留空, 部分成功时保留失败明细。修改该流程时同步 `OAuthAuthorizationFlow.vue`、`useGrokOAuth.ts`、中英文 `admin/accounts.ts` 和 `CreateAccountModal.spec.ts`。
 - `CreateAccountModal.vue` 的 Antigravity 批量 refresh-token 导入会保留管理员原始输入并传给 OAuth 组合逻辑, 不能只传解析后的 credential 结果, 否则手工 refresh token 会在后续流程中丢失。
 - OpenAI OAuth/API Key 账号增加 `openai_long_context_billing_enabled` 开关, 默认关闭; Codex session/PAT 导入只有用户实际触碰开关时才覆盖服务端默认, 避免旧导入流程无意开启长上下文计费。
+- OpenAI API Key 创建默认提交 `upstream_billing_probe_enabled=true`, 账号创建成功后等待首次 probe 再刷新列表；用户可在创建弹窗关闭该开关。该状态与本地 compatible provider preset 独立, 两者必须同时进入最终 payload。
 - Channel Monitor 支持 Grok provider、模板和筛选; `GrokQuotaProbeCell.vue` 的 Free 配额显示按本地滚动 24 小时 Token 用量估算, 与上游 weekly header 分开展示。
-- `AuditLogView.vue` 通过 `frontend/src/api/admin/audit.ts` 查询操作审计; 清空要求现场 TOTP。敏感导出/备份动作复用 `useStepUp.ts` + `TotpStepUpDialog.vue`, 收到 `STEP_UP_REQUIRED` 后取得短期 grant 并重试一次。
+- `AuditLogView.vue` 通过 `frontend/src/api/admin/audit.ts` 查询操作审计; 清空要求现场 TOTP。敏感导出/备份动作复用 `useStepUp.ts` + `TotpStepUpDialog.vue`, 收到 `STEP_UP_REQUIRED` 后取得短期 grant 并重试一次。`SettingsView.vue` 暴露默认关闭的 session binding 与 step-up 开关；关闭已启用的 step-up 本身需要二次验证, 开启前当前管理员必须已配置 TOTP。
 - `UsersView.vue` 的 `BulkEditUserModal.vue` 调用 `/admin/users/batch-limits`, 可更新选中用户或 `all=true` 全量用户的 concurrency/RPM; 0 必须原样提交, 不能被空值归一化丢失。
 
 ## Pinia Store
@@ -178,7 +179,7 @@ API 模块分布:
 - `frontend/src/views/admin/AccountsView.vue` 支持从 OpenAI OAuth 母账号创建 Spark 影子账号; 影子账号导出时会被排除, 后端返回 `skipped_shadows` 后前端提示。账号 action menu 的 create spark shadow 只应用于可作为母账号的 OpenAI OAuth 账号。
 - 账号 action menu 对可复制的静态凭据账号提供一键复制, 调用 `POST /admin/accounts/:id/duplicate`; API client 为同一账号复用 session-scoped `Idempotency-Key`, 只有成功后才清理 key, 让网络重试可恢复同一个副本。复制成功后刷新列表; shadow 与旋转凭据账号不显示该入口。
 - `AccountsView.vue` 的 `scheduler_score` 默认隐藏; 前端只在列可见时传 `include_scheduler_score=1`, 避免账号列表默认触发高成本调度分计算。
-- `AccountsView.vue` 为 OpenAI API Key 账号展示 `UpstreamBillingRateCell.vue`, 支持 probe 开关、周期设置、单个/批量探测和 stale 状态; 账号名称仅在上游 URL 可安全解析时提供外链。Stripe 支付 SDK 改为在支付组件内动态 import, 不得重新放回首屏 vendor bundle。
+- `AccountsView.vue` 为 OpenAI API Key 账号展示 `UpstreamBillingRateCell.vue`, 显示账号自动探测状态、全局开关、最近倍率/时间、下次 probe 和 stale 状态, 并支持单个/批量探测；全局周期设置位于 `SettingsView.vue`。`CreateAccountModal.vue` 默认开启新账号自动探测并等待首次 probe, 但继续保留本地 OpenAI-compatible provider preset/base URL/endpoint capability 构建。账号名称仅在上游 URL 可安全解析时提供外链。Stripe 支付 SDK 改为在支付组件内动态 import, 不得重新放回首屏 vendor bundle。
 - `DataTable.vue` 默认仅在桌面行数大于 `virtualizeThreshold`(默认 100)时启用虚拟化, 小列表全量渲染以避免可变行高滚动补偿抖动; 虚拟行高缓存用 `rowKey` 而不是 index。分页/筛选换成不同 row identity 集合时必须清理旧 element/size cache, 仅同一组稳定 row key 或同一批对象的纯重排可复用缓存; duplicate/缺失 key 要保守失效。账号表显式使用阈值 50。修改虚拟化时要保持 mobile 非虚拟化、stable sort 和 exposed virtualizer/swipe selection 合同。
 - 用户 Key 列表和管理端 Group 列表可选显示 ID 列, 默认隐藏并沿用各自列设置持久化；新增/调整列时不能覆盖用户现有显隐选择。
 

@@ -2,10 +2,10 @@
 
 ## 当前版本基线
 
-- 当前未提交合并树的 `backend/cmd/server/VERSION` 为 `0.1.160`; 对应固定上游提交 `57914967cbb127ff715719c3879d881c10d75274`。
+- `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
-- 当前 `securityaudit.ProviderSet` 没有把 `PromptAdminService` 绑定到 `*PromptService`, 因而 `go generate ./cmd/server` 会报缺少 provider。合并产物 `wire_gen.go` 已按双方现有图组合, 但本轮遵循“只解决冲突”边界, 不修复该上游源图缺口；修改 Prompt Audit DI 前必须先重新核对 upstream。
+- 0.1.161 已在 `securityaudit.ProviderSet` 补齐 `PromptAdminService -> *PromptService` binding；当前 `go generate ./cmd/server` 可从合并后的 Wire 源图同时生成上游 Ops/auth-cache 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。
 
 ## 本地启动
@@ -283,11 +283,11 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 
 主要配置组:
 
-- `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。
+- `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。
 - `run_mode`: `standard` 或 `simple`。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback。
-- `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。
+- `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。`max_body_size` 默认 256 MiB 供多模态/media, `text_max_body_size` 默认 32 MiB 并只用于 embeddings 与 alpha search 等纯文本入口。
 - 管理端运行时设置 `enable_client_dateline_normalization` 默认 `true`, 仅影响 Anthropic OAuth/SetupToken 转发, 用于清理客户端 dateline 隐写指纹; 关闭后请求体保持原样透传。
 - `gateway.openai_ws.scheduler_score_weights.reset`: 默认 `0.0`, 用于给会话窗口最早重置的 OpenAI 账号加分; 关闭时不改变原调度行为。
 - `gateway.openai_ws.scheduler_score_weights.quota_headroom`: 默认 `0.0`, 用于按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 关闭时不改变原调度行为, 小流量灰度可从 `0.3` 起。
@@ -304,6 +304,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `database`: PostgreSQL 连接池。
 - `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
 - `redis`: Redis 连接池和 TLS。
+- `api_key_auth_cache`: L1/L2 TTL、singleflight、`lookup_concurrency=64` 和进程内 invalid-auth abuse limiter；默认每可信客户端 IP（IPv6 按 `/64`）60 秒 120 次无效凭据后阻断 60 秒, capacity 16384。它不是 CDN/WAF 的替代品。
 - `ops`: 运维监控开关。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
 - OAuth: LinuxDo, WeChat, OIDC, DingTalk, GitHub, Google。
@@ -340,6 +341,7 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - systemd: `deploy/sub2api.service`, `deploy/sub2api-datamanagementd.service`。
 - 安装脚本: `deploy/install.sh`, `deploy/docker-deploy.sh`, `deploy/install-datamanagementd.sh`。
 - Caddy 示例: `deploy/Caddyfile`; 只负责 TLS/反向代理, 不负责静态资源 immutable 分类, 该规则由 embedded backend 按 filename fingerprint 判定。
+- Edge 基线见 `deploy/EDGE_SECURITY.md`; bundled Caddyfile 以直连 Caddy 为前提, CDN 前置时必须改用精确 trusted proxy CIDR 与 `{client_ip}`。Dockerfile 使用宿主架构 Go 交叉编译目标镜像, Apple Silicon 构建 amd64 不再依赖 QEMU 执行 Go；`deploy/docker-compose.yml` 的 Redis 多行 command 每行必须保留续行反斜杠, 否则持久化参数不会传给 `redis-server`。
 
 ## 常见维护陷阱
 
