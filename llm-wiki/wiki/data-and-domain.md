@@ -94,6 +94,8 @@ go generate ./cmd/server
 - `backend/migrations/181_group_duplicate_operation_id.sql` 为 group duplicate 增加 active partial unique operation identity, 用于模糊提交后的幂等恢复。
 - `backend/migrations/181_prompt_audit.sql` 新增 `prompt_audit_jobs` 与 `prompt_audit_events` 及调度、request/user/API key/group/hash/时间查询索引。job 只存 hash、脱敏 preview、长度和状态等元数据；event 保存 scanner 决策、证据和策略版本。
 - `backend/migrations/182_prompt_audit_full_prompt.sql` 为 `prompt_audit_events` 增加 `full_prompt TEXT NOT NULL DEFAULT ''`。当前源码会把未脱敏审计原文持久化到 event, 最多 65,536 rune, 仅详情查询加载；这条后续 migration 已改变 181 文件头部“raw prompts 不进 PostgreSQL”的早期说明, 数据保护判断必须以 182 和当前 repository 为准。
+- `backend/migrations/183_ops_ingress_reject_aggregates.sql` 新增分钟桶入口拒绝聚合表, 唯一维度为 bucket/reason/route/protocol/client IP/user/API key；服务端在内存中有界聚合后批量 upsert, 不逐请求写库。
+- `backend/migrations/184_auth_cache_invalidation_outbox.sql` 新增只保存 API Key SHA-256 的 durable outbox, 并在 API Key、用户、分组和独占分组授权关系变化时由 trigger 入队。worker 使用 lease/重试/二次安全失效保证多实例 L1/L2 收敛, 明文 API Key 不离开 `api_keys`。旧 `deleted_api_key_audits` 与 `ops_error_logs` 凭据归因列只允许在全量实例升级、dry-run 清理和恢复点确认后, 由 `backend/scripts/finalize-ingress-reject-cleanup.sql` 人工删除；该脚本不是自动 migration。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 

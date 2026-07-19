@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-17
+更新时间: 2026-07-19
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,6 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-07-19 从本地 `main@332fdbd0b84619cfb1da6fcb57b65d4d9263b2e9` 创建 `feature/hy/10161_合并1.161版本`, 固定合入 `Wei-Shaw/sub2api main@d4b9797ff72024960a035cf22fdd8f213e149169`, 当前后端版本 `0.1.161`。本轮上游增加 HTTP ingress 有界防护、拒绝聚合、跨实例 API Key 鉴权缓存失效 outbox、安全开关默认关闭、Grok 受保护视频同源代理、模型级临时隔离、OpenAI WS/Responses 流修复和初始 branding 注入；4 个文本冲突做语义并集, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、图片生成/支付、用户并发 preset、compatible 适配、默认 reasoning effort、quota flusher 和子管理员权限。
 - 2026-07-17 从本地 `main@5d5f157854b9a88cc57da1600095bb404b78ed45` 创建 `feature/hy/10160_合并1.160版本`, 固定合入 `Wei-Shaw/sub2api main@57914967cbb127ff715719c3879d881c10d75274`, 当前后端版本 `0.1.160`。本轮上游增加 OpenAI-compatible Prompt Audit（默认关闭, 支持异步审计/同步阻断）、审计事件筛选删除、Grok media 账号资格隔离、S3 配置 step-up TOTP 和 locale compiler 直接依赖；冲突解决继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、用户并发 preset、compatible 适配、默认 reasoning effort 和 quota flusher。上游 Prompt Audit Wire 源图缺少接口绑定的问题只记录, 未在本分支修复。
 - 2026-07-15 新增账号级 `sub_admin` 角色与三项固定管理权限。管理接口使用数据库最新用户数据和 HTTP 方法 + Gin 路由模板白名单鉴权，未知路由默认拒绝；前端按服务端权限目录配置账号，并对订阅、使用记录和 Token 分析页面收口写操作。
 - 2026-07-17 在 `feature/hy/10157_同步sub2api主线` 继续合并 `Wei-Shaw/sub2api main@c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc`, 当前后端版本 `0.1.159`。本轮上游增加异步图片任务与 S3 结果转存、操作审计/会话绑定/敏感操作 step-up 2FA、API Key 计费倍率自省与上游倍率探测、用户批量限额、账号/分组/监控复制、图片输入 token 独立计费及统一客户端 IP 信任策略；冲突解决保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、用户并发 preset、compatible 适配和 quota flusher。上游异步图片 URL 下载 SSRF、进程重启后 processing 任务恢复及批量限额 cache 终态风险只记录等待远端修复，本地未改写上游生产实现。
