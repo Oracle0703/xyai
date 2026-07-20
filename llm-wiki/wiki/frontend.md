@@ -25,7 +25,7 @@
 - dev server 默认端口来自 `VITE_DEV_PORT` 或 `3000`。
 - dev proxy 转发 `/api`, `/v1`, `/setup` 到 `VITE_DEV_PROXY_TARGET` 或 `http://localhost:8080`。
 - build 输出到 `../backend/internal/web/dist`, 供后端嵌入。
-- dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 并在 HTML 返回前注入安全转义的站点标题/favicon, 模拟生产 embedded HTML 注入行为。favicon 只接受相对路径、HTTP(S) 或 `data:image/*`; runtime 统一复用 `frontend/src/utils/branding.ts`。
+- dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 并在 HTML 返回前注入安全转义的站点标题/favicon, 模拟生产 embedded HTML 注入行为。默认 favicon 与静态品牌资源已统一为 `/logo.svg`, README 使用 `assets/logo.svg`; 自定义 favicon 只接受相对路径、HTTP(S) 或 `data:image/*`, runtime 统一复用 `frontend/src/utils/branding.ts`。
 
 ## 路由与守卫
 
@@ -123,7 +123,9 @@ API 模块分布:
 
 - `/admin/prompt-audit` 懒加载 `frontend/src/features/prompt-audit/PromptAuditView.vue`, 并通过 `requiresRiskControl` 与管理端权限守卫。侧栏把既有 Risk Control 与 Prompt Audit 放在 Security Audit 分组中, 本地 `/admin/request-intercept` 仍保持独立入口。
 - `frontend/src/features/prompt-audit/api.ts` 维护配置、运行态、节点 probe 和事件删除合同；`components/` 下的 policy、endpoint pool、runtime、event workspace/detail 和 filter-delete dialog 组成页面。筛选删除必须先拿 preview 的 `snapshot_max_id` / `filter_hash`, 再显式确认。
-- `frontend/src/views/admin/BackupView.vue` 保存 S3 配置时必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。
+- `frontend/src/views/admin/BackupView.vue` 同时管理备份 S3 与异步生图对象存储。生图卡片可复用备份 S3 凭据或填写独立 bucket/prefix/endpoint, 保存即让后端运行时缓存失效、无需重启；两类 S3 保存都必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。
+- `frontend/src/views/admin/SettingsView.vue` 的安全设置暴露客户端 IP 兼容开关和有序自定义 header 列表。header 只在兼容模式开启时显示/提交, 前端去重并规范化, 服务端仍负责合法 header 名和最多 16 项的最终校验。
+- `frontend/src/api/admin/system.ts` 为在线更新与回退单独使用 15 分钟 axios timeout；修改该调用签名时必须同步 `frontend/src/api/__tests__/admin.system.rollback.spec.ts` 的第三参数断言。
 
 订阅管理:
 
@@ -202,6 +204,7 @@ API 模块分布:
 
 - Grok 平台已加入前端 platform 类型: `frontend/src/types/index.ts`, `frontend/src/api/admin/settings.ts`, `frontend/src/api/admin/users.ts`, `frontend/src/utils/platformColors.ts`, `PlatformIcon.vue`, `PlatformTypeBadge.vue`。
 - Grok OAuth 管理 API 在 `frontend/src/api/admin/grok.ts`, 组合逻辑在 `frontend/src/composables/useGrokOAuth.ts`; `CreateAccountModal.vue` 和 `ReAuthAccountModal.vue` 复用 OAuth 授权流, 支持授权码、refresh token 校验和 OAuth credentials 构建。
+- `EditAccountModal.vue` 只为 Grok OAuth 账号显示“客户端工具缓存”开关, 持久化到 `extra.grok_client_tool_cache_enabled`; 缺失值在表单中显示为开启并在保存时显式落布尔值。后端只有已确认 Free OAuth 的缺失值默认开启, paid/API Key/unknown 保持 fail-closed；其他账号不显示也不提交该开关。
 - Grok 账号配额展示在 `AccountUsageCell.vue`; `GrokQuotaProbeCell.vue` 提供主动 probe, 只对 `platform === "grok" && type === "oauth"` 显示。xAI 不支持 reset 时前端显示 reset unsupported。账号测试 modal 使用 `buildApiUrl` 请求 `/admin/accounts/:id/test`, Grok OAuth 测试会走 xAI Responses 流。
 - `useModelWhitelist.ts` 为 Grok 维护模型候选和常用映射 preset; 修改 Grok 模型名时要同步白名单 selector、平台颜色和 i18n 文案。
 - Grok media 已接入 images/videos 路由后, 前端平台图标、颜色、Grok quota unknown/reset unsupported 文案要与后端 `allow_image_generation` gate 保持一致; 旧 Grok group 由后端 migration 自动回填图片能力。
