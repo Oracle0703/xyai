@@ -1523,3 +1523,17 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Backend 完整 unit 为 51 包通过、1 包因上述本地 contract 失败；fresh `GOTMPDIR` 跳过该合同后 52 包通过, integration 47 包通过。全量 lint 28 项, `--new-from-rev=HEAD` 为 0 issues；module 文件与本地 `main` 一致。Frontend lint/typecheck 通过, Vitest 202/203 files、1383/1385 tests, production build 983 modules / 179 files / 5,840,458 bytes。Wire 重新生成无漂移（SHA-256 `81C4EFE8...665F2AF`）；fresh frontend 后 embed build 通过（114,522,112 bytes）。无 Windows file lock 或 Docker/Testcontainers 错误。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `security-and-reliability.md` 并追加本记录；本轮无数据模型或 migration 变化, `data-and-domain.md` 无需修改。 |
 | Approval / delivery | 最终 staged snapshot 为 196 files / `+9903 -1051`；0 unstaged、0 untracked、0 unmerged、0 新增冲突标记、0 whitespace error、0 `docs/features` 删除, 且 `upstream/main=MERGE_HEAD=e625ce3b3`。保持 `git merge --no-commit --no-ff`, 未 commit、未 push、未创建 PR、未部署, 等待用户审核。 |
+
+## 2026-07-20 v0.1.162 merge commit 回填
+
+| Item | Value |
+|---|---|
+| Merge date | `2026-07-20` |
+| Integration branch | `feature/hy/10162_合并1.162版本` |
+| Upstream branch / pinned commit | `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8` |
+| Merge commit | `ea26f2b0755323dcd750dbdb01cb35991a396be7` |
+| Parent order | `e52b5c89d07ac058043de5adb983cad8750cab58`（本地 `main`）；`e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`（上游固定边界） |
+| Conflict files | `backend/internal/server/routes/gateway_test.go` |
+| Conflict handling | 采用上游 `newGatewayRoutesTestRouterWithConfig(cfg, platform...)` helper, 将本地 RequestArchive/RequestIntercept 路由测试迁入该 helper, 同时采用上游 Grok 根级/`v1` count-tokens 本地估算断言；未修改冲突之外的上游生产实现。 |
+| Verification | 提交前 `git diff --cached --check`、`git ls-files -u` 和 unstaged 检查均为空；`upstream/main` 仍精确等于第二父提交；fresh `GOTMPDIR` 下 `go test -tags=unit -p 1 -count=1 ./internal/server/routes` 通过。完整验证及已知上游/本地基线失败边界见上方同步记录。 |
+| Approval / delivery | 用户审核后明确授权创建 merge commit；仅创建本地提交，未 push、未创建 PR、未部署。 |

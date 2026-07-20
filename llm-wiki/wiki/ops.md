@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前待审核分支为 `feature/hy/10162_合并1.162版本`, 第一父/本地 `main` 基线是 `e52b5c89d07ac058043de5adb983cad8750cab58`, `MERGE_HEAD` 固定为 `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`, `backend/cmd/server/VERSION` 为 `0.1.162`。`v0.1.162` tag `27f094e09` 本身仍写 `0.1.161`, 不可用 tag target 代替后续 version-sync commit。
+- 当前合并分支为 `feature/hy/10162_合并1.162版本`, merge commit 是 `ea26f2b0755323dcd750dbdb01cb35991a396be7`, 第一父/本地 `main` 基线是 `e52b5c89d07ac058043de5adb983cad8750cab58`, 第二父是 `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`, `backend/cmd/server/VERSION` 为 `0.1.162`。`v0.1.162` tag `27f094e09` 本身仍写 `0.1.161`, 不可用 tag target 代替后续 version-sync commit。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.162 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
