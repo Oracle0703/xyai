@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-19
+更新时间: 2026-07-20
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,6 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-07-20 从本地 `main@e52b5c89d07ac058043de5adb983cad8750cab58` 创建 `feature/hy/10162_合并1.162版本`, 固定合入 `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`, merge commit 为 `ea26f2b0755323dcd750dbdb01cb35991a396be7`, 后端版本为 `0.1.162`。`v0.1.162` tag `27f094e09` 的 `VERSION` 仍为 `0.1.161`, 因而以随后 version-sync commit 为边界。本轮上游增加客户端 IP 兼容模式/自定义请求头、异步生图对象存储后台热配置、Grok 本地 count-tokens 与客户端工具缓存路由、Prompt Audit 阻断意图 fail-closed、Codex manifest 401 账号隔离、`UPDATE_GITHUB_TOKEN` 和 SVG branding；唯一文本冲突 `backend/internal/server/routes/gateway_test.go` 采用上游 helper 并迁入本地 RequestArchive/RequestIntercept 测试。45 个双方修改文件已做语义复核, 22 个 `docs/features/` 文件及本地 Prompt Metrics/Risk、Token Analysis、组织用量、图片生成、并发 preset、compatible 适配、默认 reasoning effort、quota flusher 和子管理员权限均保留。上游 rollback timeout 测试失配和本地既有 `/auth/me` contract mismatch 只记录, 未在合并分支修复。
 - 2026-07-19 从本地 `main@332fdbd0b84619cfb1da6fcb57b65d4d9263b2e9` 创建 `feature/hy/10161_合并1.161版本`, 固定合入 `Wei-Shaw/sub2api main@d4b9797ff72024960a035cf22fdd8f213e149169`, merge commit 为 `e3e6b52da43a5be351cf59089976759eebc28376`, 当前后端版本 `0.1.161`。本轮上游增加 HTTP ingress 有界防护、拒绝聚合、跨实例 API Key 鉴权缓存失效 outbox、安全开关默认关闭、Grok 受保护视频同源代理、模型级临时隔离、OpenAI WS/Responses 流修复和初始 branding 注入；4 个文本冲突做语义并集, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、图片生成/支付、用户并发 preset、compatible 适配、默认 reasoning effort、quota flusher 和子管理员权限。
 - 2026-07-17 从本地 `main@5d5f157854b9a88cc57da1600095bb404b78ed45` 创建 `feature/hy/10160_合并1.160版本`, 固定合入 `Wei-Shaw/sub2api main@57914967cbb127ff715719c3879d881c10d75274`, 当前后端版本 `0.1.160`。本轮上游增加 OpenAI-compatible Prompt Audit（默认关闭, 支持异步审计/同步阻断）、审计事件筛选删除、Grok media 账号资格隔离、S3 配置 step-up TOTP 和 locale compiler 直接依赖；冲突解决继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、用户并发 preset、compatible 适配、默认 reasoning effort 和 quota flusher。上游 Prompt Audit Wire 源图缺少接口绑定的问题只记录, 未在本分支修复。
 - 2026-07-15 新增账号级 `sub_admin` 角色与三项固定管理权限。管理接口使用数据库最新用户数据和 HTTP 方法 + Gin 路由模板白名单鉴权，未知路由默认拒绝；前端按服务端权限目录配置账号，并对订阅、使用记录和 Token 分析页面收口写操作。

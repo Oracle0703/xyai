@@ -19,42 +19,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type gatewayRoutesTestOption func(*gatewayRoutesTestConfig)
-
-type gatewayRoutesTestConfig struct {
-	cfg      *config.Config
-	platform string
+func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
+	return newGatewayRoutesTestRouterWithConfig(&config.Config{}, platform...)
 }
 
-func withGatewayRoutesTestConfig(cfg *config.Config) gatewayRoutesTestOption {
-	return func(opts *gatewayRoutesTestConfig) {
-		opts.cfg = cfg
-	}
-}
-
-func withGatewayRoutesTestPlatform(platform string) gatewayRoutesTestOption {
-	return func(opts *gatewayRoutesTestConfig) {
-		opts.platform = platform
-	}
-}
-
-func newGatewayRoutesTestRouter(options ...gatewayRoutesTestOption) *gin.Engine {
-	opts := gatewayRoutesTestConfig{
-		cfg:      &config.Config{},
-		platform: service.PlatformOpenAI,
-	}
-	for _, option := range options {
-		option(&opts)
-	}
-	if opts.cfg == nil {
-		opts.cfg = &config.Config{}
-	}
-	if opts.platform == "" {
-		opts.platform = service.PlatformOpenAI
-	}
-
+func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+
+	groupPlatform := service.PlatformOpenAI
+	if len(platform) > 0 && platform[0] != "" {
+		groupPlatform = platform[0]
+	}
 
 	RegisterGatewayRoutes(
 		router,
@@ -67,7 +43,7 @@ func newGatewayRoutesTestRouter(options ...gatewayRoutesTestOption) *gin.Engine 
 			groupID := int64(1)
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
 				GroupID: &groupID,
-				Group:   &service.Group{Platform: opts.platform},
+				Group:   &service.Group{Platform: groupPlatform},
 			})
 			c.Next()
 		}),
@@ -75,7 +51,7 @@ func newGatewayRoutesTestRouter(options ...gatewayRoutesTestOption) *gin.Engine 
 		nil,
 		nil,
 		nil,
-		opts.cfg,
+		cfg,
 	)
 
 	return router
@@ -118,7 +94,7 @@ func TestGatewayRoutesOpenAIAlphaSearchPathsAreRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesAlphaSearchRejectsNonOpenAIGroup(t *testing.T) {
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestPlatform(service.PlatformGrok))
+	router := newGatewayRoutesTestRouter(service.PlatformGrok)
 	req := httptest.NewRequest(http.MethodPost, "/v1/alpha/search", strings.NewReader(`{"model":"gpt-5.6-sol"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -150,7 +126,7 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
 	dir := t.TempDir()
 	t.Cleanup(servermiddleware.CloseRequestArchiveWritersForTest)
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestConfig(&config.Config{
+	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
 		Gateway: config.GatewayConfig{
 			MaxBodySize: 1024 * 1024,
 			RequestArchive: config.GatewayRequestArchiveConfig{
@@ -161,7 +137,7 @@ func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
 				CaptureResponse:      true,
 			},
 		},
-	}))
+	})
 
 	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/responses", strings.NewReader(`{"model":"gpt-5","input":"hello"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -193,7 +169,7 @@ rules:
     reply: "你好，我是迅游AI，有什么可以帮助你？"
 `), 0o600))
 	archiveDir := filepath.Join(dir, "archive")
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestConfig(&config.Config{
+	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
 		Gateway: config.GatewayConfig{
 			MaxBodySize: 1024 * 1024,
 			RequestArchive: config.GatewayRequestArchiveConfig{
@@ -208,7 +184,7 @@ rules:
 				RulesFile: rulesFile,
 			},
 		},
-	}))
+	})
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5","input":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -249,7 +225,7 @@ func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestPlatform(service.PlatformGrok))
+	router := newGatewayRoutesTestRouter(service.PlatformGrok)
 
 	for _, path := range []string{
 		"/v1/images/generations",
@@ -288,7 +264,7 @@ func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestPlatform(service.PlatformOpenAI))
+	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
 
 	for _, tc := range []struct {
 		method string
@@ -317,7 +293,7 @@ func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
 }
 
 func TestGatewayRoutesGrokAllowsCLICompatibilityEntrypoints(t *testing.T) {
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestPlatform(service.PlatformGrok))
+	router := newGatewayRoutesTestRouter(service.PlatformGrok)
 
 	for _, tc := range []struct {
 		method string
@@ -339,13 +315,22 @@ func TestGatewayRoutesGrokAllowsCLICompatibilityEntrypoints(t *testing.T) {
 		require.NotContains(t, w.Body.String(), "not supported for Grok groups")
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"grok","messages":[{"role":"user","content":"hi"}]}`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
+	countTokensRouter := newGatewayRoutesTestRouterWithConfig(&config.Config{
+		Gateway: config.GatewayConfig{MaxBodySize: 1024 * 1024},
+	}, service.PlatformGrok)
+	for _, path := range []string{"/v1/messages/count_tokens", "/messages/count_tokens"} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok","messages":[{"role":"user","content":"hi"}]}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
 
-	router.ServeHTTP(w, req)
-	require.Equal(t, http.StatusNotFound, w.Code)
-	require.Contains(t, w.Body.String(), "Token counting is not supported for this platform")
+		countTokensRouter.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, "path=%s", path)
+		var response struct {
+			InputTokens int `json:"input_tokens"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response), "path=%s", path)
+		require.Positive(t, response.InputTokens, "path=%s", path)
+	}
 
 	for _, path := range []string{
 		"/v1/responses",
@@ -396,7 +381,7 @@ func loadGatewayRouteArchiveRecords(t *testing.T, dir string) []map[string]any {
 }
 
 func TestGatewayRoutesOpenAICountTokensPathIsRegistered(t *testing.T) {
-	router := newGatewayRoutesTestRouter(withGatewayRoutesTestPlatform(service.PlatformOpenAI))
+	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}]}`))
 	req.Header.Set("Content-Type", "application/json")

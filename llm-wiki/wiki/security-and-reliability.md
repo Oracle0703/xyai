@@ -39,11 +39,11 @@ OpenAI Agent Identity:
 - 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。
 - `session_binding_enabled` 与 `step_up_enabled` 都默认关闭；管理设置请求使用可空字段, 旧客户端省略新字段时保持数据库现值。step-up 开启后, 账号/代理导出、S3 配置修改、备份创建/下载/恢复、管理员角色提升等敏感动作使用 15 分钟会话 grant；admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。开启前要求当前管理员已启用 TOTP, 关闭开关本身也必须二次验证。前端 `BackupView.vue` 的 S3 保存和 `SettingsView.vue` 的保存都必须经 `useStepUp`。
 - Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
-- `api_key_acl_trust_forwarded_ip` 默认 false。false 时 API Key ACL、会话绑定和审计使用可信代理链/直连地址; true 时才读取转发客户端 IP。必须同时正确配置 `server.trusted_proxies`, 否则伪造 forwarded header 会扩大 ACL 绕过面。
+- `api_key_acl_trust_forwarded_ip` 为升级兼容默认 `true`。开启时 API Key ACL、会话绑定和审计使用同一请求级快照, 按 `forwarded_client_ip_headers` 配置顺序优先解析自定义 CDN header, 再回落 `CF-Connecting-IP` / `X-Real-IP` / `X-Forwarded-For`; header 名规范化、去重且最多 16 个。该模式直接信任转发头, 边缘代理必须覆盖而不是追加外部输入。关闭后才由 Gin `server.trusted_proxies` / 直连地址作为统一权威来源, 此时自定义 header 不生效。
 
 Prompt Audit 安全与隐私边界:
 
-- `backend/internal/securityaudit/` 叠加在既有内容审核链上, 默认关闭。blocking 模式对 Guard 不可用或非法响应 fail-closed 为 503；async 入队失败不阻断当前请求, legacy moderation 仍照常执行。
+- `backend/internal/securityaudit/` 叠加在既有内容审核链上, 默认关闭。已激活 blocking 模式对 Guard 不可用或非法响应 fail-closed 为 503；配置启动/reload 失败也只有在最近可解码的存储配置与全局 risk control 明确要求 blocking 时进入 degraded fail-closed。未观察到 blocking intent 时保持 off/已有非阻断模式, 让管理员仍能关闭或修复审计；async 入队失败不阻断当前请求, legacy moderation 仍照常执行。
 - Guard endpoint 只接受 HTTP(S) URL, 禁止 userinfo/query/fragment, HTTP client 不继承代理且 HTTPS 最低 TLS 1.2；当前标准 dialer 允许管理员配置私网、loopback 和保留地址, 因而 endpoint 是管理员信任边界, 不是面向不可信用户的 URL 输入。
 - Guard token 通过现有 `SecretEncryptor` 加密后写入 `prompt_audit_config`, 管理 API 只返回 `has_token` / `token_status`, 不回显明文。Prompt Risk judge 的内部签名头必须从 handler 经 `securityaudit.Request` 继续传给 legacy moderation, 防止上游 Prompt Audit coordinator 接入后恢复 HTTP 回环递归。
 - async 扫描原文在 Redis 最长保留 30 分钟；job 表不存原文, 但 migration 182 后 event 的 `full_prompt` 会持久化最多 65,536 rune 的未脱敏文本并在管理员详情返回。该字段属于高敏数据, 数据库访问、备份、保留周期和事件删除权限必须按原始提示词处理, 不能沿用 181 migration 的早期“原文不进 PostgreSQL”假设。
@@ -147,7 +147,8 @@ CSP 注意点:
 - `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
 - 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
 - `Server-Timing` 默认关闭。开启后只为 admin UI 或 allowlist 内的 authenticated user UI scope 收集; `X-Admin-UI-Request: 1` / `X-User-UI-Request: 1` 只是 scope signal, 不能替代认证。响应写出前必须再按 context role 与 user path allowlist gate: 管理员可读取已收集的 admin/user UI timing, 普通已认证用户只能读取 allowlisted user API; 未认证请求、公开 payment/webhook 和 AI gateway 不得返回 SQL/Redis/依赖耗时。CORS allow/expose headers 必须与两类 UI signal 和 `Server-Timing` 保持同步。
-- embedded static cache 只信任 `assets/` 下文件名中的 8 字符 fingerprint; 只有这类资源可返回一年 immutable。unhashed assets、logo、favicon、HTML/SPA 和根级 API fallback 都不得长缓存; Caddy 不应覆盖后端的 fingerprint 判定。
+- embedded static cache 只信任 `assets/` 下文件名中的 8 字符 fingerprint; 只有这类资源可返回一年 immutable。unhashed assets、默认 `logo.svg`、favicon、HTML/SPA 和根级 API fallback 都不得长缓存; Caddy 不应覆盖后端的 fingerprint 判定。
+- `UPDATE_GITHUB_TOKEN` 只允许发送到精确的 `https://api.github.com` release API, redirect 离开该 host 时必须剥离 Authorization；release asset/checksum 下载客户端保持匿名, 不能把 token 扩散到下载 URL 或日志。
 
 生产环境要谨慎允许 HTTP, private hosts 和 proxy fallback direct, 避免 token 泄露和 SSRF 风险。
 
@@ -209,6 +210,7 @@ Codex CLI only 客户端限制(`openai_client_restriction_detector.go` / `engine
 Codex OAuth reasoning 续轮可靠性:
 
 - `applyCodexOAuthTransform` 在请求带 `reasoning` 时补齐 `include:["reasoning.encrypted_content"]`; `filterCodexInput` 保留 reasoning item 的 `encrypted_content`/`content`/`summary`, 但剥离 `rs_*` id 并在缺失时补空 `summary`。不要恢复旧的"丢弃 reasoning item"策略, 否则多轮 Codex 推理上下文会丢失。
+- Codex models manifest 的 401 只对 plain OpenAI OAuth 账号进入共享 token/rate-limit 状态机：普通无效 token 临时摘除并允许换号, `token_revoked` / `token_invalidated` 才永久禁用。Agent Identity 的 401 可能仅表示 task 失效, 必须保留独立 task recovery；自定义 API Key 上游的 `/models` 认证可能与 chat 不同, 401 不得禁用账号或自动 failover。
 
 Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `prompt_risk_judge.go`):
 
@@ -245,7 +247,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - OpenAI `response.failed` 及上游错误事件透传前必须使用现有 sanitize 逻辑剥离冗长/敏感细节, 并套用 error passthrough/failover 规则, 不能硬编码 502; 避免把 verbose upstream body 直接暴露给用户或前端错误视图。HTTP 200 SSE 内的失败也要记录 ops error context。
 - OpenAI failover error 可在服务内部保留上游 response headers, 供账号耗尽后的 handler 恢复退避提示; 客户端只允许收到通过统一 allowlist 校验的 `Retry-After`。数字必须为 1-604800 秒, HTTP 日期必须处于未来 7 天内, 且 header 不得含 CR/LF 或超过 128 字符; Authorization、Cookie、proxy、upstream detail 等其他 header 不得随 failover 恢复。
 - Grok quota readiness 与 auto-pause 依赖 xAI rate-limit/entitlement headers; 未观察到 headers 时前端显示 unknown, 不应把 unknown 当作 exhausted。Grok quota 主动 probe 会写账号 `extra` 快照, reset 当前显式不支持。
-- Grok prompt cache identity 只能从显式 conversation/prompt cache 线索或稳定消息前缀派生并与账号/模型边界组合; raw Chat 上游不能收到 Responses-only `prompt_cache_key`。健康 quota headers 可以解除此前的 exhausted/rate-limit snapshot, 避免账号永久被误停用。
+- Grok prompt cache identity 只能从显式 conversation/prompt cache 线索或稳定消息前缀派生并与 API Key/模型边界组合; raw Chat 上游不能收到 Responses-only `prompt_cache_key`。纯客户端工具的 mixed native-tool 缓存路由只对已确认 Free OAuth 默认开启, 账号布尔开关与请求头可显式退出；paid/API Key/unknown 或非法配置 fail-closed, 因为注入 native search tools 可能改变自动工具选择。健康 quota headers 可以解除此前的 exhausted/rate-limit snapshot, 避免账号永久被误停用。
 - Grok media 路由复用 OpenAI-compatible API key auth 与 group gate, videos 仅 Grok platform 可用; 非 Grok 请求必须本地 404 并标记 business-limited, 不应落到上游错误或污染 SLA。`grok-imagine` 别名归一和 multipart image edit 上传转换属于上游 payload sanitize 的一部分。
 - Grok Web SSO 导入只在管理员路由接收 SSO key, 服务端经 Device Flow 换成 Build OAuth 凭据后创建账号; key、device code、access/refresh token 不得写入日志、wiki 或前端持久化。批量导入允许部分成功, 失败项只返回索引和脱敏错误。
 - Grok OAuth credential failure 必须按 scope 隔离: 缺失/吊销/entitlement/proxy 等账号级问题只对选中账号执行 next-account retry 和隔离; provider 配置、共享状态或上游整体不可用属于 provider 级问题, 停止本请求继续切号, 不批量污染账号状态。永久/临时账号 mutation 以请求选中时的 credentials/token version/proxy snapshot 做 CAS; CAS miss 要回读并接受并发 refresh 的新 token, 不得覆盖新凭据。
@@ -290,6 +292,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - TOTP encryption key 生产必须固定, 空值会导致重启后 2FA 配置失效。
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
+- 后台异步生图对象存储的 SecretAccessKey 使用现有固定 `SecretEncryptor` 加密；未配置持久加密 key 时拒绝保存新 secret, 防止自动生成临时 key 导致重启后无法解密。复用备份 S3 时不重复持久化凭据, 读取 API 只返回 `secret_configured` 状态而不回显明文。
 - API Key 删除只 tombstone 原 key 以释放唯一约束, 不再把明文 key 复制到 `deleted_api_key_audits`；Ops 入口拒绝只保留有界聚合维度。旧明文审计表/列的 finalizer 必须在滚动升级全部完成并确认恢复点后人工执行。
 - 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
 

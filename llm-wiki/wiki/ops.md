@@ -2,10 +2,10 @@
 
 ## 当前版本基线
 
-- `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
+- 当前合并分支为 `feature/hy/10162_合并1.162版本`, merge commit 是 `ea26f2b0755323dcd750dbdb01cb35991a396be7`, 第一父/本地 `main` 基线是 `e52b5c89d07ac058043de5adb983cad8750cab58`, 第二父是 `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`, `backend/cmd/server/VERSION` 为 `0.1.162`。`v0.1.162` tag `27f094e09` 本身仍写 `0.1.161`, 不可用 tag target 代替后续 version-sync commit。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
-- 0.1.161 已在 `securityaudit.ProviderSet` 补齐 `PromptAdminService -> *PromptService` binding；当前 `go generate ./cmd/server` 可从合并后的 Wire 源图同时生成上游 Ops/auth-cache 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
+- 0.1.162 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。
 
 ## 本地启动
@@ -61,7 +61,7 @@ pnpm --dir frontend run build
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
 
-embed 模式只给 Vite `assets/` 下文件名带 8 字符 fingerprint 的资源设置一年 `immutable` 缓存; unhashed assets、`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 只负责 TLS/反向代理, 不重复按路径强制 immutable, fingerprint 判定由后端 `static_cache.go` 统一负责。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
+embed 模式只给 Vite `assets/` 下文件名带 8 字符 fingerprint 的资源设置一年 `immutable` 缓存; unhashed assets、`logo.svg`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 只负责 TLS/反向代理, 不重复按路径强制 immutable, fingerprint 判定由后端 `static_cache.go` 统一负责。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
 
 ## Apple container
 
@@ -275,7 +275,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 前端: `pnpm audit --prod --audit-level=high --json > audit.json || true`
 - audit 例外检查: `tools/check_pnpm_audit_exceptions.py --audit frontend/audit.json --exceptions .github/audit-exceptions.yml`
 
-`.github/workflows/release.yml` 负责 tag `v*` 发布。管理端版本徽章可查询最近 3 个 GitHub release 并触发在线回退; 服务端实现位于 `internal/service/update_service.go` 和 `internal/repository/github_release_service.go`, 回退属于高风险系统操作, 必须保留管理员校验、目标版本校验和执行日志。
+`.github/workflows/release.yml` 负责 tag `v*` 发布。管理端版本徽章可查询最近 3 个 GitHub release 并触发在线回退; 服务端实现位于 `internal/service/update_service.go` 和 `internal/repository/github_release_service.go`, 回退属于高风险系统操作, 必须保留管理员校验、目标版本校验和执行日志。可选环境变量 `UPDATE_GITHUB_TOKEN` 只给 `https://api.github.com` release 查询附加 Bearer token, `GITHUB_TOKEN` / `GH_TOKEN` 不复用；release asset 与 checksum 下载保持匿名, API redirect 离开该 host 时删除 Authorization。
 
 ## 配置文件
 
@@ -286,7 +286,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。
 - `run_mode`: `standard` 或 `simple`。
 - `cors`: allowed origins 和 credentials。
-- `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback。
+- `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback, `trust_forwarded_ip_for_api_key_acl` 与 `forwarded_client_ip_headers`。客户端 IP 兼容开关默认 `true` 以兼容反代/Docker 升级；自定义 header 最多 16 个、按配置顺序优先, 仅在该开关开启时有效。关闭后必须正确配置 `server.trusted_proxies`。
 - `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。`max_body_size` 默认 256 MiB 供多模态/media, `text_max_body_size` 默认 32 MiB 并只用于 embeddings 与 alpha search 等纯文本入口。
 - 管理端运行时设置 `enable_client_dateline_normalization` 默认 `true`, 仅影响 Anthropic OAuth/SetupToken 转发, 用于清理客户端 dateline 隐写指纹; 关闭后请求体保持原样透传。
 - `gateway.openai_ws.scheduler_score_weights.reset`: 默认 `0.0`, 用于给会话窗口最早重置的 OpenAI 账号加分; 关闭时不改变原调度行为。
@@ -311,12 +311,12 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `pricing`: 模型价格远程源, hash 校验和 fallback 文件。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
-- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。
+- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。后台 `/api/v1/admin/backups/image-storage` 保存的数据库配置优先且立即生效, 可复用备份 S3；只有从未保存过后台配置时才使用 YAML/env fallback。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。
 
 Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 
 - `settings.prompt_audit_config` 保存配置版本、启用/阻断开关、worker/queue、group 范围、scanner 和 OpenAI-compatible Guard endpoints；节点 token 以密文保存。`risk_control_enabled` 是上层总开关。
-- 默认 `enabled=false`, 有效模式为 off / async audit / blocking。async 原文扫描载荷写 Redis key `sub2api:prompt_audit:payload:<job_id>`, TTL 最长 30 分钟, 完成或非重试失败后主动删除。
+- 默认 `enabled=false`, 有效模式为 off / async audit / blocking。配置加载失败只在最近一次可解码的存储意图明确要求 blocking 且 `risk_control_enabled=true` 时 fail-closed；默认关闭或 async intent 不得因 untrusted config 被提升为 blocking。async 原文扫描载荷写 Redis key `sub2api:prompt_audit:payload:<job_id>`, TTL 最长 30 分钟, 完成或非重试失败后主动删除。
 - 默认 worker 数 4、queue capacity 32768、节点 timeout 3000 ms、input limit 4000 rune。更新配置时必须带 `expected_config_version`, 多实例通过 PostgreSQL advisory lock 和 Redis version 通知刷新快照。
 
 `token_refresh` 的运行时有效值会对非正数回退默认值、对超过上限的正数封顶:
