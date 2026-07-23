@@ -2,6 +2,7 @@
 
 ## 当前版本基线
 
+- 当前审核分支为 `feature/hy/10163_合并1.163版本`: 第一父/本地 `main` 是 `e52b5c89d07ac058043de5adb983cad8750cab58`, 固定上游第二父是 `60013c5f100be7b4f2e6caee415883d221d33e32`, `backend/cmd/server/VERSION` 为 `0.1.163`。当前仍是 `git merge --no-commit --no-ff` 状态, merge commit 尚未创建；不要把 `v0.1.163@d0bdd7e77` 单独当作同步边界, 因为版本文件由其后的 `60013c5f1` 才同步到 `0.1.163`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
@@ -283,7 +284,8 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 
 主要配置组:
 
-- `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。
+- `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。`server.trusted_proxies` 只有在显式出现在配置或 `SERVER_TRUSTED_PROXIES` 环境变量时才启用 Gin 可信代理链；显式空数组表示禁用转发 IP 信任, 未配置时也使用直连 peer。
+- `security.trust_forwarded_ip_for_api_key_acl` 是旧部署兼容开关, 代码默认 `true`: 开启时原始转发头接管客户端 IP 解析, 并按 `security.forwarded_client_ip_headers`、`CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 顺序取值；关闭时才以 `server.trusted_proxies` 为权威。自定义头最多 16 个合法且不重复的 HTTP header 名, 可用 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 逗号分隔注入, 也可在管理设置页热更新。`deploy/config.example.yaml` 明确采用更安全的 `false` 与 loopback trusted proxies, 生产应按真实直连代理 CIDR 收紧。
 - `run_mode`: `standard` 或 `simple`。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback。
@@ -303,7 +305,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_ws.max_ingress_connections_per_api_key`: 多实例范围每个 API Key 的存活 ingress 连接上限, 默认 64, 0 关闭; 依赖 Redis lease, 缓存不支持或 lease 丢失时 fail-close。
 - `database`: PostgreSQL 连接池。
 - `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
-- `redis`: Redis 连接池和 TLS。
+- `redis`: Redis 连接池、ACL `username`、password 和 TLS；使用默认 Redis 用户时 `username` 留空。
 - `api_key_auth_cache`: L1/L2 TTL、singleflight、`lookup_concurrency=64` 和进程内 invalid-auth abuse limiter；默认每可信客户端 IP（IPv6 按 `/64`）60 秒 120 次无效凭据后阻断 60 秒, capacity 16384。它不是 CDN/WAF 的替代品。
 - `ops`: 运维监控开关。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
@@ -311,7 +313,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `pricing`: 模型价格远程源, hash 校验和 fallback 文件。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
-- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。
+- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。管理端备份页通过 `/api/v1/admin/backups/image-storage` 读取、测试和保存运行时设置, 可复用备份 S3 凭据；保存目标受 step-up 2FA 保护, 独立 secret 加密入库且 API 不回显。保存后失效 resolver 缓存, 下一次异步图片请求立即采用新配置, 无需重启；数据库尚无设置时仍回落 YAML/环境变量配置。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。
 
 Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 

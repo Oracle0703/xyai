@@ -38,8 +38,9 @@ OpenAI Agent Identity:
 
 - 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。
 - `session_binding_enabled` 与 `step_up_enabled` 都默认关闭；管理设置请求使用可空字段, 旧客户端省略新字段时保持数据库现值。step-up 开启后, 账号/代理导出、S3 配置修改、备份创建/下载/恢复、管理员角色提升等敏感动作使用 15 分钟会话 grant；admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。开启前要求当前管理员已启用 TOTP, 关闭开关本身也必须二次验证。前端 `BackupView.vue` 的 S3 保存和 `SettingsView.vue` 的保存都必须经 `useStepUp`。
+- 异步图片对象存储运行时设置位于 `/api/v1/admin/backups/image-storage`。修改存储目标会把生成内容导向外部账号, 因此 PUT 与备份 S3 一样必须通过 step-up；独立 `secret_access_key` 用 `SecretEncryptor` 加密入库, GET 清空 secret 只返回 configured 状态。选择复用备份 S3 时不再保存第二份凭据, 只保留图片 bucket/prefix 等覆盖项。
 - Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
-- `api_key_acl_trust_forwarded_ip` 默认 false。false 时 API Key ACL、会话绑定和审计使用可信代理链/直连地址; true 时才读取转发客户端 IP。必须同时正确配置 `server.trusted_proxies`, 否则伪造 forwarded header 会扩大 ACL 绕过面。
+- `api_key_acl_trust_forwarded_ip` 是旧部署兼容开关, 代码默认 `true`。true 时原始转发头绕过 Gin `server.trusted_proxies` 链并接管 API Key ACL、会话绑定和审计的客户端 IP；最多 16 个 `forwarded_client_ip_headers` 按配置顺序优先于 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For`, 因此只应填写由可信边缘覆盖且外部不能伪造的 header。false 时才使用显式配置的 `server.trusted_proxies`; trusted proxies 未配置或显式空时仅信任直连 peer。`deploy/config.example.yaml` 采用更安全的 false, 生产应按真实代理拓扑显式收紧。
 
 Prompt Audit 安全与隐私边界:
 
@@ -228,7 +229,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 
 OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 
-Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。
+Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。Grok Responses 现在也复用 `apicompat.ResponsesClientToolMapping`, 将 Codex client-side tools 适配为 xAI function tools 后在 streaming、non-streaming 与 SSE-to-JSON 回程恢复；顶层 `tools` 和 `additional_tools` 必须经过同一套撞名与选择校验。
 Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式 delta 实时原样透传; 一旦收到 delta, `.done` 只关闭 block, 不再二次发送或 sanitize。只有非流式, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才执行 `sanitizeAnthropicToolUseInput`。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
 修改流式响应时要同时验证:
 
