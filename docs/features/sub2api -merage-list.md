@@ -1503,6 +1503,41 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`、账号组件 README、执行计划与本次 merge review。 |
 | Approval / delivery | 最终 staged snapshot 为 267 files / `+14033 -1540`；无 unmerged/unstaged/untracked/marker/whitespace/features 删除，收尾 fetch 确认 `upstream/main=MERGE_HEAD=d4b9797ff`。用户审核后明确接受本地 `main` 既有 `/auth/me` contract 失败暂不修复，并授权创建上述 merge commit；未 push、未创建 PR、未部署。 |
 
+## 2026-07-20 main sync (v0.1.162; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10162_合并1.162版本` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `e52b5c89d07ac058043de5adb983cad8750cab58`（本地 `main`） |
+| Merge base | `d4b9797ff72024960a035cf22fdd8f213e149169` |
+| Upstream head / second parent | `e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`** |
+| Upstream version / delta | `0.1.162`; 114 commits、190 files、`+9841/-990`。`v0.1.162` tag `27f094e09` 的 `VERSION` 仍为 `0.1.161`, 因此固定采用后续 version-sync commit `e625ce3b3`。 |
+| Conflict files | `backend/internal/server/routes/gateway_test.go` |
+| Conflict handling | 采用上游 `newGatewayRoutesTestRouterWithConfig(cfg, platform...)` helper, 将本地 RequestArchive/RequestIntercept 路由测试迁入该 helper, 同时采用上游 Grok 根级/`v1` count-tokens 本地估算断言。未修改冲突之外的上游生产实现。 |
+| Semantic overlap review | 对 merge base、本地 `main` 与固定 upstream 的 45 个双方修改文件逐一复核；除唯一文本冲突外未发现需要手工改写的语义冲突。功能重叠处采用上游实现, 本地独有调用链继续保留。 |
+| Local features | 22 个 tracked `docs/features/` 文件零删除；RequestArchive/Intercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、图片生成/支付、用户并发 preset/`ConcurrencyCacheError`、OpenAI-compatible preset/options/cache usage、默认 reasoning effort、quota flusher 和子管理员权限均保留或与上游组合。 |
+| Upstream behavior | 引入客户端 IP 兼容开关与自定义 header、异步生图对象存储后台热配置、Grok 本地 count-tokens/客户端工具缓存、Prompt Audit blocking-intent fail-closed、Codex manifest 401 账号隔离、Agent Identity Team 隔离、`UPDATE_GITHUB_TOKEN`、更新/回退 15 分钟请求 timeout、订阅分钟级到期展示和 SVG branding。无 schema/migration 变化。 |
+| Issue boundary | Frontend Vitest 的 `admin.system.rollback.spec.ts` 两条断言未接受实现新增的 `{ timeout: 900000 }`; 实现和测试均与固定 upstream 完全一致, 作为 upstream-native test mismatch 记录且不修。本地 `main` 既有 `/auth/me` 响应多出 `admin_permissions:null` contract mismatch、全量 lint 28 项及 `go mod tidy -diff` 6 组旧 checksum 也不在本次冲突解决范围。 |
+| Verification | Backend 完整 unit 为 51 包通过、1 包因上述本地 contract 失败；fresh `GOTMPDIR` 跳过该合同后 52 包通过, integration 47 包通过。全量 lint 28 项, `--new-from-rev=HEAD` 为 0 issues；module 文件与本地 `main` 一致。Frontend lint/typecheck 通过, Vitest 202/203 files、1383/1385 tests, production build 983 modules / 179 files / 5,840,458 bytes。Wire 重新生成无漂移（SHA-256 `81C4EFE8...665F2AF`）；fresh frontend 后 embed build 通过（114,522,112 bytes）。无 Windows file lock 或 Docker/Testcontainers 错误。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `security-and-reliability.md` 并追加本记录；本轮无数据模型或 migration 变化, `data-and-domain.md` 无需修改。 |
+| Approval / delivery | 最终 staged snapshot 为 196 files / `+9903 -1051`；0 unstaged、0 untracked、0 unmerged、0 新增冲突标记、0 whitespace error、0 `docs/features` 删除, 且 `upstream/main=MERGE_HEAD=e625ce3b3`。保持 `git merge --no-commit --no-ff`, 未 commit、未 push、未创建 PR、未部署, 等待用户审核。 |
+
+## 2026-07-20 v0.1.162 merge commit 回填
+
+| Item | Value |
+|---|---|
+| Merge date | `2026-07-20` |
+| Integration branch | `feature/hy/10162_合并1.162版本` |
+| Upstream branch / pinned commit | `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8` |
+| Merge commit | `ea26f2b0755323dcd750dbdb01cb35991a396be7` |
+| Parent order | `e52b5c89d07ac058043de5adb983cad8750cab58`（本地 `main`）；`e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`（上游固定边界） |
+| Conflict files | `backend/internal/server/routes/gateway_test.go` |
+| Conflict handling | 采用上游 `newGatewayRoutesTestRouterWithConfig(cfg, platform...)` helper, 将本地 RequestArchive/RequestIntercept 路由测试迁入该 helper, 同时采用上游 Grok 根级/`v1` count-tokens 本地估算断言；未修改冲突之外的上游生产实现。 |
+| Verification | 提交前 `git diff --cached --check`、`git ls-files -u` 和 unstaged 检查均为空；`upstream/main` 仍精确等于第二父提交；fresh `GOTMPDIR` 下 `go test -tags=unit -p 1 -count=1 ./internal/server/routes` 通过。完整验证及已知上游/本地基线失败边界见上方同步记录。 |
+| Approval / delivery | 用户审核后明确授权创建 merge commit；仅创建本地提交，未 push、未创建 PR、未部署。 |
+
 ## 2026-07-23 main sync (v0.1.163; awaiting review)
 
 | Item | Value |
@@ -1521,3 +1556,17 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | `git ls-files -u` 为空；`go generate ./cmd/server` 与 `go generate ./ent` 通过且无生成漂移。后端完整 unit 仅上述既有 `/auth/me` 断言失败，service/routes/config/repository/pkg/ip 等关键包通过；integration 除首次 `service.test.exe` 被 Windows 文件锁阻断外其余通过，service 在独立 `GOTMPDIR` 重跑通过。前端 lint、typecheck、build 退出 0，build 为 988 modules / 14.94s；Vitest 为 207/208 files、1410/1412 tests，通过项之外仅上述两个上游旧断言失败。embed 后端构建退出 0，产物 150,144,000 bytes。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，并追加本合并记录；Wiki 保持 LF。 |
 | Approval / delivery | 当前保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-07-23 v0.1.163 merge commit 回填
+
+| Item | Value |
+|---|---|
+| Merge date | `2026-07-23` |
+| Integration branch | `feature/hy/10163_合并1.163版本` |
+| Upstream branch / pinned commit | `Wei-Shaw/sub2api main@60013c5f100be7b4f2e6caee415883d221d33e32` |
+| Merge commit | `3e4f4e3f1e987783298c3b28b60f01de80618ac2` |
+| Parent order | `e52b5c89d07ac058043de5adb983cad8750cab58`（本地 `main`）；`60013c5f100be7b4f2e6caee415883d221d33e32`（上游固定边界） |
+| Conflict files | `backend/go.mod`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/openai_gateway_response_handling.go` |
+| Conflict handling | `go.mod` 采用上游依赖版本并保留本地直接依赖属性；gateway 测试采用上游 helper/Grok count-tokens 合同并保留 RequestArchive/RequestIntercept；response handling 同时保留本地 compatible cache usage 与上游 hosted-image usage/Grok 工具恢复逻辑。 |
+| Verification | 提交前生成代码无漂移；后端、前端和 embed 构建验证结果及既有失败边界见上方同步记录。固定上游提交仍精确等于 merge commit 第二父。 |
+| Approval / delivery | 上述 merge commit 已创建；本条仅追加回填提交拓扑，不覆盖原审核记录。未在本条记录部署动作。 |
