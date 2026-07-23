@@ -1537,3 +1537,36 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Conflict handling | 采用上游 `newGatewayRoutesTestRouterWithConfig(cfg, platform...)` helper, 将本地 RequestArchive/RequestIntercept 路由测试迁入该 helper, 同时采用上游 Grok 根级/`v1` count-tokens 本地估算断言；未修改冲突之外的上游生产实现。 |
 | Verification | 提交前 `git diff --cached --check`、`git ls-files -u` 和 unstaged 检查均为空；`upstream/main` 仍精确等于第二父提交；fresh `GOTMPDIR` 下 `go test -tags=unit -p 1 -count=1 ./internal/server/routes` 通过。完整验证及已知上游/本地基线失败边界见上方同步记录。 |
 | Approval / delivery | 用户审核后明确授权创建 merge commit；仅创建本地提交，未 push、未创建 PR、未部署。 |
+
+## 2026-07-23 main sync (v0.1.163; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10163_合并1.163版本` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `e52b5c89d07ac058043de5adb983cad8750cab58`（本地 `main`） |
+| Merge base | `d4b9797ff72024960a035cf22fdd8f213e149169` |
+| Upstream head / second parent | `60013c5f100be7b4f2e6caee415883d221d33e32` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=60013c5f100be7b4f2e6caee415883d221d33e32`** |
+| Upstream version / delta | `0.1.163`; 183 commits、319 files、`+17208/-1512`。`v0.1.163` tag 后由固定提交 `60013c5f1` 同步 `VERSION`，本次不包含该提交之后的上游改动。 |
+| Conflict files | `backend/go.mod`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/openai_gateway_response_handling.go` |
+| Conflict handling | `go.mod` 采用上游依赖版本并保留本地 `x/sys`、`x/text` 直接依赖属性；gateway 测试采用上游 helper/Grok count-tokens 合同并保留 RequestArchive/RequestIntercept；response handling 同时保留本地 compatible cache usage 与上游 hosted-image usage/Grok 工具恢复逻辑。 |
+| Local features | RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset、quota flusher 等独特本地能力仍保留；`docs/features/` 无删除。功能重叠处采用上游实现。 |
+| Upstream / baseline issue boundary | 前端固定上游提交中的 `35b5edb24` 为 update/rollback API 增加 15 分钟 timeout，但未同步 `admin.system.rollback.spec.ts` 的两个旧断言；当前实现和测试均与 `MERGE_HEAD` 一致，按要求不修。后端 unit 的 `/api/v1/auth/me` `admin_permissions: null` contract mismatch 是本地 `main` 既有问题；`go mod tidy -diff` 只报告固定上游提交遗留的旧 `go.sum` 行，均只记录不修改。 |
+| Verification | `git ls-files -u` 为空；`go generate ./cmd/server` 与 `go generate ./ent` 通过且无生成漂移。后端完整 unit 仅上述既有 `/auth/me` 断言失败，service/routes/config/repository/pkg/ip 等关键包通过；integration 除首次 `service.test.exe` 被 Windows 文件锁阻断外其余通过，service 在独立 `GOTMPDIR` 重跑通过。前端 lint、typecheck、build 退出 0，build 为 988 modules / 14.94s；Vitest 为 207/208 files、1410/1412 tests，通过项之外仅上述两个上游旧断言失败。embed 后端构建退出 0，产物 150,144,000 bytes。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，并追加本合并记录；Wiki 保持 LF。 |
+| Approval / delivery | 当前保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-07-23 v0.1.163 merge commit 回填
+
+| Item | Value |
+|---|---|
+| Merge date | `2026-07-23` |
+| Integration branch | `feature/hy/10163_合并1.163版本` |
+| Upstream branch / pinned commit | `Wei-Shaw/sub2api main@60013c5f100be7b4f2e6caee415883d221d33e32` |
+| Merge commit | `3e4f4e3f1e987783298c3b28b60f01de80618ac2` |
+| Parent order | `e52b5c89d07ac058043de5adb983cad8750cab58`（本地 `main`）；`60013c5f100be7b4f2e6caee415883d221d33e32`（上游固定边界） |
+| Conflict files | `backend/go.mod`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/openai_gateway_response_handling.go` |
+| Conflict handling | `go.mod` 采用上游依赖版本并保留本地直接依赖属性；gateway 测试采用上游 helper/Grok count-tokens 合同并保留 RequestArchive/RequestIntercept；response handling 同时保留本地 compatible cache usage 与上游 hosted-image usage/Grok 工具恢复逻辑。 |
+| Verification | 提交前生成代码无漂移；后端、前端和 embed 构建验证结果及既有失败边界见上方同步记录。固定上游提交仍精确等于 merge commit 第二父。 |
+| Approval / delivery | 上述 merge commit 已创建；本条仅追加回填提交拓扑，不覆盖原审核记录。未在本条记录部署动作。 |

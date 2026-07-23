@@ -62,3 +62,37 @@
 - `raw/`: 原始资料和事实来源。
 - `wiki/`: 面向 AI 开发前快速读取的整理版知识。
 - 项目级规则文件: 约束 AI 自动读取和更新 wiki, 避免每次重复扫描全项目。
+
+## 知识图谱（Understand Anything）
+
+llm-wiki 是权威知识正文；知识图谱是导航层，不能替代 wiki。
+
+### 本机产物
+
+- 代码图谱: `.understand-anything/knowledge-graph.json`（体积大，默认 gitignore，本机生成）
+- Wiki 图谱: `llm-wiki/.understand-anything/knowledge-graph.json`（体积小，可入库共享）
+- 共享配置: `.understand-anything/config.json`, `.understand-anything/.understandignore`
+
+### AI 何时使用图谱
+
+1. 仍先读 `llm-wiki/wiki/README.md` 与对应 wiki 页（硬性）。
+2. 需要定位模块影响面、路由/服务关系、本地能力边界时，可检索本机图谱节点（file/function/concept/endpoint）。
+3. 看 diff 影响可用 `/understand-diff`（需已有代码图谱）。
+4. 图谱与源码冲突时以源码和测试为准；与 wiki 冲突时先修 wiki。
+
+### 维护命令
+
+Windows 下请用 **`.cmd` 入口**（内部 `ExecutionPolicy Bypass`，避免 RemoteSigned 拦截）:
+
+- 状态检查: `tools\check-understand-status.cmd`
+- 启动可视化: `tools\start-understand-dashboard.cmd`
+- 刷新 wiki 图谱: `tools\refresh-understand-wiki.cmd`
+
+等价写法: `powershell -NoProfile -ExecutionPolicy Bypass -File tools\check-understand-status.ps1`（不要只用 `powershell -File`，在 RemoteSigned 下可能被拒绝）。
+
+- 重建代码图谱: 运行 `/understand`（遵守 `.understand-anything/.understandignore` 范围）
+- 重建 wiki 图谱: 运行 `/understand-knowledge llm-wiki` 或 `tools\refresh-understand-wiki.cmd`
+
+重大架构/网关变更或上游合并后，建议刷新 wiki 图谱；代码图谱按需增量更新，不必每次提交重建。
+
+`check-understand-status` 会校验: 图谱 JSON 完整性、wiki/code 基线相对 HEAD 是否过期（`meta..HEAD` 是否改动了对应目录）、`llm-wiki` 是否 dirty。过期或 dirty 时返回 PARTIAL，不会误报 READY。

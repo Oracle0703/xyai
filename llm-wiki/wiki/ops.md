@@ -2,10 +2,11 @@
 
 ## 当前版本基线
 
-- 当前合并分支为 `feature/hy/10162_合并1.162版本`, merge commit 是 `ea26f2b0755323dcd750dbdb01cb35991a396be7`, 第一父/本地 `main` 基线是 `e52b5c89d07ac058043de5adb983cad8750cab58`, 第二父是 `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`, `backend/cmd/server/VERSION` 为 `0.1.162`。`v0.1.162` tag `27f094e09` 本身仍写 `0.1.161`, 不可用 tag target 代替后续 version-sync commit。
+- 当前集成分支为 `feature/hy/10163_合并1.163版本`: 上游 merge commit `3e4f4e3f1` 的第一父为本地 `main@e52b5c89d`, 第二父为固定上游 `Wei-Shaw/sub2api main@60013c5f1`, `backend/cmd/server/VERSION` 为 `0.1.163`。随后同步 `Oracle0703/xyai main@5cc963c6c`（PR #26）, 带入 `feature/hy/10162_合并1.162版本@ea26f2b07` 及其 0.1.162 文档记录；双方文档变更采用语义并集。不要把 `v0.1.163@d0bdd7e77` 或 `v0.1.162@27f094e09` tag target 单独当作同步边界, 版本文件以随后 version-sync commit 为准。
+- `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
-- 0.1.162 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
+- 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。
 
 ## 本地启动
@@ -283,7 +284,8 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 
 主要配置组:
 
-- `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。
+- `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。`server.trusted_proxies` 只有在显式出现在配置或 `SERVER_TRUSTED_PROXIES` 环境变量时才启用 Gin 可信代理链；显式空数组表示禁用转发 IP 信任, 未配置时也使用直连 peer。
+- `security.trust_forwarded_ip_for_api_key_acl` 是旧部署兼容开关, 代码默认 `true`: 开启时原始转发头接管客户端 IP 解析, 并按 `security.forwarded_client_ip_headers`、`CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 顺序取值；关闭时才以 `server.trusted_proxies` 为权威。自定义头最多 16 个合法且不重复的 HTTP header 名, 可用 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 逗号分隔注入, 也可在管理设置页热更新。`deploy/config.example.yaml` 明确采用更安全的 `false` 与 loopback trusted proxies, 生产应按真实直连代理 CIDR 收紧。
 - `run_mode`: `standard` 或 `simple`。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback, `trust_forwarded_ip_for_api_key_acl` 与 `forwarded_client_ip_headers`。客户端 IP 兼容开关默认 `true` 以兼容反代/Docker 升级；自定义 header 最多 16 个、按配置顺序优先, 仅在该开关开启时有效。关闭后必须正确配置 `server.trusted_proxies`。
@@ -303,7 +305,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_ws.max_ingress_connections_per_api_key`: 多实例范围每个 API Key 的存活 ingress 连接上限, 默认 64, 0 关闭; 依赖 Redis lease, 缓存不支持或 lease 丢失时 fail-close。
 - `database`: PostgreSQL 连接池。
 - `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
-- `redis`: Redis 连接池和 TLS。
+- `redis`: Redis 连接池、ACL `username`、password 和 TLS；使用默认 Redis 用户时 `username` 留空。
 - `api_key_auth_cache`: L1/L2 TTL、singleflight、`lookup_concurrency=64` 和进程内 invalid-auth abuse limiter；默认每可信客户端 IP（IPv6 按 `/64`）60 秒 120 次无效凭据后阻断 60 秒, capacity 16384。它不是 CDN/WAF 的替代品。
 - `ops`: 运维监控开关。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
@@ -311,7 +313,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `pricing`: 模型价格远程源, hash 校验和 fallback 文件。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
-- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。后台 `/api/v1/admin/backups/image-storage` 保存的数据库配置优先且立即生效, 可复用备份 S3；只有从未保存过后台配置时才使用 YAML/env fallback。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。
+- `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。管理端备份页通过 `/api/v1/admin/backups/image-storage` 读取、测试和保存运行时设置, 可复用备份 S3 凭据；保存目标受 step-up 2FA 保护, 独立 secret 加密入库且 API 不回显。数据库配置优先且保存后失效 resolver/uploader 缓存, 下一次异步图片请求立即采用新配置, 无需重启；从未保存过后台配置时回落 YAML/环境变量。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。生产环境若上游 URL 不可信, 应保持 `image_storage` 关闭直至 SSRF/任务恢复风险被上游修复。
 
 Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 
@@ -358,3 +360,22 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - `upstream/revert-114-feature/atomic-scheduling` 是 Wei-Shaw/sub2api 在 2026-01-01 创建的旧分支, 单提交 `30326cf2671a` 用于撤销早期 `#114` 负载感知账号调度优化。
 - 当前分支历史已包含后续主线的同内容 revert `c5c12d4c8`, 也包含后续 reapply `7568dc850`; 当前 `GatewaySchedulingConfig`, `SelectAccountWithLoadAwareness`, `ConcurrencyService.GetAccountsLoadBatch`, scheduler snapshot/outbox 与 wait plan 代码是后续演进后的稳定实现。
 - 以后若再次合并该元旦分支或等价历史分支, 冲突处理不应整块接受该旧 revert 的删除侧, 否则会回退当前网关调度、OpenAI/Gemini/Grok 路由选择和并发缓存能力。应先核对 `git log --grep "Reapply.*负载感知"` 与当前调用点, 再决定是否只补齐 merge 拓扑。
+
+## 知识图谱工具
+
+- `tools\check-understand-status.cmd`
+- `tools\start-understand-dashboard.cmd`
+- `tools\refresh-understand-wiki.cmd`
+- 代码图谱重建: `/understand`（范围见 `.understand-anything/.understandignore`）
+- Wiki 图谱重建: `/understand-knowledge llm-wiki` 或 refresh `.cmd`
+- 入口说明: 使用 `.cmd`（内置 `-ExecutionPolicy Bypass`），避免 RemoteSigned 下 `powershell -File` 被拒
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

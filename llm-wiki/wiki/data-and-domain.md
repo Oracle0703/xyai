@@ -6,7 +6,7 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, 支持模型范围和自定义 `/v1/models` 列表。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。
@@ -96,6 +96,7 @@ go generate ./cmd/server
 - `backend/migrations/182_prompt_audit_full_prompt.sql` 为 `prompt_audit_events` 增加 `full_prompt TEXT NOT NULL DEFAULT ''`。当前源码会把未脱敏审计原文持久化到 event, 最多 65,536 rune, 仅详情查询加载；这条后续 migration 已改变 181 文件头部“raw prompts 不进 PostgreSQL”的早期说明, 数据保护判断必须以 182 和当前 repository 为准。
 - `backend/migrations/183_ops_ingress_reject_aggregates.sql` 新增分钟桶入口拒绝聚合表, 唯一维度为 bucket/reason/route/protocol/client IP/user/API key；服务端在内存中有界聚合后批量 upsert, 不逐请求写库。
 - `backend/migrations/184_auth_cache_invalidation_outbox.sql` 新增只保存 API Key SHA-256 的 durable outbox, 并在 API Key、用户、分组和独占分组授权关系变化时由 trigger 入队。worker 使用 lease/重试/二次安全失效保证多实例 L1/L2 收敛, 明文 API Key 不离开 `api_keys`。旧 `deleted_api_key_audits` 与 `ops_error_logs` 凭据归因列只允许在全量实例升级、dry-run 清理和恢复点确认后, 由 `backend/scripts/finalize-ingress-reject-cleanup.sql` 人工删除；该脚本不是自动 migration。
+- `backend/migrations/185_group_reasoning_effort_policy.sql` 为 `groups` 增加 `max_reasoning_effort VARCHAR(20) NOT NULL DEFAULT ''` 与 `reasoning_effort_mappings JSONB NOT NULL DEFAULT '[]'`。空上限表示不限制；映射只允许 OpenAI platform 的 `minimal/low/medium/high/xhigh/max`, 最多 64 条且 source 不得重复。网关先做一次精确映射再应用上限, 未显式提供 effort 的请求不改写。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -191,7 +192,7 @@ Codex alpha search 按次计费:
 - `BillingService` 对成功调用使用分组 `web_search_price_per_call`; NULL 回落 0.01 USD/次, 显式 0 必须保留为免费, 不能被默认价覆盖。
 - 计费结果仍写 usage log, 需要保持用户余额、订阅和 user x platform quota 的原子扣减/回滚语义。
 
-用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。修改用量聚合或展示时要保持三类 token 互斥统计。
+用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。hosted image Responses 的图片 token 可来自 `tool_usage.image_gen` / `response.tool_usage.image_gen`; 解析器仅在标准 usage 图片字段为 0 时补入 image input/output token, 避免与已有字段重复计费。修改用量聚合或展示时要保持各类 token 互斥统计。
 
 OpenAI 长上下文计费是账号级 opt-in: `accounts.extra.openai_long_context_billing_enabled` 默认 `false`, 只有该账号真实上游按 OpenAI API 长上下文阈值收费时才开启。计费结果把是否应用写入 `usage_logs.long_context_billing_applied`, 供审计和管理端用量表展示; shadow 账号沿用母账号策略, 不能按 shadow 的空凭据自行决定。
 
@@ -257,3 +258,13 @@ User x platform quota:
 - 后台逻辑见 `backend.md` 的"代理有效期与失败回退"。
 
 > 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

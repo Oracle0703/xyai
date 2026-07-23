@@ -84,7 +84,7 @@ API 模块分布:
 - OpenAI OAuth/API Key 账号增加 `openai_long_context_billing_enabled` 开关, 默认关闭; Codex session/PAT 导入只有用户实际触碰开关时才覆盖服务端默认, 避免旧导入流程无意开启长上下文计费。
 - OpenAI API Key 创建默认提交 `upstream_billing_probe_enabled=true`, 账号创建成功后等待首次 probe 再刷新列表；用户可在创建弹窗关闭该开关。该状态与本地 compatible provider preset 独立, 两者必须同时进入最终 payload。
 - Channel Monitor 支持 Grok provider、模板和筛选; `GrokQuotaProbeCell.vue` 的 Free 配额显示按本地滚动 24 小时 Token 用量估算, 与上游 weekly header 分开展示。
-- `AuditLogView.vue` 通过 `frontend/src/api/admin/audit.ts` 查询操作审计; 清空要求现场 TOTP。敏感导出/备份动作复用 `useStepUp.ts` + `TotpStepUpDialog.vue`, 收到 `STEP_UP_REQUIRED` 后取得短期 grant 并重试一次。`SettingsView.vue` 暴露默认关闭的 session binding 与 step-up 开关；关闭已启用的 step-up 本身需要二次验证, 开启前当前管理员必须已配置 TOTP。
+- `AuditLogView.vue` 通过 `frontend/src/api/admin/audit.ts` 查询操作审计; 清空要求现场 TOTP。敏感导出/备份动作复用 `useStepUp.ts` + `TotpStepUpDialog.vue`, 收到 `STEP_UP_REQUIRED` 后取得短期 grant 并重试一次。`SettingsView.vue` 暴露默认关闭的 session binding 与 step-up 开关；关闭已启用的 step-up 本身需要二次验证, 开启前当前管理员必须已配置 TOTP。API Key ACL 的兼容开关开启时还可编辑最多 16 个自定义客户端 IP header；前端做 header token 校验、大小写规范化和去重, 后端仍是最终校验边界。
 - `UsersView.vue` 的 `BulkEditUserModal.vue` 调用 `/admin/users/batch-limits`, 可更新选中用户或 `all=true` 全量用户的 concurrency/RPM; 0 必须原样提交, 不能被空值归一化丢失。
 
 ## Pinia Store
@@ -123,7 +123,7 @@ API 模块分布:
 
 - `/admin/prompt-audit` 懒加载 `frontend/src/features/prompt-audit/PromptAuditView.vue`, 并通过 `requiresRiskControl` 与管理端权限守卫。侧栏把既有 Risk Control 与 Prompt Audit 放在 Security Audit 分组中, 本地 `/admin/request-intercept` 仍保持独立入口。
 - `frontend/src/features/prompt-audit/api.ts` 维护配置、运行态、节点 probe 和事件删除合同；`components/` 下的 policy、endpoint pool、runtime、event workspace/detail 和 filter-delete dialog 组成页面。筛选删除必须先拿 preview 的 `snapshot_max_id` / `filter_hash`, 再显式确认。
-- `frontend/src/views/admin/BackupView.vue` 同时管理备份 S3 与异步生图对象存储。生图卡片可复用备份 S3 凭据或填写独立 bucket/prefix/endpoint, 保存即让后端运行时缓存失效、无需重启；两类 S3 保存都必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。
+- `frontend/src/views/admin/BackupView.vue` 同时管理备份 S3 与异步生图/图片对象存储。生图卡片可复用备份 S3 的 endpoint/region/credentials 并单独指定 bucket/prefix, 或保存独立凭据；保存即让后端运行时缓存失效、无需重启。两类 S3 保存都必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。测试连接与读配置使用 `frontend/src/api/admin/backup.ts` 的 `/backups/image-storage` 合同, secret 只显示 configured 状态而不回填明文。
 - `frontend/src/views/admin/SettingsView.vue` 的安全设置暴露客户端 IP 兼容开关和有序自定义 header 列表。header 只在兼容模式开启时显示/提交, 前端去重并规范化, 服务端仍负责合法 header 名和最多 16 项的最终校验。
 - `frontend/src/api/admin/system.ts` 为在线更新与回退单独使用 15 分钟 axios timeout；修改该调用签名时必须同步 `frontend/src/api/__tests__/admin.system.rollback.spec.ts` 的第三参数断言。
 
@@ -174,6 +174,7 @@ API 模块分布:
 
 ## 账号与 Key 配置 UI
 
+- `frontend/src/views/admin/GroupsView.vue` 只为 OpenAI 分组展示 `ReasoningEffortPolicyFields.vue`, 可设置 `minimal/low/medium/high/xhigh/max` 上限和精确 from/to 映射。表单辅助逻辑集中在 `frontend/src/views/admin/groupsReasoningEffort.ts`, 创建/编辑提交前必须拒绝空值、平台不支持值和重复 source；切换到非 OpenAI platform 时清理不再有效的策略值。
 - `frontend/src/components/account/CreateAccountModal.vue` 和 `EditAccountModal.vue` 维护 OpenAI/Grok 账号创建编辑能力。OpenAI API Key 创建保留本地 compatible provider preset、endpoint capabilities、Responses WebSocket V2 mode、Codex CLI only 和 Claude Code allowlist; Grok API Key 默认 `https://api.x.ai/v1`、占位 `xai-...`。两条分支共享同一个 API Key 容器, 修改条件或 placeholder 时要同时跑 `CreateAccountModal.grok.spec.ts` 与 `credentialsBuilder.spec.ts`。
 - OpenAI OAuth 编辑可手动覆盖 `credentials.plan_type`; 仅非 Spark 影子账号生效。空选项表示恢复自动识别, 提交时删除 stale `plan_type`; Plus/Pro/Free 预设之外的 canonical 值要保留。pool mode 的 `pool_mode_retry_count` 默认 3, 前后端都规范化到 `0..10`; 开启时提交规范化值, 关闭时必须和 retry status codes 一起删除。
 - `frontend/src/components/keys/UseKeyModal.vue` 生成 Codex/OpenAI/Grok 使用示例。普通 Codex 模板继续使用本地 `model_provider = "xunyou"` 与 `[model_providers.xunyou]`; WebSocket v2 模板使用 `OpenAI` provider。两种模板都支持 Legacy Login(`requires_openai_auth=true`)与 API Key Mode(`requires_openai_auth=false` + `x-openai-actor-authorization`)切换并同时生成 `auth.json`; 修改 provider 名或认证模式时必须同步两种模板和 `UseKeyModal.spec.ts`。Grok 默认页签生成 `~/.grok/config.toml` / `%userprofile%\.grok\config.toml`, provider/model key 统一为 `grok`, 使用网关 API Key、Responses backend 和 `grok-4.5`; OpenCode 使用 `@ai-sdk/openai` 与显式 Grok 模型清单。
@@ -233,3 +234,13 @@ API 模块分布:
 - 覆盖率阈值全局 80%。
 
 根 Makefile 的 `test-frontend` 会运行 lint, typecheck 和 critical vitest 列表。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

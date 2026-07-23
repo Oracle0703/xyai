@@ -1,0 +1,294 @@
+{
+  "nodes": [
+    {
+      "id": "entity:sub2api",
+      "type": "entity",
+      "name": "Sub2API",
+      "summary": "上游开源 AI API 网关项目 Wei-Shaw/sub2api，本仓库为其本地 fork。",
+      "tags": ["entity", "upstream"],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:request-archive",
+      "type": "entity",
+      "name": "RequestArchive",
+      "summary": "本地网关请求/响应归档中间件，默认关闭，用于内部排查。",
+      "tags": ["entity", "local-only", "gateway"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:request-intercept",
+      "type": "entity",
+      "name": "RequestIntercept",
+      "summary": "本地请求拦截规则能力，可在归档后拦截请求。",
+      "tags": ["entity", "local-only", "gateway"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:prompt-metrics",
+      "type": "entity",
+      "name": "PromptMetrics",
+      "summary": "本地 Prompt 指标采集与管理端路由。",
+      "tags": ["entity", "local-only"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:prompt-risk",
+      "type": "entity",
+      "name": "PromptRisk",
+      "summary": "本地 Prompt 风险识别与 LLM judge 内容审核链路。",
+      "tags": ["entity", "local-only", "security"],
+      "complexity": "complex"
+    },
+    {
+      "id": "entity:token-analysis",
+      "type": "entity",
+      "name": "TokenAnalysis",
+      "summary": "本地 Token 用量分析与归档索引能力。",
+      "tags": ["entity", "local-only"],
+      "complexity": "complex"
+    },
+    {
+      "id": "entity:sub-admin",
+      "type": "entity",
+      "name": "SubAdmin",
+      "summary": "本地子管理员角色，基于权限目录与路由白名单鉴权。",
+      "tags": ["entity", "local-only", "security"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:org-usage",
+      "type": "entity",
+      "name": "OrganizationUsage",
+      "summary": "本地组织用量报表能力。",
+      "tags": ["entity", "local-only"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:user-concurrency-preset",
+      "type": "entity",
+      "name": "UserConcurrencyPreset",
+      "summary": "本地用户并发 preset 与后台 runner。",
+      "tags": ["entity", "local-only"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:quota-flusher",
+      "type": "entity",
+      "name": "UserPlatformQuotaUsageFlusher",
+      "summary": "本地平台配额用量 flusher 生命周期任务。",
+      "tags": ["entity", "local-only"],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:default-reasoning-effort",
+      "type": "entity",
+      "name": "DefaultReasoningEffort",
+      "summary": "本地 OpenAI 默认 reasoning_effort 注入配置。",
+      "tags": ["entity", "local-only", "openai"],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:compatible-cache-usage",
+      "type": "entity",
+      "name": "CompatibleCacheUsage",
+      "summary": "本地 OpenAI-compatible cache usage 解析与计费字段适配。",
+      "tags": ["entity", "local-only", "billing"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:wire",
+      "type": "entity",
+      "name": "Google Wire",
+      "summary": "后端依赖注入，cmd/server/wire.go 生成 wire_gen.go。",
+      "tags": ["entity", "backend"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:ent",
+      "type": "entity",
+      "name": "Ent",
+      "summary": "Go ORM/schema 层，schema 变更需 go generate。",
+      "tags": ["entity", "backend", "data"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "claim:wiki-source-of-truth",
+      "type": "claim",
+      "name": "源码优先于 wiki",
+      "summary": "若 wiki 与源码冲突，以源码和测试为准，并在当轮修正 wiki。",
+      "tags": ["claim", "workflow"],
+      "complexity": "simple"
+    },
+    {
+      "id": "claim:merge-preserve-local",
+      "type": "claim",
+      "name": "合入上游必须保留本地能力",
+      "summary": "合并 Wei-Shaw/sub2api 时，RequestArchive/Intercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、compatible cache、默认 reasoning effort、并发 preset、quota flusher 等本地能力需语义并集保留。",
+      "tags": ["claim", "merge", "local-only"],
+      "complexity": "complex"
+    },
+    {
+      "id": "claim:agents-read-wiki-first",
+      "type": "claim",
+      "name": "AI 任务先读 llm-wiki",
+      "summary": "AGENTS.md 要求任务开始先读 wiki README 再按类型读对应页面，避免全仓盲扫。",
+      "tags": ["claim", "workflow"],
+      "complexity": "simple"
+    },
+    {
+      "id": "claim:no-secret-in-wiki",
+      "type": "claim",
+      "name": "wiki 禁止写入密钥",
+      "summary": "不把密钥、token、本机私密凭据写入 wiki。",
+      "tags": ["claim", "security"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "article:backend",
+      "target": "entity:wire",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "后端依赖注入核心"
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:ent",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "数据访问层"
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:request-archive",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "网关本地能力"
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:request-intercept",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "网关本地能力"
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "entity:prompt-risk",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "内容安全"
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "entity:sub-admin",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "管理权限模型"
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "entity:token-analysis",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "用量分析领域"
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "entity:org-usage",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "组织用量"
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "claim:agents-read-wiki-first",
+      "type": "exemplifies",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "流程要求"
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "claim:wiki-source-of-truth",
+      "type": "exemplifies",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "冲突处理原则"
+    },
+    {
+      "source": "article:README",
+      "target": "claim:merge-preserve-local",
+      "type": "builds_on",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "最近同步记录强调本地保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:request-archive",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:request-intercept",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:prompt-risk",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:token-analysis",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:sub-admin",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "entity:request-archive",
+      "target": "entity:token-analysis",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.6,
+      "description": "归档可供分析"
+    },
+    {
+      "source": "article:frontend",
+      "target": "entity:sub-admin",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.6,
+      "description": "前端按权限收口"
+    }
+  ]
+}

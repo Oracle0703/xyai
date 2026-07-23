@@ -1,0 +1,6 @@
+{
+  "kind": "knowledge",
+  "outputLanguage": "zh",
+  "source": "llm-wiki",
+  "notes": "Regenerate with tools/refresh-understand-wiki.ps1 or /understand-knowledge llm-wiki"
+}

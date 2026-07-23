@@ -1,0 +1,6 @@
+{
+  "autoUpdate": false,
+  "outputLanguage": "zh",
+  "scopedFirstInit": true,
+  "notes": "Large artifacts (knowledge-graph.json, fingerprints.json) are gitignored and regenerated locally. Shared scope lives in .understandignore."
+}
