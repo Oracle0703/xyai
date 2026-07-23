@@ -294,6 +294,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_ws.scheduler_score_weights.reset`: 默认 `0.0`, 用于给会话窗口最早重置的 OpenAI 账号加分; 关闭时不改变原调度行为。
 - `gateway.openai_ws.scheduler_score_weights.quota_headroom`: 默认 `0.0`, 用于按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 关闭时不改变原调度行为, 小流量灰度可从 `0.3` 起。
 - `gateway.openai_scheduler`: OpenAI sticky session 逃逸配置; 默认开启, 可按 TTFT/error rate 跳过劣化 sticky 账号。
+- `gateway.openai_proxy_stream_circuit`: OpenAI Responses SSE 代理断流的进程内 proxy-ID 熔断；`failure_threshold` 默认 2、`window_seconds` 默认 60、`ttl_seconds` 默认 600, 配置值只能非负, 0 回落默认。该状态不跨实例、不持久化, 重启清空；成功流清除观察, context cancel/deadline 不计失败。
 - `gateway.openai_compact_model`: OpenAI `/responses/compact` 上游默认模型, 默认 `gpt-5.4`; 可在 compact endpoint 暂未支持新模型时临时降级, 不影响普通 `/v1/responses`。
 - `gateway.openai_first_output_timeout_seconds`: 默认 `0` 关闭; 非零必须为 30-600 秒, 否则启动校验失败。只保护 native OpenAI HTTP streaming Responses, deadline 包含响应头等待, 不作用于 passthrough/WS; 首次语义输出前单次 attempt 暂存上限 8 MiB, 超时最多切号一次。原 attempt 可能已产生上游用量, 开启后必须接受重复上游计费风险。
 - `gateway.openai_high_effort_first_output_timeout_seconds`: 默认 `0`, 表示 high/xhigh/max 继承标准 first-output timeout; 非零必须为 30-1800 秒, 且只有标准 timeout 已启用时才生效。
@@ -314,6 +315,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
 - `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。管理端备份页通过 `/api/v1/admin/backups/image-storage` 读取、测试和保存运行时设置, 可复用备份 S3 凭据；保存目标受 step-up 2FA 保护, 独立 secret 加密入库且 API 不回显。数据库配置优先且保存后失效 resolver/uploader 缓存, 下一次异步图片请求立即采用新配置, 无需重启；从未保存过后台配置时回落 YAML/环境变量。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。生产环境若上游 URL 不可信, 应保持 `image_storage` 关闭直至 SSRF/任务恢复风险被上游修复。
+- Ollama Cloud usage 不是 YAML 配置组, 由数据库 setting `OLLAMA_CLOUD_USAGE_SETTINGS` 热管理；默认 `enabled=false`、`interval_minutes=60`, 保存时钳制到 15-1440。后台 worker 使用 PostgreSQL/Redis leader lock, 单周期最多刷新 20 个 eligible 账号、并发 4, 通过账号代理访问固定 `https://ollama.com/settings`；session 持久化要求固定 `TOTP_ENCRYPTION_KEY`。
 
 Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 

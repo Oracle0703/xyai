@@ -83,6 +83,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - OpenAI Agent Identity 账号使用 `auth_mode=agentIdentity`, 凭据包含 PKCS#8 Ed25519 `agent_private_key`、`agent_runtime_id` 和运行期 `task_id`。缺失 task 时按账号串行注册; 上游判定 task 失效时单次恢复并持久化新 task, 随后使旧 WS 连接失效。account test、quota 查询、usage 查询及 HTTP/WS gateway 都支持该认证模式; quota reset credit 明确不支持。私钥和其他 secret 在管理端 DTO 中剥离; 上游错误、日志与 ops 输出还会防御性脱敏 runtime/task ID、assertion 及可能回显的凭据值。
 - `POST /api/v1/admin/accounts/:id/duplicate` 只复制 API Key、upstream、Bedrock、service account 等静态凭据账号。账号、精确 groups priority 和 scheduler outbox 在同一事务创建; 新账号固定 `schedulable=false`, 不复制 quota、capability probe、cache 或临时调度等运行态。提供 `Idempotency-Key` 时以 admin actor + source account + key 建立恢复身份, 模糊提交结果只做只读恢复、不重复创建; credential shadow 和 OAuth/Agent Identity 等旋转凭据账号直接拒绝。
 - OpenAI API Key 账号可启用 upstream billing probe: 设置与单个/批量 probe 路由位于 `/api/v1/admin/accounts/upstream-billing-probe/*` 和 `/:id/upstream-billing-probe`; snapshot 存入账号 `extra.upstream_billing_probe`, 调度可按上游倍率参与成本评分。创建/批量编辑 DTO 的 `ProbeEnabled` 决定账号是否参加自动探测, 创建端可在成功后立即 probe。API Key 自省入口 `GET /v1/sub2api/billing` 只返回当前 key 的计费倍率合同。
+- Ollama Cloud 官方用量仅适用于 endpoint 为 `ollama.com` 的 OpenAI/Anthropic API Key 账号。管理路由位于 `/api/v1/admin/accounts/:id/ollama-cloud-usage` 及其 session/auto-refresh/refresh 子路由, 全局设置由 `/api/v1/admin/accounts/ollama-cloud-usage/settings` 管理。服务通过账号代理读取官方 settings HTML, 只把解析后的 plan、5 小时/7 天窗口、余额和模型用量 snapshot 写入 `account.extra`, 不改变账号调度状态。默认全局关闭、刷新间隔 60 分钟(限制 15-1440), 多实例使用 leader lock, 单周期最多 20 个账号、并发 4；手工刷新同账号 30 秒限一次。
 
 管理端子管理员权限:
 
@@ -122,6 +123,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 关键行为:
 
+- `platform=composite` 的 group 先由 `CompositeRouteResolver` 按显式 route registry 解析 public model、endpoint、目标平台和 upstream model；exact 优先 prefix、endpoint-specific 优先 any、更长 prefix/更低 priority/更低 id 依次胜出, 未命中再走内置模型检测, 仍不明确则 fail-closed。解析结果写入 request context 并在 JSON/Gemini native 路径改写上游模型；后续账号选择、user-platform quota、计费、Ops/channel attribution 和 usage report 均使用具体目标平台。管理 API 为 `/api/v1/admin/groups/:id/composite-routes` 的 CRUD 与 preview。
 - `/v1/messages` 根据 API Key 所属 group platform 分流到 OpenAI 或 Claude 兼容处理。
 - `/v1/messages/count_tokens` 对 OpenAI group 走 Anthropic-compatible 到 OpenAI `/v1/responses/input_tokens` 的桥接; 不占并发槽、不写 usage。Grok group 因上游没有兼容计数端点, 在本地把 Anthropic 请求转换为 Responses 形状后用 tiktoken/tokenizer 估算；不选账号、不取凭据、不检查 billing、不请求上游、不占并发槽且不写 usage, 但仍经过 API Key 与分组中间件, 并同时支持 `/v1` 与根级路径。其他不支持的平台继续走既有 count-tokens 错误/handler。
 - `/v1/responses` 和根级 `/responses` 支持 OpenAI Responses API。
@@ -172,6 +174,7 @@ OpenAI/Codex 兼容桥:
 - `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
 - Grok 没有原生 `/responses/compact`; Grok 分组把 compact 请求转换为一次普通非流式 Responses 摘要 turn, 要求返回 `reasoning.encrypted_content`, 再映射成 OpenAI `compaction` item。后续 turn 会把该 item 还原为 Grok reasoning 与带 `<conversation_summary>` 的上下文；compact 路径不派生 prompt cache identity。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。native Responses、raw/compatible pipeline、passthrough 和 Grok producer 都要把上游 response headers 留在内部 failover error, 但账号耗尽时只允许向客户端恢复安全的 `Retry-After`: 数字必须为 1-604800 秒, HTTP 日期必须晚于当前且不超过 7 天; CR/LF、超长或超界值一律丢弃, 其他上游 header 不恢复。
+- OpenAI Responses SSE 经代理发生非 context-cancel/deadline 的中途断流时, `openai_proxy_stream_circuit.go` 按 proxy ID 在进程内计数；默认 60 秒内 2 次触发隔离 10 分钟, 成功流会清除该代理观察。被隔离代理在账号调度时跳过；状态有界为 4096 项、重启清空, 只隔离代理而不持久修改账号。
 - 网关转发函数如果已经向客户端写入完整上游错误响应, 必须调用/依赖 `MarkResponseCommitted` 与 `gatewayForwardErrorAlreadyCommunicated` 防止 handler 再追加通用 SSE 错误帧; 仅 ping 或流式中途错误仍需协议级失败帧。
 - OpenAI/Grok/Messages 流里的 `response.failed` 要复用 error passthrough 与 failover 规则, 不能硬编码为 502; 已向客户端写入的 in-band SSE 错误同时要落 ops error context, 避免 200 HTTP 流内失败从错误看板消失。
 - OpenAI/ChatGPT/Codex 账号配额查询与重置由 `backend/internal/service/openai_quota_service.go` 提供(上游 v0.1.137): 调 `chatgpt.com/backend-api/wham/usage` 读 rate-limit 窗口、`/wham/rate-limit-reset-credits/consume` 重置 credits; 管理端入口 `GET /api/v1/admin/openai/accounts/:id/quota` 与 `POST .../reset-quota`。上游对未用窗口返回显式 `null`, 消费方按 nil 指针视作"无数据"。

@@ -40,6 +40,7 @@ OpenAI Agent Identity:
 - `session_binding_enabled` 与 `step_up_enabled` 都默认关闭；管理设置请求使用可空字段, 旧客户端省略新字段时保持数据库现值。step-up 开启后, 账号/代理导出、S3 配置修改、备份创建/下载/恢复、管理员角色提升等敏感动作使用 15 分钟会话 grant；admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。开启前要求当前管理员已启用 TOTP, 关闭开关本身也必须二次验证。前端 `BackupView.vue` 的 S3 保存和 `SettingsView.vue` 的保存都必须经 `useStepUp`。
 - 异步图片对象存储运行时设置位于 `/api/v1/admin/backups/image-storage`。修改存储目标会把生成内容导向外部账号, 因此 PUT 与备份 S3 一样必须通过 step-up；独立 `secret_access_key` 用 `SecretEncryptor` 加密入库, GET 清空 secret 只返回 configured 状态。选择复用备份 S3 时不再保存第二份凭据, 只保留图片 bucket/prefix 等覆盖项。
 - Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
+- Composite group 不把客户端 public model 直接当作任意 provider 选择器：显式 route 的 target platform/endpoint 受 allowlist 与 group ownership 校验, 未命中时内置 detector 只识别已知模型族, 未知或歧义模型 fail-closed。resolved platform/model 放入请求 context 后再执行具体平台账号选择、配额和计费；根级 Responses/Chat/images/videos 入口仍在 composite 解析和 group gate 后执行本地 RequestArchive/RequestIntercept。
 - `api_key_acl_trust_forwarded_ip` 是旧部署/升级兼容开关, 代码默认 `true`。开启时 API Key ACL、会话绑定和审计使用同一请求级快照（`Config.ForwardedClientIPSettings()`）, 原始转发头可绕过 Gin `server.trusted_proxies` 链；最多 16 个 `forwarded_client_ip_headers` 经规范化/去重后按配置顺序优先于 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For`, 因此只应填写由可信边缘覆盖且外部不能伪造的 header。关闭后才由 Gin `server.trusted_proxies` / 直连 peer 作为统一权威来源, 此时自定义 header 不生效；trusted proxies 未配置或显式空时仅信任直连 peer。`deploy/config.example.yaml` 采用更安全的 false, 生产应按真实代理拓扑显式收紧。
 
 Prompt Audit 安全与隐私边界:
@@ -179,6 +180,7 @@ Grok endpoint 也属于 URL 信任边界:
 请求链路会记录 request id, ops error, request archive, 并可使用 request intercept 动态改写/阻断。
 
 native OpenAI HTTP streaming Responses 的 first-output guard 默认关闭。启用后 deadline 从 attempt 开始并包含响应头等待; 首次语义输出前最多暂存 8 MiB, 只允许 keepalive 等非语义字节先行, 超时/溢出后清理 attempt 并最多换账号一次。该机制不覆盖 passthrough/WS, 也不能撤销已经发生的上游计算或用量, 因而 failover 重放可能造成重复上游计费; 开启前必须把该风险纳入成本与幂等评估。
+OpenAI proxy stream circuit 只把非取消/非 deadline 的 Responses SSE 中途断流计入 proxy-ID 本地观察, 达阈值后临时跳过该代理；它不持久修改 proxy/account、不跨实例共享, 成功流清除观察且 TTL 自动恢复。日志只记录 proxy/account/request ID 与经过 `sanitizeUpstreamErrorMessage` 的错误, 不输出上游凭据或原始响应。
 
 OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level thinking 字段:
 
@@ -294,6 +296,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - JWT secret 生产必须随机且稳定。
 - 支付 provider 凭证和 webhook secret 应加密存储并验签。
 - 后台异步生图对象存储的 SecretAccessKey 使用现有固定 `SecretEncryptor` 加密；未配置持久加密 key 时拒绝保存新 secret, 防止自动生成临时 key 导致重启后无法解密。复用备份 S3 时不重复持久化凭据, 读取 API 只返回 `secret_configured` 状态而不回显明文。
+- Ollama Cloud web session 最多 16 KiB, 拒绝 CR/LF、重复 cookie、Set-Cookie attributes 和非 allowlist session cookie；规范化后使用固定 `TOTP_ENCRYPTION_KEY` 对应的 `SecretEncryptor` 加密写入 `account.extra`, 未配置固定 key 时拒绝保存。DTO、usage snapshot 和 audit log 均不回显 session 或原始 settings HTML；刷新只访问固定 `https://ollama.com/settings`, 响应上限 512 KiB, 并以账号/代理/session identity CAS 防止并发刷新覆盖新凭据。
 - API Key 删除只 tombstone 原 key 以释放唯一约束, 不再把明文 key 复制到 `deleted_api_key_audits`；Ops 入口拒绝只保留有界聚合维度。旧明文审计表/列的 finalizer 必须在滚动升级全部完成并确认恢复点后人工执行。
 - 退款状态可能进入 `REFUND_PENDING`: 这表示 provider 已受理但尚未最终成功。再次扣减余额/订阅前必须通过 provider query 终态确认, 并依赖 `PaymentAuditLog` 的 `REFUND_PENDING` / `REFUND_SUCCESS` / `REFUND_FAILED` 审计避免重复扣减。
 
