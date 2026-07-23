@@ -231,3 +231,13 @@ API 模块分布:
 - 覆盖率阈值全局 80%。
 
 根 Makefile 的 `test-frontend` 会运行 lint, typecheck 和 critical vitest 列表。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

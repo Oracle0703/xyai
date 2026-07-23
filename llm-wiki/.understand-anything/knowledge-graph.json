@@ -1,0 +1,1169 @@
+{
+  "version": "1.0.0",
+  "kind": "knowledge",
+  "project": {
+    "name": "Sub2API llm-wiki Index",
+    "languages": [
+      "markdown"
+    ],
+    "frameworks": [
+      "karpathy-wiki"
+    ],
+    "description": "Knowledge graph for Sub2API llm-wiki Index",
+    "analyzedAt": "2026-07-23T07:42:08.634882+00:00",
+    "gitCommitHash": "3e4f4e3f1e987783298c3b28b60f01de80618ac2"
+  },
+  "nodes": [
+    {
+      "id": "article:ai-workflow",
+      "type": "article",
+      "name": "AI 日常协作流程",
+      "filePath": "ai-workflow.md",
+      "summary": "1. 正常提出需求, 不需要额外提示“请读取 llm-wiki”或“请更新 llm-wiki”。 2. 如果需求涉及业务背景, 直接说明目标, 约束和验收标准。 3. 如果发现 AI 结论和项目事实不一致, 指出冲突点; AI 应修正 wiki。 4. 对高风险改动, 明确是否允许改数据结构, migration, 配置默认值和兼容逻辑。",
+      "tags": [
+        "ai 协作流程"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "README",
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow"
+        ],
+        "category": "AI 协作流程",
+        "content": "# AI 日常协作流程\n\n## 人需要做什么\n\n1. 正常提出需求, 不需要额外提示“请读取 llm-wiki”或“请更新 llm-wiki”。\n2. 如果需求涉及业务背景, 直接说明目标, 约束和验收标准。\n3. 如果发现 AI 结论和项目事实不一致, 指出冲突点; AI 应修正 wiki。\n4. 对高风险改动, 明确是否允许改数据结构, migration, 配置默认值和兼容逻辑。\n\n## AI 需要做什么\n\n每轮任务开始:\n\n1. 读取根目录 `AGENTS.md`。\n2. 读取 `llm-wiki/wiki/README.md`。\n3. 按任务类型读取对应 wiki。\n4. 再读取相关源码, 不从全仓库盲扫开始。\n\n实现过程中:\n\n1. 以源码和测试为准。\n2. 遇到 wiki 过期, 立即在本轮修正。\n3. 修改业务代码时保持范围小, 不做无关重构。\n4. 对缺陷先定位根因, 再改代码和补验证。\n\n收尾前:\n\n1. 判断是否需要更新 `llm-wiki/wiki/`。\n2. 执行匹配的验证命令。\n3. 输出修改内容, 验证结果和后续建议。\n\n## wiki 更新决策\n\n必须更新:\n\n- 新增/修改架构, 模块职责, 依赖注入, 路由, 后台任务。\n- 新增/修改配置项, 环境变量, 启动方式, CI。\n- 新增/修改数据库 schema, migration, 数据生命周期。\n- 新增/修改认证, 权限, 限流, 幂等, 支付, 计费, 网关协议。\n- 发现现有 wiki 与源码冲突。\n\n可不更新:\n\n- 纯样式微调。\n- 局部文案。\n- 局部测试 fixture 调整。\n- 不改变外部行为的内部变量命名。\n\n## 推荐写法\n\nwiki 页面应写:\n\n- 稳定事实。\n- 关键路径。\n- 为什么这个点对维护重要。\n- 验证命令或检查方式。\n- 常见坑。\n\nwiki 页面不应写:\n\n- 对话过程。\n- 临时猜测。\n- 未验证结论。\n- 密钥或私密凭据。\n\n## 平时怎样运作\n\n```mermaid\ngraph TD\n  A[\"用户提出需求\"] --> B[\"AI 读取 AGENTS.md\"]\n  B --> C[\"AI 读取 llm-wiki/wiki/README.md\"]\n  C --> D[\"按任务读取相关 wiki\"]\n  D --> E[\"读取必要源码和测试\"]\n  E --> F[\"实施修改或回答问题\"]\n  F --> G[\"运行匹配验证\"]\n  G --> H[\"判断是否更新 wiki\"]\n  H --> I[\"输出结果和下一步\"]\n```\n\n## Codex 与 Copilot 规则\n\n- Codex 项目规则: 根目录 `AGENTS.md`。\n- Copilot 项目规则: `.github/copilot-instructions.md`。\n- 两者都要求开发前自动查阅 wiki, 并在任务改变项目知识时同步更新 wiki。\n\n## 知识图谱怎么配合\n\n权威顺序不变: `AGENTS.md` → `llm-wiki` → 源码/测试。图谱只做导航。\n\n| 动作 | 命令/入口 |\n| --- | --- |\n| 检查是否就绪 | `tools\\check-understand-status.cmd` |\n| 打开代码/Wiki 图 | `tools\\start-understand-dashboard.cmd` |\n| 刷新 Wiki 图 | `tools\\refresh-understand-wiki.cmd` |\n| 重建代码图 | `/understand` |\n| 变更影响 | `/understand-diff` |\n\nWindows 不要使用裸 `powershell -File ...`（RemoteSigned 下可能被拦截）; `.cmd` 已带 `ExecutionPolicy Bypass`。状态检查会在 wiki dirty 或图谱基线落后 HEAD 时返回 PARTIAL。\n\n持久化约定:\n\n- 入库: wiki 正文、`llm-wiki/index.md`、共享 config/ignore、**wiki 图谱 JSON**、AGENTS 与本页规则。\n- 不入库: 代码图谱 JSON、fingerprints、dashboard 日志（见根 `.gitignore`）。\n\n## 相关页面\n\n- [[README]]\n- [[backend]]\n- [[frontend]]\n- [[ops]]\n- [[data-and-domain]]\n- [[security-and-reliability]]\n- [[ai-workflow]]\n",
+        "backlinks": [
+          "article:backend",
+          "article:data-and-domain",
+          "article:frontend",
+          "article:ops",
+          "article:README",
+          "article:README",
+          "article:security-and-reliability"
+        ]
+      }
+    },
+    {
+      "id": "article:backend",
+      "type": "article",
+      "name": "后端知识基线",
+      "filePath": "backend.md",
+      "summary": "- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.5`。 - HTTP 框架: Gin。 - ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。 - 依赖注入: Google Wire, 入口在 `backend...",
+      "tags": [
+        "后端与网关"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "README",
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow"
+        ],
+        "category": "后端与网关",
+        "content": "# 后端知识基线\n\n## 技术栈与入口\n\n- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.5`。\n- HTTP 框架: Gin。\n- ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。\n- 依赖注入: Google Wire, 入口在 `backend/cmd/server/wire.go`, 生成文件 `wire_gen.go`。\n- 后端主入口: `backend/cmd/server/main.go`。\n- 主要命令:\n  - 启动: `cd backend && go run ./cmd/server`\n  - 构建: `cd backend && make build`\n  - 生成: `cd backend && make generate`\n\n## 启动流程\n\n`backend/cmd/server/main.go`:\n\n1. 初始化 bootstrap logger。\n2. 解析 `-setup` 和 `-version`。\n3. 若首次运行需要 setup:\n   - Docker/环境变量自动 setup 时调用 `setup.AutoSetupFromEnv()`。\n   - 否则启动 setup wizard 路由。\n4. 正常服务模式:\n   - `config.LoadForBootstrap()` 读取配置。\n   - 初始化 logger。\n   - Wire 构建 `Application`。\n   - 启动 HTTP server。\n   - 监听 `SIGINT/SIGTERM`, 优雅关闭。\n\n## 依赖注入结构\n\n`backend/cmd/server/wire.go` 的 `initializeApplication` 汇总:\n\n- `config.ProviderSet`\n- `repository.ProviderSet`\n- `service.ProviderSet`\n- `promptmetrics.ProviderSet`\n- `securityaudit.ProviderSet`\n- `payment.ProviderSet`\n- `middleware.ProviderSet`\n- `handler.ProviderSet`\n- `server.ProviderSet`\n\n很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner, user platform quota flusher、Ops ingress rejection aggregator 和 auth-cache invalidation worker。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。\n\nPrompt Audit 由 `backend/internal/securityaudit/` 提供。`Application.PromptAudit` 在 `main.go` 启动, `provideCleanup` 调用 `PromptService.Shutdown`; 配置默认关闭。`Coordinator` 始终保留既有内容审核：off 只执行 legacy moderation, async 先 best-effort 入队再执行 legacy, blocking 并行执行 Prompt Audit 与 legacy 并按阻断优先级合并结果。\n\nAPI Key 鉴权缓存跨实例失效由 `backend/migrations/184_auth_cache_invalidation_outbox.sql`、`repository/auth_cache_invalidation_outbox_repo.go` 和 `service/auth_cache_invalidation_outbox.go` 组成。数据库 trigger 只把 API Key 的 SHA-256 写入 outbox；worker 使用 `FOR UPDATE SKIP LOCKED` 领取, 先清本机/L2 并发布 Redis 通知, 30 秒后再做安全二次失效, 失败按有界退避重试。`provideCleanup` 必须同时停止 worker、Redis subscriber 和 Ops runtime refresh；健康入口为 `GET /api/v1/admin/ops/auth-cache-invalidation/health`。\n\nOAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `candidate_page_size=200`; 每个平台独立并行处理, 并共享各自的进程内并发、QPS 和当前周期熔断闸门。默认 `provider_concurrency=4`、`provider_qps=2`、`provider_failure_threshold=3`、`attempt_timeout_seconds=15`、`cycle_timeout_seconds=240`; 单个平台连续失败只隔离该 provider, 不阻断其他 provider 的刷新页。周期中断时不会越过未完整处理的页, 后续从保存的游标恢复。\n\n代理有效期与失败回退(`ProvideProxyExpiryService`, 每分钟扫描):\n\n- `backend/internal/service/proxy_expiry_service.go` 定时 `SweepExpiredProxies`; `proxy_fallback.go` 的 `ResolveProxyFallbackTarget` 按 `fallback_mode`(`none` / `proxy` / `direct`)沿 `backup_proxy_id` 链解析过期代理应改投的目标, `RevertProxyFallback` 支持手动回切。\n- 账号回切来源记录在 `accounts.proxy_fallback_origin_id`; 前端入口在 `ProxiesView.vue`(有效期/回退模式)与 `AccountsView.vue`(回切)。\n- `provideCleanup` 的 `ProxyExpiryService` 步骤负责停止该后台任务。\n\n## HTTP Server 与路由\n\n入口:\n\n- `backend",
+        "backlinks": [
+          "article:ai-workflow",
+          "article:data-and-domain",
+          "article:frontend",
+          "article:ops",
+          "article:README",
+          "article:security-and-reliability"
+        ]
+      }
+    },
+    {
+      "id": "article:data-and-domain",
+      "type": "article",
+      "name": "数据与领域基线",
+      "filePath": "data-and-domain.md",
+      "summary": "Sub2API 的核心对象:",
+      "tags": [
+        "数据与领域"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "README",
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow"
+        ],
+        "category": "数据与领域",
+        "content": "# 数据与领域基线\n\n## 核心领域\n\nSub2API 的核心对象:\n\n- User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。\n- API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。\n- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。\n- Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。\n- Channel: 模型平台定价和渠道能力管理。\n- UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。\n- BatchImageJob/Item/Event: 批量生图任务、单项结果与事件流, 配合用户 frozen balance / hold / settlement / download cleanup。\n- SubscriptionPlan/UserSubscription: 套餐和用户订阅。\n- PaymentOrder/PaymentProviderInstance/PaymentAuditLog: 内置支付系统。\n- GrokOAuthClient/Grok quota snapshot: Grok/xAI OAuth 与订阅配额快照支撑, 运行态快照主要保存在账号 `extra`。\n- RedeemCode/PromoCode/Affiliate: 兑换码, 优惠码, 邀请返利。\n- Ops: error log, upstream error, metrics, alert, dashboard aggregation。\n- ChannelMonitor: 渠道监控, 模板, 历史和 daily rollup。\n- SecuritySecret/IdempotencyRecord/TLSFingerprintProfile/ErrorPassthroughRule/ContentModeration: 安全和可靠性支撑。\n\n## Ent Schema\n\n位置: `backend/ent/schema/`。\n\n当前重要 schema 文件包括:\n\n- `user.go`, `auth_identity.go`, `auth_identity_channel.go`\n- `api_key.go`, `group.go`, `account.go`, `account_group.go`\n- `usage_log.go`\n- `batch_image_job.go`, `batch_image_item.go`, `batch_image_event.go`\n- `subscription_plan.go`, `user_subscription.go`\n- `payment_order.go`, `payment_provider_instance.go`, `payment_audit_log.go`\n- `channel_monitor.go`, `channel_monitor_history.go`, `channel_monitor_daily_rollup.go`, `channel_monitor_request_template.go`\n- `setting.go`, `security_secret.go`, `idempotency_record.go`\n\n`users` 角色与管理权限:\n\n- `role` 支持 `admin`、`sub_admin`、`user`。\n- `admin_permissions` 是 `JSONB NOT NULL DEFAULT '[]'::jsonb`, 仅 `sub_admin` 保存权限码; 用户离开该角色时 service 必须清空数组, 避免 stale 权限复用。\n- 权限按账号保存, 不自动给存量子管理员授予后续新增权限。创建/更新时未知权限码返回 400。\n\n修改 schema 后:\n\n```bash\ncd backend\ngo generate ./ent\ngo generate ./cmd/server\n```\n\n生成代码在 `backend/ent/`, 必须随 schema 一起提交。\n\n## SQL Migration\n\n位置: `backend/migrations/`。\n\n运行器: `backend/internal/repository/migrations_runner.go`。\n\n关键规则:\n\n- migration 启动时自动执行。\n- `schema_migrations` 表记录 filename, checksum, applied_at。\n- checksum 是 trimmed file content 的 SHA256。\n- 已应用 migration 不可修改, 不可删除, 不可重命名, 不可重排。\n- 普通 `*.sql` 在事务内执行。\n- `*_notx.sql` 非事务执行, 仅用于 `CREATE INDEX CONCURRENTLY` / `DROP INDEX CONCURRENTLY` 等场景。\n- `_notx.sql` 必须写幂等 SQL, 如 `CREATE INDEX CONCURRENTLY IF NOT EXISTS`。\n\n新增 migration 时只新增下一个编号文件, 不修旧文件。\n\n当前调度性能相关索引:\n\n- `backend/migrations/150_account_group_scheduler_indexes_notx.sql` 为 `account_groups` 新增 `(group_id, priority, account_id)` 和 `(account_id, priority, group_id)` 并发索引, ",
+        "backlinks": [
+          "article:ai-workflow",
+          "article:backend",
+          "article:frontend",
+          "article:ops",
+          "article:README",
+          "article:security-and-reliability"
+        ]
+      }
+    },
+    {
+      "id": "article:frontend",
+      "type": "article",
+      "name": "前端知识基线",
+      "filePath": "frontend.md",
+      "summary": "- Vue 3 + Composition API + TypeScript。 - 构建: Vite 5。 - 状态管理: Pinia。 - 路由: Vue Router 4。 - 样式: TailwindCSS, 全局样式在 `frontend/src/style.css` 和 `frontend/src/styles/`。 - 国际化: `vue-i18n`, 入口 `frontend/...",
+      "tags": [
+        "前端"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "README",
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow"
+        ],
+        "category": "前端",
+        "content": "# 前端知识基线\n\n## 技术栈与入口\n\n- Vue 3 + Composition API + TypeScript。\n- 构建: Vite 5。\n- 状态管理: Pinia。\n- 路由: Vue Router 4。\n- 样式: TailwindCSS, 全局样式在 `frontend/src/style.css` 和 `frontend/src/styles/`。\n- 国际化: `vue-i18n`, 入口 `frontend/src/i18n/index.ts`。\n- `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。\n- 包管理器: pnpm, 不使用 npm/yarn。\n\n主入口:\n\n- `frontend/src/main.ts`: 初始化主题, Pinia, 注入配置, 首屏标题/favicon, i18n, router, mount。\n- `frontend/src/App.vue`: 全局导航进度, RouterView, Toast, AnnouncementPopup, setup 检查, 公共设置加载, branding 热更新和子管理员权限拒绝恢复。\n\n## Vite 构建行为\n\n`frontend/vite.config.ts`:\n\n- `@` 指向 `frontend/src`。\n- `vue-i18n` alias 到 runtime 版本, 避免 CSP unsafe-eval。\n- dev server 默认端口来自 `VITE_DEV_PORT` 或 `3000`。\n- dev proxy 转发 `/api`, `/v1`, `/setup` 到 `VITE_DEV_PROXY_TARGET` 或 `http://localhost:8080`。\n- build 输出到 `../backend/internal/web/dist`, 供后端嵌入。\n- dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 并在 HTML 返回前注入安全转义的站点标题/favicon, 模拟生产 embedded HTML 注入行为。favicon 只接受相对路径、HTTP(S) 或 `data:image/*`; runtime 统一复用 `frontend/src/utils/branding.ts`。\n\n## 路由与守卫\n\n`frontend/src/router/index.ts` 集中定义路由。\n\n主要分组:\n\n- setup: `/setup`\n- public: `/home`, `/login`, `/register`, OAuth callback, `/key-usage`, `/image-gen`, `/legal/:documentId`\n- batch image: `/batch-image`(alias `/docs/batch-image`) 使用 `BatchImageGuideView.vue`, 侧栏入口由 `useBatchImageAccess` 按用户/分组能力刷新显示。\n- user: `/dashboard`, `/keys`, `/usage`, `/redeem`, `/affiliate`, `/available-channels`, `/profile`, `/subscriptions`, `/purchase`, `/orders`, payment 页面, `/custom/:id`\n- admin: `/admin/dashboard`, `/admin/ops`, `/admin/users`, `/admin/groups`, `/admin/channels/*`, `/admin/accounts`, `/admin/audit-logs`, `/admin/settings`, `/admin/risk-control`, `/admin/prompt-audit`, `/admin/request-intercept`, `/admin/usage`, `/admin/organization-usage`, `/admin/token-analysis`, payment admin, affiliate admin\n\n守卫要点:\n\n- 首次导航调用 `authStore.checkAuth()` 恢复 localStorage 会话。\n- `requiresAuth` 默认 true, 显式 false 才是公开页。\n- `requiresAdmin` 使用 `authStore.canAccessAdmin`; 子管理员路由还必须声明 `meta.adminPermission`, 缺失或不匹配时跳到安全落点。\n- `requiresPayment` 依赖 public settings 中的 payment 开关。\n- `requiresRiskControl` 依赖 risk control 开关。\n- feature route guard 会先等待 `appStore.fetchPublicSettings()`; 只有 settings 已成功加载且开关显式为 `false` 才重定向。加载失败属于未知状态, 不能误判为功能关闭。`app.ts` 用单一 in-flight promise 合并并发 public-settings 请求, force refresh 也不能让旧请求覆盖新结果。\n- simple mode 对用户侧受限页面一视同仁, 不能因裸 `sub_admin` 角色绕过。\n- backend mode 下完整管理员进入管理总览; 至少有一项权限的子管理员进入首个授权页; 空权限子管理员只能停留在登录页。\n- chunk load error 会触发一次页面 reload。\n- 页面标题由 `frontend/src/router/title.ts` 的 `resolveRouteDocumentTitle` 统一生成; `CustomPage` 会优先使用公开自定义菜单项或管理员自定义菜单项 label, 语言切换、站点名变化、自定义菜单加载后都会重新解析标题。\n\n## API Client\n\n`frontend/src/api/client.ts`:\n\n- Axios baseURL 由 `frontend/src/api/url.ts#getAPIBaseURL` 统一归一化: `VITE_API_BASE_URL` 或 `/api/v1`, 会去尾斜杠并支持绝对 URL。\n- 默认 `withCredentials: true`, tim",
+        "backlinks": [
+          "article:ai-workflow",
+          "article:backend",
+          "article:data-and-domain",
+          "article:ops",
+          "article:README",
+          "article:security-and-reliability"
+        ]
+      }
+    },
+    {
+      "id": "article:ops",
+      "type": "article",
+      "name": "运维, 配置与验证基线",
+      "filePath": "ops.md",
+      "summary": "- 当前审核分支为 `feature/hy/10163_合并1.163版本`: 第一父/本地 `main` 是 `e52b5c89d07ac058043de5adb983cad8750cab58`, 固定上游第二父是 `60013c5f100be7b4f2e6caee415883d221d33e32`, `backend/cmd/server/VERSION` 为 `0.1.163`。当前仍...",
+      "tags": [
+        "运维与配置"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "README",
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow"
+        ],
+        "category": "运维与配置",
+        "content": "# 运维, 配置与验证基线\n\n## 当前版本基线\n\n- 当前审核分支为 `feature/hy/10163_合并1.163版本`: 第一父/本地 `main` 是 `e52b5c89d07ac058043de5adb983cad8750cab58`, 固定上游第二父是 `60013c5f100be7b4f2e6caee415883d221d33e32`, `backend/cmd/server/VERSION` 为 `0.1.163`。当前仍是 `git merge --no-commit --no-ff` 状态, merge commit 尚未创建；不要把 `v0.1.163@d0bdd7e77` 单独当作同步边界, 因为版本文件由其后的 `60013c5f1` 才同步到 `0.1.163`。\n- `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。\n- `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。\n- Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。\n- 0.1.161 已在 `securityaudit.ProviderSet` 补齐 `PromptAdminService -> *PromptService` binding；当前 `go generate ./cmd/server` 可从合并后的 Wire 源图同时生成上游 Ops/auth-cache 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。\n- `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。\n\n## 本地启动\n\nWindows 本地脚本:\n\n- 启动: `start-local.cmd`\n- 停止: `stop-local.cmd`\n- PowerShell 启动: `powershell -ExecutionPolicy Bypass -File .\\tools\\start-local.ps1`\n- PowerShell 停止: `powershell -ExecutionPolicy Bypass -File .\\tools\\stop-local.ps1`\n\n当前本地脚本假设:\n\n- PostgreSQL: `127.0.0.1:5432`\n- Redis 或 Memurai: `127.0.0.1:6379`\n- 后端监听 `0.0.0.0:8080`\n- 本地环境文件: `.localdev/local-env.ps1`\n- 日志: `.localdev/logs/backend.log`, `.localdev/logs/frontend.log`\n- 后端 data/config: `.localdev/backend-data/config.yaml`\n\n开发模式手动启动:\n\n```bash\ncd backend\ngo run ./cmd/server\n```\n\n```bash\ncd frontend\npnpm run dev\n```\n\n## 构建\n\n根目录:\n\n```bash\nmake build\n```\n\n后端:\n\n```bash\ncd backend\nmake build\n```\n\n前端:\n\n```bash\npnpm --dir frontend run build\n```\n\n前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。\n\nembed 模式只给 Vite `assets/` 下文件名带 8 字符 fingerprint 的资源设置一年 `immutable` 缓存; unhashed assets、`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 只负责 TLS/反向代理, 不重复按路径强制 immutable, fingerprint 判定由后端 `static_cache.go` 统一负责。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。\n\n## Apple container\n\nApple 芯片 Mac + macOS 26 可使用 Apple `container` 1.1.0+ 运行本地 Sub2API/PostgreSQL/Redis。入口为 `deploy/apple-container.sh`, 完整限制、持久化和升级说明在 `deploy/APPLE_CONTAINER.md`:\n\n```bash\ncd deploy\n./apple-container.sh init\n./apple-container.sh up\n./apple-container.sh status\n```\n\n该脚本面向本地开发和人工运维, 不提供生产级持续重启监管。shell 语法与 fixture 测试由 `.github/workflows/backend-ci.yml` 的 macOS `shell` job 执行 `/bin/bash -n deploy/apple-container.sh` 和 `/bin/bash deploy/tests/apple-container-test.sh`; Windows 本机没有 bash 时可依赖该 CI 关卡, 不要用 Power",
+        "backlinks": [
+          "article:ai-workflow",
+          "article:backend",
+          "article:data-and-domain",
+          "article:frontend",
+          "article:README",
+          "article:security-and-reliability"
+        ]
+      }
+    },
+    {
+      "id": "article:README",
+      "type": "article",
+      "name": "Sub2API llm-wiki 基线",
+      "filePath": "README.md",
+      "summary": "更新时间: 2026-07-23",
+      "tags": [
+        "总览"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow",
+          "ai-workflow"
+        ],
+        "category": "总览",
+        "content": "# Sub2API llm-wiki 基线\n\n更新时间: 2026-07-23\n\n本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。\n\n## 项目一句话\n\nSub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端服务, 用 Vue 3 + Vite + Pinia 提供管理与用户前端, 支持 Claude/OpenAI/Gemini/Antigravity/Grok 等上游账号调度, API Key 分发, 用量计费, 支付, 订阅, 运维监控和请求转发。\n\n\n## 最近同步\n\n- 2026-07-23 从本地 `main@e52b5c89d07ac058043de5adb983cad8750cab58` 创建 `feature/hy/10163_合并1.163版本`, 固定合入 `Wei-Shaw/sub2api main@60013c5f100be7b4f2e6caee415883d221d33e32`, 当前后端版本 `0.1.163`; merge commit 尚未创建, 保持 `MERGE_HEAD` 等待用户审核。本轮上游增加 OpenAI 分组 reasoning effort 精确映射与上限、客户端 IP 自定义转发头和可信代理兼容模式、异步图片对象存储后台热配置、Grok 本地 count-tokens / compact / Codex client tools 兼容，以及 hosted image tool usage 计费提取。3 个文本冲突按语义并集解决, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher；本分支只解决合并冲突, 不修复上游自身问题。\n- 2026-07-19 从本地 `main@332fdbd0b84619cfb1da6fcb57b65d4d9263b2e9` 创建 `feature/hy/10161_合并1.161版本`, 固定合入 `Wei-Shaw/sub2api main@d4b9797ff72024960a035cf22fdd8f213e149169`, merge commit 为 `e3e6b52da43a5be351cf59089976759eebc28376`, 当前后端版本 `0.1.161`。本轮上游增加 HTTP ingress 有界防护、拒绝聚合、跨实例 API Key 鉴权缓存失效 outbox、安全开关默认关闭、Grok 受保护视频同源代理、模型级临时隔离、OpenAI WS/Responses 流修复和初始 branding 注入；4 个文本冲突做语义并集, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、图片生成/支付、用户并发 preset、compatible 适配、默认 reasoning effort、quota flusher 和子管理员权限。\n- 2026-07-17 从本地 `main@5d5f157854b9a88cc57da1600095bb404b78ed45` 创建 `feature/hy/10160_合并1.160版本`, 固定合入 `Wei-Shaw/sub2api main@57914967cbb127ff715719c3879d881c10d75274`, 当前后端版本 `0.1.160`。本轮上游增加 OpenAI-compatible Prompt Audit（默认关闭, 支持异步审计/同步阻断）、审计事件筛选删除、Grok media 账号资格隔离、S3 配置 step-up TOTP 和 locale compiler 直接依赖；冲突解决继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、用户并发 preset、compatible 适配、默认 reasoning effort 和 quota flusher。上游 Prompt Audit Wire 源图缺少接口绑定的问题只记录, 未在本分支修复。\n- 2026-07-15 新增账号级 `sub_admin` 角色与三项固定管理权限。管理接口使用数据库最新用户数据和 HTTP 方法 + Gin 路由模板白名单鉴权，未知路由默认拒绝；前端按服务端权限目录配置账号，并对订阅、使用记录和 Token 分析页面收口写操作。\n- 2026-07-17 在 `feature/hy/10157_同步sub2api主线` 继续合并 `Wei-Shaw/sub2api main@c2c19a7cbe8486ebb5b56834d1a6e07b3f12cffc`, 当前后端版本 `0.1.159`。本轮上游增加异步图片任务与 S3 结果转存、操作审计/会话绑定/敏感操作 step-up 2FA、API Key 计费倍率自省与上游倍率探测、用户批量限额、账号/分组/监控复制、图片输入 token 独立计费及统一客户端 IP 信任策略；冲突解决保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、用户并发 preset、compatible 适配和 quota flusher。上游异步图片 URL 下载 SSRF、进程重启后 processing 任务恢复及批量限额 cache 终态风险只记录等待远端修复，本地未改写上游生产实现。\n- 2026-07-16 从本地 `main` 创建 `feature/hy/10157_同步sub2api主线`, 固定合入 `Wei-Shaw/sub2api` `main@d515c3045ce838976ebedab87846aaaf893dbbf6`（包含 `v0.1.156` tag `12f991d` 和紧随其后的 `VERSION` 同步）, 当前后端版本 `0.1.156`。本次上游新增 Agent Identity、管理员安全复制账号、根级 `/models`、native Responses first-output timeout、WS 首消息 timeout、Grok OAuth pool/reconcile、token refresh provider 并发/QPS/熔断; 冲突解决继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics、Token Analysis、组",
+        "backlinks": [
+          "article:ai-workflow",
+          "article:backend",
+          "article:data-and-domain",
+          "article:frontend",
+          "article:ops",
+          "article:security-and-reliability"
+        ]
+      }
+    },
+    {
+      "id": "article:security-and-reliability",
+      "type": "article",
+      "name": "安全与可靠性基线",
+      "filePath": "security-and-reliability.md",
+      "summary": "后端中间件:",
+      "tags": [
+        "安全与可靠性"
+      ],
+      "complexity": "moderate",
+      "knowledgeMeta": {
+        "wikilinks": [
+          "README",
+          "backend",
+          "frontend",
+          "ops",
+          "data-and-domain",
+          "security-and-reliability",
+          "ai-workflow"
+        ],
+        "category": "安全与可靠性",
+        "content": "# 安全与可靠性基线\n\n## 认证与权限\n\n后端中间件:\n\n- JWT 用户认证: `backend/internal/server/middleware/jwt_auth.go`\n- 管理员认证: `backend/internal/server/middleware/admin_auth.go`\n- API Key 网关认证: `backend/internal/server/middleware/api_key_auth.go`\n- Google/Gemini API Key 认证兼容: `api_key_auth_google.go`\n- backend mode guard: `backend_mode_guard.go`\n- 操作审计: `backend/internal/server/middleware/audit_log.go`\n- 会话 IP/UA 绑定: `backend/internal/server/middleware/session_binding.go`\n- 敏感操作 step-up: `backend/internal/server/middleware/step_up.go`\n\n`APIKeyAuth` 对独占分组(exclusive group)做强制校验: 当 API Key 绑定的用户已不再被授权该独占分组时直接拒绝访问, 避免越权复用; 相关 middleware 单测在 `api_key_auth_test.go`。\n\nAPI Key 认证缓存 miss 受 `api_key_auth_cache.lookup_concurrency` 约束, confirmed invalid/missing/malformed/deprecated-query 凭据还会进入进程内有界 abuse limiter；有效凭据和 Redis/DB 故障不消耗该预算。数据库侧 `auth_cache_invalidation_outbox` 只保存 key SHA-256, 通过两阶段 Redis invalidation 和本机 cache 清理让 API Key、用户、分组/授权变化在多实例收敛；健康端点不得回显明文凭据。\n\nGoogle/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, 不能只解析 `x-goog-api-key` 后跳过 group assignment; 相关边界集中在 `api_key_auth_google.go`。管理端修改用户角色时必须阻止删除/降级最后一名管理员。\n\n管理端角色与细粒度权限:\n\n- `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。\n- 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。\n- 权限目录和白名单在 `backend/internal/service/admin_permission.go`; 当前仅有订阅管理、使用记录和 Token 分析。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。\n- 订阅权限是唯一含业务写操作的子管理员权限, 只允许 `POST /api/v1/admin/subscriptions/:id/reset-quota`; 使用记录清理、Token 立即索引、订阅分配/延期/撤销/恢复/删除始终拒绝。\n- 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。\n- `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。\n- 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。\n\nOpenAI Agent Identity:\n\n- `auth_mode=agentIdentity` 要求 PKCS#8 Ed25519 `agent_private_key` 和非空 `agent_runtime_id`; `task_id` 可缺省, 首次使用时按账号锁注册并持久化。私钥不得返回前端, runtime/task ID、AgentAssertion 和上游可能回显的凭据值在错误、日志与 ops 事件前也必须脱敏。\n- task 被上游判定失效时每个调用链只允许恢复一次; 新 task 持久化后必须使该账号旧 WS 连接失效, 防止连接继续使用旧 assertion。account test、quota/usage query 及 HTTP/WS gateway 共用该认证边界。\n\n管理面安全链:\n\n- 管理端和用户管理面变更请求写入 `audit_logs`; action/path/request body/credential 必须先归一化、脱敏和截断。审计列表/详情受 admin auth, 全量清空不复用 sudo 窗口而要求现场 TOTP。\n- `session_binding_enabled` 与 `step_up_enabled` 都默认关闭；管理设置请求使用可空字段, 旧客户端省略新字段时保持数据库现值。step-up 开启后, 账号/代理导出、S3 配置修改、备份创建/下载/恢复、管理员角色提升等敏感动作使用 15 分钟会话 grant；admin API key 不能取得该 grant, 未启用 TOTP 时明确返回 blocked error。开启前要求当前管理员已启用 TOTP, 关闭开关本身也必须二次验证。前端 `BackupView.vue` 的 S3 保存和 `SettingsView.vue` 的保存都必须经 `useStepUp`。\n- 异步图片对象存储运行时设置位于 `/api/v1/admin/backups/image-storage`。修改存储目标会把生成内容导向外部账号, 因此 PUT 与备份 S3 一样必须通过 step-up；独立 `secret_access_key` 用 `SecretEncryptor` 加密入库, GET 清空 secret 只返回 configured 状态。选择复用备份 S3 时不再保存第二份凭据, 只保留图片 bucket/prefix 等覆盖项。\n- Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。\n",
+        "backlinks": [
+          "article:ai-workflow",
+          "article:backend",
+          "article:data-and-domain",
+          "article:frontend",
+          "article:ops",
+          "article:README"
+        ]
+      }
+    },
+    {
+      "id": "topic:总览",
+      "type": "topic",
+      "name": "总览",
+      "summary": "Category from index: 总览 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "topic:后端与网关",
+      "type": "topic",
+      "name": "后端与网关",
+      "summary": "Category from index: 后端与网关 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "topic:前端",
+      "type": "topic",
+      "name": "前端",
+      "summary": "Category from index: 前端 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "topic:运维与配置",
+      "type": "topic",
+      "name": "运维与配置",
+      "summary": "Category from index: 运维与配置 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "topic:数据与领域",
+      "type": "topic",
+      "name": "数据与领域",
+      "summary": "Category from index: 数据与领域 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "topic:安全与可靠性",
+      "type": "topic",
+      "name": "安全与可靠性",
+      "summary": "Category from index: 安全与可靠性 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "topic:ai-协作流程",
+      "type": "topic",
+      "name": "AI 协作流程",
+      "summary": "Category from index: AI 协作流程 (1 articles)",
+      "tags": [
+        "category"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "source:README",
+      "type": "source",
+      "name": "README.md",
+      "filePath": "raw\\README.md",
+      "summary": "Raw source (.md, 0 KB)",
+      "tags": [
+        "raw",
+        "md"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:sub2api",
+      "type": "entity",
+      "name": "Sub2API",
+      "summary": "上游开源 AI API 网关项目 Wei-Shaw/sub2api，本仓库为其本地 fork。",
+      "tags": [
+        "entity",
+        "upstream"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:request-archive",
+      "type": "entity",
+      "name": "RequestArchive",
+      "summary": "本地网关请求/响应归档中间件，默认关闭，用于内部排查。",
+      "tags": [
+        "entity",
+        "local-only",
+        "gateway"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:request-intercept",
+      "type": "entity",
+      "name": "RequestIntercept",
+      "summary": "本地请求拦截规则能力，可在归档后拦截请求。",
+      "tags": [
+        "entity",
+        "local-only",
+        "gateway"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:prompt-metrics",
+      "type": "entity",
+      "name": "PromptMetrics",
+      "summary": "本地 Prompt 指标采集与管理端路由。",
+      "tags": [
+        "entity",
+        "local-only"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:prompt-risk",
+      "type": "entity",
+      "name": "PromptRisk",
+      "summary": "本地 Prompt 风险识别与 LLM judge 内容审核链路。",
+      "tags": [
+        "entity",
+        "local-only",
+        "security"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "entity:token-analysis",
+      "type": "entity",
+      "name": "TokenAnalysis",
+      "summary": "本地 Token 用量分析与归档索引能力。",
+      "tags": [
+        "entity",
+        "local-only"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "entity:sub-admin",
+      "type": "entity",
+      "name": "SubAdmin",
+      "summary": "本地子管理员角色，基于权限目录与路由白名单鉴权。",
+      "tags": [
+        "entity",
+        "local-only",
+        "security"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:org-usage",
+      "type": "entity",
+      "name": "OrganizationUsage",
+      "summary": "本地组织用量报表能力。",
+      "tags": [
+        "entity",
+        "local-only"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:user-concurrency-preset",
+      "type": "entity",
+      "name": "UserConcurrencyPreset",
+      "summary": "本地用户并发 preset 与后台 runner。",
+      "tags": [
+        "entity",
+        "local-only"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:quota-flusher",
+      "type": "entity",
+      "name": "UserPlatformQuotaUsageFlusher",
+      "summary": "本地平台配额用量 flusher 生命周期任务。",
+      "tags": [
+        "entity",
+        "local-only"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:default-reasoning-effort",
+      "type": "entity",
+      "name": "DefaultReasoningEffort",
+      "summary": "本地 OpenAI 默认 reasoning_effort 注入配置。",
+      "tags": [
+        "entity",
+        "local-only",
+        "openai"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "entity:compatible-cache-usage",
+      "type": "entity",
+      "name": "CompatibleCacheUsage",
+      "summary": "本地 OpenAI-compatible cache usage 解析与计费字段适配。",
+      "tags": [
+        "entity",
+        "local-only",
+        "billing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:wire",
+      "type": "entity",
+      "name": "Google Wire",
+      "summary": "后端依赖注入，cmd/server/wire.go 生成 wire_gen.go。",
+      "tags": [
+        "entity",
+        "backend"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "entity:ent",
+      "type": "entity",
+      "name": "Ent",
+      "summary": "Go ORM/schema 层，schema 变更需 go generate。",
+      "tags": [
+        "entity",
+        "backend",
+        "data"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "claim:wiki-source-of-truth",
+      "type": "claim",
+      "name": "源码优先于 wiki",
+      "summary": "若 wiki 与源码冲突，以源码和测试为准，并在当轮修正 wiki。",
+      "tags": [
+        "claim",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "claim:merge-preserve-local",
+      "type": "claim",
+      "name": "合入上游必须保留本地能力",
+      "summary": "合并 Wei-Shaw/sub2api 时，RequestArchive/Intercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、compatible cache、默认 reasoning effort、并发 preset、quota flusher 等本地能力需语义并集保留。",
+      "tags": [
+        "claim",
+        "merge",
+        "local-only"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "claim:agents-read-wiki-first",
+      "type": "claim",
+      "name": "AI 任务先读 llm-wiki",
+      "summary": "AGENTS.md 要求任务开始先读 wiki README 再按类型读对应页面，避免全仓盲扫。",
+      "tags": [
+        "claim",
+        "workflow"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "claim:no-secret-in-wiki",
+      "type": "claim",
+      "name": "wiki 禁止写入密钥",
+      "summary": "不把密钥、token、本机私密凭据写入 wiki。",
+      "tags": [
+        "claim",
+        "security"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "article:ai-workflow",
+      "target": "article:README",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "article:backend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "article:frontend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "article:ops",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "article:data-and-domain",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "article:security-and-reliability",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:backend",
+      "target": "article:README",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:backend",
+      "target": "article:frontend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:backend",
+      "target": "article:ops",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:backend",
+      "target": "article:data-and-domain",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:backend",
+      "target": "article:security-and-reliability",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:backend",
+      "target": "article:ai-workflow",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "article:README",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "article:backend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "article:frontend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "article:ops",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "article:security-and-reliability",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "article:ai-workflow",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:frontend",
+      "target": "article:README",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:frontend",
+      "target": "article:backend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:frontend",
+      "target": "article:ops",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:frontend",
+      "target": "article:data-and-domain",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:frontend",
+      "target": "article:security-and-reliability",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:frontend",
+      "target": "article:ai-workflow",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ops",
+      "target": "article:README",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ops",
+      "target": "article:backend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ops",
+      "target": "article:frontend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ops",
+      "target": "article:data-and-domain",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ops",
+      "target": "article:security-and-reliability",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:ops",
+      "target": "article:ai-workflow",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "article:backend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "article:frontend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "article:ops",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "article:data-and-domain",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "article:security-and-reliability",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "article:ai-workflow",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "article:README",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "article:backend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "article:frontend",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "article:ops",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "article:data-and-domain",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "article:ai-workflow",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "article:README",
+      "target": "topic:总览",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:backend",
+      "target": "topic:后端与网关",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:frontend",
+      "target": "topic:前端",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:ops",
+      "target": "topic:运维与配置",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "topic:数据与领域",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "topic:安全与可靠性",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "topic:ai-协作流程",
+      "type": "categorized_under",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:wire",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "后端依赖注入核心"
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:ent",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "数据访问层"
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:request-archive",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "网关本地能力"
+    },
+    {
+      "source": "article:backend",
+      "target": "entity:request-intercept",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "网关本地能力"
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "entity:prompt-risk",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "内容安全"
+    },
+    {
+      "source": "article:security-and-reliability",
+      "target": "entity:sub-admin",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "管理权限模型"
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "entity:token-analysis",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "用量分析领域"
+    },
+    {
+      "source": "article:data-and-domain",
+      "target": "entity:org-usage",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.7,
+      "description": "组织用量"
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "claim:agents-read-wiki-first",
+      "type": "exemplifies",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "流程要求"
+    },
+    {
+      "source": "article:ai-workflow",
+      "target": "claim:wiki-source-of-truth",
+      "type": "exemplifies",
+      "direction": "forward",
+      "weight": 0.8,
+      "description": "冲突处理原则"
+    },
+    {
+      "source": "article:README",
+      "target": "claim:merge-preserve-local",
+      "type": "builds_on",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "最近同步记录强调本地保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:request-archive",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:request-intercept",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:prompt-risk",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:token-analysis",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "claim:merge-preserve-local",
+      "target": "entity:sub-admin",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.9,
+      "description": "必须保留"
+    },
+    {
+      "source": "entity:request-archive",
+      "target": "entity:token-analysis",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.6,
+      "description": "归档可供分析"
+    },
+    {
+      "source": "article:frontend",
+      "target": "entity:sub-admin",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.6,
+      "description": "前端按权限收口"
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:总览",
+      "name": "总览",
+      "description": "总览 (3 nodes)",
+      "nodeIds": [
+        "article:README",
+        "topic:总览",
+        "claim:merge-preserve-local"
+      ]
+    },
+    {
+      "id": "layer:后端与网关",
+      "name": "后端与网关",
+      "description": "后端与网关 (8 nodes)",
+      "nodeIds": [
+        "article:backend",
+        "topic:后端与网关",
+        "entity:wire",
+        "entity:ent",
+        "entity:request-archive",
+        "entity:request-intercept",
+        "entity:sub2api",
+        "entity:prompt-metrics"
+      ]
+    },
+    {
+      "id": "layer:前端",
+      "name": "前端",
+      "description": "前端 (2 nodes)",
+      "nodeIds": [
+        "article:frontend",
+        "topic:前端"
+      ]
+    },
+    {
+      "id": "layer:运维与配置",
+      "name": "运维与配置",
+      "description": "运维与配置 (2 nodes)",
+      "nodeIds": [
+        "article:ops",
+        "topic:运维与配置"
+      ]
+    },
+    {
+      "id": "layer:数据与领域",
+      "name": "数据与领域",
+      "description": "数据与领域 (4 nodes)",
+      "nodeIds": [
+        "article:data-and-domain",
+        "topic:数据与领域",
+        "entity:token-analysis",
+        "entity:org-usage"
+      ]
+    },
+    {
+      "id": "layer:安全与可靠性",
+      "name": "安全与可靠性",
+      "description": "安全与可靠性 (4 nodes)",
+      "nodeIds": [
+        "article:security-and-reliability",
+        "topic:安全与可靠性",
+        "entity:prompt-risk",
+        "entity:sub-admin"
+      ]
+    },
+    {
+      "id": "layer:ai-协作流程",
+      "name": "AI 协作流程",
+      "description": "AI 协作流程 (4 nodes)",
+      "nodeIds": [
+        "article:ai-workflow",
+        "topic:ai-协作流程",
+        "claim:agents-read-wiki-first",
+        "claim:wiki-source-of-truth"
+      ]
+    },
+    {
+      "id": "layer:other",
+      "name": "Other",
+      "description": "Uncategorized nodes (6)",
+      "nodeIds": [
+        "source:README",
+        "entity:user-concurrency-preset",
+        "entity:quota-flusher",
+        "entity:default-reasoning-effort",
+        "entity:compatible-cache-usage",
+        "claim:no-secret-in-wiki"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "总览",
+      "description": "Explore the 总览 section (1 articles)",
+      "nodeIds": [
+        "article:README"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "后端与网关",
+      "description": "Explore the 后端与网关 section (1 articles)",
+      "nodeIds": [
+        "article:backend"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "前端",
+      "description": "Explore the 前端 section (1 articles)",
+      "nodeIds": [
+        "article:frontend"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "运维与配置",
+      "description": "Explore the 运维与配置 section (1 articles)",
+      "nodeIds": [
+        "article:ops"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "数据与领域",
+      "description": "Explore the 数据与领域 section (1 articles)",
+      "nodeIds": [
+        "article:data-and-domain"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "安全与可靠性",
+      "description": "Explore the 安全与可靠性 section (1 articles)",
+      "nodeIds": [
+        "article:security-and-reliability"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "AI 协作流程",
+      "description": "Explore the AI 协作流程 section (1 articles)",
+      "nodeIds": [
+        "article:ai-workflow"
+      ]
+    }
+  ]
+}

@@ -289,3 +289,13 @@ OpenAI 账号调度:
 - Wire provider: 运行 `cd backend && go generate ./cmd/server` 或 `make generate`。
 
 生成代码必须随源码提交, 否则 CI/编译可能失败。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

@@ -82,3 +82,32 @@ graph TD
 - Codex 项目规则: 根目录 `AGENTS.md`。
 - Copilot 项目规则: `.github/copilot-instructions.md`。
 - 两者都要求开发前自动查阅 wiki, 并在任务改变项目知识时同步更新 wiki。
+
+## 知识图谱怎么配合
+
+权威顺序不变: `AGENTS.md` → `llm-wiki` → 源码/测试。图谱只做导航。
+
+| 动作 | 命令/入口 |
+| --- | --- |
+| 检查是否就绪 | `tools\check-understand-status.cmd` |
+| 打开代码/Wiki 图 | `tools\start-understand-dashboard.cmd` |
+| 刷新 Wiki 图 | `tools\refresh-understand-wiki.cmd` |
+| 重建代码图 | `/understand` |
+| 变更影响 | `/understand-diff` |
+
+Windows 不要使用裸 `powershell -File ...`（RemoteSigned 下可能被拦截）; `.cmd` 已带 `ExecutionPolicy Bypass`。状态检查会在 wiki dirty 或图谱基线落后 HEAD 时返回 PARTIAL。
+
+持久化约定:
+
+- 入库: wiki 正文、`llm-wiki/index.md`、共享 config/ignore、**wiki 图谱 JSON**、AGENTS 与本页规则。
+- 不入库: 代码图谱 JSON、fingerprints、dashboard 日志（见根 `.gitignore`）。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

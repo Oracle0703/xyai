@@ -258,3 +258,13 @@ User x platform quota:
 - 后台逻辑见 `backend.md` 的"代理有效期与失败回退"。
 
 > 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

@@ -298,3 +298,13 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 
 - `backend/internal/service/image_storage.go` 会下载上游生图响应的 `data[].url` 后转存 S3, 当前上游默认 HTTP client 只有 timeout/大小限制, 没有私网、云元数据、DNS rebinding 或 redirect SSRF 防护。合并分支按用户要求不做本地修补; upstream 修复前不要在可被不可信自定义上游影响的环境启用 `image_storage`。
 - async image 任务只由请求进程启动 goroutine, 没有持久 worker/recovery; 服务重启后 Redis 中的 `processing` 任务可能保留到默认 24h TTL。upstream 修复前要把滚动重启和任务可恢复性纳入运维预期。
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

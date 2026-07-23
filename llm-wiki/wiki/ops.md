@@ -360,3 +360,22 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - `upstream/revert-114-feature/atomic-scheduling` 是 Wei-Shaw/sub2api 在 2026-01-01 创建的旧分支, 单提交 `30326cf2671a` 用于撤销早期 `#114` 负载感知账号调度优化。
 - 当前分支历史已包含后续主线的同内容 revert `c5c12d4c8`, 也包含后续 reapply `7568dc850`; 当前 `GatewaySchedulingConfig`, `SelectAccountWithLoadAwareness`, `ConcurrencyService.GetAccountsLoadBatch`, scheduler snapshot/outbox 与 wait plan 代码是后续演进后的稳定实现。
 - 以后若再次合并该元旦分支或等价历史分支, 冲突处理不应整块接受该旧 revert 的删除侧, 否则会回退当前网关调度、OpenAI/Gemini/Grok 路由选择和并发缓存能力。应先核对 `git log --grep "Reapply.*负载感知"` 与当前调用点, 再决定是否只补齐 merge 拓扑。
+
+## 知识图谱工具
+
+- `tools\check-understand-status.cmd`
+- `tools\start-understand-dashboard.cmd`
+- `tools\refresh-understand-wiki.cmd`
+- 代码图谱重建: `/understand`（范围见 `.understand-anything/.understandignore`）
+- Wiki 图谱重建: `/understand-knowledge llm-wiki` 或 refresh `.cmd`
+- 入口说明: 使用 `.cmd`（内置 `-ExecutionPolicy Bypass`），避免 RemoteSigned 下 `powershell -File` 被拒
+
+## 相关页面
+
+- [[README]]
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]

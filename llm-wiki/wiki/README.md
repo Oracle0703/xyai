@@ -23,12 +23,30 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 文档地图
 
+- [[backend]]
+- [[frontend]]
+- [[ops]]
+- [[data-and-domain]]
+- [[security-and-reliability]]
+- [[ai-workflow]]
+
+## 文档地图（路径说明）
+
 - `backend.md`: 后端入口, 路由, Wire 依赖注入, service/repository 分层, 网关路径。
 - `frontend.md`: Vue 前端入口, 路由守卫, store, API client, 组件和样式约定。
 - `ops.md`: 本地启动, 构建, 测试, CI, 配置和部署入口。
 - `data-and-domain.md`: 核心领域对象, Ent schema, SQL migration, 支付/订阅/计费知识。
 - `security-and-reliability.md`: 认证, 权限, 限流, 幂等, CSP, URL allowlist, 网关可靠性。
 - `ai-workflow.md`: Codex/Copilot 日常如何读取和更新 llm-wiki。
+
+## 知识图谱
+
+- Wiki 图谱（可共享）: `llm-wiki/.understand-anything/knowledge-graph.json`
+- 代码图谱（本机）: `.understand-anything/knowledge-graph.json`
+- 启动: `tools\start-understand-dashboard.cmd`
+- 状态: `tools\check-understand-status.cmd`
+- 刷新 Wiki 图: `tools\refresh-understand-wiki.cmd`
+- 详情见 [[ai-workflow]]
 
 ## 快速定位
 

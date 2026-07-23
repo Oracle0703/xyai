@@ -161,3 +161,16 @@ docs/reviews/*
 frontend/coverage/
 aicodex
 output/
+
+# Understand Anything — ignore bulky generated artifacts; keep shared config trackable
+.understand-anything/knowledge-graph.json
+.understand-anything/fingerprints.json
+.understand-anything/intermediate/
+.understand-anything/tmp/
+.understand-anything/**/*.log
+.understand-anything/dashboard-*.log
+.understand-anything/tmp_*.mjs
+.understand-anything/**/tmp_*.mjs
+llm-wiki/.understand-anything/intermediate/
+llm-wiki/.understand-anything/tmp/
+.ua-dashboard-logs/

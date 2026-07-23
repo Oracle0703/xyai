@@ -1,0 +1,66 @@
+# First-init / incremental scope for /understand
+# Large monorepo: keep architecture-critical surface; broaden deliberately.
+
+# noise / temp
+_*.diff
+*.diff
+*.rdb
+*.patch
+.ua-dashboard-logs/
+
+# deps & build
+**/node_modules/
+**/dist/
+**/build/
+**/.vite/
+**/coverage/
+**/vendor/
+.git/
+assets/
+docs/
+openspec/
+tools/
+scripts/
+patches/
+skills/
+.github/
+deploy/data/
+
+# generated / bulk backend
+backend/ent/
+backend/migrations/
+backend/resources/
+backend/bin/
+backend/tmp/
+backend/**/*_test.go
+**/*_test.go
+**/*.spec.ts
+**/*.spec.vue
+**/*.test.ts
+**/__tests__/
+**/testdata/
+**/fixtures/
+
+# frontend non-core
+frontend/public/
+frontend/dist/
+frontend/e2e/
+frontend/src/i18n/locales/
+
+# wiki raw dumps (wiki graph is separate under llm-wiki)
+llm-wiki/raw/
+
+# locks & binaries
+pnpm-lock.yaml
+go.sum
+package-lock.json
+*.png
+*.jpg
+*.svg
+*.ico
+*.woff
+*.woff2
+*.map
+*.min.js
+*.log
+dump.rdb
