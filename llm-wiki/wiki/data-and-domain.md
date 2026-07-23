@@ -7,6 +7,7 @@ Sub2API 的核心对象:
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
 - Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。
+- CompositeModelRoute: composite group 的 public model 路由表, 记录 exact/prefix、endpoint、具体 target platform、upstream model、priority 和 enabled；运行时仍以具体平台完成账号调度、配额、计费和 usage 归因。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
 - UsageLog: 请求用量记录, billing, token, endpoint, service tier, image/video metadata 等; 视频行记录 `video_count`, `video_resolution`, `video_duration_seconds` 以支持按秒审计计费。
@@ -27,6 +28,7 @@ Sub2API 的核心对象:
 
 - `user.go`, `auth_identity.go`, `auth_identity_channel.go`
 - `api_key.go`, `group.go`, `account.go`, `account_group.go`
+- `composite_model_route.go`
 - `usage_log.go`
 - `batch_image_job.go`, `batch_image_item.go`, `batch_image_event.go`
 - `subscription_plan.go`, `user_subscription.go`
@@ -97,6 +99,9 @@ go generate ./cmd/server
 - `backend/migrations/183_ops_ingress_reject_aggregates.sql` 新增分钟桶入口拒绝聚合表, 唯一维度为 bucket/reason/route/protocol/client IP/user/API key；服务端在内存中有界聚合后批量 upsert, 不逐请求写库。
 - `backend/migrations/184_auth_cache_invalidation_outbox.sql` 新增只保存 API Key SHA-256 的 durable outbox, 并在 API Key、用户、分组和独占分组授权关系变化时由 trigger 入队。worker 使用 lease/重试/二次安全失效保证多实例 L1/L2 收敛, 明文 API Key 不离开 `api_keys`。旧 `deleted_api_key_audits` 与 `ops_error_logs` 凭据归因列只允许在全量实例升级、dry-run 清理和恢复点确认后, 由 `backend/scripts/finalize-ingress-reject-cleanup.sql` 人工删除；该脚本不是自动 migration。
 - `backend/migrations/185_group_reasoning_effort_policy.sql` 为 `groups` 增加 `max_reasoning_effort VARCHAR(20) NOT NULL DEFAULT ''` 与 `reasoning_effort_mappings JSONB NOT NULL DEFAULT '[]'`。空上限表示不限制；映射只允许 OpenAI platform 的 `minimal/low/medium/high/xhigh/max`, 最多 64 条且 source 不得重复。网关先做一次精确映射再应用上限, 未显式提供 effort 的请求不改写。
+- `backend/migrations/172_composite_model_routes.sql` 新增 `composite_model_routes`: group 级软删除 route, `match_type=exact|prefix`, endpoint allowlist、具体 platform CHECK、active 唯一键 `(group_id, endpoint, match_type, public_model)` 与 enabled/priority 索引。它与既有 `172_video_per_second_billing_metadata.sql` 共享数字前缀, runner 按完整文件名独立执行, 不得重命名。
+- `backend/migrations/186_group_auth_cache_image_generation.sql` 扩展 group auth-cache invalidation trigger, 将 `allow_image_generation` 变化纳入 API Key SHA-256 outbox 失效, 不改已发布 migration 184。
+- `backend/migrations/186_alipay_mobile_precreate_deep_link.sql` 幂等写入默认关闭的 `ALIPAY_MOBILE_PRECREATE_DEEP_LINK=false` setting；只有管理员显式启用后, 官方 Alipay 的移动端订单才改走 precreate 深链路径。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -118,6 +123,7 @@ go generate ./cmd/server
 - 前端用户支付页: `frontend/src/views/user/*Payment*`
 - 前端管理支付页: `frontend/src/views/admin/orders/*`
 - 文档: `docs/PAYMENT_CN.md`, `docs/ADMIN_PAYMENT_INTEGRATION_API.md`
+- 移动端订单请求可显式传 `is_mobile`(缺失时回落 User-Agent)。当 `ALIPAY_MOBILE_PRECREATE_DEEP_LINK` 开启、可见支付方式确为官方 Alipay 且请求为移动端时, provider 使用 `alipay.trade.precreate` 并在有 QR code 时回传 `alipay_mobile_precreate_deep_link=true`; 其余场景保持既有 WAP/二维码合同。
 
 支付订单状态包括:
 

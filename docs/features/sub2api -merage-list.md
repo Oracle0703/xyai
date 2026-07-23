@@ -1570,3 +1570,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Conflict handling | `go.mod` 采用上游依赖版本并保留本地直接依赖属性；gateway 测试采用上游 helper/Grok count-tokens 合同并保留 RequestArchive/RequestIntercept；response handling 同时保留本地 compatible cache usage 与上游 hosted-image usage/Grok 工具恢复逻辑。 |
 | Verification | 提交前生成代码无漂移；后端、前端和 embed 构建验证结果及既有失败边界见上方同步记录。固定上游提交仍精确等于 merge commit 第二父。 |
 | Approval / delivery | 上述 merge commit 已创建；本条仅追加回填提交拓扑，不覆盖原审核记录。未在本条记录部署动作。 |
+
+## 2026-07-23 main sync (v0.1.164; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10164_合并1.164版本` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `ddbf5ab414991475e6ad6f81663d5eed5b7d7d3a`（本地 `main`） |
+| Merge base | `60013c5f100be7b4f2e6caee415883d221d33e32` |
+| Upstream head / second parent | `cb24522dd53f8f363d008e3afdc8e4baf9788cab` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=cb24522dd53f8f363d008e3afdc8e4baf9788cab`** |
+| Upstream version / delta | `0.1.164`; 202 files、`+17815/-444`。用户文字中的 1.163 以指定 SHA 的 `VERSION` 为准校正为 1.164。 |
+| Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/handler/content_moderation_helper.go`; `backend/internal/server/http.go`; `backend/internal/server/router.go`; `backend/internal/server/routes/gateway.go` |
+| Conflict handling | Wire 先合并双方 provider 源图后重新生成；content moderation 采用上游 composite public-model helper/provider context 并保留本地 `PromptRiskJudgeHeader`；HTTP/router/gateway 同时保留本地 Prompt Metrics、RequestArchive/RequestIntercept 与上游 composite resolver，网关顺序为鉴权、composite target、group gate、本地 archive/intercept。未修改冲突之外的上游生产实现。 |
+| Semantic overlap review | 上游预期与实际 staged 路径均为 202，集合差异 0；159 个仅上游修改文件逐 blob 对比固定 SHA 为 0 mismatch；43 个双方修改文件完成关键调用链复核。功能重叠处采用上游实现，本地独有调用链继续保留。 |
+| Local features | 22 个 tracked `docs/features/` 文件与本地 `main` 一致且零删除；RequestArchive/Intercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、compatible usage、默认 reasoning effort、用户并发 preset、quota flusher 等独特本地能力仍可达。16 条 composite 根级/媒体路由均保留 archive/intercept。 |
+| Upstream behavior / issue boundary | 合入 composite groups/model routes、Ollama Cloud usage、支付宝移动深链和 OpenAI proxy stream circuit 等上游能力。`go mod tidy -diff` 仅建议删除固定 upstream `go.sum` 中旧 checksum；按“只解决冲突、不修上游 bug”要求保持固定上游内容，不在本分支修正。 |
+| Verification | Wire/Ent 生成通过且 Wire 连续生成无漂移；后端完整 unit、全量及增量 `golangci-lint`、embed build 通过；前端 lint、typecheck、完整 Vitest、production build 通过。完整 integration 总命令仅出现 Windows `*.test.exe` 文件锁，无业务断言失败；`cmd/server` 独立重跑退出 0，所有被锁包在独立 `GOTMPDIR` 下逐包重跑通过。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，并刷新 Wiki 图谱（33 nodes / 67 edges，0 unresolved wikilink）；本条按追加规则写入。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
