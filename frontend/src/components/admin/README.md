@@ -17,5 +17,6 @@
 ## 依赖接口
 
 - 使用记录账号/分组筛选走 `/admin/usage/search-accounts` 和 `/admin/usage/search-groups`。
+- `usage/UsageFilters.vue` 与 `usage/UsageTable.vue` 把 `live` 作为独立 request type 展示和筛选, 不映射为 legacy stream；可选 `session_id` 只用于客户端会话关联。
 - 订阅分组筛选走 `/admin/subscriptions/search-groups`; 不得调用 `/admin/groups/all`。
 - 新增管理权限时同步后端 catalog/路由白名单、前端路由 `adminPermission`、侧边栏、i18n 和测试。

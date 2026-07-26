@@ -2,12 +2,14 @@
 
 ## 当前版本基线
 
-- 当前集成分支为 `feature/hy/10163_合并1.163版本`: 上游 merge commit `3e4f4e3f1` 的第一父为本地 `main@e52b5c89d`, 第二父为固定上游 `Wei-Shaw/sub2api main@60013c5f1`, `backend/cmd/server/VERSION` 为 `0.1.163`。随后同步 `Oracle0703/xyai main@5cc963c6c`（PR #26）, 带入 `feature/hy/10162_合并1.162版本@ea26f2b07` 及其 0.1.162 文档记录；双方文档变更采用语义并集。不要把 `v0.1.163@d0bdd7e77` 或 `v0.1.162@27f094e09` tag target 单独当作同步边界, 版本文件以随后 version-sync commit 为准。
+- 当前集成分支为 `feature/hy/10165_合并1.165版本`: 第一父基线固定为本地 `main@e3b10c17b960bcf92d3e5ca340e3d39056f56c13`, 第二父待提交边界为 `Wei-Shaw/sub2api main@2730c1c43b29be003925b033f3f9e645e726bb8c`, `backend/cmd/server/VERSION` 为 `0.1.165`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签或更晚的 upstream HEAD 替代该精确提交。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。
+- 前端 `pnpm.overrides` 强制 `postcss@<8.5.18` 升到安全版本, lockfile 当前解析为 `8.5.23`; 修改 override 必须用 pnpm 9 重建 lockfile 并复跑 frontend security audit。仓库本地已移除 `vite-plugin-checker` 及其 Vite 插件配置, 合并上游时依赖清单与 `vite.config.ts` 必须保持一致。
+- OpenAI Live 的服务端 attestation 仅在 Apple Silicon macOS 且已安装官方 ChatGPT App 时可用；其他平台正常构建但 capability 返回不可用。`gateway.live.max_session_duration_seconds` 默认 3600, 非正值在配置校验时回落该默认值。
 
 ## 本地启动
 
@@ -315,7 +317,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
 - `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。管理端备份页通过 `/api/v1/admin/backups/image-storage` 读取、测试和保存运行时设置, 可复用备份 S3 凭据；保存目标受 step-up 2FA 保护, 独立 secret 加密入库且 API 不回显。数据库配置优先且保存后失效 resolver/uploader 缓存, 下一次异步图片请求立即采用新配置, 无需重启；从未保存过后台配置时回落 YAML/环境变量。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。生产环境若上游 URL 不可信, 应保持 `image_storage` 关闭直至 SSRF/任务恢复风险被上游修复。
-- Ollama Cloud usage 不是 YAML 配置组, 由数据库 setting `OLLAMA_CLOUD_USAGE_SETTINGS` 热管理；默认 `enabled=false`、`interval_minutes=60`, 保存时钳制到 15-1440。后台 worker 使用 PostgreSQL/Redis leader lock, 单周期最多刷新 20 个 eligible 账号、并发 4, 通过账号代理访问固定 `https://ollama.com/settings`；session 持久化要求固定 `TOTP_ENCRYPTION_KEY`。
+- Ollama Cloud usage 不是 YAML 配置组, 由数据库 setting `OLLAMA_CLOUD_USAGE_SETTINGS` 热管理；默认 `enabled=false`、`interval_minutes=60`、`debounce_minutes=1`, 保存时分别钳制到 15-1440 与 1-60。后台 worker 由模型请求更新时间驱动 due 判定, 使用 PostgreSQL/Redis leader lock, 单周期最多刷新 20 个 eligible 账号、并发 4, 通过账号代理访问固定 `https://ollama.com/settings`；session 持久化要求固定 `TOTP_ENCRYPTION_KEY`。
 
 Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 

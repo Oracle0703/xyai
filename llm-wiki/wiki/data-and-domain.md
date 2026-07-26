@@ -102,6 +102,10 @@ go generate ./cmd/server
 - `backend/migrations/172_composite_model_routes.sql` 新增 `composite_model_routes`: group 级软删除 route, `match_type=exact|prefix`, endpoint allowlist、具体 platform CHECK、active 唯一键 `(group_id, endpoint, match_type, public_model)` 与 enabled/priority 索引。它与既有 `172_video_per_second_billing_metadata.sql` 共享数字前缀, runner 按完整文件名独立执行, 不得重命名。
 - `backend/migrations/186_group_auth_cache_image_generation.sql` 扩展 group auth-cache invalidation trigger, 将 `allow_image_generation` 变化纳入 API Key SHA-256 outbox 失效, 不改已发布 migration 184。
 - `backend/migrations/186_alipay_mobile_precreate_deep_link.sql` 幂等写入默认关闭的 `ALIPAY_MOBILE_PRECREATE_DEEP_LINK=false` setting；只有管理员显式启用后, 官方 Alipay 的移动端订单才改走 precreate 深链路径。
+- `backend/migrations/187_add_usage_log_session_id.sql` 为 `usage_logs` 增加可空 `VARCHAR(255) session_id` 及部分索引 `idx_usage_logs_session_id_created`; 只保存经过 UTF-8、控制字符和长度校验的客户端显式会话标识。
+- `backend/migrations/188_allow_live_usage_request_type.sql` 把 `usage_logs.request_type` CHECK 上限扩到 5, 其中 5 对应 OpenAI Live；不得改写已发布的旧 request type 数值。
+- `backend/migrations/189_add_group_allow_live.sql` 为 `groups` 增加默认关闭的 `allow_live BOOLEAN NOT NULL DEFAULT false`; 它是 Live 路由的分组级显式授权, 与账号 endpoint capability 共同生效。
+- `backend/migrations/190_add_users_email_alias_dedup_index_notx.sql` 为去空白、转小写、去点后的 email 表达式增加并发索引, 支撑注册邮箱别名候选查询；注册事务仍需按归一化收件箱身份加锁并做最终应用层判定, 该索引本身不是唯一约束。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -203,6 +207,8 @@ Codex alpha search 按次计费:
 OpenAI 长上下文计费是账号级 opt-in: `accounts.extra.openai_long_context_billing_enabled` 默认 `false`, 只有该账号真实上游按 OpenAI API 长上下文阈值收费时才开启。计费结果把是否应用写入 `usage_logs.long_context_billing_applied`, 供审计和管理端用量表展示; shadow 账号沿用母账号策略, 不能按 shadow 的空凭据自行决定。
 
 用户侧用量统计已与管理端过滤口径对齐: `UsageLogFilters` 支持 `group_id`、请求模型源(`requested`)、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和日期范围; `/api/v1/usage/dashboard/snapshot-v2` 可以一次返回 trend、model、group 分布。新增 usage 聚合字段时要同时检查 `usage_handler.go`、`usage_service.go`、`usage_log_repo.go`、前端 `frontend/src/api/usage.ts` 和 `UsageView.vue`。
+
+`usage_logs.session_id` 是客户端显式关联字段, 可空且不参与计费、调度或 prompt cache；所有网关 handler 在离开 Gin 请求上下文前提取标量并传入异步 usage writer。OpenAI Live 结束时写 `request_type=live`, duration 记录会话持续时间；Live 租约释放与 usage 终态使用 Redis close marker 保证只完成一次。
 
 Token Analysis 选中用户趋势口径:
 

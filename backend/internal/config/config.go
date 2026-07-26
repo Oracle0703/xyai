@@ -936,6 +936,8 @@ type GatewayConfig struct {
 	OpenAICompactModel string `mapstructure:"openai_compact_model"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
+	// Live: ChatGPT Frameless Live 会话配置。
+	Live GatewayLiveConfig `mapstructure:"live"`
 	// OpenAIScheduler: OpenAI 高级调度器粘性逃逸配置
 	OpenAIScheduler GatewayOpenAISchedulerConfig `mapstructure:"openai_scheduler"`
 	// OpenAIHTTP2: OpenAI HTTP 上游协议策略（默认启用 HTTP/2，可按代理能力回退 HTTP/1.1）
@@ -1050,6 +1052,11 @@ type GatewayRequestInterceptConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 	// RulesFile: YAML 规则文件路径，空或不存在时不拦截。
 	RulesFile string `mapstructure:"rules_file"`
+}
+
+type GatewayLiveConfig struct {
+	// MaxSessionDurationSeconds 是 Live 会话的硬上限。
+	MaxSessionDurationSeconds int `mapstructure:"max_session_duration_seconds"`
 }
 
 // GatewayOpenAIHTTP2Config OpenAI HTTP 上游协议配置。
@@ -2274,6 +2281,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
 	viper.SetDefault("gateway.openai_default_reasoning_effort", "")
 	viper.SetDefault("gateway.openai_compact_model", "gpt-5.4")
+	viper.SetDefault("gateway.live.max_session_duration_seconds", 3600)
 	// 默认关闭：归档位于请求热路径，仅用于短期排障，避免拖慢尾延迟与磁盘膨胀。
 	viper.SetDefault("gateway.request_archive.enabled", false)
 	viper.SetDefault("gateway.request_archive.dir", "data/request-archive")
@@ -3183,6 +3191,9 @@ func (c *Config) Validate() error {
 	if c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds < 0 || c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds > 1800 ||
 		(c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds > 0 && c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds < 30) {
 		return fmt.Errorf("gateway.openai_high_effort_first_output_timeout_seconds must be 0 or between 30-1800 seconds")
+	}
+	if c.Gateway.Live.MaxSessionDurationSeconds <= 0 {
+		c.Gateway.Live.MaxSessionDurationSeconds = 3600
 	}
 	if strings.TrimSpace(c.Gateway.ConnectionPoolIsolation) != "" {
 		switch c.Gateway.ConnectionPoolIsolation {

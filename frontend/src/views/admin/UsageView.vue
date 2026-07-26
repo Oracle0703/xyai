@@ -547,6 +547,7 @@ const openCleanupDialog = () => {
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(log)
   if (requestType === 'cyber') return t('usage.cyber')
+  if (requestType === 'live') return t('usage.live')
   if (requestType === 'ws_v2') return t('usage.ws')
   if (requestType === 'stream') return t('usage.stream')
   if (requestType === 'sync') return t('usage.sync')

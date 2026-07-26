@@ -41,6 +41,7 @@ OpenAI Agent Identity:
 - 异步图片对象存储运行时设置位于 `/api/v1/admin/backups/image-storage`。修改存储目标会把生成内容导向外部账号, 因此 PUT 与备份 S3 一样必须通过 step-up；独立 `secret_access_key` 用 `SecretEncryptor` 加密入库, GET 清空 secret 只返回 configured 状态。选择复用备份 S3 时不再保存第二份凭据, 只保留图片 bucket/prefix 等覆盖项。
 - Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
 - Composite group 不把客户端 public model 直接当作任意 provider 选择器：显式 route 的 target platform/endpoint 受 allowlist 与 group ownership 校验, 未命中时内置 detector 只识别已知模型族, 未知或歧义模型 fail-closed。resolved platform/model 放入请求 context 后再执行具体平台账号选择、配额和计费；根级 Responses/Chat/images/videos 入口仍在 composite 解析和 group gate 后执行本地 RequestArchive/RequestIntercept。
+- OpenAI Live 创建与 sideband 路由必须同时通过 API Key、OpenAI group、`allow_live` 和账号 endpoint capability 校验；call record 以哈希 key 存 Redis, sideband 接管还要逐项匹配 API key/user/group identity。attestation 明文只在 Apple Silicon macOS 本机生成, 存储前由服务端加密；Live controller、lease 续期、结束标记和最大时长共同防止跨请求并发绕过或重复写终态。
 - `api_key_acl_trust_forwarded_ip` 是旧部署/升级兼容开关, 代码默认 `true`。开启时 API Key ACL、会话绑定和审计使用同一请求级快照（`Config.ForwardedClientIPSettings()`）, 原始转发头可绕过 Gin `server.trusted_proxies` 链；最多 16 个 `forwarded_client_ip_headers` 经规范化/去重后按配置顺序优先于 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For`, 因此只应填写由可信边缘覆盖且外部不能伪造的 header。关闭后才由 Gin `server.trusted_proxies` / 直连 peer 作为统一权威来源, 此时自定义 header 不生效；trusted proxies 未配置或显式空时仅信任直连 peer。`deploy/config.example.yaml` 采用更安全的 false, 生产应按真实代理拓扑显式收紧。
 
 Prompt Audit 安全与隐私边界:
@@ -60,6 +61,7 @@ Prompt Audit 安全与隐私边界:
 
 - `AuthService.SendEmailIdentityBindCode` 和 `BindEmailIdentity` 会复用注册邮箱后缀白名单策略(`registration.email_suffix_whitelist` 对应 setting key `registration_email_suffix_whitelist`)。空白名单允许任意邮箱; `["@qq.com"]` 这类精确后缀和 `"*.edu.cn"` 这类通配后缀均按注册策略执行。
 - OAuth/合成邮箱用户补绑真实邮箱时也会执行该策略, 防止绕过注册入口限制。
+- 邮箱注册和验证码发送还会调用 `NormalizeEmailForAliasDedup` / `EmailAliasDedupProbes`, 对 Gmail 家族点号、`+suffix`、域名根点和大小写/空白做收件箱身份去重。公开入口的候选查询最多取 50 行并对 SQL LIKE 元字符转义；创建事务按字面量与收件箱 identity 双 key 加锁后复查, 防止并发别名绕过。普通管理端创建用户仍使用原 `Create` 合同, 不把注册策略扩散到所有写路径。
 
 ## 登录和 OAuth
 
@@ -234,6 +236,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 
 Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。Grok Responses 现在也复用 `apicompat.ResponsesClientToolMapping`, 将 Codex client-side tools 适配为 xAI function tools 后在 streaming、non-streaming 与 SSE-to-JSON 回程恢复；顶层 `tools` 和 `additional_tools` 必须经过同一套撞名与选择校验。
+OpenAI API Key 的 HTTP Responses 转发在 transport 决策后清除 input item 顶层残留 `namespace`, 但不递归删除 content 内部业务字段；message/function-call item 的非法客户端 ID 由线性 sanitizer 删除, 只保留官方可接受前缀。该清理不能扩大到 OAuth、WS v2 或第三方 compatible bridge, 以免破坏续链和本地可逆工具映射。
 Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式 delta 实时原样透传; 一旦收到 delta, `.done` 只关闭 block, 不再二次发送或 sanitize。只有非流式, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才执行 `sanitizeAnthropicToolUseInput`。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
 修改流式响应时要同时验证:
 

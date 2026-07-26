@@ -165,6 +165,7 @@ output/
 # Understand Anything — ignore bulky generated artifacts; keep shared config trackable
 .understand-anything/knowledge-graph.json
 .understand-anything/fingerprints.json
+.understand-anything/diff-overlay.json
 .understand-anything/intermediate/
 .understand-anything/tmp/
 .understand-anything/**/*.log
