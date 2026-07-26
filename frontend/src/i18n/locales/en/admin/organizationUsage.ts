@@ -41,6 +41,7 @@ export default {
       outputTokens: 'Output tokens',
       cacheCreationTokens: 'Cache creation tokens',
       cacheReadTokens: 'Cache read tokens',
+      cacheTokens: 'Cache tokens',
       totalTokens: 'Total tokens',
       actualCost: 'Actual cost',
       tokenShare: 'Token share'

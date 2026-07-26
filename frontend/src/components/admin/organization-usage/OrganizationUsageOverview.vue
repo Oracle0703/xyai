@@ -44,7 +44,7 @@ import type {
   OrganizationUsageOverview,
   OrganizationUsageRange
 } from '@/api/admin/organizationUsage'
-import { formatCostFixed, formatNumber } from '@/utils/format'
+import { formatNumber } from '@/utils/format'
 
 const props = defineProps<{
   overview: OrganizationUsageOverview
@@ -54,12 +54,13 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
+// Overview focuses on headcount and token volume; actual cost stays in org/people tables.
 const overviewMetrics = computed(() => [
   { label: t('admin.organizationUsage.metrics.activeUsers'), value: formatNumber(props.overview.active_users) },
   { label: t('admin.organizationUsage.metrics.usedUsers'), value: formatNumber(props.overview.used_users) },
   { label: t('admin.organizationUsage.metrics.requests'), value: formatNumber(props.overview.requests) },
-  { label: t('admin.organizationUsage.metrics.totalTokens'), value: formatNumber(props.overview.total_tokens) },
-  { label: t('admin.organizationUsage.metrics.actualCost'), value: `$${formatCostFixed(props.overview.actual_cost)}` }
+  { label: t('admin.organizationUsage.metrics.inputTokens'), value: formatNumber(props.overview.input_tokens) },
+  { label: t('admin.organizationUsage.metrics.totalTokens'), value: formatNumber(props.overview.total_tokens) }
 ])
 
 const champions = computed(() => [

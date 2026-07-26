@@ -41,6 +41,7 @@ export default {
       outputTokens: '输出 Token',
       cacheCreationTokens: '缓存创建 Token',
       cacheReadTokens: '缓存读取 Token',
+      cacheTokens: '缓存 Token',
       totalTokens: '总 Token',
       actualCost: '实际成本',
       tokenShare: 'Token 占比'
