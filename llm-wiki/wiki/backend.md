@@ -83,7 +83,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - OpenAI Agent Identity 账号使用 `auth_mode=agentIdentity`, 凭据包含 PKCS#8 Ed25519 `agent_private_key`、`agent_runtime_id` 和运行期 `task_id`。缺失 task 时按账号串行注册; 上游判定 task 失效时单次恢复并持久化新 task, 随后使旧 WS 连接失效。account test、quota 查询、usage 查询及 HTTP/WS gateway 都支持该认证模式; quota reset credit 明确不支持。私钥和其他 secret 在管理端 DTO 中剥离; 上游错误、日志与 ops 输出还会防御性脱敏 runtime/task ID、assertion 及可能回显的凭据值。
 - `POST /api/v1/admin/accounts/:id/duplicate` 只复制 API Key、upstream、Bedrock、service account 等静态凭据账号。账号、精确 groups priority 和 scheduler outbox 在同一事务创建; 新账号固定 `schedulable=false`, 不复制 quota、capability probe、cache 或临时调度等运行态。提供 `Idempotency-Key` 时以 admin actor + source account + key 建立恢复身份, 模糊提交结果只做只读恢复、不重复创建; credential shadow 和 OAuth/Agent Identity 等旋转凭据账号直接拒绝。
 - OpenAI API Key 账号可启用 upstream billing probe: 设置与单个/批量 probe 路由位于 `/api/v1/admin/accounts/upstream-billing-probe/*` 和 `/:id/upstream-billing-probe`; snapshot 存入账号 `extra.upstream_billing_probe`, 调度可按上游倍率参与成本评分。创建/批量编辑 DTO 的 `ProbeEnabled` 决定账号是否参加自动探测, 创建端可在成功后立即 probe。API Key 自省入口 `GET /v1/sub2api/billing` 只返回当前 key 的计费倍率合同。
-- Ollama Cloud 官方用量仅适用于 endpoint 为 `ollama.com` 的 OpenAI/Anthropic API Key 账号。管理路由位于 `/api/v1/admin/accounts/:id/ollama-cloud-usage` 及其 session/auto-refresh/refresh 子路由, 全局设置由 `/api/v1/admin/accounts/ollama-cloud-usage/settings` 管理。服务通过账号代理读取官方 settings HTML, 只把解析后的 plan、5 小时/7 天窗口、余额和模型用量 snapshot 写入 `account.extra`, 不改变账号调度状态。默认全局关闭、刷新间隔 60 分钟(限制 15-1440), 多实例使用 leader lock, 单周期最多 20 个账号、并发 4；手工刷新同账号 30 秒限一次。
+- Ollama Cloud 官方用量仅适用于 endpoint 为 `ollama.com` 的 OpenAI/Anthropic API Key 账号。管理路由位于 `/api/v1/admin/accounts/:id/ollama-cloud-usage` 及其 session/auto-refresh/refresh 子路由, 全局设置由 `/api/v1/admin/accounts/ollama-cloud-usage/settings` 管理。服务通过账号代理读取官方 settings HTML, 只把解析后的 plan、5 小时/7 天窗口、余额和模型用量 snapshot 写入 `account.extra`, 不改变账号调度状态。自动刷新默认全局关闭, 由模型请求记录 latest requested time 后触发: `debounce_minutes` 默认 1、限制 1-60, 连续请求最长等待 `interval_minutes` 默认 60、限制 15-1440；无新请求的账号不轮询。多实例使用 leader lock, 候选扫描按 due 时间推进并保留最低抓取量, 单周期最多 20 个账号、并发 4；手工刷新同账号 30 秒限一次。
 
 管理端子管理员权限:
 
@@ -99,6 +99,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 - `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
 - `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。
+- 网关会把客户端显式会话 header 归一后写入 `usage_logs.session_id` 并通过管理端/用户侧 UsageLog DTO 返回；仅接受有效 UTF-8、去空白后不超过 255 rune 且不含控制字符的值。该字段只用于用量关联, 不参与 sticky routing、账号选择、request ID 或 prompt cache identity。
 
 管理端组织用量报表:
 
@@ -123,6 +124,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 关键行为:
 
+- OpenAI Live 创建入口为 `POST /v1/live` 与 `POST /backend-api/codex/realtime/calls`, sideband 控制入口为 `GET /v1/live/:call_id` 与 `GET /backend-api/codex/:call_id`。只允许 `platform=openai` 且分组 `allow_live=true`, 账号还需具备 Live endpoint capability；本地 API Key/group gate 与 RequestArchive/RequestIntercept 均先于 handler。创建时把 call identity、加密 attestation 和 controller 状态存入 Redis, 用独立 Live lease 同时约束 account/user/API key 并发；会话结束、过期或租约丢失时关闭并写 `request_type=live` 用量行。服务端 attestation 仅 Apple Silicon macOS + 官方 ChatGPT App 可用, 客户端平台不受此限制。
 - `platform=composite` 的 group 先由 `CompositeRouteResolver` 按显式 route registry 解析 public model、endpoint、目标平台和 upstream model；exact 优先 prefix、endpoint-specific 优先 any、更长 prefix/更低 priority/更低 id 依次胜出, 未命中再走内置模型检测, 仍不明确则 fail-closed。解析结果写入 request context 并在 JSON/Gemini native 路径改写上游模型；后续账号选择、user-platform quota、计费、Ops/channel attribution 和 usage report 均使用具体目标平台。管理 API 为 `/api/v1/admin/groups/:id/composite-routes` 的 CRUD 与 preview。
 - `/v1/messages` 根据 API Key 所属 group platform 分流到 OpenAI 或 Claude 兼容处理。
 - `/v1/messages/count_tokens` 对 OpenAI group 走 Anthropic-compatible 到 OpenAI `/v1/responses/input_tokens` 的桥接; 不占并发槽、不写 usage。Grok group 因上游没有兼容计数端点, 在本地把 Anthropic 请求转换为 Responses 形状后用 tiktoken/tokenizer 估算；不选账号、不取凭据、不检查 billing、不请求上游、不占并发槽且不写 usage, 但仍经过 API Key 与分组中间件, 并同时支持 `/v1` 与根级路径。其他不支持的平台继续走既有 count-tokens 错误/handler。
@@ -153,6 +155,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - Responses/Chat 双向桥接需保留 `parallel_tool_calls`; Responses `text.format` 与 Chat `response_format` 支持 `json_object` / `json_schema` 映射。OpenAI-compatible Responses -> Chat fallback 仍要经过本地 `ResponsesToChatCompletionsRequestWithOptions`, 以保留第三方上游的 temperature/max token 过滤策略。v0.1.151 起 custom/freeform 工具降级为 function 后必须在回程还原为 `custom_tool_call`; namespace 子工具使用稳定摊平名并在回程还原 namespace; `tool_search` 使用同名代理 function 并还原为 `tool_search_call(execution=client)`。工具名撞名或 tool_choice 指向被丢弃/不存在工具时必须拒绝或删除, 不能把无效选择发给 Chat 上游。
 - v0.1.153 起 Codex 还可能把客户端工具放在 Responses input 的 `{"type":"additional_tools","tools":[...]}` item 中。`EffectiveResponsesTools` 必须把它与顶层 `tools` 合并后交给本地 options adapter, custom/namespace/tool_search 的可逆映射和 tool choice 校验对两种来源一视同仁。
 - v0.1.155 起 native Responses namespace 在不支持原生 namespace 的账号/传输上使用 `namespace__tool` 稳定摊平, 并在 streaming、non-streaming、SSE→JSON 和 passthrough 回程恢复原始 namespace/tool 结构; WS v2 原生转发保持 namespace 原文。该处理发生在本地 options adapter 和账号 transport 决策之后, 不能破坏第三方 Responses→Chat 过滤或把摊平名泄漏给客户端。
+- OpenAI API Key 的 HTTP Responses 请求在转发前会递归删除 input item 顶层残留的 `namespace`, 但保留 content 内部同名业务字段；续链 input 的 message/function-call item ID 只有符合官方前缀合同才保留, 非法客户端回放 ID 由 `sanitizeOpenAIResponsesInputItemIDs` 线性扫描删除。OAuth/WS 原生路径和本地 compatible bridge 仍按各自协议决策, 不能全局改写所有 input。
 - Responses -> Anthropic 流式桥对 `Read` 工具的 `function_call_arguments.delta` 要实时原样转成 `input_json_delta`, 不再等待 `.done` 才一次性发送。已收到 delta 时 `.done` 只关闭 block, 不再二次发送或 sanitize 完整参数; 仅非流式转换, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才调用 `sanitizeAnthropicToolUseInput`。Anthropic `stop_reason=max_tokens` 映射为 Responses `response.incomplete` + `max_output_tokens`, Responses incomplete 的 `content_filter` 映射为 Chat `finish_reason=content_filter`。
 
 OpenAI/Codex 兼容桥:

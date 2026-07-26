@@ -1590,3 +1590,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Wire/Ent 生成通过且 Wire 连续生成无漂移；后端完整 unit、全量及增量 `golangci-lint`、embed build 通过；前端 lint、typecheck、完整 Vitest、production build 通过。完整 integration 总命令仅出现 Windows `*.test.exe` 文件锁，无业务断言失败；`cmd/server` 独立重跑退出 0，所有被锁包在独立 `GOTMPDIR` 下逐包重跑通过。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，并刷新 Wiki 图谱（33 nodes / 67 edges，0 unresolved wikilink）；本条按追加规则写入。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-07-26 main sync (v0.1.165; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10165_合并1.165版本` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `e3b10c17b960bcf92d3e5ca340e3d39056f56c13`（本地 `main`） |
+| Merge base | `cb24522dd53f8f363d008e3afdc8e4baf9788cab` |
+| Upstream head / second parent | `2730c1c43b29be003925b033f3f9e645e726bb8c` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=2730c1c43b29be003925b033f3f9e645e726bb8c`** |
+| Upstream version / delta | `0.1.165`; 上游预期与实际 staged 路径均为 168，集合差异 0。 |
+| Conflict files | `backend/internal/config/config.go` |
+| Conflict handling | 保留上游 `gateway.live.max_session_duration_seconds=3600`，同时保留本地 RequestArchive/RequestIntercept 配置；未修改冲突之外的上游生产实现。 |
+| Semantic overlap review | 133 个仅上游文件与固定 SHA 逐 blob 一致；416 个仅本地修改路径未被触碰；35 个双方修改文件完成语义复核。上游扩展 `service.UserRepository` 后，仅给本地并发 preset 的 service/handler 测试桩补齐 `CreateWithEmailAliasGuard` 与 `ExistsByEmailAlias` 占位方法，生产代码未改。 |
+| Local features | 22 个 tracked `docs/features/` 文件零删除；除本 ledger 追加记录外，其余 21 个文件零改动。RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset、quota flusher 等本地能力均保留。功能完全重叠处采用上游实现。 |
+| Upstream / baseline issue boundary | 固定上游提交的两个 `GroupsView` 测试 mock 未包含新增 `getLiveCapability`, 全量 Vitest 产生 10 个未处理 Promise 拒绝；rollback API 两条旧 timeout 断言仍失败。两类实现/测试均保持固定上游内容，不在本分支修复。本地 `main` 既有 `/auth/me` `admin_permissions:null` contract mismatch 与固定上游 `go.sum` 旧 checksum 也只记录不修改。 |
+| Verification | Wire/Ent 生成通过且无生成漂移；backend targeted service/handler 测试、其余 unit/integration 包、`golangci-lint run ./...` 与 embed build 通过。`internal/handler/dto` 的 unit/integration 测试二进制在多个 fresh `GOTMPDIR` 中持续被 Windows 拒绝执行，按环境阻断如实记录。Frontend lint、typecheck、production build 通过；Vitest 为 213/214 files、1455/1457 tests，失败和 10 个 unhandled errors 均属于上条列明的上游/基线边界。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 和 3 个组件 README；刷新 Wiki 图谱为 33 nodes / 67 edges、0 unresolved links；本条按追加规则写入。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |

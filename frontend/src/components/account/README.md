@@ -10,6 +10,7 @@
 | `EditAccountModal.vue` | 编辑凭据、模型映射、endpoint capability、pool mode、订阅档位和平台扩展 |
 | `credentialsBuilder.ts` | 纯函数形式构建、清理和规范化账号 credentials |
 | `AccountUsageCell.vue` / `UsageProgressBar.vue` | 账号额度、剩余额度和未知状态展示 |
+| `AccountStatusIndicator.vue` | 账号状态、模型 scope 和短标签展示；Claude Opus 5 使用 `COpus5` |
 | `OAuthAuthorizationFlow.vue` | OAuth 授权输入和状态复用 |
 | `UpstreamBillingRateCell.vue` | OpenAI API Key 账号的自动探测状态、倍率快照、下次 probe、stale 状态和手动 probe |
 | `GrokBaseUrlPresets.vue` / `HeaderOverrideEditor.vue` | Grok 上游地址 preset 与自定义请求头编辑 |

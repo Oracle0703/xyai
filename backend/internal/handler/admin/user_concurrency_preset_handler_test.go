@@ -157,6 +157,9 @@ type userConcurrencyPresetUserRepoAdapter struct{}
 func (s *userConcurrencyPresetUserRepoAdapter) Create(context.Context, *service.User) error {
 	panic("unexpected")
 }
+func (s *userConcurrencyPresetUserRepoAdapter) CreateWithEmailAliasGuard(context.Context, *service.User) error {
+	panic("unexpected")
+}
 func (s *userConcurrencyPresetUserRepoAdapter) GetByEmail(context.Context, string) (*service.User, error) {
 	panic("unexpected")
 }
@@ -210,6 +213,9 @@ func (s *userConcurrencyPresetUserRepoAdapter) BatchUpdateLimits(context.Context
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) ExistsByEmail(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) ExistsByEmailAlias(context.Context, string) (bool, error) {
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {

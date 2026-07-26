@@ -258,6 +258,12 @@ Empty state placeholder with icon, message, and optional action button.
 />
 ```
 
+---
+
+### AnnouncementBell.vue / AnnouncementPopup.vue
+
+公告铃和弹窗共享 `src/styles/announcement-markdown.css`，Markdown 与内嵌 HTML 都先经过 DOMPurify。`AnnouncementPopup` 支持管理端 preview props；预览关闭只发出 `close`，不能调用用户已读接口，卸载时要恢复 body overflow。
+
 ## Import
 
 You can import components individually:

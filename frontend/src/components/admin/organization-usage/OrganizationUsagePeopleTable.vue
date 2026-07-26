@@ -19,7 +19,7 @@
     </div>
 
     <div class="mt-3 overflow-x-auto border-y border-gray-200 dark:border-dark-700">
-      <table class="min-w-[1840px] w-full border-collapse text-sm">
+      <table class="min-w-[1620px] w-full border-collapse text-sm">
         <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
           <tr>
             <th v-for="column in columns" :key="column.key" class="whitespace-nowrap px-3 py-2.5 font-medium" :aria-sort="ariaSort(column)">
@@ -61,7 +61,6 @@
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.requests) }}</td>
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.input_tokens) }}</td>
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.output_tokens) }}</td>
-              <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.cache_creation_tokens) }}</td>
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.cache_read_tokens) }}</td>
               <td class="px-3 py-3 text-right font-medium tabular-nums">{{ formatNumber(item.total_tokens) }}</td>
               <td class="px-3 py-3 text-right tabular-nums">${{ formatCostFixed(item.actual_cost) }}</td>
@@ -141,8 +140,7 @@ const columns = computed(() => [
   { key: 'requests', label: t('admin.organizationUsage.metrics.requests'), sortable: true, sortKey: 'requests' as const },
   { key: 'input_tokens', label: t('admin.organizationUsage.metrics.inputTokens'), sortable: true, sortKey: 'input_tokens' as const },
   { key: 'output_tokens', label: t('admin.organizationUsage.metrics.outputTokens'), sortable: true, sortKey: 'output_tokens' as const },
-  { key: 'cache_creation_tokens', label: t('admin.organizationUsage.metrics.cacheCreationTokens'), sortable: true, sortKey: 'cache_creation_tokens' as const },
-  { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheReadTokens'), sortable: true, sortKey: 'cache_read_tokens' as const },
+  { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheTokens'), sortable: true, sortKey: 'cache_read_tokens' as const },
   { key: 'total_tokens', label: t('admin.organizationUsage.metrics.totalTokens'), sortable: true, sortKey: 'total_tokens' as const },
   { key: 'actual_cost', label: t('admin.organizationUsage.metrics.actualCost'), sortable: true, sortKey: 'actual_cost' as const },
   { key: 'peak_day', label: t('admin.organizationUsage.columns.peakDay'), sortable: true, sortKey: 'peak_day_tokens' as const },

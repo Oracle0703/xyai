@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-23
+更新时间: 2026-07-26
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,6 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-07-26 从本地 `main@e3b10c17b960bcf92d3e5ca340e3d39056f56c13` 创建 `feature/hy/10165_合并1.165版本`, 固定合入 `Wei-Shaw/sub2api main@2730c1c43b29be003925b033f3f9e645e726bb8c`, 当前后端版本 `0.1.165`; merge commit 待用户审核后创建。本轮上游增加 OpenAI Live 网关与 macOS attestation、客户端 session ID 用量归因、注册邮箱别名去重、请求驱动的 Ollama Cloud 用量刷新、公告预览/共享富文本样式、Claude Opus 5 与 PostCSS 安全升级, 并修正多项 OpenAI/Gemini/Grok 转发边界。唯一文本冲突 `backend/internal/config/config.go` 按语义并集保留上游 Live 默认值和本地 RequestArchive/RequestIntercept；35 个双方修改文件已审查, 133 个仅上游路径与固定提交逐 blob 一致, 22 个 tracked `docs/features/` 文件零删除。本地 Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 继续保留；本分支只解决合并冲突, 不修复上游自身问题。
 - 2026-07-23 从本地 `main@ddbf5ab414991475e6ad6f81663d5eed5b7d7d3a` 创建 `feature/hy/10164_合并1.164版本`, 固定合入 `Wei-Shaw/sub2api main@cb24522dd53f8f363d008e3afdc8e4baf9788cab`, 当前后端版本 `0.1.164`; merge commit 待用户审核后创建。本轮上游增加 composite group/model route、Ollama Cloud 官方用量自动刷新、移动端支付宝 precreate 深链和 OpenAI 代理流断开进程内隔离。5 个文本冲突按语义并集解决, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher；本分支只解决合并冲突, 不修复上游自身问题。
 - 2026-07-23 从本地 `main@e52b5c89d07ac058043de5adb983cad8750cab58` 创建 `feature/hy/10163_合并1.163版本`, 固定合入 `Wei-Shaw/sub2api main@60013c5f100be7b4f2e6caee415883d221d33e32`, 上游 merge commit 为 `3e4f4e3f1e987783298c3b28b60f01de80618ac2`, 当前后端版本 `0.1.163`；随后同步 `Oracle0703/xyai main@5cc963c6c4458121769ff4f18a1b53e4b29b523d`, 带入已合并的 0.1.162 记录。本轮上游增加 OpenAI 分组 reasoning effort 精确映射与上限、客户端 IP 自定义转发头和可信代理兼容模式、异步图片对象存储后台热配置、Grok 本地 count-tokens / compact / Codex client tools 兼容，以及 hosted image tool usage 计费提取。文档冲突按语义并集解决, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher；本分支只解决合并冲突, 不修复上游自身问题。
 - 2026-07-20 从本地 `main@e52b5c89d07ac058043de5adb983cad8750cab58` 创建 `feature/hy/10162_合并1.162版本`, 固定合入 `Wei-Shaw/sub2api main@e625ce3b3b3b955b7c3afc93221f7c5f0ae55aa8`, merge commit 为 `ea26f2b0755323dcd750dbdb01cb35991a396be7`, 后端版本为 `0.1.162`。`v0.1.162` tag `27f094e09` 的 `VERSION` 仍为 `0.1.161`, 因而以随后 version-sync commit 为边界。本轮上游增加客户端 IP 兼容模式/自定义请求头、异步生图对象存储后台热配置、Grok 本地 count-tokens 与客户端工具缓存路由、Prompt Audit 阻断意图 fail-closed、Codex manifest 401 账号隔离、`UPDATE_GITHUB_TOKEN` 和 SVG branding；唯一文本冲突 `backend/internal/server/routes/gateway_test.go` 采用上游 helper 并迁入本地 RequestArchive/RequestIntercept 测试。45 个双方修改文件已做语义复核, 22 个 `docs/features/` 文件及本地 Prompt Metrics/Risk、Token Analysis、组织用量、图片生成、并发 preset、compatible 适配、默认 reasoning effort、quota flusher 和子管理员权限均保留。上游 rollback timeout 测试失配和本地既有 `/auth/me` contract mismatch 只记录, 未在合并分支修复。

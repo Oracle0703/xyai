@@ -60,10 +60,24 @@ describe('AppSidebar navigation entries', () => {
     expect(componentSource).toContain("label: t('nav.imageGeneration')")
   })
 
-  it('places the organization report immediately after admin usage with the same simple-mode visibility', () => {
+  it('places the organization report immediately after admin usage with a distinct icon', () => {
     expect(componentSource).toContain(
-      "{ path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },\n    { path: '/admin/organization-usage', label: t('nav.organizationUsage'), icon: ChartIcon },"
+      "{ path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },\n    { path: '/admin/organization-usage', label: t('nav.organizationUsage'), icon: BuildingOfficeIcon },"
     )
+  })
+
+  it('uses distinct icons for analysis, security, affiliate and payment nav entries', () => {
+    expect(componentSource).toContain("{ path: '/admin/ops', label: t('nav.ops'), icon: CpuChipIcon")
+    expect(componentSource).toContain("{ path: '/admin/token-analysis', label: t('nav.tokenAnalysis'), icon: CubeTransparentIcon")
+    expect(componentSource).toContain("{ path: '/admin/risk-control', label: t('nav.contentModeration'), icon: NoSymbolIcon }")
+    expect(componentSource).toContain("{ path: '/admin/prompt-audit', label: t('nav.promptAudit'), icon: DocumentSearchIcon }")
+    expect(componentSource).toContain("{ path: '/admin/request-intercept', label: t('nav.requestIntercept'), icon: FunnelIcon")
+    expect(componentSource).toContain("{ path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ClipboardCheckIcon")
+    expect(componentSource).toContain("{ path: '/admin/affiliates/invites', label: t('nav.affiliateInviteRecords'), icon: UserPlusIcon }")
+    expect(componentSource).toContain("{ path: '/admin/affiliates/transfers', label: t('nav.affiliateTransferRecords'), icon: ArrowUpTrayIcon }")
+    expect(componentSource).toContain("{ path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: BanknotesIcon }")
+    expect(componentSource).toContain("{ path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: RectangleStackIcon }")
+    expect(componentSource).toContain("{ path: '/affiliate', label: t('nav.affiliate'), icon: ShareIcon")
   })
 
   it('renders a permission-filtered management section for sub-admins', () => {

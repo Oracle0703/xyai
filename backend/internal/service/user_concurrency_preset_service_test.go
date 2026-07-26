@@ -119,6 +119,9 @@ func newUserConcurrencyPresetUserRepoStub(users ...*User) *userConcurrencyPreset
 func (s *userConcurrencyPresetUserRepoStub) Create(context.Context, *User) error {
 	panic("unexpected Create")
 }
+func (s *userConcurrencyPresetUserRepoStub) CreateWithEmailAliasGuard(context.Context, *User) error {
+	panic("unexpected CreateWithEmailAliasGuard")
+}
 func (s *userConcurrencyPresetUserRepoStub) GetByID(_ context.Context, id int64) (*User, error) {
 	user := s.users[id]
 	if user == nil {
@@ -197,6 +200,9 @@ func (s *userConcurrencyPresetUserRepoStub) BatchUpdateLimits(context.Context, [
 }
 func (s *userConcurrencyPresetUserRepoStub) ExistsByEmail(context.Context, string) (bool, error) {
 	panic("unexpected ExistsByEmail")
+}
+func (s *userConcurrencyPresetUserRepoStub) ExistsByEmailAlias(context.Context, string) (bool, error) {
+	panic("unexpected ExistsByEmailAlias")
 }
 func (s *userConcurrencyPresetUserRepoStub) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {
 	panic("unexpected RemoveGroupFromAllowedGroups")

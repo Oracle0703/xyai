@@ -83,6 +83,7 @@ API 模块分布:
 - `CreateAccountModal.vue` 的 Antigravity 批量 refresh-token 导入会保留管理员原始输入并传给 OAuth 组合逻辑, 不能只传解析后的 credential 结果, 否则手工 refresh token 会在后续流程中丢失。
 - OpenAI OAuth/API Key 账号增加 `openai_long_context_billing_enabled` 开关, 默认关闭; Codex session/PAT 导入只有用户实际触碰开关时才覆盖服务端默认, 避免旧导入流程无意开启长上下文计费。
 - OpenAI API Key 创建默认提交 `upstream_billing_probe_enabled=true`, 账号创建成功后等待首次 probe 再刷新列表；用户可在创建弹窗关闭该开关。该状态与本地 compatible provider preset 独立, 两者必须同时进入最终 payload。
+- 管理端 OpenAI 分组可通过 `allow_live` 显式开放 Live；前端保存前调用 `/api/v1/admin/groups/live-capability` 检查服务端 attestation 能力, 不支持时必须二次确认, 默认仍关闭。服务端平台和权限校验是最终边界。
 - Channel Monitor 支持 Grok provider、模板和筛选; `GrokQuotaProbeCell.vue` 的 Free 配额显示按本地滚动 24 小时 Token 用量估算, 与上游 weekly header 分开展示。
 - `AuditLogView.vue` 通过 `frontend/src/api/admin/audit.ts` 查询操作审计; 清空要求现场 TOTP。敏感导出/备份动作复用 `useStepUp.ts` + `TotpStepUpDialog.vue`, 收到 `STEP_UP_REQUIRED` 后取得短期 grant 并重试一次。`SettingsView.vue` 暴露默认关闭的 session binding 与 step-up 开关；关闭已启用的 step-up 本身需要二次验证, 开启前当前管理员必须已配置 TOTP。API Key ACL 的兼容开关开启时还可编辑最多 16 个自定义客户端 IP header；前端做 header token 校验、大小写规范化和去重, 后端仍是最终校验边界。
 - `UsersView.vue` 的 `BulkEditUserModal.vue` 调用 `/admin/users/batch-limits`, 可更新选中用户或 `all=true` 全量用户的 concurrency/RPM; 0 必须原样提交, 不能被空值归一化丢失。
@@ -125,7 +126,9 @@ API 模块分布:
 - `frontend/src/features/prompt-audit/api.ts` 维护配置、运行态、节点 probe 和事件删除合同；`components/` 下的 policy、endpoint pool、runtime、event workspace/detail 和 filter-delete dialog 组成页面。筛选删除必须先拿 preview 的 `snapshot_max_id` / `filter_hash`, 再显式确认。
 - `frontend/src/views/admin/BackupView.vue` 同时管理备份 S3 与异步生图/图片对象存储。生图卡片可复用备份 S3 的 endpoint/region/credentials 并单独指定 bucket/prefix, 或保存独立凭据；保存即让后端运行时缓存失效、无需重启。两类 S3 保存都必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。测试连接与读配置使用 `frontend/src/api/admin/backup.ts` 的 `/backups/image-storage` 合同, secret 只显示 configured 状态而不回填明文。
 - `frontend/src/views/admin/SettingsView.vue` 的安全设置暴露客户端 IP 兼容开关和有序自定义 header 列表。header 只在兼容模式开启时显示/提交, 前端去重并规范化, 服务端仍负责合法 header 名和最多 16 项的最终校验。
+- `SettingsView.vue` 的 Ollama Cloud 自动刷新表单同时提交 `debounce_minutes` 与 `interval_minutes`: 前者表示最后一次模型请求后的安静等待, 后者表示持续请求下的最长等待；隐藏或缺失字段不能把后端已保存值意外清空。
 - `frontend/src/api/admin/system.ts` 为在线更新与回退单独使用 15 分钟 axios timeout；修改该调用签名时必须同步 `frontend/src/api/__tests__/admin.system.rollback.spec.ts` 的第三参数断言。
+- 公告编辑页复用 `AnnouncementPopup.vue` 做预览；preview 关闭只发 `close`, 不调用已读接口。公告铃与弹窗统一加载 `frontend/src/styles/announcement-markdown.css`, Markdown/内嵌 HTML 都先经 DOMPurify 后在同一 `.markdown-body` 规则下渲染。
 
 订阅管理:
 
@@ -138,6 +141,7 @@ API 模块分布:
 
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 - `frontend/src/components/admin/usage/UsageTable.vue` 的 IP 地址列可渲染 `IpGeoCell`, 并提供批量获取地区工具栏; `frontend/src/utils/ipGeoLookup.ts` 调用 geojs 单查/批量接口, 跳过内网 IP, 成功结果缓存到 localStorage `sub2api:ip-geo-cache:v1` 24 小时。用户侧 UsageView 复用同一表格事件处理。
+- `UsageRequestType`、管理端/用户侧 UsageView、`UsageFilters.vue` 和 `UsageTable.vue` 均包含独立 `live` 类型及绿色 badge；它与 `sync`/`stream`/`ws_v2`/`cyber` 并列, 不应回落为 legacy stream。UsageLog 的可选 `session_id` 只用于筛查客户端会话关联。
 - 管理端 UsageView 新增 `UserTokenRanking.vue`, 按筛选条件展示用户 Token 排行; `frontend/src/api/admin/dashboard.ts` 的 `UserBreakdownParams.request_type` 使用 `UsageRequestType`, 后端 `GetUserBreakdown` 通过 `ParseUsageRequestType` 解析, 不能退回普通 number 造成筛选口径漂移。用量表同时展示由 `latencyHealth.ts` 统一计算的延迟健康等级, 修改阈值或列设置时要同步 `UsageView.spec.ts`、`UserTokenRanking.spec.ts` 和 `latencyHealth.spec.ts`。
 
 管理端组织用量报表:
