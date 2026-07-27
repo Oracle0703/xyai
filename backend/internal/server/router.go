@@ -123,13 +123,17 @@ func registerRoutes(
 	// API v1
 	v1 := r.Group("/api/v1")
 
+	// 面板 API 限流器：认证接口按用户 ID、公开接口按安全客户端 IP，
+	// 防止高频刷管理面接口打爆数据库（阈值可在系统设置中调整）。
+	panelRateLimiter := middleware2.NewPanelRateLimiter(redisClient, settingService)
+
 	// 注册各模块路由
-	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService)
-	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, settingService)
-	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, settingService)
-	registerPromptMetricsAdminRoutes(v1, adminAuth, settingService, promptMetrics)
+	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService, panelRateLimiter)
+	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, settingService, panelRateLimiter)
+	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, settingService, panelRateLimiter)
+	registerPromptMetricsAdminRoutes(v1, adminAuth, settingService, promptMetrics, panelRateLimiter)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg)
-	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, auditLog, settingService)
+	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, auditLog, settingService, panelRateLimiter)
 
 	handler.RegisterPageRoutes(v1, cfg.Pricing.DataDir, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth), settingService)
 }
@@ -139,12 +143,14 @@ func registerPromptMetricsAdminRoutes(
 	adminAuth middleware2.AdminAuthMiddleware,
 	settingService *service.SettingService,
 	promptMetrics *promptmetrics.Extension,
+	panelRateLimiter *middleware2.PanelRateLimiter,
 ) {
 	if promptMetrics == nil {
 		return
 	}
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
+	admin.Use(panelRateLimiter.Global())
 	// 与 RegisterAdminRoutes 一致: fork 专属管理端路由同样受合规确认门控制,
 	// 避免未确认时 prompt metrics 成为旁路。
 	admin.Use(middleware2.AdminComplianceGuard(settingService))

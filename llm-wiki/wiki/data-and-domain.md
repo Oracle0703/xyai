@@ -153,6 +153,7 @@ go generate ./cmd/server
 - 订阅订单履约需要应用兑换倍率并保持幂等审计; validity unit 支持单复数输入归一化。
 - 余额/订阅履约使用 `payment_fulfillment.go` 的 5 分钟 lease: `PAID`/`FAILED` 或超时 `RECHARGING` 订单通过 status + `updated_at` 条件抢占, 完成/失败写回也按 lease version CAS, 防止旧 worker 覆盖新 worker; 通知和 audit action 仍需幂等去重。
 - 管理端订单金额展示应优先读取订单自身 `currency` 字段决定币种符号, 不要只依赖当前 provider 默认币种。
+- 管理端支付 Dashboard 的 today/total/average、daily series、payment method 和 top users 都按 `PaymentOrderCurrency` 分币种聚合；currency 来自订单 provider snapshot, 缺失/非法时回落默认币种。响应金额是 `map[currency]amount`, top users 是每币种独立排行, 任何层都不得跨币种求和或生成混合排行。
 - 退款 provider 可实现 `payment.RefundQueryProvider`; 网关退款返回 pending 时订单进入 `REFUND_PENDING`, 后台 `POST /api/v1/admin/payment/orders/:id/refund/query` 查询并最终落 `REFUNDED`/`REFUND_FAILED`。匿名 public out_trade_no 查单只返回最小状态字段; resume token 查单才返回支付结果页所需完整合同。
 
 ## 外部支付 Admin API
@@ -204,9 +205,11 @@ Codex alpha search 按次计费:
 
 用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。hosted image Responses 的图片 token 可来自 `tool_usage.image_gen` / `response.tool_usage.image_gen`; 解析器仅在标准 usage 图片字段为 0 时补入 image input/output token, 避免与已有字段重复计费。修改用量聚合或展示时要保持各类 token 互斥统计。
 
+Gemini 3.6 Flash 及 Antigravity `-high/-low/-medium/-tiered` thinking-tier aliases 归一到 `gemini-3.6-flash` 价格卡；内置/远程缺失时 fallback 为 input 1.50 USD/MTok、output 7.50 USD/MTok、cache read 0.15 USD/MTok。lookup 先保留 exact tier 候选, 再回落 base, 便于未来 tier 独立定价。
+
 OpenAI 长上下文计费是账号级 opt-in: `accounts.extra.openai_long_context_billing_enabled` 默认 `false`, 只有该账号真实上游按 OpenAI API 长上下文阈值收费时才开启。计费结果把是否应用写入 `usage_logs.long_context_billing_applied`, 供审计和管理端用量表展示; shadow 账号沿用母账号策略, 不能按 shadow 的空凭据自行决定。
 
-用户侧用量统计已与管理端过滤口径对齐: `UsageLogFilters` 支持 `group_id`、请求模型源(`requested`)、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和日期范围; `/api/v1/usage/dashboard/snapshot-v2` 可以一次返回 trend、model、group 分布。新增 usage 聚合字段时要同时检查 `usage_handler.go`、`usage_service.go`、`usage_log_repo.go`、前端 `frontend/src/api/usage.ts` 和 `UsageView.vue`。
+用户侧用量统计已与管理端过滤口径对齐: `UsageLogFilters` 支持 `group_id`、请求模型源(`requested`)、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和日期范围; 管理端 list 还支持 `request_id` 精确筛选。`/api/v1/usage/dashboard/snapshot-v2` 可以一次返回 trend、model、group 分布。模型统计的 upstream 口径为空时回落 `usage_logs.model`, 不能回落 requested model 后把 mapping 误写成自映射。新增 usage 聚合字段时要同时检查 `usage_handler.go`、`usage_service.go`、`usage_log_repo.go`、前端 `frontend/src/api/usage.ts` 和 `UsageView.vue`。
 
 `usage_logs.session_id` 是客户端显式关联字段, 可空且不参与计费、调度或 prompt cache；所有网关 handler 在离开 Gin 请求上下文前提取标量并传入异步 usage writer。OpenAI Live 结束时写 `request_type=live`, duration 记录会话持续时间；Live 租约释放与 usage 终态使用 Redis close marker 保证只完成一次。
 

@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前集成分支为 `feature/hy/10165_合并1.165版本`: 第一父基线固定为本地 `main@e3b10c17b960bcf92d3e5ca340e3d39056f56c13`, 第二父待提交边界为 `Wei-Shaw/sub2api main@2730c1c43b29be003925b033f3f9e645e726bb8c`, `backend/cmd/server/VERSION` 为 `0.1.165`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签或更晚的 upstream HEAD 替代该精确提交。
+- 当前集成分支为 `feature/hy/10166_合并1.166版本`: 第一父基线固定为本地 `main@c819b17fdd024a7a936a45b6d725022f4fd6af6c`, 第二父待提交边界为 `Wei-Shaw/sub2api main@59ce11c78000bde5bdd74930b5885753037a5841`, merge base 为 `2730c1c43b29be003925b033f3f9e645e726bb8c`, `backend/cmd/server/VERSION` 为 `0.1.166`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签或更晚的 upstream HEAD 替代该精确提交。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
@@ -65,6 +65,8 @@ pnpm --dir frontend run build
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
 
 embed 模式只给 Vite `assets/` 下文件名带 8 字符 fingerprint 的资源设置一年 `immutable` 缓存; unhashed assets、`logo.svg`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 只负责 TLS/反向代理, 不重复按路径强制 immutable, fingerprint 判定由后端 `static_cache.go` 统一负责。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
+
+bundled `deploy/Caddyfile` 的 `encode` 使用显式 content-type allowlist, 不匹配 `text/event-stream`; 不要改回 `text/*` 或 `encode gzip zstd`, 否则 SSE 可能被压缩并缓冲到流结束。`flush_interval` 保持未设置, 让 Caddy 自动 flush SSE 且客户端断开能继续向上游传播；`deploy/test-caddyfile-cache.sh` 同时守卫唯一 encode block、非 SSE 压缩列表和该 flush 合同。Nginx 同样要把 `text/event-stream` 排除在 `gzip_types` 外。
 
 ## Apple container
 
@@ -284,6 +286,8 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 
 示例配置: `deploy/config.example.yaml`。
 
+配置来源优先级: 环境变量覆盖配置值；显式非空 `CONFIG_FILE` 时只读取该文件, 不再扫描 `DATA_DIR` 或默认目录, 文件缺失属于启动错误。未设置 `CONFIG_FILE` 时按 `DATA_DIR`、`/app/data`、当前目录、`./config`、`/etc/sub2api` 搜索 `config.yaml`；setup 前的 `GetServerAddress()` 使用同一文件选择逻辑。
+
 主要配置组:
 
 - `server`: host, port, mode, frontend_url, trusted_proxies, h2c, request body 上限; `read_header_timeout=10`、`max_header_bytes=65536`、`idle_timeout=120` 构成 HTTP ingress 基线, 不设置会截断 SSE/WS 的 `WriteTimeout`; `enable_server_timing` 默认 `false`, 也可用精确环境变量 `ENABLE_SERVER_TIMING=true` 开启管理端可观测响应头。`server.trusted_proxies` 只有在显式出现在配置或 `SERVER_TRUSTED_PROXIES` 环境变量时才启用 Gin 可信代理链；显式空数组表示禁用转发 IP 信任, 未配置时也使用直连 peer。
@@ -311,6 +315,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `redis`: Redis 连接池、ACL `username`、password 和 TLS；使用默认 Redis 用户时 `username` 留空。
 - `api_key_auth_cache`: L1/L2 TTL、singleflight、`lookup_concurrency=64` 和进程内 invalid-auth abuse limiter；默认每可信客户端 IP（IPv6 按 `/64`）60 秒 120 次无效凭据后阻断 60 秒, capacity 16384。它不是 CDN/WAF 的替代品。
 - `ops`: 运维监控开关。
+- Panel API 限流不是 YAML 组, 由数据库 setting `panel_rate_limit_settings` 热管理；默认 `enabled=true,user_rpm=240,heavy_rpm=60,public_ip_rpm=300,exempt_admin=true`, 当前节点保存后立即刷新, 多节点最多等待 60 秒缓存 TTL。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
 - OAuth: LinuxDo, WeChat, OIDC, DingTalk, GitHub, Google。
 - `pricing`: 模型价格远程源, hash 校验和 fallback 文件。
@@ -324,6 +329,7 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - `settings.prompt_audit_config` 保存配置版本、启用/阻断开关、worker/queue、group 范围、scanner 和 OpenAI-compatible Guard endpoints；节点 token 以密文保存。`risk_control_enabled` 是上层总开关。
 - 默认 `enabled=false`, 有效模式为 off / async audit / blocking。配置加载失败只在最近一次可解码的存储意图明确要求 blocking 且 `risk_control_enabled=true` 时 fail-closed；默认关闭或 async intent 不得因 untrusted config 被提升为 blocking。async 原文扫描载荷写 Redis key `sub2api:prompt_audit:payload:<job_id>`, TTL 最长 30 分钟, 完成或非重试失败后主动删除。
 - 默认 worker 数 4、queue capacity 32768、节点 timeout 3000 ms、input limit 4000 rune。更新配置时必须带 `expected_config_version`, 多实例通过 PostgreSQL advisory lock 和 Redis version 通知刷新快照。
+- 管理端读取 config 必须来自成功加载的 snapshot；持久配置激活失败且没有可信 snapshot 时返回 `prompt_audit_config_unavailable`, 不返回看似可用的默认关闭配置。setting 真正缺失时仍会成功建立 version 1 默认 snapshot；reload 失败保留最后一次可信 snapshot。
 
 `token_refresh` 的运行时有效值会对非正数回退默认值、对超过上限的正数封顶:
 

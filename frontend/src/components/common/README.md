@@ -264,6 +264,18 @@ Empty state placeholder with icon, message, and optional action button.
 
 公告铃和弹窗共享 `src/styles/announcement-markdown.css`，Markdown 与内嵌 HTML 都先经过 DOMPurify。`AnnouncementPopup` 支持管理端 preview props；预览关闭只发出 `close`，不能调用用户已读接口，卸载时要恢复 body overflow。
 
+---
+
+### Select.vue
+
+`Select` 将 dropdown teleport 到 body 并使用 fixed positioning。定位时保留 8px viewport padding, `left`、`minWidth` 和 `maxWidth` 都必须按当前视口可用宽度收敛；200px 是首选最小宽度, 不是可以撑破窄屏的硬下限。resize/scroll 后会重新计算 trigger rect 和上下展开方向。
+
+---
+
+### GroupOptionItem.vue
+
+分组选项把 badge/名称与描述分行展示。description 使用 `whitespace-pre-line` 保留人工换行、`overflow-wrap:anywhere` 处理长词, 最多显示 3 行；右侧倍率和选中标记保持 shrink，不得挤压左侧文本到视口外。
+
 ## Import
 
 You can import components individually:

@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-07-26
+更新时间: 2026-07-27
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,6 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-07-27 从本地 `main@c819b17fdd024a7a936a45b6d725022f4fd6af6c` 创建 `feature/hy/10166_合并1.166版本`, 固定合入 `Wei-Shaw/sub2api main@59ce11c78000bde5bdd74930b5885753037a5841`, 当前后端版本 `0.1.166`; merge commit 待用户审核后创建。上游增量为 142 个文件、`+7131/-512`, 新增默认开启的 Panel API 分层限流、显式 `CONFIG_FILE`、通用 settings PUT 的省略字段保留、管理用量 request ID 精确筛选、支付看板按币种隔离统计、OpenAI WS 每轮模型映射/计费归因、Antigravity 原生 OAuth 的 Chat/Responses 兼容转发和 Codex++ Responses/Anthropic 工具兼容, 并避免 Caddy 压缩缓冲 SSE。8 个文本冲突按语义并集解决；Prompt Metrics 独立管理路由同步接入上游 Panel 限流。110 个仅上游路径与固定提交逐 blob 一致, 425 个仅本地修改路径未被触碰, 32 个双方修改路径已审查, 23 个 tracked `docs/features/` 文件零删除。本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 继续保留；本分支只解决合并冲突, 不修复上游自身问题。
 - 2026-07-26 从本地 `main@e3b10c17b960bcf92d3e5ca340e3d39056f56c13` 创建 `feature/hy/10165_合并1.165版本`, 固定合入 `Wei-Shaw/sub2api main@2730c1c43b29be003925b033f3f9e645e726bb8c`, 当前后端版本 `0.1.165`; merge commit 待用户审核后创建。本轮上游增加 OpenAI Live 网关与 macOS attestation、客户端 session ID 用量归因、注册邮箱别名去重、请求驱动的 Ollama Cloud 用量刷新、公告预览/共享富文本样式、Claude Opus 5 与 PostCSS 安全升级, 并修正多项 OpenAI/Gemini/Grok 转发边界。唯一文本冲突 `backend/internal/config/config.go` 按语义并集保留上游 Live 默认值和本地 RequestArchive/RequestIntercept；35 个双方修改文件已审查, 133 个仅上游路径与固定提交逐 blob 一致, 22 个 tracked `docs/features/` 文件零删除。本地 Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 继续保留；本分支只解决合并冲突, 不修复上游自身问题。
 - 2026-07-23 从本地 `main@ddbf5ab414991475e6ad6f81663d5eed5b7d7d3a` 创建 `feature/hy/10164_合并1.164版本`, 固定合入 `Wei-Shaw/sub2api main@cb24522dd53f8f363d008e3afdc8e4baf9788cab`, 当前后端版本 `0.1.164`; merge commit 待用户审核后创建。本轮上游增加 composite group/model route、Ollama Cloud 官方用量自动刷新、移动端支付宝 precreate 深链和 OpenAI 代理流断开进程内隔离。5 个文本冲突按语义并集解决, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher；本分支只解决合并冲突, 不修复上游自身问题。
 - 2026-07-23 从本地 `main@e52b5c89d07ac058043de5adb983cad8750cab58` 创建 `feature/hy/10163_合并1.163版本`, 固定合入 `Wei-Shaw/sub2api main@60013c5f100be7b4f2e6caee415883d221d33e32`, 上游 merge commit 为 `3e4f4e3f1e987783298c3b28b60f01de80618ac2`, 当前后端版本 `0.1.163`；随后同步 `Oracle0703/xyai main@5cc963c6c4458121769ff4f18a1b53e4b29b523d`, 带入已合并的 0.1.162 记录。本轮上游增加 OpenAI 分组 reasoning effort 精确映射与上限、客户端 IP 自定义转发头和可信代理兼容模式、异步图片对象存储后台热配置、Grok 本地 count-tokens / compact / Codex client tools 兼容，以及 hosted image tool usage 计费提取。文档冲突按语义并集解决, 继续保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher；本分支只解决合并冲突, 不修复上游自身问题。
