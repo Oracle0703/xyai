@@ -80,6 +80,65 @@ func TestOrganizationUsagePeriodBucketSQL_UsesMondayAndClipsSelectedRange(t *tes
 	require.Contains(t, query, "(bucket_start < $5::date OR bucket_end > $6::date) AS partial")
 }
 
+func TestOrganizationUsageTrendSQL_ZeroFillsWithoutUserDimension(t *testing.T) {
+	for _, granularity := range []string{
+		service.OrganizationUsageGranularityDay,
+		service.OrganizationUsageGranularityWeek,
+		service.OrganizationUsageGranularityMonth,
+	} {
+		query, err := organizationUsageTrendQuery(granularity)
+		require.NoError(t, err, granularity)
+		normalized := strings.ToLower(query)
+		require.Contains(t, normalized, "generate_series")
+		require.NotContains(t, normalized, "group by user_id")
+		require.Contains(t, normalized, "group by bucket_start, bucket_end")
+		require.Contains(t, query, "$7::date")
+		require.Contains(t, query, "ORDER BY period_start ASC")
+		require.Contains(t, query, "LEAST(b.bucket_end, $6::date, $7::date)")
+	}
+
+	weekQuery, err := organizationUsageTrendQuery(service.OrganizationUsageGranularityWeek)
+	require.NoError(t, err)
+	require.Contains(t, weekQuery, "date_trunc('week', $5::timestamp)")
+	require.Contains(t, weekQuery, "date_trunc('week', $7::timestamp)")
+	require.NotContains(t, weekQuery, "interval '7 day') AS gs")
+}
+
+func TestOrganizationUsageRepositoryTrend_ScansZeroFilledPoint(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	start := time.Date(2025, 12, 31, 16, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 10, 16, 0, 0, 0, time.UTC)
+	params := service.OrganizationUsageTrendRepositoryParams{
+		StartTime: start, EndTime: end,
+		StartDate:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60)),
+		EndDate:      time.Date(2026, 1, 10, 0, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60)),
+		DataThrough:  time.Date(2026, 1, 5, 0, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60)),
+		Organization: service.OrganizationAll, Q: "dev",
+		Granularity: service.OrganizationUsageGranularityDay,
+	}
+
+	query, err := organizationUsageTrendQuery(service.OrganizationUsageGranularityDay)
+	require.NoError(t, err)
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs(start, end, "%dev%", service.OrganizationAll, "2026-01-01", "2026-01-10", "2026-01-05").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"period_start", "period_end", "partial",
+			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost",
+		}).AddRow(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), false,
+			0, 0, 0, 0, 0, 0, 0.0))
+
+	repo := NewOrganizationUsageRepository(db)
+	got, err := repo.Trend(context.Background(), params)
+	require.NoError(t, err)
+	require.Len(t, got.Points, 1)
+	require.Equal(t, "2026-01-01", got.Points[0].PeriodStart)
+	require.Equal(t, int64(0), got.Points[0].TotalTokens)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestOrganizationUsageRepositoryPeriods_ScansPartialWeekAndPagination(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)

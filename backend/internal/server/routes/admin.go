@@ -697,6 +697,7 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.GET("/search-groups", h.Admin.Usage.SearchGroups)
 		usage.GET("/organization-report/summary", h.Admin.OrganizationUsage.Summary)
 		usage.GET("/organization-report/periods", h.Admin.OrganizationUsage.Periods)
+		usage.GET("/organization-report/trend", h.Admin.OrganizationUsage.Trend)
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)

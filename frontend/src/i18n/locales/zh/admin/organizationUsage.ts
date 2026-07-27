@@ -23,6 +23,17 @@ export default {
       exporting: '导出中...'
     },
     overview: { title: '用量概览' },
+    trend: {
+      title: '用量趋势',
+      granularity: '趋势粒度',
+      day: '按日',
+      week: '按周',
+      month: '按月',
+      loadFailed: '用量趋势加载失败。',
+      retry: '重试',
+      asOf: '数据截至 {value}',
+      partialHint: '不完整周期'
+    },
     organizationSummary: { title: '组织汇总' },
     people: {
       title: '人员汇总',

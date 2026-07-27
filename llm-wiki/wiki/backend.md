@@ -103,8 +103,8 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 管理端组织用量报表:
 
-- 完整设计见 `docs/features/organization-usage-report-design-cn.md`。
-- `GET /api/v1/admin/usage/organization-report/summary` 返回组织概览、三组组织汇总、日/周/月 champions 和分页用户摘要; `GET .../periods` 返回有用量的 user-period 明细。二者沿用 `/api/v1/admin` 的管理员认证与合规 guard。
+- 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-trend-chart-design-cn.md`。
+- `GET /api/v1/admin/usage/organization-report/summary` 返回组织概览、三组组织汇总、日/周/月 champions 和分页用户摘要; `GET .../periods` 返回有用量的 user-period 明细; `GET .../trend` 返回筛选范围内按 day/week/month 聚合、服务端补零且截止 `data_through` 的连续时间序列（无 user 维、不分页）。三者沿用 `/api/v1/admin` 的管理员认证与合规 guard。
 - 三层边界独立为 `OrganizationUsageRepository`、`OrganizationUsageService` 和 `admin.OrganizationUsageHandler`; SQL 实现在 `internal/repository/organization_usage_repo.go`, 不扩张 `UsageLogRepository` 或 `DashboardHandler`。
 - 日期合同是固定 `Asia/Shanghai` 的 `YYYY-MM-DD` 闭区间, service 转成 UTC 半开区间后查询; 最多 366 个自然日。SQL 先用原始 `usage_logs.created_at >= start AND created_at < end` 收敛, 再按北京时间分日/周/月桶; 周为周一到周日, 跨选区周期会裁剪起止日期并标记 `partial=true`。
 - 可选 `as_of` 必须是严格 RFC3339/RFC3339Nano; service 将其规范化为 UTC 并裁剪到不晚于服务端当前时间, 响应回显 canonical `as_of`。usage 查询上界再取 canonical `as_of` 与日期 end 的较早值, 早于范围起点时钳成空用量区间。该值不是密码学签名或服务端 snapshot id。

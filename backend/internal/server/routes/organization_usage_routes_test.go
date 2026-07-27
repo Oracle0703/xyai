@@ -24,4 +24,5 @@ func TestRegisterUsageRoutes_RegistersOrganizationReportEndpoints(t *testing.T) 
 	}
 	require.True(t, routes["GET /api/v1/admin/usage/organization-report/summary"])
 	require.True(t, routes["GET /api/v1/admin/usage/organization-report/periods"])
+	require.True(t, routes["GET /api/v1/admin/usage/organization-report/trend"])
 }

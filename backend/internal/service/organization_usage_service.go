@@ -109,6 +109,22 @@ type OrganizationUsagePeriodsResponse struct {
 	Pagination  OrganizationUsagePagination `json:"pagination"`
 }
 
+// OrganizationUsageTrendPoint is one zero-filled calendar bucket for the trend chart.
+type OrganizationUsageTrendPoint struct {
+	PeriodStart string `json:"period_start"`
+	PeriodEnd   string `json:"period_end"`
+	Partial     bool   `json:"partial"`
+	OrganizationUsageMetrics
+}
+
+// OrganizationUsageTrendResponse is the continuous time series for organization-usage charts.
+type OrganizationUsageTrendResponse struct {
+	Range       OrganizationUsageRange        `json:"range"`
+	DataThrough string                        `json:"data_through,omitempty"`
+	Granularity string                        `json:"granularity"`
+	Points      []OrganizationUsageTrendPoint `json:"points"`
+}
+
 type OrganizationUsageSummaryQuery struct {
 	StartDate    string
 	EndDate      string
@@ -129,6 +145,16 @@ type OrganizationUsagePeriodsQuery struct {
 	Q            string
 	Page         int
 	PageSize     int
+	Granularity  string
+}
+
+// OrganizationUsageTrendQuery filters the zero-filled trend series (no pagination).
+type OrganizationUsageTrendQuery struct {
+	StartDate    string
+	EndDate      string
+	AsOf         string
+	Organization string
+	Q            string
 	Granularity  string
 }
 
@@ -157,6 +183,18 @@ type OrganizationUsagePeriodsRepositoryParams struct {
 	Granularity  string
 }
 
+// OrganizationUsageTrendRepositoryParams keeps Periods $1..$6 bindings and adds $7=data_through.
+type OrganizationUsageTrendRepositoryParams struct {
+	StartTime    time.Time
+	EndTime      time.Time
+	StartDate    time.Time
+	EndDate      time.Time
+	DataThrough  time.Time
+	Organization string
+	Q            string
+	Granularity  string
+}
+
 type OrganizationUsageSummaryRepositoryResult struct {
 	Overview      OrganizationUsageOverview
 	Organizations []OrganizationUsageOrganization
@@ -170,9 +208,14 @@ type OrganizationUsagePeriodsRepositoryResult struct {
 	Total int64
 }
 
+type OrganizationUsageTrendRepositoryResult struct {
+	Points []OrganizationUsageTrendPoint
+}
+
 type OrganizationUsageRepository interface {
 	Summary(context.Context, OrganizationUsageSummaryRepositoryParams) (*OrganizationUsageSummaryRepositoryResult, error)
 	Periods(context.Context, OrganizationUsagePeriodsRepositoryParams) (*OrganizationUsagePeriodsRepositoryResult, error)
+	Trend(context.Context, OrganizationUsageTrendRepositoryParams) (*OrganizationUsageTrendRepositoryResult, error)
 }
 
 type OrganizationUsageService struct {
@@ -260,6 +303,70 @@ func (s *OrganizationUsageService) Periods(ctx context.Context, query Organizati
 		Items:       result.Items,
 		Pagination:  organizationUsagePagination(result.Total, base.page, base.pageSize),
 	}, nil
+}
+
+// Trend returns a continuous zero-filled time series through data_through (no future buckets).
+// Auto day/week/month inference is a frontend concern; the service only validates granularity.
+func (s *OrganizationUsageService) Trend(ctx context.Context, query OrganizationUsageTrendQuery) (*OrganizationUsageTrendResponse, error) {
+	// Placeholder page/pageSize only satisfy normalizeOrganizationUsageQuery; Trend is not paginated.
+	base, err := normalizeOrganizationUsageQuery(query.StartDate, query.EndDate, query.AsOf, query.Organization, query.Q, 1, 20)
+	if err != nil {
+		return nil, err
+	}
+	serverNow := s.now()
+	if base.asOf != nil {
+		base.clampAsOfToServerNow(serverNow)
+	}
+	granularity := strings.ToLower(strings.TrimSpace(query.Granularity))
+	if granularity == "" {
+		granularity = OrganizationUsageGranularityDay
+	}
+	if granularity != OrganizationUsageGranularityDay && granularity != OrganizationUsageGranularityWeek && granularity != OrganizationUsageGranularityMonth {
+		return nil, organizationUsageValidation("granularity", "invalid granularity")
+	}
+
+	startTime, endTime := base.repositoryRange()
+	effectiveAsOf := serverNow.UTC()
+	if base.asOf != nil {
+		effectiveAsOf = base.asOf.UTC()
+	}
+	dataThrough := organizationUsageCalendarDate(effectiveAsOf)
+	if dataThrough.After(base.end) {
+		dataThrough = base.end
+	}
+	if dataThrough.Before(base.start) {
+		return &OrganizationUsageTrendResponse{
+			Range:       OrganizationUsageRange{StartDate: query.StartDate, EndDate: query.EndDate, AsOf: base.asOfCanonical},
+			Granularity: granularity,
+			Points:      []OrganizationUsageTrendPoint{},
+		}, nil
+	}
+
+	result, err := s.repo.Trend(ctx, OrganizationUsageTrendRepositoryParams{
+		StartTime: startTime, EndTime: endTime,
+		StartDate: base.start, EndDate: base.end, DataThrough: dataThrough,
+		Organization: base.organization, Q: base.q,
+		Granularity: granularity,
+	})
+	if err != nil {
+		return nil, err
+	}
+	points := result.Points
+	if points == nil {
+		points = []OrganizationUsageTrendPoint{}
+	}
+	return &OrganizationUsageTrendResponse{
+		Range:       OrganizationUsageRange{StartDate: query.StartDate, EndDate: query.EndDate, AsOf: base.asOfCanonical},
+		DataThrough: dataThrough.Format("2006-01-02"),
+		Granularity: granularity,
+		Points:      points,
+	}, nil
+}
+
+// organizationUsageCalendarDate returns the Asia/Shanghai calendar day of t at local midnight.
+func organizationUsageCalendarDate(t time.Time) time.Time {
+	local := t.In(organizationUsageLocation)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, organizationUsageLocation)
 }
 
 type normalizedOrganizationUsageQuery struct {

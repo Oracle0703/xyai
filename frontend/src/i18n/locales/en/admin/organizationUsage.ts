@@ -23,6 +23,17 @@ export default {
       exporting: 'Exporting...'
     },
     overview: { title: 'Overview' },
+    trend: {
+      title: 'Usage trend',
+      granularity: 'Trend granularity',
+      day: 'Day',
+      week: 'Week',
+      month: 'Month',
+      loadFailed: 'Failed to load the usage trend.',
+      retry: 'Retry',
+      asOf: 'Data as of {value}',
+      partialHint: 'Partial period'
+    },
     organizationSummary: { title: 'Organization summary' },
     people: {
       title: 'People summary',
