@@ -14,6 +14,7 @@ import (
 type organizationUsageService interface {
 	Summary(context.Context, service.OrganizationUsageSummaryQuery) (*service.OrganizationUsageSummaryResponse, error)
 	Periods(context.Context, service.OrganizationUsagePeriodsQuery) (*service.OrganizationUsagePeriodsResponse, error)
+	Trend(context.Context, service.OrganizationUsageTrendQuery) (*service.OrganizationUsageTrendResponse, error)
 }
 
 type OrganizationUsageHandler struct {
@@ -50,6 +51,18 @@ func (h *OrganizationUsageHandler) Periods(c *gin.Context) {
 		StartDate: c.Query("start_date"), EndDate: c.Query("end_date"), AsOf: c.Query("as_of"),
 		Organization: c.Query("organization"), Q: c.Query("q"),
 		Page: page, PageSize: pageSize, Granularity: c.Query("granularity"),
+	})
+	if writeOrganizationUsageError(c, err) {
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *OrganizationUsageHandler) Trend(c *gin.Context) {
+	result, err := h.service.Trend(c.Request.Context(), service.OrganizationUsageTrendQuery{
+		StartDate: c.Query("start_date"), EndDate: c.Query("end_date"), AsOf: c.Query("as_of"),
+		Organization: c.Query("organization"), Q: c.Query("q"),
+		Granularity: c.Query("granularity"),
 	})
 	if writeOrganizationUsageError(c, err) {
 		return

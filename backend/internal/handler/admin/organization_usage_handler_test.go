@@ -15,8 +15,10 @@ import (
 type organizationUsageServiceStub struct {
 	summaryQuery service.OrganizationUsageSummaryQuery
 	periodsQuery service.OrganizationUsagePeriodsQuery
+	trendQuery   service.OrganizationUsageTrendQuery
 	summary      *service.OrganizationUsageSummaryResponse
 	periods      *service.OrganizationUsagePeriodsResponse
+	trend        *service.OrganizationUsageTrendResponse
 	err          error
 	called       bool
 }
@@ -31,6 +33,12 @@ func (s *organizationUsageServiceStub) Periods(_ context.Context, query service.
 	s.called = true
 	s.periodsQuery = query
 	return s.periods, s.err
+}
+
+func (s *organizationUsageServiceStub) Trend(_ context.Context, query service.OrganizationUsageTrendQuery) (*service.OrganizationUsageTrendResponse, error) {
+	s.called = true
+	s.trendQuery = query
+	return s.trend, s.err
 }
 
 func TestOrganizationUsageHandlerSummary_BindsStrictQueryAndReturnsEnvelope(t *testing.T) {
@@ -120,6 +128,22 @@ func TestOrganizationUsageHandlerPeriods_BindsGranularity(t *testing.T) {
 	require.Equal(t, "2026-01-20T12:00:00Z", stub.periodsQuery.AsOf)
 }
 
+func TestOrganizationUsageHandlerTrend_BindsQueryWithoutPagination(t *testing.T) {
+	stub := &organizationUsageServiceStub{trend: &service.OrganizationUsageTrendResponse{
+		Granularity: "day",
+		DataThrough: "2026-01-15",
+		Points:      []service.OrganizationUsageTrendPoint{},
+	}}
+	h := &OrganizationUsageHandler{service: stub}
+	w := performOrganizationUsageRequest(h.Trend, "/?start_date=2026-01-01&end_date=2026-01-31&as_of=2026-01-15T12%3A00%3A00Z&organization=xunyou&q=alice&granularity=week")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "week", stub.trendQuery.Granularity)
+	require.Equal(t, "xunyou", stub.trendQuery.Organization)
+	require.Equal(t, "alice", stub.trendQuery.Q)
+	require.Equal(t, "2026-01-15T12:00:00Z", stub.trendQuery.AsOf)
+}
+
 type organizationUsageHandlerRepositoryStub struct{}
 
 func (organizationUsageHandlerRepositoryStub) Summary(context.Context, service.OrganizationUsageSummaryRepositoryParams) (*service.OrganizationUsageSummaryRepositoryResult, error) {
@@ -130,20 +154,28 @@ func (organizationUsageHandlerRepositoryStub) Periods(context.Context, service.O
 	return &service.OrganizationUsagePeriodsRepositoryResult{}, nil
 }
 
+func (organizationUsageHandlerRepositoryStub) Trend(context.Context, service.OrganizationUsageTrendRepositoryParams) (*service.OrganizationUsageTrendRepositoryResult, error) {
+	return &service.OrganizationUsageTrendRepositoryResult{Points: []service.OrganizationUsageTrendPoint{}}, nil
+}
+
 func TestOrganizationUsageHandler_RejectsInvalidAsOf(t *testing.T) {
 	h := NewOrganizationUsageHandler(service.NewOrganizationUsageService(organizationUsageHandlerRepositoryStub{}))
 	tests := []struct {
 		name    string
-		periods bool
+		handler gin.HandlerFunc
 	}{
 		{name: "summary"},
-		{name: "periods", periods: true},
+		{name: "periods"},
+		{name: "trend"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := h.Summary
-			if tt.periods {
+			switch tt.name {
+			case "periods":
 				handler = h.Periods
+			case "trend":
+				handler = h.Trend
 			}
 			w := performOrganizationUsageRequest(handler, "/?start_date=2026-01-01&end_date=2026-01-31&as_of=invalid")
 			require.Equal(t, http.StatusBadRequest, w.Code)

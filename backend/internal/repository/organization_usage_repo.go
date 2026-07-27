@@ -91,6 +91,40 @@ func (r *organizationUsageRepository) Periods(ctx context.Context, params servic
 	return &service.OrganizationUsagePeriodsRepositoryResult{Items: items, Total: total}, nil
 }
 
+func (r *organizationUsageRepository) Trend(ctx context.Context, params service.OrganizationUsageTrendRepositoryParams) (*service.OrganizationUsageTrendRepositoryResult, error) {
+	query, err := organizationUsageTrendQuery(params.Granularity)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, query,
+		params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q), params.Organization,
+		params.StartDate.Format("2006-01-02"), params.EndDate.Format("2006-01-02"), params.DataThrough.Format("2006-01-02"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query organization usage trend: %w", err)
+	}
+	defer rows.Close()
+
+	points := make([]service.OrganizationUsageTrendPoint, 0)
+	for rows.Next() {
+		var point service.OrganizationUsageTrendPoint
+		var periodStart, periodEnd sql.NullTime
+		if err := rows.Scan(
+			&periodStart, &periodEnd, &point.Partial,
+			&point.Requests, &point.InputTokens, &point.OutputTokens, &point.CacheCreationTokens, &point.CacheReadTokens, &point.TotalTokens, &point.ActualCost,
+		); err != nil {
+			return nil, fmt.Errorf("scan organization usage trend: %w", err)
+		}
+		point.PeriodStart = formatSQLDate(periodStart)
+		point.PeriodEnd = formatSQLDate(periodEnd)
+		points = append(points, point)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate organization usage trend: %w", err)
+	}
+	return &service.OrganizationUsageTrendRepositoryResult{Points: points}, nil
+}
+
 func (r *organizationUsageRepository) queryOrganizations(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams) ([]service.OrganizationUsageOrganization, error) {
 	rows, err := r.db.QueryContext(ctx, organizationUsageOrganizationsQuery(), params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q))
 	if err != nil {
@@ -501,6 +535,98 @@ period_aggregates AS (
 SELECT COUNT(*)::bigint
 FROM period_aggregates pa
 JOIN selected_users su ON su.user_id = pa.user_id`, organizationUsageActiveUsersCTE(), organizationUsageRowsCTE, aggregation), nil
+}
+
+// organizationUsageTrendBucketSeriesSQL builds generate_series buckets from start_date ($5) through data_through ($7).
+func organizationUsageTrendBucketSeriesSQL(granularity string) (string, error) {
+	switch granularity {
+	case service.OrganizationUsageGranularityDay:
+		return `SELECT gs::date AS bucket_start, gs::date AS bucket_end
+    FROM generate_series($5::date, $7::date, interval '1 day') AS gs`, nil
+	case service.OrganizationUsageGranularityWeek:
+		return `SELECT
+        gs::date AS bucket_start,
+        (gs + interval '6 days')::date AS bucket_end
+    FROM generate_series(
+        date_trunc('week', $5::timestamp)::date,
+        date_trunc('week', $7::timestamp)::date,
+        interval '7 days'
+    ) AS gs`, nil
+	case service.OrganizationUsageGranularityMonth:
+		return `SELECT
+        gs::date AS bucket_start,
+        (gs + interval '1 month - 1 day')::date AS bucket_end
+    FROM generate_series(
+        date_trunc('month', $5::timestamp)::date,
+        date_trunc('month', $7::timestamp)::date,
+        interval '1 month'
+    ) AS gs`, nil
+	default:
+		return "", fmt.Errorf("invalid organization usage granularity %q", granularity)
+	}
+}
+
+// organizationUsageTrendAggregationSQL aggregates usage by period bucket without user_id dimension.
+func organizationUsageTrendAggregationSQL(granularity string) (string, error) {
+	start, end, err := organizationUsagePeriodBucketSQL(granularity)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(`SELECT
+        %s AS bucket_start,
+        %s AS bucket_end,
+        COUNT(*)::bigint AS requests,
+        COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+        COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
+        COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
+        COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+        COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
+        COALESCE(SUM(actual_cost), 0)::double precision AS actual_cost
+    FROM filtered_usage
+    GROUP BY bucket_start, bucket_end`, start, end), nil
+}
+
+func organizationUsageTrendQuery(granularity string) (string, error) {
+	aggregation, err := organizationUsageTrendAggregationSQL(granularity)
+	if err != nil {
+		return "", err
+	}
+	buckets, err := organizationUsageTrendBucketSeriesSQL(granularity)
+	if err != nil {
+		return "", err
+	}
+	// $1 start_time, $2 end_time, $3 q, $4 org, $5 start_date, $6 end_date, $7 data_through
+	return fmt.Sprintf(`WITH %s,
+selected_users AS (
+    SELECT * FROM active_users
+    WHERE $4 = 'all' OR organization = $4
+),
+%s,
+filtered_usage AS (
+    SELECT ur.*
+    FROM usage_rows ur
+    JOIN selected_users su ON su.user_id = ur.user_id
+),
+period_aggregates AS (
+    %s
+),
+buckets AS (
+    %s
+)
+SELECT
+    GREATEST(b.bucket_start, $5::date) AS period_start,
+    LEAST(b.bucket_end, $6::date, $7::date) AS period_end,
+    (b.bucket_start < $5::date OR b.bucket_end > $6::date OR b.bucket_end > $7::date) AS partial,
+    COALESCE(pa.requests, 0)::bigint AS requests,
+    COALESCE(pa.input_tokens, 0)::bigint AS input_tokens,
+    COALESCE(pa.output_tokens, 0)::bigint AS output_tokens,
+    COALESCE(pa.cache_creation_tokens, 0)::bigint AS cache_creation_tokens,
+    COALESCE(pa.cache_read_tokens, 0)::bigint AS cache_read_tokens,
+    COALESCE(pa.total_tokens, 0)::bigint AS total_tokens,
+    COALESCE(pa.actual_cost, 0)::double precision AS actual_cost
+FROM buckets b
+LEFT JOIN period_aggregates pa ON pa.bucket_start = b.bucket_start
+ORDER BY period_start ASC`, organizationUsageActiveUsersCTE(), organizationUsageRowsCTE, aggregation, buckets), nil
 }
 
 func organizationUsageOrderBy(sortBy, sortOrder string) (string, error) {

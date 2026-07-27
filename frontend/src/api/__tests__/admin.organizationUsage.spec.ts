@@ -19,7 +19,8 @@ import {
   ORGANIZATION_USAGE_SORT_FIELDS,
   fetchAllOrganizationUsageData,
   getOrganizationUsagePeriods,
-  getOrganizationUsageSummary
+  getOrganizationUsageSummary,
+  getOrganizationUsageTrend
 } from '@/api/admin/organizationUsage'
 
 const metrics = {
@@ -151,6 +152,29 @@ describe('organization usage API', () => {
 
     await expect(getOrganizationUsagePeriods(params, { signal: controller.signal })).resolves.toBe(response)
     expect(get).toHaveBeenCalledWith('/admin/usage/organization-report/periods', {
+      params,
+      signal: controller.signal
+    })
+  })
+
+  it('requests trend with exact URL, params and AbortSignal', async () => {
+    const response = {
+      range: { ...range, as_of: '2026-07-10T04:00:00.000Z' },
+      data_through: '2026-07-10',
+      granularity: 'day' as const,
+      points: []
+    }
+    const controller = new AbortController()
+    const params = {
+      ...range,
+      organization: 'xunyou' as const,
+      granularity: 'day' as const,
+      as_of: '2026-07-10T04:00:00.000Z'
+    }
+    get.mockResolvedValueOnce({ data: response })
+
+    await expect(getOrganizationUsageTrend(params, { signal: controller.signal })).resolves.toBe(response)
+    expect(get).toHaveBeenCalledWith('/admin/usage/organization-report/trend', {
       params,
       signal: controller.signal
     })

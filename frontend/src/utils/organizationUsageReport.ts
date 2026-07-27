@@ -107,6 +107,27 @@ export function validateCustomDateRange(startDate: string, endDate: string): Cus
   return { valid: true, days }
 }
 
+/** Inclusive calendar-day count using the same UTC date parsing as validateCustomDateRange. */
+export function organizationUsageInclusiveDays(startDate: string, endDate: string): number | null {
+  const result = validateCustomDateRange(startDate, endDate)
+  return result.valid ? result.days : null
+}
+
+/**
+ * Auto trend granularity: ≤31 day, ≤120 week, else month.
+ * Must not use browser-local Date subtraction.
+ */
+export function inferOrganizationUsageTrendGranularity(
+  startDate: string,
+  endDate: string
+): OrganizationUsageGranularity {
+  const days = organizationUsageInclusiveDays(startDate, endDate)
+  if (days == null) return 'day'
+  if (days <= 31) return 'day'
+  if (days <= 120) return 'week'
+  return 'month'
+}
+
 export function getOrganizationUsageExportFileName(startDate: string, endDate: string): string {
   return `organization_usage_${startDate}_to_${endDate}.xlsx`
 }

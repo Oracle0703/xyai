@@ -11,8 +11,10 @@ import (
 type organizationUsageRepositoryStub struct {
 	summaryParams OrganizationUsageSummaryRepositoryParams
 	periodParams  OrganizationUsagePeriodsRepositoryParams
+	trendParams   OrganizationUsageTrendRepositoryParams
 	summaryCalls  int
 	periodCalls   int
+	trendCalls    int
 }
 
 func (s *organizationUsageRepositoryStub) Summary(_ context.Context, params OrganizationUsageSummaryRepositoryParams) (*OrganizationUsageSummaryRepositoryResult, error) {
@@ -32,6 +34,17 @@ func (s *organizationUsageRepositoryStub) Periods(_ context.Context, params Orga
 	return &OrganizationUsagePeriodsRepositoryResult{
 		Items: []OrganizationUsagePeriod{{UserID: 9, Email: "dev@xunyou.com", Organization: OrganizationXunyou}},
 		Total: 7,
+	}, nil
+}
+
+func (s *organizationUsageRepositoryStub) Trend(_ context.Context, params OrganizationUsageTrendRepositoryParams) (*OrganizationUsageTrendRepositoryResult, error) {
+	s.trendCalls++
+	s.trendParams = params
+	return &OrganizationUsageTrendRepositoryResult{
+		Points: []OrganizationUsageTrendPoint{{
+			PeriodStart: params.StartDate.Format("2006-01-02"),
+			PeriodEnd:   params.DataThrough.Format("2006-01-02"),
+		}},
 	}, nil
 }
 
@@ -241,4 +254,67 @@ func TestOrganizationUsageService_WithoutAsOfDoesNotReadSigningClock(t *testing.
 	})
 	require.NoError(t, err)
 	require.Empty(t, got.Range.AsOf)
+}
+
+func TestOrganizationUsageServiceTrend_DefaultsGranularityAndDerivesDataThrough(t *testing.T) {
+	repo := &organizationUsageRepositoryStub{}
+	svc := NewOrganizationUsageService(repo)
+	svc.now = func() time.Time { return time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC) } // 18:00 Shanghai
+
+	got, err := svc.Trend(context.Background(), OrganizationUsageTrendQuery{
+		StartDate: "2026-07-01", EndDate: "2026-07-31", Organization: OrganizationXunyou, Q: " alice ",
+	})
+	require.NoError(t, err)
+	require.Equal(t, OrganizationUsageGranularityDay, got.Granularity)
+	require.Equal(t, "2026-07-15", got.DataThrough)
+	require.Empty(t, got.Range.AsOf)
+	require.Equal(t, OrganizationXunyou, repo.trendParams.Organization)
+	require.Equal(t, "alice", repo.trendParams.Q)
+	require.Equal(t, time.Date(2026, 7, 15, 0, 0, 0, 0, organizationUsageLocation), repo.trendParams.DataThrough)
+	require.Equal(t, 1, repo.trendCalls)
+}
+
+func TestOrganizationUsageServiceTrend_UsesAsOfCanonicalAndClipsDataThroughToEnd(t *testing.T) {
+	repo := &organizationUsageRepositoryStub{}
+	svc := NewOrganizationUsageService(repo)
+	svc.now = func() time.Time { return time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC) }
+
+	got, err := svc.Trend(context.Background(), OrganizationUsageTrendQuery{
+		StartDate: "2026-01-01", EndDate: "2026-01-10",
+		AsOf:        "2026-01-20T18:30:00+08:00",
+		Granularity: OrganizationUsageGranularityWeek,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "2026-01-10", got.DataThrough)
+	require.Equal(t, "2026-01-20T10:30:00Z", got.Range.AsOf)
+	require.Equal(t, OrganizationUsageGranularityWeek, got.Granularity)
+	require.Equal(t, time.Date(2026, 1, 10, 0, 0, 0, 0, organizationUsageLocation), repo.trendParams.DataThrough)
+}
+
+func TestOrganizationUsageServiceTrend_FutureOnlyRangeReturnsEmptyPointsWithoutRepo(t *testing.T) {
+	repo := &organizationUsageRepositoryStub{}
+	svc := NewOrganizationUsageService(repo)
+	svc.now = func() time.Time { return time.Date(2026, 7, 10, 8, 0, 0, 0, time.UTC) }
+
+	got, err := svc.Trend(context.Background(), OrganizationUsageTrendQuery{
+		StartDate: "2030-01-01", EndDate: "2030-01-31", AsOf: "2030-01-15T00:00:00Z",
+	})
+	require.NoError(t, err)
+	require.Empty(t, got.Points)
+	require.Empty(t, got.DataThrough)
+	require.Equal(t, "2026-07-10T08:00:00Z", got.Range.AsOf)
+	require.Zero(t, repo.trendCalls)
+}
+
+func TestOrganizationUsageServiceTrend_RejectsInvalidGranularity(t *testing.T) {
+	repo := &organizationUsageRepositoryStub{}
+	svc := NewOrganizationUsageService(repo)
+	svc.now = func() time.Time { return time.Date(2026, 7, 10, 8, 0, 0, 0, time.UTC) }
+
+	_, err := svc.Trend(context.Background(), OrganizationUsageTrendQuery{
+		StartDate: "2026-07-01", EndDate: "2026-07-31", Granularity: "quarter",
+	})
+	var validationErr *OrganizationUsageValidationError
+	require.ErrorAs(t, err, &validationErr)
+	require.Zero(t, repo.trendCalls)
 }

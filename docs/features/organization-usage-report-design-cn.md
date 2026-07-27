@@ -44,7 +44,7 @@
 
 - 首版不提供可配置组织规则，不新增配置项或组织表。
 - 不新增数据库字段、索引或迁移。
-- 不增加趋势图，完整时序数据通过 Excel 明细查看。
+- 趋势图见 `organization-usage-trend-chart-design-cn.md`；导出明细仍不补零，与页面趋势合同分离。
 - 不回溯用户历史状态或历史邮箱；用户状态和组织归属以查询时的当前数据为准。
 - 不替代现有使用记录、Token 分析或用户排行页面。
 
@@ -254,7 +254,7 @@ GET /api/v1/admin/usage/organization-report/periods
 - 请求错误：显示页面级错误和重试按钮。
 - 排序分页：全部由服务端执行，排序表头同步 `aria-sort`。
 - 移动端：筛选栏响应式换行；人员表保持宽表并在表格容器内横向滚动，不改成卡片。
-- 页面不增加趋势图，避免与导出时序明细重复。
+- 页面趋势图见 `organization-usage-trend-chart-design-cn.md`（`GET .../organization-report/trend`）；导出 Periods 明细仍不补零。
 
 ## Excel 导出设计
 

@@ -6,6 +6,7 @@ import {
   getMonthDateRange,
   getOrganizationUsageExportFileName,
   getWeekDateRange,
+  inferOrganizationUsageTrendGranularity,
   validateCustomDateRange
 } from '@/utils/organizationUsageReport'
 
@@ -70,5 +71,14 @@ describe('organization usage report date helpers', () => {
     expect(getOrganizationUsageExportFileName('2026-07-01', '2026-07-10')).toBe(
       'organization_usage_2026-07-01_to_2026-07-10.xlsx'
     )
+  })
+
+  it('infers trend granularity from inclusive calendar days', () => {
+    expect(inferOrganizationUsageTrendGranularity('2026-07-01', '2026-07-31')).toBe('day')
+    expect(inferOrganizationUsageTrendGranularity('2026-07-01', '2026-08-01')).toBe('week')
+    expect(inferOrganizationUsageTrendGranularity('2026-01-01', '2026-04-30')).toBe('week')
+    expect(inferOrganizationUsageTrendGranularity('2026-01-01', '2026-05-02')).toBe('month')
+    // Default month report range (28-31 days) stays on day
+    expect(inferOrganizationUsageTrendGranularity('2026-02-01', '2026-02-28')).toBe('day')
   })
 })

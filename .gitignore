@@ -25,8 +25,10 @@ coverage.html
 # 依赖（使用 go mod）
 vendor/
 
-# Go 编译缓存
+# Go 编译缓存 / 模块缓存（本机或脚本写入 backend 下时勿入库）
 backend/.gocache/
+backend/.gomodcache/
+backend/.gotmp/
 
 # ===================
 # Node.js / Vue 前端
@@ -147,6 +149,9 @@ docs/*
 !docs/reviews/
 docs/reviews/*
 !docs/reviews/2026-07-13-organization-usage-report-review.md
+!docs/reviews/2026-07-27-organization-usage-trend-chart-code-review.md
+!docs/reviews/2026-07-27-organization-usage-trend-chart-review-triage.md
+!docs/reviews/2026-07-27-organization-usage-trend-chart-self-review.md
 !docs/superpowers/
 !docs/superpowers/**
 !docs/upstream-merge-playbook.md

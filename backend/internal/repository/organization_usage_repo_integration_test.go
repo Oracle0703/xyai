@@ -133,6 +133,104 @@ func TestOrganizationUsageRepositoryIntegration_BeijingBoundariesAndPartialPerio
 	require.Equal(t, int64(10), month.Items[1].TotalTokens)
 }
 
+func TestOrganizationUsageRepositoryIntegration_TrendZeroFillAndDataThrough(t *testing.T) {
+	prefix := organizationUsageIntegrationPrefix("trend")
+	account := organizationUsageIntegrationAccount(t, prefix)
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+
+	user, apiKey := organizationUsageIntegrationUser(t, prefix+"trend@xunyou.com", service.StatusActive)
+	other, otherKey := organizationUsageIntegrationUser(t, prefix+"other@wsdashi.com", service.StatusActive)
+	organizationUsageIntegrationUser(t, prefix+"disabled@xunyou.com", service.StatusDisabled)
+	deleted, _ := organizationUsageIntegrationUser(t, prefix+"deleted@xunyou.com", service.StatusActive)
+	_, err := integrationDB.ExecContext(context.Background(), `UPDATE users SET deleted_at = NOW() WHERE id = $1`, deleted.ID)
+	require.NoError(t, err)
+
+	// Shanghai calendar days 2026-01-30 .. 2026-02-03 with sparse usage + a zero day.
+	insertOrganizationUsageIntegrationLog(t, user.ID, apiKey.ID, account.ID, 10, 0, 0, 5, 0.2, time.Date(2026, 1, 29, 16, 0, 0, 0, time.UTC)) // 01-30
+	insertOrganizationUsageIntegrationLog(t, user.ID, apiKey.ID, account.ID, 20, 0, 0, 0, 0.3, time.Date(2026, 2, 1, 15, 0, 0, 0, time.UTC))   // 02-01
+	insertOrganizationUsageIntegrationLog(t, other.ID, otherKey.ID, account.ID, 7, 0, 0, 0, 0.1, time.Date(2026, 2, 2, 4, 0, 0, 0, time.UTC)) // 02-02 other org
+	// 2026-02-03 has no usage for xunyou — must still appear as zero when data_through includes it.
+
+	repo := NewOrganizationUsageRepository(integrationDB)
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+
+	// Day series clipped by data_through: future selected end does not invent buckets after through.
+	day, err := repo.Trend(context.Background(), organizationUsageTrendIntegrationParams(
+		prefix, "2026-01-30", "2026-02-10", "2026-02-03", service.OrganizationXunyou, service.OrganizationUsageGranularityDay,
+	))
+	require.NoError(t, err)
+	require.Len(t, day.Points, 5) // 01-30 .. 02-03 inclusive
+	require.Equal(t, "2026-01-30", day.Points[0].PeriodStart)
+	require.Equal(t, "2026-02-03", day.Points[4].PeriodStart)
+	require.Equal(t, int64(15), day.Points[0].TotalTokens) // 10+5 cache_read
+	require.Equal(t, int64(0), day.Points[1].TotalTokens)  // 01-31 zero-filled
+	require.Equal(t, int64(20), day.Points[2].TotalTokens) // 02-01
+	require.Equal(t, int64(0), day.Points[3].TotalTokens)  // 02-02 other org filtered out
+	require.Equal(t, int64(0), day.Points[4].TotalTokens)  // 02-03 empty
+	var daySum int64
+	for _, p := range day.Points {
+		daySum += p.TotalTokens
+	}
+	require.Equal(t, int64(35), daySum)
+
+	// Same snapshot: Summary overview total_tokens for xunyou must match day series sum.
+	summaryParams := organizationUsageSummaryIntegrationParams(prefix, "2026-01-30", "2026-02-03")
+	summaryParams.Organization = service.OrganizationXunyou
+	// Clip EndTime as as_of end of data_through day Shanghai.
+	throughEnd := time.Date(2026, 2, 3, 0, 0, 0, 0, loc).AddDate(0, 0, 1).UTC()
+	if throughEnd.Before(summaryParams.EndTime) {
+		summaryParams.EndTime = throughEnd
+	}
+	summary, err := repo.Summary(context.Background(), summaryParams)
+	require.NoError(t, err)
+	require.Equal(t, daySum, summary.Overview.TotalTokens)
+	require.Equal(t, int64(2), summary.Overview.Requests)
+
+	// Week partial clipping aligned with Periods semantics.
+	week, err := repo.Trend(context.Background(), organizationUsageTrendIntegrationParams(
+		prefix, "2026-01-30", "2026-02-03", "2026-02-03", service.OrganizationXunyou, service.OrganizationUsageGranularityWeek,
+	))
+	require.NoError(t, err)
+	require.Len(t, week.Points, 2)
+	require.Equal(t, "2026-01-30", week.Points[0].PeriodStart)
+	require.Equal(t, "2026-02-01", week.Points[0].PeriodEnd)
+	require.True(t, week.Points[0].Partial)
+	require.Equal(t, "2026-02-02", week.Points[1].PeriodStart)
+	require.Equal(t, "2026-02-03", week.Points[1].PeriodEnd)
+	require.True(t, week.Points[1].Partial)
+
+	// Month partial buckets.
+	month, err := repo.Trend(context.Background(), organizationUsageTrendIntegrationParams(
+		prefix, "2026-01-30", "2026-02-03", "2026-02-03", service.OrganizationAll, service.OrganizationUsageGranularityMonth,
+	))
+	require.NoError(t, err)
+	require.Len(t, month.Points, 2)
+	require.Equal(t, "2026-01-30", month.Points[0].PeriodStart)
+	require.Equal(t, "2026-01-31", month.Points[0].PeriodEnd)
+	require.True(t, month.Points[0].Partial)
+	require.Equal(t, "2026-02-01", month.Points[1].PeriodStart)
+	require.Equal(t, "2026-02-03", month.Points[1].PeriodEnd)
+	require.True(t, month.Points[1].Partial)
+}
+
+func TestOrganizationUsageRepositoryIntegration_TrendWeekBucketUpperBound54(t *testing.T) {
+	prefix := organizationUsageIntegrationPrefix("trend54")
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+	organizationUsageIntegrationUser(t, prefix+"u@xunyou.com", service.StatusActive)
+
+	// 366 inclusive calendar days can span 54 distinct ISO weeks.
+	repo := NewOrganizationUsageRepository(integrationDB)
+	trend, err := repo.Trend(context.Background(), organizationUsageTrendIntegrationParams(
+		prefix, "2024-01-07", "2025-01-06", "2025-01-06", service.OrganizationAll, service.OrganizationUsageGranularityWeek,
+	))
+	require.NoError(t, err)
+	require.Len(t, trend.Points, 54)
+	require.Equal(t, "2024-01-07", trend.Points[0].PeriodStart) // clipped from Monday 2024-01-01 week? 
+	// 2024-01-07 is a Sunday; week bucket starts Monday 2024-01-01, clipped start is 2024-01-07.
+	require.True(t, trend.Points[0].Partial)
+	require.Equal(t, "2025-01-06", trend.Points[len(trend.Points)-1].PeriodEnd)
+}
+
 func TestOrganizationUsageRepositoryIntegration_ChampionTieUsesLowestUserID(t *testing.T) {
 	prefix := organizationUsageIntegrationPrefix("tie")
 	account := organizationUsageIntegrationAccount(t, prefix)
@@ -237,6 +335,29 @@ func organizationUsagePeriodsIntegrationParams(prefix, startDate, endDate, granu
 		Q:            summary.Q,
 		Page:         1,
 		PageSize:     100,
+		Granularity:  granularity,
+	}
+}
+
+func organizationUsageTrendIntegrationParams(
+	prefix, startDate, endDate, dataThrough, organization, granularity string,
+) service.OrganizationUsageTrendRepositoryParams {
+	summary := organizationUsageSummaryIntegrationParams(prefix, startDate, endDate)
+	location := time.FixedZone("Asia/Shanghai", 8*60*60)
+	through, _ := time.ParseInLocation("2006-01-02", dataThrough, location)
+	// Match service repositoryRange clip when as_of ends on data_through calendar day.
+	endExclusive := through.AddDate(0, 0, 1).UTC()
+	if endExclusive.Before(summary.EndTime) {
+		summary.EndTime = endExclusive
+	}
+	return service.OrganizationUsageTrendRepositoryParams{
+		StartTime:    summary.StartTime,
+		EndTime:      summary.EndTime,
+		StartDate:    summary.StartDate,
+		EndDate:      summary.EndDate,
+		DataThrough:  through,
+		Organization: organization,
+		Q:            summary.Q,
 		Granularity:  granularity,
 	}
 }

@@ -77,6 +77,28 @@ export interface OrganizationUsagePeriodsResponse {
   pagination: OrganizationUsagePagination
 }
 
+export interface OrganizationUsageTrendPoint extends OrganizationUsageMetrics {
+  period_start: string
+  period_end: string
+  partial: boolean
+}
+
+export interface OrganizationUsageTrendResponse {
+  range: OrganizationUsageRange
+  data_through?: string
+  granularity: OrganizationUsageGranularity
+  points: OrganizationUsageTrendPoint[]
+}
+
+export interface OrganizationUsageTrendQuery {
+  start_date: string
+  end_date: string
+  as_of?: string
+  organization?: OrganizationUsageOrganizationFilter
+  q?: string
+  granularity: OrganizationUsageGranularity
+}
+
 export type OrganizationUsageOrganizationFilter = 'all' | 'xunyou' | 'wsdashi' | 'other'
 export type OrganizationUsageGranularity = 'day' | 'week' | 'month'
 export type OrganizationUsageSortOrder = 'asc' | 'desc'
@@ -145,6 +167,17 @@ export async function getOrganizationUsagePeriods(
 ): Promise<OrganizationUsagePeriodsResponse> {
   const { data } = await apiClient.get<OrganizationUsagePeriodsResponse>(
     '/admin/usage/organization-report/periods',
+    { params, signal: options?.signal }
+  )
+  return data
+}
+
+export async function getOrganizationUsageTrend(
+  params: OrganizationUsageTrendQuery,
+  options?: OrganizationUsageRequestOptions
+): Promise<OrganizationUsageTrendResponse> {
+  const { data } = await apiClient.get<OrganizationUsageTrendResponse>(
+    '/admin/usage/organization-report/trend',
     { params, signal: options?.signal }
   )
   return data
@@ -297,6 +330,7 @@ export async function fetchAllOrganizationUsageData(
 export const organizationUsageAPI = {
   getSummary: getOrganizationUsageSummary,
   getPeriods: getOrganizationUsagePeriods,
+  getTrend: getOrganizationUsageTrend,
   fetchAll: fetchAllOrganizationUsageData
 }
 
