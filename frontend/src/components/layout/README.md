@@ -75,6 +75,7 @@ Top header with user info and actions.
 - Mobile menu toggle button
 - Page title (from route meta or slot)
 - User balance display (desktop only)
+- `model_plaza_enabled` 开启时为已登录用户显示模型广场快捷入口；页面本身是否允许匿名访问仍由路由守卫和后端 `model_plaza_require_auth` 决定
 - User dropdown menu with:
   - Profile link
   - Logout button
