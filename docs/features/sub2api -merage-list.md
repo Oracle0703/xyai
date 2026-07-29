@@ -1610,3 +1610,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Wire/Ent 生成通过且无生成漂移；backend targeted service/handler 测试、其余 unit/integration 包、`golangci-lint run ./...` 与 embed build 通过。`internal/handler/dto` 的 unit/integration 测试二进制在多个 fresh `GOTMPDIR` 中持续被 Windows 拒绝执行，按环境阻断如实记录。Frontend lint、typecheck、production build 通过；Vitest 为 213/214 files、1455/1457 tests，失败和 10 个 unhandled errors 均属于上条列明的上游/基线边界。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 和 3 个组件 README；刷新 Wiki 图谱为 33 nodes / 67 edges、0 unresolved links；本条按追加规则写入。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-07-27 main sync (v0.1.166; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10166_合并1.166版本` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `c819b17fdd024a7a936a45b6d725022f4fd6af6c`（本地 `main`） |
+| Merge base | `2730c1c43b29be003925b033f3f9e645e726bb8c` |
+| Upstream head / second parent | `59ce11c78000bde5bdd74930b5885753037a5841` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=59ce11c78000bde5bdd74930b5885753037a5841`** |
+| Upstream version / delta | `0.1.166`; 142 files、`+7131/-512`。固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.166`。 |
+| Conflict files | `backend/go.mod`; `backend/go.sum`; `backend/internal/handler/dto/settings.go`; `backend/internal/server/router.go`; `backend/internal/server/routes/admin.go`; `frontend/src/api/admin/settings.ts`; `frontend/src/views/admin/SettingsView.vue`; `frontend/src/views/admin/__tests__/UsageView.spec.ts` |
+| Conflict handling | 8 个文本冲突按语义并集解决：采用上游 Panel API 限流、partial settings、request ID 筛选和前端设置合同，同时保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员等独有链路；Prompt Metrics 独立 admin group 同步挂载 Panel `Global` 限流。`go.sum` 冲突中误留的两条 `mousetrap` checksum 经固定上游差异、`go mod why` 和 `go mod tidy -diff` 共同证明无依赖后删除。 |
+| Semantic overlap review | 110 个仅上游路径与固定 SHA 逐 blob 一致；425 个仅本地修改路径未被触碰；32 个双方修改路径已逐项审查。功能完全重叠处采用上游实现；未在冲突解决之外修复上游业务问题。 |
+| Local features | 23 个 tracked `docs/features/` 文件零删除；除本 ledger 追加记录外，其余 22 个文件零改动。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 均保留。 |
+| Upstream behavior | 合入默认开启的 Panel API 分层限流、显式 `CONFIG_FILE`、settings PUT 省略字段保留、管理用量 request ID 精确筛选、支付看板按币种隔离统计、OpenAI WS 每轮模型映射/计费归因、Antigravity 原生 OAuth Chat/Responses 兼容、Codex++ Responses/Anthropic 工具兼容，以及 Caddy SSE 非压缩合同。 |
+| Upstream / baseline issue boundary | 本地 `main` 既有 `/auth/me` 响应多出 `admin_permissions:null` 的 Go contract mismatch 保持不改。Frontend 全量 Vitest 仍有本地 `main` 已存在的 rollback timeout 两条断言失败，以及 `GroupsView` 两个旧 mock 未提供 `getLiveCapability` 导致 10 个 unhandled rejection；相关失败文件本轮零改动。全量 lint 的 28 项也均可追溯到本地 `main`，不在本次冲突解决范围。 |
+| Verification | `go mod tidy -diff` 通过；backend 8 个高风险包 targeted unit 通过，完整 unit 仅上述 `/auth/me` 基线合同失败且 fresh 重跑已消除全部 Windows 锁，完整 integration fresh 重跑退出 0；`golangci-lint run ./...` 报 28 项基线债务，`--new-from-rev main` 为 0 issues。Frontend lint、typecheck、production build（996 modules）通过；focused 11 files / 78 tests 全通过，全量 Vitest 为 217/218 files、1485/1487 tests，失败边界见上条。Caddy policy fixture、Wire 生成和 backend embed build 通过；Ent 生成命令成功，本机生成器仅产生目标范围外的 `client.go` 格式重排，已恢复且未混入本次合并。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；更新 common 组件 README 并新增 payment、usage、channels、user monitor 组件 README。Wiki 图谱刷新为 33 nodes / 67 edges、0 unresolved links，source hash 与当前 wiki 一致。 |
+| Approval / delivery | 最终 staged snapshot 为 156 files / `+7301 -531`，0 unstaged、0 untracked、0 unmerged、0 conflict marker、0 whitespace error、0 `docs/features` 删除；保持 `git merge --no-commit --no-ff`，等待用户审核。未 commit、未 push、未创建 PR、未部署。 |

@@ -127,6 +127,7 @@ API 模块分布:
 - `frontend/src/views/admin/BackupView.vue` 同时管理备份 S3 与异步生图/图片对象存储。生图卡片可复用备份 S3 的 endpoint/region/credentials 并单独指定 bucket/prefix, 或保存独立凭据；保存即让后端运行时缓存失效、无需重启。两类 S3 保存都必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。测试连接与读配置使用 `frontend/src/api/admin/backup.ts` 的 `/backups/image-storage` 合同, secret 只显示 configured 状态而不回填明文。
 - `frontend/src/views/admin/SettingsView.vue` 的安全设置暴露客户端 IP 兼容开关和有序自定义 header 列表。header 只在兼容模式开启时显示/提交, 前端去重并规范化, 服务端仍负责合法 header 名和最多 16 项的最终校验。
 - `SettingsView.vue` 的 Ollama Cloud 自动刷新表单同时提交 `debounce_minutes` 与 `interval_minutes`: 前者表示最后一次模型请求后的安静等待, 后者表示持续请求下的最长等待；隐藏或缺失字段不能把后端已保存值意外清空。
+- `SettingsView.vue` 的 Panel API 限流表单读写 `/admin/settings/panel-rate-limit`, 暴露总开关、普通用户 RPM、重查询 RPM、公开 IP RPM 和完整管理员豁免。RPM 为 0 表示该档不限；默认值与最终校验由后端负责, 前端保存成功后回填规范化响应。
 - `frontend/src/api/admin/system.ts` 为在线更新与回退单独使用 15 分钟 axios timeout；修改该调用签名时必须同步 `frontend/src/api/__tests__/admin.system.rollback.spec.ts` 的第三参数断言。
 - 公告编辑页复用 `AnnouncementPopup.vue` 做预览；preview 关闭只发 `close`, 不调用已读接口。公告铃与弹窗统一加载 `frontend/src/styles/announcement-markdown.css`, Markdown/内嵌 HTML 都先经 DOMPurify 后在同一 `.markdown-body` 规则下渲染。
 
@@ -137,12 +138,17 @@ API 模块分布:
 - 操作列的“重置日限”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: false, monthly: false })`, 只归零每日用量, 不修改周/月用量。
 - 管理端订阅支持撤销/恢复: revoked 订阅在列表中保留历史, 操作列显示 restore; 恢复时后端会按当前过期时间决定 active/expired。用户侧和管理侧订阅卡展示 `expires_at` 剩余时长, one-time daily quota 会使用剩余时长文案。
 
+管理端支付看板:
+
+- `DashboardStats` 的 `today_amount`、`total_amount`、`avg_amount`、daily series 和 payment method amount 都是 `Record<currency, amount>`, `top_users` 也是按币种分组的独立排行。`OrderStatsCards.vue`、`DailyRevenueChart.vue`、`PaymentMethodChart.vue` 和 `TopUsersLeaderboard.vue` 不得把不同 ISO 4217 币种相加；展示顺序按币种码稳定排序并用对应币种格式化。
+
 管理端用量统计:
 
 - `frontend/src/components/admin/usage/UsageStatsCards.vue` 总 token 卡片展示 input/output/cache 总量, cache tooltip 展示缓存创建 token 与缓存命中 token 明细; API 类型在 `frontend/src/api/admin/usage.ts` 暴露 `total_cache_creation_tokens` / `total_cache_read_tokens`。
 - `frontend/src/components/admin/usage/UsageTable.vue` 的 IP 地址列可渲染 `IpGeoCell`, 并提供批量获取地区工具栏; `frontend/src/utils/ipGeoLookup.ts` 调用 geojs 单查/批量接口, 跳过内网 IP, 成功结果缓存到 localStorage `sub2api:ip-geo-cache:v1` 24 小时。用户侧 UsageView 复用同一表格事件处理。
 - `UsageRequestType`、管理端/用户侧 UsageView、`UsageFilters.vue` 和 `UsageTable.vue` 均包含独立 `live` 类型及绿色 badge；它与 `sync`/`stream`/`ws_v2`/`cyber` 并列, 不应回落为 legacy stream。UsageLog 的可选 `session_id` 只用于筛查客户端会话关联。
 - 管理端 UsageView 新增 `UserTokenRanking.vue`, 按筛选条件展示用户 Token 排行; `frontend/src/api/admin/dashboard.ts` 的 `UserBreakdownParams.request_type` 使用 `UsageRequestType`, 后端 `GetUserBreakdown` 通过 `ParseUsageRequestType` 解析, 不能退回普通 number 造成筛选口径漂移。用量表同时展示由 `latencyHealth.ts` 统一计算的延迟健康等级, 修改阈值或列设置时要同步 `UsageView.spec.ts`、`UserTokenRanking.spec.ts` 和 `latencyHealth.spec.ts`。
+- `/admin/usage?user_id=` 初始化时会异步读取用户邮箱回显筛选标签；`UsageFilters.vue#getUserSearchRevision` 用 revision 防止迟到 lookup 覆盖用户随后输入或新的 user ID。程序化调用 `setUserKeyword` 也会推进 revision, 修改筛选器 exposed API 时要保留该竞态合同。
 
 管理端组织用量报表:
 
@@ -169,8 +175,12 @@ API 模块分布:
 
 项目已有组件 README:
 
+- `frontend/src/components/admin/payment/README.md`
+- `frontend/src/components/admin/usage/README.md`
+- `frontend/src/components/channels/README.md`
 - `frontend/src/components/common/README.md`
 - `frontend/src/components/layout/README.md`
+- `frontend/src/components/user/monitor/README.md`
 - `frontend/src/router/README.md`
 - `frontend/src/stores/README.md`
 - `frontend/src/views/auth/README.md`
@@ -192,6 +202,8 @@ API 模块分布:
 - Ollama Cloud eligible 账号在 `AccountUsageCell.vue` / `OllamaCloudUsageCell.vue` 展示官方 5 小时、7 天、余额和模型窗口；`OllamaCloudUsageSettings.vue` 负责保存/删除 web session、账号级自动刷新和手工刷新。全局开关与 15-1440 分钟间隔位于 `SettingsView.vue`, 默认关闭；UI 不回显 session 明文。
 - `PaymentStatusPanel.vue` 在 Alipay precreate 返回 QR/URL 时通过 `alipayDeepLink.ts` 生成支付宝 App/Universal Link, 移动端可直接拉起并保留二维码回退；只允许 `alipay:` 和受信 `https://qr.alipay.com` / `https://render.alipay.com/p/s/i` 目标, 其他值不生成深链。
 - `DataTable.vue` 默认仅在桌面行数大于 `virtualizeThreshold`(默认 100)时启用虚拟化, 小列表全量渲染以避免可变行高滚动补偿抖动; 虚拟行高缓存用 `rowKey` 而不是 index。分页/筛选换成不同 row identity 集合时必须清理旧 element/size cache, 仅同一组稳定 row key 或同一批对象的纯重排可复用缓存; duplicate/缺失 key 要保守失效。账号表显式使用阈值 50。修改虚拟化时要保持 mobile 非虚拟化、stable sort 和 exposed virtualizer/swipe selection 合同。
+- `Select.vue` 的 teleported dropdown 必须保留 8px viewport padding, `left`/`minWidth`/`maxWidth` 都按当前视口可用宽度收敛；窄屏不能因 200px 首选最小宽度溢出。`GroupOptionItem.vue` 的 description 保留换行、允许任意长词断行并最多显示 3 行。
+- `AvailableChannelsTable.vue` 在 `lg` 及以上使用按渠道/platform 分组的 table, 较小视口改为无横向滚动的 channel section；分组 badge、峰值倍率和模型 chip 都必须 `min-w-0`/wrap。`MonitorTimeline.vue` 的 60 个 bar 使用 `flex-1 min-w-0`, 避免窄监控卡被固定最小宽度撑破。
 - 用户 Key 列表和管理端 Group 列表可选显示 ID 列, 默认隐藏并沿用各自列设置持久化；新增/调整列时不能覆盖用户现有显隐选择。
 
 ## 管理端用户筛选
@@ -199,6 +211,7 @@ API 模块分布:
 - `/admin/users` 页面在 `frontend/src/views/admin/UsersView.vue`; 后端 `GET /api/v1/admin/users` 支持 `group_name` 按用户授权分组名模糊过滤, 也支持 `api_key_group_id` 按用户实际拥有的未软删除 API Key 绑定分组精确过滤。
 - API Key 分组筛选选项由 `frontend/src/views/admin/apiKeyGroupFilterOptions.ts` 构建, 会包含停用分组, 便于排查仍绑定到停用分组的 key; 分节 header 使用负数 sentinel, 不要改成 `null` 以免 Select key 冲突。
 - 管理端创建/编辑用户支持 `user` / `sub_admin` / `admin`; 子管理员权限清单从 `GET /api/v1/admin/permissions/catalog` 获取, 不在弹窗内硬编码。后端服务禁止误删或降级最后一名管理员。角色字段或文案变化要同步 User DTO、两个用户弹窗、列表筛选和角色测试。
+- 注册页在强制邀请码关闭但 affiliate 开启时显示可选 `aff_code` 输入；URL/localStorage referral 仍由 `syncAffiliateReferralCode` 预填。强制邀请码开启时只显示原校验输入, 不能同时渲染两个邀请码字段。
 
 ## 子管理员菜单与页面
 

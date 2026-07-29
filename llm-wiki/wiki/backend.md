@@ -66,6 +66,8 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 全局中间件包含 recovery, request logger, session binding context, CORS, security headers, opt-in Server-Timing, Prompt Metrics 和 embedded frontend。`SessionBindingContext(cfg)` 把客户端 IP/UA 注入 context, 供 token 签发、会话绑定和审计统一读取; IP 口径与 API Key ACL 共用 `Config.ForwardedClientIPSettings()` 原子快照 / `api_key_acl_trust_forwarded_ip` 运行时设置。兼容开关默认 `true`, 可由管理端保存后即时更新；开启时按最多 16 个 `forwarded_client_ip_headers` 配置顺序优先读取自定义 CDN header, 再回落 `CF-Connecting-IP` / `X-Real-IP` / `X-Forwarded-For`, 关闭时统一使用 Gin `server.trusted_proxies` 链。trusted proxies 只有显式配置或通过 `SERVER_TRUSTED_PROXIES` 提供时才启用, 显式空或未配置均回到直连 peer。`SetupRouter` 还把 `OpsService` 注册为 ingress rejection recorder, 由鉴权/入口中间件记录有界拒绝维度, 不是逐请求写数据库。`server.enable_server_timing` 默认关闭; 开启后为 admin UI 和 allowlist 内的 authenticated user UI 请求创建 request-scoped collector, 汇总 SQL、Redis、外部 HTTP、cache 和总耗时。`X-Admin-UI-Request` / `X-User-UI-Request` 只提供 UI scope signal, 响应写出前仍由 context role 和 user path allowlist 做最终 gate; 公开 payment/webhook 路由和 AI gateway 不返回 `Server-Timing`。Prompt Metrics 的 `CaptureMiddleware` 继续在同一链路中挂载, 合并时不能二选一。嵌入前端只对 Vite `assets/` 下文件名含 8 字符 fingerprint 的资源设置 `public, max-age=31536000, immutable`; unhashed assets、`logo.svg`/`logo.png`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 不再重复强制静态 immutable 规则, 缓存判定由后端统一负责。embedded frontend 必须旁路根级 API `/alpha/search` 和 `/videos/*`, 避免未命中前端静态文件时错误回退到 SPA HTML。
 
+`SetupRouter` 创建 `PanelRateLimiter`, 用 Redis 固定一分钟窗口保护 `/api/v1` 管理面：已认证 auth/user/payment/admin 路由按 user ID 叠加 `Global`, 用户 usage 聚合和 API Key daily usage 再叠加 `Heavy`, `/settings/public` 与邮件退订按可公开路由的客户端 IP 使用 `PublicIP`；回环、内网、链路本地地址不进入 public bucket。数据库 setting `panel_rate_limit_settings` 默认启用, `user_rpm=240`、`heavy_rpm=60`、`public_ip_rpm=300`、完整管理员豁免；任一 RPM 为 0 表示该档不限。配置使用 60 秒进程缓存, 当前节点保存后立即生效, 多节点最迟 60 秒；Redis 故障 fail-open。Prompt Metrics 的独立 admin router group 也必须挂 `Global`, 不能成为限流旁路。
+
 路由主分组:
 
 - `/api/v1/auth`: 注册, 登录, OAuth, refresh, logout, pending auth。
@@ -76,6 +78,8 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 支付用户接口只暴露 config/checkout/plans/limits/orders/refund 等业务合同; 旧 `/api/v1/payment/channels` 已删除, 因其会泄露内部 AI 渠道配置。前端 `paymentAPI` 也不再包含对应 client 方法。
 - 管理端 `GET /api/v1/admin/audit-logs[/:id]` 查询 append-only 操作审计, `POST .../clear` 必须现场 TOTP; `POST /api/v1/admin/users/batch-limits` 批量覆盖 concurrency/RPM, `concurrency=0` 仍表示不限。
 - 管理端 `/api/v1/admin/prompt-audit` 提供 config 更新、节点 probe、runtime、事件列表/详情、单条/批量删除和带预览确认的筛选删除；路由受 admin auth 和全局 risk-control feature gate 约束。
+- 管理端 `GET/PUT /api/v1/admin/settings/panel-rate-limit` 读写 Panel API 限流的总开关、用户/重查询/public IP RPM 和管理员豁免；它是数据库运行时设置, 不是 YAML 配置组。
+- 通用 `PUT /api/v1/admin/settings` 会先保留原始 JSON field set, value-typed 字段若未出现在 payload 中则从 `SetMultiple` 更新集中删除, 留下数据库现值；显式发送 `false`、`0`、空字符串/数组仍是有效更新。pointer-typed 字段继续使用各自的 omitted merge/fail-closed 归一化。partial write 后进程缓存从数据库重读, 不能用请求 struct 的零值覆盖未发送字段。
 - 管理端 `/api/v1/admin/ops/ingress-rejections` 与 `/api/v1/admin/ops/ingress-rejections/health` 查询入口拒绝聚合与运行态, `/api/v1/admin/ops/auth-cache-invalidation/health` 汇总 outbox、Redis subscriber、DB lookup 和 invalid-auth limiter 健康信息。
 
 管理端账号合同:
@@ -100,6 +104,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
 - `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。
 - 网关会把客户端显式会话 header 归一后写入 `usage_logs.session_id` 并通过管理端/用户侧 UsageLog DTO 返回；仅接受有效 UTF-8、去空白后不超过 255 rune 且不含控制字符的值。该字段只用于用量关联, 不参与 sticky routing、账号选择、request ID 或 prompt cache identity。
+- 管理端 `GET /api/v1/admin/usage` 额外支持 `request_id` 去空白后的精确等值筛选；该维度只作用于列表 SQL, 不改变用户侧聚合接口合同。模型统计的 `upstream` 维度在 `upstream_model` 为空时回落实际 `model`, `mapping` 维度显示 requested 与该上游口径, 避免错误回落到 requested model。
 
 管理端组织用量报表:
 
@@ -125,7 +130,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 关键行为:
 
 - OpenAI Live 创建入口为 `POST /v1/live` 与 `POST /backend-api/codex/realtime/calls`, sideband 控制入口为 `GET /v1/live/:call_id` 与 `GET /backend-api/codex/:call_id`。只允许 `platform=openai` 且分组 `allow_live=true`, 账号还需具备 Live endpoint capability；本地 API Key/group gate 与 RequestArchive/RequestIntercept 均先于 handler。创建时把 call identity、加密 attestation 和 controller 状态存入 Redis, 用独立 Live lease 同时约束 account/user/API key 并发；会话结束、过期或租约丢失时关闭并写 `request_type=live` 用量行。服务端 attestation 仅 Apple Silicon macOS + 官方 ChatGPT App 可用, 客户端平台不受此限制。
-- `platform=composite` 的 group 先由 `CompositeRouteResolver` 按显式 route registry 解析 public model、endpoint、目标平台和 upstream model；exact 优先 prefix、endpoint-specific 优先 any、更长 prefix/更低 priority/更低 id 依次胜出, 未命中再走内置模型检测, 仍不明确则 fail-closed。解析结果写入 request context 并在 JSON/Gemini native 路径改写上游模型；后续账号选择、user-platform quota、计费、Ops/channel attribution 和 usage report 均使用具体目标平台。管理 API 为 `/api/v1/admin/groups/:id/composite-routes` 的 CRUD 与 preview。
+- `platform=composite` 的 group 先由 `CompositeRouteResolver` 按显式 route registry 解析 public model、endpoint、目标平台和 upstream model；exact 优先 prefix、endpoint-specific 优先 any、更长 prefix/更低 priority/更低 id 依次胜出, 未命中再走内置模型检测, 仍不明确则 fail-closed。exact route 的空 `upstream_model` 保存时仍回填 `public_model`; prefix route 留空则透传本次具体请求模型, 不把同前缀的多个模型塌缩成 route prefix。解析结果写入 request context 并在 JSON/Gemini native 路径改写上游模型；后续账号选择、user-platform quota、计费、Ops/channel attribution 和 usage report 均使用具体目标平台。管理 API 为 `/api/v1/admin/groups/:id/composite-routes` 的 CRUD 与 preview。
 - `/v1/messages` 根据 API Key 所属 group platform 分流到 OpenAI 或 Claude 兼容处理。
 - `/v1/messages/count_tokens` 对 OpenAI group 走 Anthropic-compatible 到 OpenAI `/v1/responses/input_tokens` 的桥接; 不占并发槽、不写 usage。Grok group 因上游没有兼容计数端点, 在本地把 Anthropic 请求转换为 Responses 形状后用 tiktoken/tokenizer 估算；不选账号、不取凭据、不检查 billing、不请求上游、不占并发槽且不写 usage, 但仍经过 API Key 与分组中间件, 并同时支持 `/v1` 与根级路径。其他不支持的平台继续走既有 count-tokens 错误/handler。
 - `/v1/responses` 和根级 `/responses` 支持 OpenAI Responses API。
@@ -137,6 +142,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - Grok/xAI 使用 OpenAI-compatible gateway 入口, platform 为 `grok`; OAuth 订阅账号走 CLI subscription proxy, API Key 账号走官方 credit-backed API, 两类账号均支持 Responses/Chat 兼容文本与推理流量。管理端还可通过 `POST /api/v1/admin/grok/sso-to-oauth` 批量提交 Web SSO key, 后端走 xAI Device Flow 转换为 Build OAuth 凭据; 导入后会做最小 probe, 但单个失败不能覆盖已成功创建的账号。上游模型同步当前只支持 Grok API Key, OAuth 账号会返回 `unsupported`; 模型同步通过 `AccountTestService.validateUpstreamBaseURL` 校验, `security.url_allowlist` 开启时执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发先由 `Account.GetGrokBaseURL` 选择地址: 默认安全模式下 OAuth 自定义地址必须通过 `xai.ValidateTrustedBaseURL` 的可信 host 约束, API Key 自定义地址由 `xai.Build*URL` / `ValidateBaseURL` 限制为公共 HTTPS 且路径为 `/v1`; 开启 `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 后两者退化为格式校验。模型同步与真实转发不能描述为同一校验链。
 - Grok media 路由支持 `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/generations`, `/v1/videos/edits`, `/v1/videos/extensions`, `/v1/videos/:request_id`, `/v1/videos/:request_id/content` 及根级 images/videos 别名; 非 Grok platform 访问 videos 返回本地 404 feature gate。generation 要求账号通过 `grok_media_generation` capability：显式禁用、Free tier 或负面 probe 不调度；billing 未观察账号只作为候选, 转发前必须现场 probe, probe 不可用或不能形成付费资格证据时 fail-closed。生成成功会把 request ID 按 user/API key 绑定到实际账号, status/content 只允许原请求所有者并强制复用该账号；content 由网关代理签名上游内容并保持同源 URL。scheduler cache 必须保留资格与 billing snapshot。`grok-imagine` 图片别名会归一到 `grok-imagine-image-quality`, Grok 4.5 正式模型别名由 `internal/pkg/xai/models.go` 维护, video model 透传到 xAI `/v1/videos/*` 并按分辨率和生成秒数计费；image/edit/reference payload 的 `image_url` 会规范为上游 `url` 字段。
 - `/v1beta/models/*` 提供 Gemini SDK/CLI 兼容。
+- Antigravity 原生 OAuth 账号可从 OpenAI Chat Completions 或 Responses 请求经 `ForwardAsChatCompletions` / `ForwardAsResponses` 转为 Anthropic shape, 再按映射模型族转 Antigravity `v1internal:streamGenerateContent`；Gemini 模型走 Gemini request clean/identity patch, 其他模型走 Claude transform。兼容层保留 token limit、reasoning effort、工具调用和 usage, 对 stream/non-stream 都拒绝只有 usage 而没有语义输出的响应并触发 failover；仅允许 native OAuth 账号, 认证拒绝与网络/空流按既有账号切换边界处理。
 - `GET /v1/models` 与根级 `GET /models` 共用 platform-aware handler: OpenAI group 且带 `client_version` 时返回 Codex manifest, 其他客户端继续返回 OpenAI-style model list。`GET /backend-api/codex/models` 仍由 `openai_codex_models_handler.go` / `openai_codex_models_service.go` 代理 manifest; plain OAuth manifest 401 会进入共享账号错误状态机并允许 failover, 普通无效 token 临时摘除账号, `token_revoked` / `token_invalidated` 永久标错。Agent Identity 的 task-scoped 401 继续走独立恢复, 自定义 API Key manifest 401 不禁用账号。`/backend-api/codex/responses` 继续作为 Codex 直连别名, 所有入口都受 API Key 与 group 校验保护。
 - Codex standalone search 同时注册 `/v1/alpha/search`、根级 `/alpha/search` 和 `/backend-api/codex/alpha/search`, 由 `openai_alpha_search.go` 按 OAuth/API Key 账号选择 ChatGPT Codex 或 OpenAI 官方 endpoint。三路入口都经过 API Key/group gate; 本地根级与 Codex direct 路由继续经过 RequestArchive/RequestIntercept。只有上游 2xx 成功响应产生 `WebSearchCalls=1` 并进入按次计费, 上游错误原样透传且不计费。
 - alpha search 的账号选择必须包含 OpenAI API Key 账号, 不可只调度 OAuth/PAT; API Key 走官方 endpoint, OAuth/PAT 继续走 Codex/Responses fallback。
@@ -157,6 +163,7 @@ OpenAI 上游请求会按官方 endpoint 做字段过滤:
 - v0.1.155 起 native Responses namespace 在不支持原生 namespace 的账号/传输上使用 `namespace__tool` 稳定摊平, 并在 streaming、non-streaming、SSE→JSON 和 passthrough 回程恢复原始 namespace/tool 结构; WS v2 原生转发保持 namespace 原文。该处理发生在本地 options adapter 和账号 transport 决策之后, 不能破坏第三方 Responses→Chat 过滤或把摊平名泄漏给客户端。
 - OpenAI API Key 的 HTTP Responses 请求在转发前会递归删除 input item 顶层残留的 `namespace`, 但保留 content 内部同名业务字段；续链 input 的 message/function-call item ID 只有符合官方前缀合同才保留, 非法客户端回放 ID 由 `sanitizeOpenAIResponsesInputItemIDs` 线性扫描删除。OAuth/WS 原生路径和本地 compatible bridge 仍按各自协议决策, 不能全局改写所有 input。
 - Responses -> Anthropic 流式桥对 `Read` 工具的 `function_call_arguments.delta` 要实时原样转成 `input_json_delta`, 不再等待 `.done` 才一次性发送。已收到 delta 时 `.done` 只关闭 block, 不再二次发送或 sanitize 完整参数; 仅非流式转换, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才调用 `sanitizeAnthropicToolUseInput`。Anthropic `stop_reason=max_tokens` 映射为 Responses `response.incomplete` + `max_output_tokens`, Responses incomplete 的 `content_filter` 映射为 Chat `finish_reason=content_filter`。
+- Responses -> Anthropic fallback 在解析请求前先把 Codex `additional_tools` 提升到顶层并把 custom/namespace/tool_search 降级为无歧义 function tools, 流式与非流式回程再恢复原工具名和 namespace；namespace 名称同时在 arguments delta/done 事件恢复。`function_call_output.output` 可为字符串或 content-part 数组, 数组中的 text 与 data-URI image 分别转为 Anthropic text/image blocks；tool use/result 邻接和孤儿清理合同仍由 `normalizeAnthropicToolPairing` 保证。
 
 OpenAI/Codex 兼容桥:
 
@@ -170,6 +177,7 @@ OpenAI/Codex 兼容桥:
 - `/v1/responses` 对 OpenAI-compatible API key 若账号不支持 Responses, 会 fallback 到 raw `/v1/chat/completions`; fallback 仍要输出 Responses SSE 给客户端并记录 Chat usage。
 - `openai_gateway_cc_pipeline.go` 是 Chat Completions fallback 共享读写路径; 非流式 JSON 读取后必须同时补 `applyOpenAICompatibleChatUsageDetailsFromJSON` 和 `OpenAIUsage` cache 字段, 否则 Responses fallback 的 `usage.input_tokens_details.cached_tokens` 或计费中的 `cache_read_input_tokens` 会丢失。
 - OpenAI WS 首包过大时可保持客户端 WebSocket, 改用 HTTP Responses 上游 bridge, 配置位于 `gateway.openai_ws.http_bridge_*`。
+- OpenAI WS ingress、HTTP bridge 与 passthrough v2 每个 `response.create` turn 都重新解析客户端模型并执行当时的 channel mapping 与账号 mapping；usage 分别记录 turn requested/upstream/billing model, 回给客户端的事件恢复该 turn 的原始模型。后续 turn 切换到当前账号不支持且映射确实变化的模型时返回 policy-violation 并要求重连, 不能沿用首 turn 模型计费或静默绕过 whitelist。
 - native OpenAI HTTP streaming Responses 可用 `gateway.openai_first_output_timeout_seconds` 启用首次语义输出 deadline, 默认 `0` 关闭, 非零合法范围 30-600 秒; `gateway.openai_high_effort_first_output_timeout_seconds` 默认 `0` 继承标准值, high/xhigh/max 的非零 override 合法范围 30-1800 秒。deadline 包含等待上游响应头, 不作用于 passthrough 或 WebSocket transport; 首次语义输出前单次 attempt 最多暂存 8 MiB, 超时或溢出时最多切换账号一次且不向客户端暴露不完整 SSE。原 attempt 可能已产生上游用量, 切号重放存在重复上游计费风险。
 - `gateway.openai_ws.client_first_message_timeout_seconds` 默认 30 秒且必须为正数, 覆盖客户端首条 `response.create` 的完整读取与解压, 不是只限制首字节到达时间。
 - OpenAI WS ingress 长连接与单 turn 并发槽分离: `max_ingress_connections_per_api_key` 使用 Redis 短租约限制每个 API Key 在多实例上的存活连接数, 默认 64, 0 关闭; lease TTL 60 秒、每 20 秒刷新, 丢失租约时连接 fail-close。`ingress_inter_turn_idle_timeout_seconds` 默认 300 秒, 只限制已完成 turn 之间的客户端空闲, 0 关闭。
@@ -209,6 +217,7 @@ Grok/xAI 兼容:
 - `content_moderation_config.blocked_keywords` 在 snapshot 构建时预编译 matcher; 保存内容审核配置或 Prompt Risk 配置后会立即原子替换对应 snapshot 部分, 无需等待 TTL。
 - 后台刷新失败时保留最后一个有效 snapshot, 并按 runtime TTL 退避后再尝试, 不能因 settings 短暂故障清空审核策略或阻塞请求热路径。
 - Prompt Audit `ConfigManager` 独立保存最近一次可解码的 blocking intent。启动或 reload 失败只有在全局 risk control、audit enabled 和 blocking enabled 同时表明阻断意图时才强制 `ModeBlocking` fail-closed；未识别到阻断意图时不得仅因配置不可信把默认关闭/async 模式升级成全站 503, 成功保存 disabled 配置会清除 degraded 状态。
+- Prompt Audit 管理端 `GET config` 只有在 `ConfigManager` 已成功加载 snapshot 时才返回配置；持久 setting 缺失会成功加载 version 1 的默认关闭配置, 但已有持久配置激活失败且没有可信 snapshot 时返回 `prompt_audit_config_unavailable`，不能伪装成默认关闭。后续 reload 失败会继续返回最后一次可信 snapshot。
 
 OpenAI 账号调度:
 
@@ -262,7 +271,7 @@ OpenAI 账号调度:
 
 `backend/internal/config/config.go` 使用 Viper:
 
-- 支持 `config.yaml`, `./config`, `/etc/sub2api` 等路径。
+- 显式 `CONFIG_FILE` 非空时通过 `SetConfigFile` 读取该文件并停止目录搜索；路径缺失会让加载返回错误。未设置时按 `DATA_DIR`、`/app/data`、当前目录、`./config`、`/etc/sub2api` 搜索 `config.yaml`。`GetServerAddress()` 使用同一来源选择, 环境变量仍覆盖配置文件。
 - 支持环境变量, `.` 会映射为 `_`。
 - `LoadForBootstrap()` 用于启动前完整配置。
 - `GetServerAddress()` 是 setup 前的轻量读取。

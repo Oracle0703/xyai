@@ -49,6 +49,7 @@ Prompt Audit 安全与隐私边界:
 - `backend/internal/securityaudit/` 叠加在既有内容审核链上, 默认关闭。已激活 blocking 模式对 Guard 不可用或非法响应 fail-closed 为 503；配置启动/reload 失败也只有在最近可解码的存储配置与全局 risk control 明确要求 blocking 时进入 degraded fail-closed。未观察到 blocking intent 时保持 off/已有非阻断模式, 让管理员仍能关闭或修复审计；async 入队失败不阻断当前请求, legacy moderation 仍照常执行。
 - Guard endpoint 只接受 HTTP(S) URL, 禁止 userinfo/query/fragment, HTTP client 不继承代理且 HTTPS 最低 TLS 1.2；当前标准 dialer 允许管理员配置私网、loopback 和保留地址, 因而 endpoint 是管理员信任边界, 不是面向不可信用户的 URL 输入。
 - Guard token 通过现有 `SecretEncryptor` 加密后写入 `prompt_audit_config`, 管理 API 只返回 `has_token` / `token_status`, 不回显明文。Prompt Risk judge 的内部签名头必须从 handler 经 `securityaudit.Request` 继续传给 legacy moderation, 防止上游 Prompt Audit coordinator 接入后恢复 HTTP 回环递归。
+- `ConfigManager.Public()` 只信任已成功加载的 snapshot。持久 setting 缺失会建立合法的默认关闭 snapshot；已有持久配置解密/激活失败且没有可信 snapshot 时, 管理端 GET 返回 503 `prompt_audit_config_unavailable`, 不能用默认值掩盖配置不可用。reload 失败但已有可信 snapshot 时继续返回旧 snapshot, load error 仍保持有界和脱敏。
 - async 扫描原文在 Redis 最长保留 30 分钟；job 表不存原文, 但 migration 182 后 event 的 `full_prompt` 会持久化最多 65,536 rune 的未脱敏文本并在管理员详情返回。该字段属于高敏数据, 数据库访问、备份、保留周期和事件删除权限必须按原始提示词处理, 不能沿用 181 migration 的早期“原文不进 PostgreSQL”假设。
 
 前端:
@@ -80,6 +81,7 @@ Prompt Audit 安全与隐私边界:
 常见机制:
 
 - 登录/注册/验证码等认证入口 Redis rate limit。
+- Panel API 分层限流: 已认证 auth/user/payment/admin group 按 user ID 计数, user usage 重查询叠加 heavy bucket, public settings/退订仅对可公开路由客户端 IP 计数；默认完整管理员豁免。配置热路径使用 60 秒缓存, Redis 错误 fail-open；它用于保护数据库, 不替代认证、WAF 或 ingress invalid-auth limiter。
 - API Key rate limit 和 subscription check。
 - 订阅窗口维护属于鉴权正确性边界: 普通与 Google/Gemini API Key middleware 都必须在放行前同步完成 `EnsureWindowMaintenance` 并使用回读快照复核额度; 维护失败返回 500, 不允许用内存清零值 fail-open。
 - User concurrency 和 account concurrency。
@@ -191,6 +193,7 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - Chat Completions raw 直转保留 `reasoning_effort`, `thinking` 在发送上游前删除。
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
 - `/responses/compact` 上游不接受 `tool_choice`, Codex image-generation bridge 对 compact 请求必须整体跳过工具注入/压缩桥接注入; compact 使用独立默认模型/账号级 mapping, 不应影响普通 Responses。
+- OpenAI credential failover 从 ChatGPT/Codex OAuth 切到 API Key 等跨模式账号时, 必须删除带 `encrypted_content` 的整个 reasoning input item, 不能只清字段后留下空 reasoning skeleton；没有 encrypted content 的历史 reasoning 保留。JSON 重建使用 `UseNumber`, 避免大整数精度漂移。
 
 Anthropic OAuth/SetupToken 请求体默认启用客户端 dateline 归一化(`enable_client_dateline_normalization=true`):
 
@@ -236,6 +239,7 @@ cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_blo
 OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.cached_tokens` / `prompt_tokens_details.cached_tokens`, 也可能是兼容上游顶层 `cache_read_input_tokens`、`cached_tokens`、`prompt_cache_hit_tokens`、`cache_write_tokens` 和 `cache_creation_input_tokens`。cache write/cache creation 必须与普通 input、cache read 拆成互斥计费桶; compatible cache read 补入 Responses/Chat details 时必须原位更新, 不能替换整个 details 对象后丢失已有 cache-write 字段。修改 Chat Completions fallback、Responses fallback、SSE usage parser 或 billing usage 提取时, 必须同时验证 DTO 响应体和 `OpenAIUsage` 计费字段。
 
 Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。Grok Responses 现在也复用 `apicompat.ResponsesClientToolMapping`, 将 Codex client-side tools 适配为 xAI function tools 后在 streaming、non-streaming 与 SSE-to-JSON 回程恢复；顶层 `tools` 和 `additional_tools` 必须经过同一套撞名与选择校验。
+Responses -> Anthropic fallback 也必须先提升 `additional_tools`, 再复用可逆 custom/namespace/tool_search 映射并在流式 arguments delta/done 与非流式 output 中恢复；`function_call_output.output` 的 content-part 数组只接受可安全转换的 text 与 data-URI image。tool use/result 配对必须保持相邻, orphan/dangling 项显式丢弃, 不能向 Anthropic 发送结构失配的历史。
 OpenAI API Key 的 HTTP Responses 转发在 transport 决策后清除 input item 顶层残留 `namespace`, 但不递归删除 content 内部业务字段；message/function-call item 的非法客户端 ID 由线性 sanitizer 删除, 只保留官方可接受前缀。该清理不能扩大到 OAuth、WS v2 或第三方 compatible bridge, 以免破坏续链和本地可逆工具映射。
 Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式 delta 实时原样透传; 一旦收到 delta, `.done` 只关闭 block, 不再二次发送或 sanitize。只有非流式, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才执行 `sanitizeAnthropicToolUseInput`。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
 修改流式响应时要同时验证:

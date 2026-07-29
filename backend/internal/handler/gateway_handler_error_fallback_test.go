@@ -54,6 +54,22 @@ func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) 
 	assert.Contains(t, w.Body.String(), `data: {"type":"error"`)
 }
 
+func TestGatewayEnsureForwardErrorResponse_SkipsCommittedSSEError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+	c.Header("Content-Type", "text/event-stream")
+	_, _ = c.Writer.WriteString("event: error\ndata: {\"type\":\"error\"}\n\n")
+	service.MarkResponseCommitted(c)
+
+	h := &GatewayHandler{}
+	wrote := h.ensureForwardErrorResponse(c, true)
+
+	require.False(t, wrote)
+	require.Equal(t, 1, strings.Count(w.Body.String(), "event: error"))
+}
+
 // case B 回归：Anthropic-backed /responses，Writer 已被写过时
 // ensureForwardErrorResponse 仍要发 response.failed。
 func TestGatewayEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsResponseFailed(t *testing.T) {
