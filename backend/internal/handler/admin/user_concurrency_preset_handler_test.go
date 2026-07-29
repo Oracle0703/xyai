@@ -166,7 +166,7 @@ func (s *userConcurrencyPresetUserRepoAdapter) GetByEmail(context.Context, strin
 func (s *userConcurrencyPresetUserRepoAdapter) GetFirstAdmin(context.Context) (*service.User, error) {
 	panic("unexpected")
 }
-func (s *userConcurrencyPresetUserRepoAdapter) Update(context.Context, *service.User) error {
+func (s *userConcurrencyPresetUserRepoAdapter) Update(context.Context, *service.User, service.UserUpdateFields) error {
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) Delete(context.Context, int64) error {
@@ -201,6 +201,12 @@ func (s *userConcurrencyPresetUserRepoAdapter) UpdateBalance(context.Context, in
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) DeductBalance(context.Context, int64, float64) error {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) AdjustBalance(context.Context, int64, float64) (service.BalanceChange, error) {
+	panic("unexpected")
+}
+func (s *userConcurrencyPresetUserRepoAdapter) SetBalance(context.Context, int64, float64) (service.BalanceChange, error) {
 	panic("unexpected")
 }
 func (s *userConcurrencyPresetUserRepoAdapter) UpdateConcurrency(context.Context, int64, int) error {

@@ -1,7 +1,7 @@
 {
-  "lastAnalyzedAt": "2026-07-27T10:59:32.396439+00:00",
-  "gitCommitHash": "c819b17fdd024a7a936a45b6d725022f4fd6af6c",
-  "wikiSourceHash": "5398382bc5d08c33d7166f832c31a8d8d896f844ab6dfea4adcf0f4e8921c1a6",
+  "lastAnalyzedAt": "2026-07-29T08:02:15.445187+00:00",
+  "gitCommitHash": "2b5b2d94245cc9f72ca3df5de3b1db98c3c60c7e",
+  "wikiSourceHash": "f06aabd1f75163eb21c6d239f3cf52e8cc35a98a7ad4cd82d48102063fbcf98f",
   "version": "1.0.0",
   "analyzedFiles": 7,
   "kind": "knowledge"

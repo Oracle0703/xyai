@@ -4,8 +4,8 @@
 
 Sub2API 的核心对象:
 
-- User: 用户, 角色, 余额, OAuth identity, 属性, TOTP。
-- API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。
+- User: 用户, 角色, 余额, OAuth identity, 属性, TOTP 和 Passkey 凭据。普通资料/权限更新使用 `UserUpdateFields` 显式列掩码；余额不经通用 `Update`, 管理员 set/add/subtract 走原子 `SetBalance` / `AdjustBalance`。
+- API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。编辑使用 `APIKeyUpdateFields` 显式列掩码, 避免覆盖并发累计的 quota/rate-limit 字段。
 - Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。
 - CompositeModelRoute: composite group 的 public model 路由表, 记录 exact/prefix、endpoint、具体 target platform、upstream model、priority 和 enabled；运行时仍以具体平台完成账号调度、配额、计费和 usage 归因。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
@@ -106,6 +106,7 @@ go generate ./cmd/server
 - `backend/migrations/188_allow_live_usage_request_type.sql` 把 `usage_logs.request_type` CHECK 上限扩到 5, 其中 5 对应 OpenAI Live；不得改写已发布的旧 request type 数值。
 - `backend/migrations/189_add_group_allow_live.sql` 为 `groups` 增加默认关闭的 `allow_live BOOLEAN NOT NULL DEFAULT false`; 它是 Live 路由的分组级显式授权, 与账号 endpoint capability 共同生效。
 - `backend/migrations/190_add_users_email_alias_dedup_index_notx.sql` 为去空白、转小写、去点后的 email 表达式增加并发索引, 支撑注册邮箱别名候选查询；注册事务仍需按归一化收件箱身份加锁并做最终应用层判定, 该索引本身不是唯一约束。
+- `backend/migrations/191_passkey_credentials.sql` 新增 `passkey_credentials` 和用户级稳定 WebAuthn handle, credential ID 全局唯一且按 user/created_at 建索引。凭据内容、签名计数和 backup 状态由 Passkey repository 管理；已发布后只能追加后续 migration, 不得改写本文件。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 

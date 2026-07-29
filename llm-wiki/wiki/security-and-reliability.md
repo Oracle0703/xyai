@@ -19,6 +19,13 @@ API Key 认证缓存 miss 受 `api_key_auth_cache.lookup_concurrency` 约束, co
 
 Google/Gemini 兼容认证必须复用 API Key 用户、分组与订阅校验, 不能只解析 `x-goog-api-key` 后跳过 group assignment; 相关边界集中在 `api_key_auth_google.go`。管理端修改用户角色时必须阻止删除/降级最后一名管理员。
 
+Passkey / WebAuthn:
+
+- `webauthn.enabled` 默认关闭；启用时 RP ID 必须是无 scheme/port/path 的域名, origins 必须是该 RP 域内的完整 HTTPS origin（仅 localhost 允许 HTTP）。这些值来自受信配置, 不从请求 Host/Origin 推断。
+- 数据库 `passkey_enabled` 只可在有效 WebAuthn 配置基础上进一步关闭功能, 不能替代或放宽部署配置。公开设置与后台设置都使用 `configured AND setting-enabled` 口径, 防止移除配置后残留 true 值重新开放入口。
+- discoverable login 强制 user verification, begin/finish ceremony session 短期存储且单次消费；登录入口有独立限流和 64 KiB finish body 上限。Passkey 注册与删除要求当前账号密码, 凭据列表/重命名/删除都校验 JWT subject 的 user ID。
+- 模型广场的 `OptionalJWTAuth` 只在 Bearer token 存在时解析用户, 匿名请求继续执行公开策略；带无效 token 的请求不得静默降级为匿名。后端仍以 `model_plaza_enabled`、`model_plaza_require_auth`、backend mode 和分组可见性做最终授权。
+
 管理端角色与细粒度权限:
 
 - `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。

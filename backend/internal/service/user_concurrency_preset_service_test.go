@@ -139,7 +139,7 @@ func (s *userConcurrencyPresetUserRepoStub) GetByEmail(context.Context, string) 
 func (s *userConcurrencyPresetUserRepoStub) GetFirstAdmin(context.Context) (*User, error) {
 	panic("unexpected GetFirstAdmin")
 }
-func (s *userConcurrencyPresetUserRepoStub) Update(context.Context, *User) error {
+func (s *userConcurrencyPresetUserRepoStub) Update(context.Context, *User, UserUpdateFields) error {
 	panic("unexpected Update")
 }
 func (s *userConcurrencyPresetUserRepoStub) Delete(context.Context, int64) error {
@@ -174,6 +174,12 @@ func (s *userConcurrencyPresetUserRepoStub) UpdateBalance(context.Context, int64
 }
 func (s *userConcurrencyPresetUserRepoStub) DeductBalance(context.Context, int64, float64) error {
 	panic("unexpected DeductBalance")
+}
+func (s *userConcurrencyPresetUserRepoStub) AdjustBalance(context.Context, int64, float64) (BalanceChange, error) {
+	panic("unexpected AdjustBalance")
+}
+func (s *userConcurrencyPresetUserRepoStub) SetBalance(context.Context, int64, float64) (BalanceChange, error) {
+	panic("unexpected SetBalance")
 }
 func (s *userConcurrencyPresetUserRepoStub) UpdateConcurrency(context.Context, int64, int) error {
 	panic("unexpected UpdateConcurrency")

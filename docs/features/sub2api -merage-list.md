@@ -1631,3 +1631,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | `go mod tidy -diff` 通过；backend 8 个高风险包 targeted unit 通过，完整 unit 仅上述 `/auth/me` 基线合同失败且 fresh 重跑已消除全部 Windows 锁，完整 integration fresh 重跑退出 0；`golangci-lint run ./...` 报 28 项基线债务，`--new-from-rev main` 为 0 issues。Frontend lint、typecheck、production build（996 modules）通过；focused 11 files / 78 tests 全通过，全量 Vitest 为 217/218 files、1485/1487 tests，失败边界见上条。Caddy policy fixture、Wire 生成和 backend embed build 通过；Ent 生成命令成功，本机生成器仅产生目标范围外的 `client.go` 格式重排，已恢复且未混入本次合并。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；更新 common 组件 README 并新增 payment、usage、channels、user monitor 组件 README。Wiki 图谱刷新为 33 nodes / 67 edges、0 unresolved links，source hash 与当前 wiki 一致。 |
 | Approval / delivery | 最终 staged snapshot 为 156 files / `+7301 -531`，0 unstaged、0 untracked、0 unmerged、0 conflict marker、0 whitespace error、0 `docs/features` 删除；保持 `git merge --no-commit --no-ff`，等待用户审核。未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-07-29 main sync (v0.1.168; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10168_同步sub2api主线` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `2b5b2d94245cc9f72ca3df5de3b1db98c3c60c7e`（本地 `main`） |
+| Merge base | `59ce11c78000bde5bdd74930b5885753037a5841` |
+| Upstream head / second parent | `5a6143097db142b72a6fc848c214e97214470bdd` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=5a6143097db142b72a6fc848c214e97214470bdd`** |
+| Upstream version / delta | `0.1.168`; 170 files、`+7690/-344`。固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.168`; 不以更晚 upstream HEAD 或中间的 0.1.167 version-sync 替代固定边界。 |
+| Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/repository/user_repo.go`; `backend/internal/server/http.go`; `backend/internal/server/router.go`; `frontend/src/stores/auth.ts` |
+| Conflict handling | 5 个文本冲突按语义并集解决：Wire 从 provider source 重新生成, 同时包含上游 Passkey/Optional JWT 与本地 Prompt Metrics；HTTP/router 保留 RequestArchive/RequestIntercept、Prompt Metrics、子管理员等本地链路并接入上游 Passkey/Model Plaza；`user_repo.go` 采用上游字段掩码写入, 不恢复整行回写；`auth.ts` 同时保留上游 `passkeyAPI` 与本地 `AdminPermission`。未修改冲突之外的上游业务实现。 |
+| Semantic overlap review | 上游修改 170 个路径：134 个仅上游路径中 133 个与固定 SHA 逐 blob 一致, 唯一有意偏离为 `user_service.go` 的本地 `AdminPermissions` mask；36 个双方修改路径完成语义复核。冲突解决快照的 424 个仅本地路径均保持本地 `main` blob；收尾时仅给本地并发 preset 的 service/handler 测试 adapter 补齐上游新增的 `Update(..., UserUpdateFields)`、`AdjustBalance`、`SetBalance` 占位签名, 并更新本台账/Wiki/组件 README。 |
+| Local features | 23 个合并前 tracked `docs/features/` 文件零删除；除本 ledger 追加记录外, 其余 22 个文件零改动。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 均保留；功能完全重叠处采用上游实现。 |
+| Upstream behavior | 合入 Passkey/WebAuthn 登录与凭据管理、可选 JWT 的模型广场、用户/API Key declared-column update 与原子余额调整、显式 setup bypass, 以及 OpenAI passthrough/model mapping、GPT-5.6 effort、Kimi K3/1M、Live store 容错、Prompt Audit 配置恢复等上游改动。新增 `backend/migrations/191_passkey_credentials.sql` 与默认关闭的 `webauthn` 部署配置。 |
+| Upstream / baseline issue boundary | 固定上游 `go.sum` 非 tidy：`go mod tidy -diff` 要求删除旧 jwt 5.2.2 checksum 并补 `go-tpm-tools`, 按要求保持不改。本地 `main` 既有 `/auth/me` 多出 `admin_permissions:null` 的 Go contract mismatch、Frontend rollback timeout 两条旧断言、GroupsView 旧 mock 的 10 个 unhandled rejection、全量 Go lint 28 项均保持不改；对应失败文件除上游修改的 `api_contract_test.go` 外, 其余与本地 `main` blob 相同。 |
+| Verification | Wire 连续生成无漂移（SHA-256 `E1E98395...D498C5D`）；backend 完整 unit 在最终快照仅上述 `/auth/me` 基线合同失败, 其余包通过；focused `internal/service`, `internal/handler/admin`, `internal/pkg/websearch` 通过。Integration 命令退出 0：48 个包、7,578 条测试通过, 16 条因未配置 Redis/PostgreSQL/外部 TLS/OpenAI、Windows symlink 或既有 sentinel 而 skip, 不计为通过。`golangci-lint run ./...` 为 28 项基线, `--new-from-rev=main` 为 0 issues。Frontend lint/typecheck/build（1015 modules）通过, focused 7 files / 84 tests 全通过；全量 Vitest 为 220/221 files、1503/1505 tests, 失败边界见上条。Caddy policy fixture、backend embed build（117,611,008 bytes）通过。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；更新 account/layout 组件 README, 新增 model plaza/profile README。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved, `wikiSourceHash=f06aabd1f751...` 与当前 wiki 一致。 |
+| Approval / delivery | 最终 staged snapshot 为 185 files / `+7806 -364`, 0 unstaged、0 untracked、0 unmerged、0 conflict marker、0 whitespace error、0 `docs/features` 删除；保持 `git merge --no-commit --no-ff`, 等待用户审核。未 commit、未 push、未创建 PR、未部署。 |

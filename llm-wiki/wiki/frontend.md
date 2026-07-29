@@ -11,6 +11,12 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.168 合并增量
+
+- `/model-plaza` 是公开声明但受 public settings 双门控的页面：`model_plaza_enabled` 控制入口和 API 是否存在, `model_plaza_require_auth` 决定匿名访问是否允许。页面由 `ModelPlazaView.vue` 与 `components/modelPlaza/` 组成, 登录用户从可选 JWT 取得个人倍率；未登录用户只看到可公开分组。
+- Passkey client 位于 `frontend/src/api/passkey.ts`, 负责 WebAuthn JSON 编解码和 `navigator.credentials` 调用；`authStore.loginWithPasskey()` 复用正常 token/session 落盘流程。登录页只在服务端开关开启且浏览器支持时显示入口, Profile 的 `ProfilePasskeyCard` 支持注册、重命名和删除。
+- `frontend/src/stores/auth.ts` 的合并合同同时包含上游 `passkeyAPI` 和本地 `AdminPermission` / 子管理员权限计算, 两者不能在冲突解决中互相覆盖。
+
 主入口:
 
 - `frontend/src/main.ts`: 初始化主题, Pinia, 注入配置, 首屏标题/favicon, i18n, router, mount。

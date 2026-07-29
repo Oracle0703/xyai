@@ -12,6 +12,13 @@
   - 构建: `cd backend && make build`
   - 生成: `cd backend && make generate`
 
+## 0.1.168 合并增量
+
+- Passkey 由 `config.WebAuthn` 提供固定 RP ID/origins, `repository.PasskeyRepository` 持久化凭据, `PasskeySessionStore` 保存短期 ceremony session, `service.PasskeyService` 执行 discoverable login 与凭据管理。公开登录入口为 `/api/v1/auth/passkey/login/{begin,finish}`, 已认证管理入口为 `/api/v1/user/passkeys`; 注册和删除凭据必须再次校验账号密码。
+- 模型广场入口为 `GET /api/v1/model-plaza`。路由先执行 PublicIP Panel 限流、`OptionalJWTAuth` 和 backend-mode user guard；`model_plaza_enabled=false` 时返回 404, `model_plaza_require_auth=true` 时匿名访问被拒绝。服务只展示允许暴露的分组/模型价格, 登录用户可取得自己的有效倍率。
+- `UserRepository.Update` 与 `APIKeyRepository.Update` 改为显式字段 mask, 未声明列不写回；管理员余额 set/add/subtract 分别走原子 `SetBalance` / `AdjustBalance`, 避免旧实体快照覆盖并发计费。合并本地子管理员链路时, `UserUpdateFields.AdminPermissions` 必须随权限变更显式置位。
+- Wire 源图新增 Passkey repository/session/service/handler 与 optional JWT middleware；生成后的 `wire_gen.go` 必须同时保留本地 `promptmetrics.NewExtension`、RequestArchive/RequestIntercept 与上游新增 provider。
+
 ## 启动流程
 
 `backend/cmd/server/main.go`:
