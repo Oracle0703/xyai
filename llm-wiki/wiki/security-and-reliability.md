@@ -48,12 +48,14 @@ OpenAI Agent Identity:
 - 异步图片对象存储运行时设置位于 `/api/v1/admin/backups/image-storage`。修改存储目标会把生成内容导向外部账号, 因此 PUT 与备份 S3 一样必须通过 step-up；独立 `secret_access_key` 用 `SecretEncryptor` 加密入库, GET 清空 secret 只返回 configured 状态。选择复用备份 S3 时不再保存第二份凭据, 只保留图片 bucket/prefix 等覆盖项。
 - Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
 - Composite group 不把客户端 public model 直接当作任意 provider 选择器：显式 route 的 target platform/endpoint 受 allowlist 与 group ownership 校验, 未命中时内置 detector 只识别已知模型族, 未知或歧义模型 fail-closed。resolved platform/model 放入请求 context 后再执行具体平台账号选择、配额和计费；根级 Responses/Chat/images/videos 入口仍在 composite 解析和 group gate 后执行本地 RequestArchive/RequestIntercept。
+- 分组利润控制的开关、最低毛利率和安全缓冲属于内部经营信息, 只能通过 admin group DTO 返回；普通 `Group` 与浅层 DTO 不得暴露这些字段, 防止结合账号倍率反推成本上限。
 - OpenAI Live 创建与 sideband 路由必须同时通过 API Key、OpenAI group、`allow_live` 和账号 endpoint capability 校验；call record 以哈希 key 存 Redis, sideband 接管还要逐项匹配 API key/user/group identity。attestation 明文只在 Apple Silicon macOS 本机生成, 存储前由服务端加密；Live controller、lease 续期、结束标记和最大时长共同防止跨请求并发绕过或重复写终态。
 - `api_key_acl_trust_forwarded_ip` 是旧部署/升级兼容开关, 代码默认 `true`。开启时 API Key ACL、会话绑定和审计使用同一请求级快照（`Config.ForwardedClientIPSettings()`）, 原始转发头可绕过 Gin `server.trusted_proxies` 链；最多 16 个 `forwarded_client_ip_headers` 经规范化/去重后按配置顺序优先于 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For`, 因此只应填写由可信边缘覆盖且外部不能伪造的 header。关闭后才由 Gin `server.trusted_proxies` / 直连 peer 作为统一权威来源, 此时自定义 header 不生效；trusted proxies 未配置或显式空时仅信任直连 peer。`deploy/config.example.yaml` 采用更安全的 false, 生产应按真实代理拓扑显式收紧。
 
 Prompt Audit 安全与隐私边界:
 
 - `backend/internal/securityaudit/` 叠加在既有内容审核链上, 默认关闭。已激活 blocking 模式对 Guard 不可用或非法响应 fail-closed 为 503；配置启动/reload 失败也只有在最近可解码的存储配置与全局 risk control 明确要求 blocking 时进入 degraded fail-closed。未观察到 blocking intent 时保持 off/已有非阻断模式, 让管理员仍能关闭或修复审计；async 入队失败不阻断当前请求, legacy moderation 仍照常执行。
+- `blocking_latest_turn_only` 是 blocking 模式的可审计配置项；只有 Prompt Audit 与 blocking 都启用时管理端才允许修改, 配置变更摘要必须记录该值, 避免阻断扫描范围在无审计证据时漂移。
 - Guard endpoint 只接受 HTTP(S) URL, 禁止 userinfo/query/fragment, HTTP client 不继承代理且 HTTPS 最低 TLS 1.2；当前标准 dialer 允许管理员配置私网、loopback 和保留地址, 因而 endpoint 是管理员信任边界, 不是面向不可信用户的 URL 输入。
 - Guard token 通过现有 `SecretEncryptor` 加密后写入 `prompt_audit_config`, 管理 API 只返回 `has_token` / `token_status`, 不回显明文。Prompt Risk judge 的内部签名头必须从 handler 经 `securityaudit.Request` 继续传给 legacy moderation, 防止上游 Prompt Audit coordinator 接入后恢复 HTTP 回环递归。
 - `ConfigManager.Public()` 只信任已成功加载的 snapshot。持久 setting 缺失会建立合法的默认关闭 snapshot；已有持久配置解密/激活失败且没有可信 snapshot 时, 管理端 GET 返回 503 `prompt_audit_config_unavailable`, 不能用默认值掩盖配置不可用。reload 失败但已有可信 snapshot 时继续返回旧 snapshot, load error 仍保持有界和脱敏。
@@ -171,6 +173,8 @@ Grok endpoint 也属于 URL 信任边界:
 - OAuth 自定义 `base_url` 必须通过 `xai.ValidateTrustedBaseURL`; 未允许 unsafe override 时, 普通第三方 host 回落默认 proxy。
 - Grok API Key 无自定义值时走官方 `https://api.x.ai/v1`。上游模型同步只支持 API Key, OAuth 同步显式返回 unsupported; 同步路径在 `security.url_allowlist` 开启时通过 `AccountTestService.validateUpstreamBaseURL` 执行 upstream host/HTTPS 约束, 关闭时按 `allow_insecure_http` 只做格式校验。真实转发默认安全模式下, OAuth 自定义 `base_url` 经 `xai.ValidateTrustedBaseURL` 的可信 host allowlist, API Key 自定义 endpoint 由 `xai.Build*URL` / `ValidateBaseURL` 约束为公共 HTTPS 且路径为 `/v1`; `XAI_ALLOW_UNSAFE_URL_OVERRIDES` 开启后两者只做格式校验。不要把模型同步、OAuth 转发和 API Key 转发误认为同一 URL 校验路径。
 
+客户端可控的 Responses 子路径或 Gemini 模型名在拼入上游 URL 前必须通过闭集 path allowlist。单段只允许 ASCII 字母、数字、`_`、`-`、`.`, 并拒绝空段、纯点段、超长段和过深后缀；校验发生在 URL 解码之后, 失败应返回明确错误, 不能依赖原始百分号编码或静默改写。Gateway route 的 guard 必须位于 `RequestIntercept` 前, 避免拦截器抢先返回成功而绕过路径校验。
+
 ## 网关可靠性
 
 网关相关可靠性配置:
@@ -191,7 +195,7 @@ Grok endpoint 也属于 URL 信任边界:
 请求链路会记录 request id, ops error, request archive, 并可使用 request intercept 动态改写/阻断。
 
 native OpenAI HTTP streaming Responses 的 first-output guard 默认关闭。启用后 deadline 从 attempt 开始并包含响应头等待; 首次语义输出前最多暂存 8 MiB, 只允许 keepalive 等非语义字节先行, 超时/溢出后清理 attempt 并最多换账号一次。该机制不覆盖 passthrough/WS, 也不能撤销已经发生的上游计算或用量, 因而 failover 重放可能造成重复上游计费; 开启前必须把该风险纳入成本与幂等评估。
-OpenAI proxy stream circuit 只把非取消/非 deadline 的 Responses SSE 中途断流计入 proxy-ID 本地观察, 达阈值后临时跳过该代理；它不持久修改 proxy/account、不跨实例共享, 成功流清除观察且 TTL 自动恢复。日志只记录 proxy/account/request ID 与经过 `sanitizeUpstreamErrorMessage` 的错误, 不输出上游凭据或原始响应。
+OpenAI proxy stream circuit 默认启用, `gateway.openai_proxy_stream_circuit.disabled=true` 时完全不记录或隔离 proxy。启用时只把非取消/非 deadline 的 Responses SSE 中途断流计入 proxy-ID 本地观察, 同一断流 burst 在短时间内合并为一次；达阈值后临时跳过该代理, 成功流清除观察且 TTL 自动恢复。状态有界、仅进程内且重启清空；若隔离导致首轮无账号而仍有被隔离代理, 第二轮必须忽略 quarantine fail-open, 不能由熔断制造“无可用账号”。日志只记录 proxy/account/request ID 与经过 `sanitizeUpstreamErrorMessage` 的错误, 不输出上游凭据或原始响应。
 
 OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level thinking 字段:
 
@@ -237,6 +241,7 @@ Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `promp
 - 如果 judge 使用本网关 API Key, 仍建议使用专属 API Key / 分组, 便于计费、审计和故障定位; 不要复用普通用户 key。
 - 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
 - 内容审核关键词 block 会把命中的具体关键词写入 `content_moderation_logs.matched_keyword`, 管理端风险控制列表和详情展示该字段; 记录前仍需走既有输入摘要/脱敏边界。
+- 内容审核配置可选择 `proxy_id`: 配置保存和 API Key 测试中省略/null 表示不覆盖或沿用, `0` 强制直连, 正 ID 使用指定代理。持久配置只返回 ID, 不回显 API Key；正 ID 保存时只校验代理记录存在, 不校验 active/未过期, inactive 或 expired 当前只记录 warning 后继续使用。保存内容审核配置会立即清空内容审核代理缓存；其他代理记录变更没有 invalidation hook, 最迟在固定 1 分钟缓存 TTL 后生效。解析代理或创建 HTTP client 失败仍必须使该审核调用失败, 不能静默直连绕过管理员出口边界。
 - `risk_control_enabled`、`content_moderation_config` 和 `prompt_risk_config` 共用 stale-while-refresh runtime snapshot; blocked keywords 在 snapshot 构建时预编译 matcher。保存内容审核或 Prompt Risk 配置会立即替换对应 snapshot 部分, 通用 settings 成功保存总开关后也必须通过回调立即原子替换已有 snapshot 的 enabled 状态; 后台刷新失败继续使用最后一个有效快照并按 TTL 退避, 不得清空策略或把 settings 故障扩散到网关热路径。
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
@@ -247,7 +252,7 @@ OpenAI-compatible cache usage 字段可能出现在官方 `input_tokens_details.
 
 Responses -> Chat 工具降级属于安全边界: custom、namespace、tool_search 的代理名必须可逆且无歧义; namespace 摊平名撞顶层工具或其他 namespace 时显式拒绝。`tool_choice` 只能指向转换后真实存在的工具, 被丢弃的服务端工具和不存在的名字必须一并删除, 防止上游 400 或把调用还原到错误工具。Grok Responses 现在也复用 `apicompat.ResponsesClientToolMapping`, 将 Codex client-side tools 适配为 xAI function tools 后在 streaming、non-streaming 与 SSE-to-JSON 回程恢复；顶层 `tools` 和 `additional_tools` 必须经过同一套撞名与选择校验。
 Responses -> Anthropic fallback 也必须先提升 `additional_tools`, 再复用可逆 custom/namespace/tool_search 映射并在流式 arguments delta/done 与非流式 output 中恢复；`function_call_output.output` 的 content-part 数组只接受可安全转换的 text 与 data-URI image。tool use/result 配对必须保持相邻, orphan/dangling 项显式丢弃, 不能向 Anthropic 发送结构失配的历史。
-OpenAI API Key 的 HTTP Responses 转发在 transport 决策后清除 input item 顶层残留 `namespace`, 但不递归删除 content 内部业务字段；message/function-call item 的非法客户端 ID 由线性 sanitizer 删除, 只保留官方可接受前缀。该清理不能扩大到 OAuth、WS v2 或第三方 compatible bridge, 以免破坏续链和本地可逆工具映射。
+OpenAI API Key 的标准 HTTP Responses 转发在 transport 决策后清除 input item 顶层残留 `namespace`, 但不递归删除 content 内部业务字段；message/function-call item 的非法客户端 ID 由线性 sanitizer 删除, 只保留官方可接受前缀。OpenAI OAuth 非 compact HTTP 默认保留 namespace, 仅账号显式启用 `extra.openai_responses_flatten_namespaces` 时为不兼容上游摊平；compact 始终清理, WS v2 原生路径始终保留。不得把 API Key 清理扩大为所有 HTTP Responses 的全局规则。
 Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 必须经 `EffectiveResponsesTools` 合并后复用上述过滤、撞名和回程规则; 不得只转发新增工具而绕过本地 `ResponsesToChatCompletionsRequestWithOptions` 的第三方参数过滤。Read 工具流式 delta 实时原样透传; 一旦收到 delta, `.done` 只关闭 block, 不再二次发送或 sanitize。只有非流式, 或流式完全没有 delta 而由 `.done` 携带完整参数时, 才执行 `sanitizeAnthropicToolUseInput`。`max_tokens` / `content_filter` stop reason 要映射为目标协议的标准终态, 避免连接悬挂或错误重试。
 修改流式响应时要同时验证:
 

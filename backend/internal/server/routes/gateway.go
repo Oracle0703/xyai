@@ -163,6 +163,37 @@ func RegisterGatewayRoutes(
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Videos API is not supported for this platform"}})
 	}
+	// /responses/*subpath 的子路径会被转发到上游同名端点之后，因此在入口就拒掉
+	// 不可转发的子路径，不让它进入调度与转发流程。可转发的判定见
+	// service.IsForwardableOpenAIResponsesRequestPath 及 upstream_path_guard.go。
+	guardResponsesSubpath := func(c *gin.Context) {
+		if !service.IsForwardableOpenAIResponsesRequestPath(c) {
+			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+				"error": gin.H{
+					"type":    "not_found_error",
+					"message": "Unsupported responses subpath",
+				},
+			})
+			return
+		}
+		c.Next()
+	}
+	guardGeminiModelAction := func(c *gin.Context) {
+		model, _, err := service.ParseGeminiModelActionPath(strings.TrimPrefix(c.Param("modelAction"), "/"))
+		if err != nil {
+			middleware.GoogleErrorWriter(c, http.StatusNotFound, err.Error())
+			c.Abort()
+			return
+		}
+		if !service.IsSafeGeminiModelPathSegment(model) {
+			middleware.GoogleErrorWriter(c, http.StatusBadRequest, "Invalid model in URL")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
@@ -174,6 +205,7 @@ func RegisterGatewayRoutes(
 	gateway.Use(compositeTarget)
 	gateway.Use(requireGroupAnthropic)
 	gateway.Use(requestArchive)
+	gateway.Use(guardResponsesSubpath)
 	gateway.Use(requestIntercept)
 	{
 		// /v1/messages: auto-route based on group platform
@@ -266,12 +298,11 @@ func RegisterGatewayRoutes(
 	gemini.Use(compositeGeminiTarget)
 	gemini.Use(requireGroupGoogle)
 	gemini.Use(requestArchive)
-	gemini.Use(requestIntercept)
 	{
-		gemini.GET("/models", h.Gateway.GeminiV1BetaListModels)
-		gemini.GET("/models/:model", h.Gateway.GeminiV1BetaGetModel)
+		gemini.GET("/models", requestIntercept, h.Gateway.GeminiV1BetaListModels)
+		gemini.GET("/models/:model", requestIntercept, h.Gateway.GeminiV1BetaGetModel)
 		// Gin treats ":" as a param marker, but Gemini uses "{model}:{action}" in the same segment.
-		gemini.POST("/models/*modelAction", h.Gateway.GeminiV1BetaModels)
+		gemini.POST("/models/*modelAction", guardGeminiModelAction, requestIntercept, h.Gateway.GeminiV1BetaModels)
 	}
 
 	// OpenAI Responses API（不带v1前缀的别名）— auto-route based on group platform
@@ -283,7 +314,7 @@ func RegisterGatewayRoutes(
 		h.Gateway.Responses(c)
 	}
 	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, responsesHandler)
-	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, responsesHandler)
+	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, guardResponsesSubpath, requestIntercept, responsesHandler)
 	r.POST("/alpha/search", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, h.OpenAIGateway.AlphaSearch)
 	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, func(c *gin.Context) {
 		h.OpenAIGateway.ResponsesWebSocket(c)
@@ -291,7 +322,7 @@ func RegisterGatewayRoutes(
 	r.GET("/models", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, modelsHandler)
 	r.POST("/messages/count_tokens", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, countTokensHandler)
 	codexDirect := r.Group("/backend-api/codex")
-	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept)
+	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, guardResponsesSubpath, requestIntercept)
 	{
 		codexDirect.POST("/realtime/calls", h.OpenAIGateway.Live)
 		codexDirect.GET("/:call_id", h.OpenAIGateway.LiveSideband)
@@ -365,11 +396,10 @@ func RegisterGatewayRoutes(
 	antigravityV1Beta.Use(middleware.APIKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, cfg))
 	antigravityV1Beta.Use(requireGroupGoogle)
 	antigravityV1Beta.Use(requestArchive)
-	antigravityV1Beta.Use(requestIntercept)
 	{
-		antigravityV1Beta.GET("/models", h.Gateway.GeminiV1BetaListModels)
-		antigravityV1Beta.GET("/models/:model", h.Gateway.GeminiV1BetaGetModel)
-		antigravityV1Beta.POST("/models/*modelAction", h.Gateway.GeminiV1BetaModels)
+		antigravityV1Beta.GET("/models", requestIntercept, h.Gateway.GeminiV1BetaListModels)
+		antigravityV1Beta.GET("/models/:model", requestIntercept, h.Gateway.GeminiV1BetaGetModel)
+		antigravityV1Beta.POST("/models/*modelAction", guardGeminiModelAction, requestIntercept, h.Gateway.GeminiV1BetaModels)
 	}
 
 }

@@ -6,7 +6,7 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP 和 Passkey 凭据。普通资料/权限更新使用 `UserUpdateFields` 显式列掩码；余额不经通用 `Update`, 管理员 set/add/subtract 走原子 `SetBalance` / `AdjustBalance`。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。编辑使用 `APIKeyUpdateFields` 显式列掩码, 避免覆盖并发累计的 quota/rate-limit 字段。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。`profit_control_enabled`、`profit_min_margin`、`profit_safety_buffer` 控制 token 分组的利润准入, 默认关闭/0/0；仅 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` 可启用。
 - CompositeModelRoute: composite group 的 public model 路由表, 记录 exact/prefix、endpoint、具体 target platform、upstream model、priority 和 enabled；运行时仍以具体平台完成账号调度、配额、计费和 usage 归因。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
@@ -107,6 +107,8 @@ go generate ./cmd/server
 - `backend/migrations/189_add_group_allow_live.sql` 为 `groups` 增加默认关闭的 `allow_live BOOLEAN NOT NULL DEFAULT false`; 它是 Live 路由的分组级显式授权, 与账号 endpoint capability 共同生效。
 - `backend/migrations/190_add_users_email_alias_dedup_index_notx.sql` 为去空白、转小写、去点后的 email 表达式增加并发索引, 支撑注册邮箱别名候选查询；注册事务仍需按归一化收件箱身份加锁并做最终应用层判定, 该索引本身不是唯一约束。
 - `backend/migrations/191_passkey_credentials.sql` 新增 `passkey_credentials` 和用户级稳定 WebAuthn handle, credential ID 全局唯一且按 user/created_at 建索引。凭据内容、签名计数和 backup 状态由 Passkey repository 管理；已发布后只能追加后续 migration, 不得改写本文件。
+- `backend/migrations/192_group_profit_control.sql` 为 `groups` 增加 `profit_control_enabled BOOLEAN NOT NULL DEFAULT FALSE`、`profit_min_margin DECIMAL(10,4) NOT NULL DEFAULT 0`、`profit_safety_buffer DECIMAL(10,4) NOT NULL DEFAULT 0`。两个比例各在 `[0,1)`, 和必须小于 1；非支持平台归一化为关闭和零值。运行时只允许账号倍率 `U <= D * (1 - margin - buffer)` 的候选参与调度, 其中 `D` 为请求定价时刻的有效下游倍率。
+- `backend/migrations/193_group_profit_control_auth_cache_invalidation.sql` 把三项利润控制字段加入 group 认证缓存失效 trigger。鉴权快照必须投影这些字段；管理端常规保存主动失效缓存, 数据库 trigger/outbox 为 direct SQL 和进程故障间隙提供持久兜底。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -184,6 +186,7 @@ go generate ./cmd/server
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
 - API Key `GET /v1/usage` 的 unrestricted subscription 响应在 `subscription.weekly_window_start` 返回周窗口起点, 与 daily/weekly/monthly usage 和 limit 一起供客户端展示当前周口径。
 - API Key 鉴权发现订阅窗口过期时必须同步调用 `EnsureWindowMaintenance`, 用 expected window start 做条件重置并回读数据库快照后再校验限额; 不再异步清零后直接放行。管理员 `ResetUsageWindows` 是显式重置, 会原子更新所选窗口并返回刷新后的订阅。
+- 日/周/月自动配额窗口的下一个边界不得越过订阅 `expires_at`。若订阅到期早于通常的 24 小时、7 天或 30 天周期, 当前窗口在到期时结束；鉴权维护、展示归一化和进度计算必须使用同一边界, 不能在订阅期外展示或复用新的完整窗口。
 - 前端全量“重置配额”会同时传 `daily/weekly/monthly=true`; “重置日限”只传 `daily=true`, 周/月窗口保持不变。
 - 支付订单履约时, 余额充值和订阅购买都会尝试邀请返利。订阅履约先写 `SUBSCRIPTION_ASSIGNED` 审计再执行返利, 最后 `SUBSCRIPTION_SUCCESS`; 历史已有 `SUBSCRIPTION_SUCCESS` 或新审计时不会重复延长订阅。返利幂等通过 `payment_audit_logs` 的 `AFFILIATE_REBATE_APPLIED` / `AFFILIATE_REBATE_SKIPPED` 动作占位和 `order_id, action` 唯一约束防重, SQL 会按 PostgreSQL 与 SQLite 方言分别生成占位符和时间函数。
 

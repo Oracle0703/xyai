@@ -198,7 +198,7 @@ func TestContentModerationRuntimeSnapshotRiskControlSettingUpdateIsImmediate(t *
 	}}
 	cfg := &config.Config{}
 	settingService := NewSettingService(repo, cfg)
-	moderationService := ProvideContentModerationService(repo, settingService, nil, nil, nil, nil, nil, nil, cfg)
+	moderationService := ProvideContentModerationService(repo, settingService, nil, nil, nil, nil, nil, nil, nil, cfg)
 	moderationService.runtimeCacheTTL = time.Hour
 
 	snapshot, err := moderationService.loadRuntimeSnapshot(context.Background())
