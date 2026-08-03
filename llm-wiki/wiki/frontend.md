@@ -11,6 +11,14 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.170 合并增量
+
+- OEM 设置新增 `compact_home_enabled`（默认 `false`）, 并随 public settings 返回。`HomeView.vue` 优先渲染 trim 后非空的 `home_content`; 只有内容为空时才按该开关显示内置简洁首页。简洁首页根据认证状态跳转 `/login`、`/dashboard` 或 `/admin/dashboard`。
+- `GroupsView.vue` 只为 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` 显示和提交利润控制。界面用百分比编辑, API/数据库使用小数；启用时 margin、buffer 均在 `[0,1)` 且和小于 1, 切换到不支持的平台时清零并关闭。
+- 所有 API Key 平台账号都可配置 upstream billing probe；启用 `upstream_billing_rate_sync_enabled` 后必须禁用人工 `rate_multiplier` 编辑。只有 OpenAI OAuth 账号显示 `extra.openai_responses_flatten_namespaces` 兼容开关, 缺省保持 namespace 原样。
+- 账号列表的“选择全部结果”按当前筛选遍历全部页收集 ID；批量删除调用 `POST /api/v1/admin/accounts/batch-delete`, 并按 `success_ids` / `failed_ids` 展示部分成功结果。
+- 风险控制的内容审核保存与 API Key 测试都支持代理选择：省略表示沿用, `0` 表示强制直连, 正数表示代理 ID。代理列表加载失败不能阻断页面其他配置。
+
 ## 0.1.168 合并增量
 
 - `/model-plaza` 是公开声明但受 public settings 双门控的页面：`model_plaza_enabled` 控制入口和 API 是否存在, `model_plaza_require_auth` 决定匿名访问是否允许。页面由 `ModelPlazaView.vue` 与 `components/modelPlaza/` 组成, 登录用户从可选 JWT 取得个人倍率；未登录用户只看到可公开分组。
@@ -88,7 +96,7 @@ API 模块分布:
 - `CreateAccountModal.vue` 的 Grok OAuth 流支持 Web SSO key 批量导入, 每行一个 key, 通过 `adminAPI.grok.createFromSSO` 提交; SSO 模式允许账号名留空, 部分成功时保留失败明细。修改该流程时同步 `OAuthAuthorizationFlow.vue`、`useGrokOAuth.ts`、中英文 `admin/accounts.ts` 和 `CreateAccountModal.spec.ts`。
 - `CreateAccountModal.vue` 的 Antigravity 批量 refresh-token 导入会保留管理员原始输入并传给 OAuth 组合逻辑, 不能只传解析后的 credential 结果, 否则手工 refresh token 会在后续流程中丢失。
 - OpenAI OAuth/API Key 账号增加 `openai_long_context_billing_enabled` 开关, 默认关闭; Codex session/PAT 导入只有用户实际触碰开关时才覆盖服务端默认, 避免旧导入流程无意开启长上下文计费。
-- OpenAI API Key 创建默认提交 `upstream_billing_probe_enabled=true`, 账号创建成功后等待首次 probe 再刷新列表；用户可在创建弹窗关闭该开关。该状态与本地 compatible provider preset 独立, 两者必须同时进入最终 payload。
+- API Key 账号创建默认提交 `upstream_billing_probe_enabled=true`, 账号创建成功后等待首次 probe 再刷新列表；用户可在创建弹窗关闭该开关。该能力不限 OpenAI 平台, 但非 OpenAI 官方根域账号会由后端标记为 `unsupported`。该状态与本地 compatible provider preset 独立, 两者必须同时进入最终 payload。
 - 管理端 OpenAI 分组可通过 `allow_live` 显式开放 Live；前端保存前调用 `/api/v1/admin/groups/live-capability` 检查服务端 attestation 能力, 不支持时必须二次确认, 默认仍关闭。服务端平台和权限校验是最终边界。
 - Channel Monitor 支持 Grok provider、模板和筛选; `GrokQuotaProbeCell.vue` 的 Free 配额显示按本地滚动 24 小时 Token 用量估算, 与上游 weekly header 分开展示。
 - `AuditLogView.vue` 通过 `frontend/src/api/admin/audit.ts` 查询操作审计; 清空要求现场 TOTP。敏感导出/备份动作复用 `useStepUp.ts` + `TotpStepUpDialog.vue`, 收到 `STEP_UP_REQUIRED` 后取得短期 grant 并重试一次。`SettingsView.vue` 暴露默认关闭的 session binding 与 step-up 开关；关闭已启用的 step-up 本身需要二次验证, 开启前当前管理员必须已配置 TOTP。API Key ACL 的兼容开关开启时还可编辑最多 16 个自定义客户端 IP header；前端做 header token 校验、大小写规范化和去重, 后端仍是最终校验边界。
@@ -130,6 +138,8 @@ API 模块分布:
 
 - `/admin/prompt-audit` 懒加载 `frontend/src/features/prompt-audit/PromptAuditView.vue`, 并通过 `requiresRiskControl` 与管理端权限守卫。侧栏把既有 Risk Control 与 Prompt Audit 放在 Security Audit 分组中, 本地 `/admin/request-intercept` 仍保持独立入口。
 - `frontend/src/features/prompt-audit/api.ts` 维护配置、运行态、节点 probe 和事件删除合同；`components/` 下的 policy、endpoint pool、runtime、event workspace/detail 和 filter-delete dialog 组成页面。筛选删除必须先拿 preview 的 `snapshot_max_id` / `filter_hash`, 再显式确认。
+- `blocking_latest_turn_only` 只有在 Prompt Audit 和 blocking 均已启用时才可编辑；配置保存和变更摘要都必须保留该字段, 便于审计阻断范围。
+- `RiskControlView.vue` 的内容审核配置和 API Key 测试共用代理语义：`undefined` 不覆盖, `0` 强制直连, 正 ID 使用指定代理；前端控件不可改变后端对这些值的最终校验。
 - `frontend/src/views/admin/BackupView.vue` 同时管理备份 S3 与异步生图/图片对象存储。生图卡片可复用备份 S3 的 endpoint/region/credentials 并单独指定 bucket/prefix, 或保存独立凭据；保存即让后端运行时缓存失效、无需重启。两类 S3 保存都必须通过 `backupStepUp.run`, 用户取消 step-up 只结束保存态, 不把取消显示成网络错误。测试连接与读配置使用 `frontend/src/api/admin/backup.ts` 的 `/backups/image-storage` 合同, secret 只显示 configured 状态而不回填明文。
 - `frontend/src/views/admin/SettingsView.vue` 的安全设置暴露客户端 IP 兼容开关和有序自定义 header 列表。header 只在兼容模式开启时显示/提交, 前端去重并规范化, 服务端仍负责合法 header 名和最多 16 项的最终校验。
 - `SettingsView.vue` 的 Ollama Cloud 自动刷新表单同时提交 `debounce_minutes` 与 `interval_minutes`: 前者表示最后一次模型请求后的安静等待, 后者表示持续请求下的最长等待；隐藏或缺失字段不能把后端已保存值意外清空。

@@ -2,6 +2,7 @@ package routes
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type gatewayRoutesAPIKeyRepo struct {
+	service.APIKeyRepository
+	apiKey *service.APIKey
+}
+
+func (r *gatewayRoutesAPIKeyRepo) GetByKeyForAuth(_ context.Context, key string) (*service.APIKey, error) {
+	if r.apiKey == nil || key != r.apiKey.Key {
+		return nil, service.ErrAPIKeyNotFound
+	}
+	clone := *r.apiKey
+	return &clone, nil
+}
+
+func (r *gatewayRoutesAPIKeyRepo) UpdateLastUsed(context.Context, int64, time.Time) error {
+	return nil
+}
 
 func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 	return newGatewayRoutesTestRouterWithConfig(&config.Config{
@@ -208,6 +226,77 @@ rules:
 	require.NotContains(t, records[1], "body")
 	require.Greater(t, records[1]["body_size"], float64(0))
 	require.NotEmpty(t, records[1]["body_sha256"])
+}
+
+func TestGatewayRoutesGeminiModelActionGuardRunsBeforeRequestIntercept(t *testing.T) {
+	rulesFile := filepath.Join(t.TempDir(), "rules.yaml")
+	require.NoError(t, os.WriteFile(rulesFile, []byte(`
+version: 1
+rules:
+  - id: matching-gemini-intercept
+    match: exact
+    keywords: ["hi"]
+    reply: "intercepted"
+`), 0o600))
+	cfg := &config.Config{
+		RunMode: config.RunModeSimple,
+		Gateway: config.GatewayConfig{
+			MaxBodySize: 1024 * 1024,
+			RequestIntercept: config.GatewayRequestInterceptConfig{
+				Enabled:   true,
+				RulesFile: rulesFile,
+			},
+		},
+	}
+	group := &service.Group{ID: 42, Status: service.StatusActive, Hydrated: true, Platform: service.PlatformGemini}
+	user := &service.User{ID: 7, Role: service.RoleUser, Status: service.StatusActive}
+	apiKey := &service.APIKey{
+		ID:      100,
+		UserID:  user.ID,
+		Key:     "gemini-guard-route-test-key",
+		Status:  service.StatusActive,
+		User:    user,
+		GroupID: &group.ID,
+		Group:   group,
+	}
+	apiKeyService := service.NewAPIKeyService(&gatewayRoutesAPIKeyRepo{apiKey: apiKey}, nil, nil, nil, nil, nil, cfg)
+	router := gin.New()
+	RegisterGatewayRoutes(
+		router,
+		&handler.Handlers{Gateway: &handler.GatewayHandler{}, OpenAIGateway: &handler.OpenAIGatewayHandler{}},
+		servermiddleware.NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg),
+		apiKeyService,
+		nil,
+		nil,
+		nil,
+		nil,
+		cfg,
+	)
+
+	for _, tc := range []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string
+	}{
+		{name: "gemini unsafe model", path: "/v1beta/models/..:generateContent", wantStatus: http.StatusBadRequest, wantBody: "Invalid model in URL"},
+		{name: "gemini extra action path", path: "/v1beta/models/gemini-2.5-pro:generateContent/extra", wantStatus: http.StatusNotFound, wantBody: "invalid model action path"},
+		{name: "antigravity unsafe model", path: "/antigravity/v1beta/models/..:streamGenerateContent", wantStatus: http.StatusBadRequest, wantBody: "Invalid model in URL"},
+		{name: "antigravity extra action path", path: "/antigravity/v1beta/models/gemini-2.5-pro:streamGenerateContent/extra", wantStatus: http.StatusNotFound, wantBody: "invalid model action path"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("x-goog-api-key", apiKey.Key)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, tc.wantStatus, w.Code, "path=%s body=%s", tc.path, w.Body.String())
+			require.Contains(t, w.Body.String(), tc.wantBody, "path=%s", tc.path)
+			require.NotContains(t, w.Body.String(), "intercepted", "path=%s", tc.path)
+		})
+	}
 }
 
 func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
@@ -451,6 +540,68 @@ func loadGatewayRouteArchiveRecords(t *testing.T, dir string) []map[string]any {
 	}
 	require.NoError(t, scanner.Err())
 	return records
+}
+
+// TestGatewayRoutesResponsesSubpathRejectsNonConformingSubpaths 端到端锁定不变式：
+// /responses/*subpath 的子路径会被转发到上游同名端点之后，因此不合规的子路径必须
+// 在入口就被拒绝，不得进入调度与转发流程。
+func TestGatewayRoutesResponsesSubpathRejectsNonConformingSubpaths(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+
+	for _, path := range []string{
+		"/v1/responses/../../x/y",
+		"/v1/responses/..%2f..%2fx/y",
+		"/v1/responses/%2e%2e/%2e%2e/x",
+		"/responses/%2e%2e%2fx",
+		"/backend-api/codex/responses/..%2f..%2fx",
+		`/v1/responses/..\..\x`,
+		"/v1/responses/%3fa=b",
+		"/v1/responses/x%23frag",
+		"/v1/responses/compact%2f..",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gpt-5"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "path=%s must be rejected at the edge", path)
+		require.Contains(t, w.Body.String(), "Unsupported responses subpath", "path=%s", path)
+	}
+}
+
+func TestGatewayRoutesResponsesSubpathGuardRunsBeforeRequestIntercept(t *testing.T) {
+	rulesFile := filepath.Join(t.TempDir(), "rules.yaml")
+	require.NoError(t, os.WriteFile(rulesFile, []byte(`
+version: 1
+rules:
+  - id: matching-intercept
+    match: exact
+    keywords: ["hi"]
+    reply: "intercepted"
+`), 0o600))
+	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
+		Gateway: config.GatewayConfig{
+			MaxBodySize: 1024 * 1024,
+			RequestIntercept: config.GatewayRequestInterceptConfig{
+				Enabled:   true,
+				RulesFile: rulesFile,
+			},
+		},
+	})
+
+	for _, path := range []string{
+		"/v1/responses/%2e%2e/%2e%2e/x",
+		"/responses/%2e%2e%2fx",
+		"/backend-api/codex/responses/..%2f..%2fx",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gpt-5","input":"hi"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "path=%s must be rejected before request interception", path)
+		require.Contains(t, w.Body.String(), "Unsupported responses subpath", "path=%s", path)
+	}
 }
 
 func TestGatewayRoutesOpenAICountTokensPathIsRegistered(t *testing.T) {

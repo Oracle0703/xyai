@@ -49,11 +49,12 @@ func ProvideContentModerationService(
 	hashCache ContentModerationHashCache,
 	groupRepo GroupRepository,
 	userRepo UserRepository,
+	proxyRepo ProxyRepository,
 	authCacheInvalidator APIKeyAuthCacheInvalidator,
 	emailService *EmailService,
 	cfg *config.Config,
 ) *ContentModerationService {
-	service := NewContentModerationService(settingRepo, repo, hashCache, groupRepo, userRepo, authCacheInvalidator, emailService, cfg)
+	service := NewContentModerationService(settingRepo, repo, hashCache, groupRepo, userRepo, proxyRepo, authCacheInvalidator, emailService, cfg)
 	settingService.SetRiskControlUpdateCallback(service.replaceRuntimeRiskControlEnabled)
 	return service
 }
