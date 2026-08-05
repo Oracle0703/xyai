@@ -166,6 +166,7 @@ Windows 本地 Go 验证固定入口:
 - 每一轮测试必须使用新的 `GOTMPDIR`(`backend/.gocache/run-tmp-*`), 不复用上一次的临时目录。Windows 可能短暂占用 `*.test.exe`; 如果复用同一个 `GOTMPDIR`, 下一次容易继续失败。
 - 串行运行 `-p 1 -count=1`; 全包很慢时先跑 smoke 包, 再按风险面追加包。
 - `backend/.gocache` 里若存在历史 `00` 到 `ff` 分片目录、`review-tmp` 或固定 `run-tmp`, 视为旧实验缓存; 稳定入口只依赖 `review-cache`, `review-gopath` 和每轮新建的 `run-tmp-*`。
+- 仓库内打包/编译缓存目录由根 `.gitignore` 排除, 不计入提交: `.gocache/`、`.gomodcache/`、`.gotmp/`、`backend/.gocache/`、`backend/.gomodcache/`、`backend/.gotmp/` 及 `backend/.go-test-cache/`、`backend/.gocache-test/`、`backend/.gotmp-*`。根目录或 `backend` 下若用 `GOCACHE`/`GOMODCACHE` 指向这些路径, 仅本机使用。
 
 ```powershell
 $ErrorActionPreference = "Stop"
