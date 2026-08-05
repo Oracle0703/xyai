@@ -12,10 +12,18 @@
   - 构建: `cd backend && make build`
   - 生成: `cd backend && make generate`
 
+## 0.1.171 合并增量
+
+- `AuthService` 通过 `ProvideAuthService` 注入 `TencentCaptchaService` 与 `AliyunCaptchaService`。登录、注册、Passkey begin 和 OAuth start 可携带统一动作验证码 proof；公开 settings 只暴露腾讯 AppID 与阿里云 scene/prefix/region, secret 仅管理端 masked 展示和保存。
+- 内容审核配置新增 `proxy_id`。`ContentModerationService` 通过 `ProxyRepository` 校验与解析代理, 运行时按 proxy ID 缓存代理 URL；保存配置时 `proxy_id=nil` 表示保留、`<=0` 表示清除, 测试 API 中 `nil` 沿用已保存代理、`0` 强制直连、`>0` 指定代理。
+- `OpenAICodexVersionSyncService` 由 Wire 启动并在 cleanup 中停止。默认每 6 小时查询 `openai/codex` release, 只接受 `rust-v*` 稳定 tag, 将最新版本写入设置供 `codex_cli_only` 版本策略使用；`openai_codex_version_auto_sync_enabled=false` 可关闭, 失败时保留旧值。
+- 管理端分组新增 `GET /api/v1/admin/groups/live-capability`, 返回当前服务端是否具备 OpenAI Live attestation 运行环境。前端启用 `allow_live` 时先读取该能力, 不支持时要求管理员确认。
+- Responses `*subpath` 入口继续使用 middleware 形态的 `guardResponsesSubpath`, 且必须位于本地 `RequestIntercept` 之前, 避免拦截规则短路 path allowlist。
+
 ## 0.1.170 合并增量
 
-- 分组利润控制只对 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` token 分组生效。启用后, 只有账号上游倍率 `U <= D * (1 - margin - buffer)` 的候选进入调度, `D` 是请求定价时刻的有效下游倍率；OpenAI/Grok 文本请求在请求开始冻结定价时刻, WS 在每个 turn 冻结。普通 Gateway token 路径同样过滤候选, 获取并发槽后还用最新账号快照终检。分组配置读取失败显式 fail-open, 不能把该能力描述为绝对利润保证。
-- upstream billing probe 扩展到所有 API Key 平台账号。非 OpenAI 且 base URL 为空或是官方根域时直接记录 `unsupported`, 不请求 `/v1/sub2api/billing`。账号可 opt-in `upstream_billing_rate_sync_enabled`, 由 probe 以 CAS 把 `resolved_rate_multiplier` 写回账号倍率；关闭 probe 会同时关闭 rate sync, 启用 rate sync 后管理端单个或批量人工修改倍率必须拒绝。
+- 分组利润控制只对 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` token 分组生效。启用后, 只有账号上游倍率 `U <= D * (1 - margin - buffer)` 的候选进入调度, `D` 是请求定价时刻的有效下游倍率；OpenAI/Grok 文本请求在请求开始冻结定价时刻, WS 在每个 turn 冻结。普通 Gateway token 路径同样过滤候选, 获取并发槽后还用最新账号快照终检。分组配置读取失败显式 fail-open, 不能把该能力描述为绝对利润保证。独立图片/视频、Grok media、count_tokens 和 Live 显式跳过利润门。
+- upstream billing probe 扩展到所有 API Key 平台账号（OpenAI、Anthropic、Gemini、Antigravity、Grok）。非 OpenAI 且 base URL 为空或是官方根域时直接记录 `unsupported`, 不请求 `/v1/sub2api/billing`。账号可 opt-in `upstream_billing_rate_sync_enabled`, 由 probe 以 CAS 把 `resolved_rate_multiplier` 写回账号倍率；关闭 probe 会同时关闭 rate sync, 启用 rate sync 后管理端单个或批量人工修改倍率必须拒绝。OAuth、Bedrock 和旧 `type=upstream` relay 账号不在探测范围。
 - OpenAI OAuth 的非 compact HTTP Responses 默认保留原生 namespace 工具和历史 tool-call item 的 `namespace`, 以支持 Codex round-trip；compact 始终摊平/清理, API Key 标准 Responses 继续清理。仅 OpenAI OAuth 账号显式开启 `extra.openai_responses_flatten_namespaces` 时才为不兼容上游恢复摊平, WS v2 原生路径始终不摊平。
 
 ## 0.1.168 合并增量
@@ -56,6 +64,8 @@
 - `server.ProviderSet`
 
 很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner, user platform quota flusher、Ops ingress rejection aggregator 和 auth-cache invalidation worker。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
+
+0.1.171 之后 `provideCleanup` 还必须覆盖 `OpenAICodexVersionSyncService.Stop()`；合并 Wire 冲突时要同时保留本地 `TokenAnalysisService.StopAutoIndex()` 和上游新增后台服务停止步骤。
 
 Prompt Audit 由 `backend/internal/securityaudit/` 提供。`Application.PromptAudit` 在 `main.go` 启动, `provideCleanup` 调用 `PromptService.Shutdown`; 配置默认关闭。`Coordinator` 始终保留既有内容审核：off 只执行 legacy moderation, async 先 best-effort 入队再执行 legacy, blocking 并行执行 Prompt Audit 与 legacy 并按阻断优先级合并结果。
 

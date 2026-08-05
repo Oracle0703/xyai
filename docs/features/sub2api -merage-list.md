@@ -1653,7 +1653,7 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；更新 account/layout 组件 README, 新增 model plaza/profile README。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved, `wikiSourceHash=f06aabd1f751...` 与当前 wiki 一致。 |
 | Approval / delivery | 最终 staged snapshot 为 185 files / `+7806 -364`, 0 unstaged、0 untracked、0 unmerged、0 conflict marker、0 whitespace error、0 `docs/features` 删除；保持 `git merge --no-commit --no-ff`, 等待用户审核。未 commit、未 push、未创建 PR、未部署。 |
 
-## 2026-08-03 main sync (v0.1.170; awaiting review)
+## 2026-08-03 main sync (v0.1.170; merged via PR #33)
 
 | Item | Value |
 |---|---|
@@ -1662,7 +1662,7 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Base before merge / first parent | `12770bc5da8c0ef6a2dd02b0e80a37f6eb26d408`（本地 `main`） |
 | Merge base | `5a6143097db142b72a6fc848c214e97214470bdd` |
 | Upstream head / second parent | `7e2e9ba05026b7126318aa0754c1afa0ac00bc58` |
-| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=7e2e9ba05026b7126318aa0754c1afa0ac00bc58`** |
+| Merge commit | `7a537cffbbb6455ce2f777e70f369a3912738ebd`（PR #33） |
 | Upstream version / delta | `0.1.170`; 99 commits、294 files、`+16749/-1179`。固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.170`。 |
 | Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/content_moderation.go`; `frontend/src/views/admin/RiskControlView.vue` |
 | Conflict handling | 6 个文本冲突按语义并集解决：双方独有能力并存, 功能重叠采用上游实现；Content Moderation 叠加上游代理能力并保留本地 Prompt Risk/LLM judge, Wire 注入 `ProxyRepository`, 4 个本地测试调用补 `nil` 参数；gateway 同时保留本地 RequestArchive/RequestIntercept 与上游 path guard/profit-control, 且 guard 必须位于 `RequestIntercept` 前；Responses bridge 同时保留本地兼容映射与上游 media tool-output；风险控制页面保留本地 Prompt Risk 并接入代理选择。 |
@@ -1672,4 +1672,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Final review follow-up | 修复本地 `RequestIntercept` 与 Gemini wildcard 路由组合导致 path guard 被短路的问题：`/v1beta/models/*modelAction` 和 `/antigravity/v1beta/models/*modelAction` 现在先执行共用 model/action 解析、action allowlist 与安全 model segment 校验。最终审查另发现 `rawOpenAIResponsesRequestPathSuffix` 的 `LastIndex("/responses")` 路径重锚风险；该实现同时存在于第一父和固定上游目标, 按本次“不修上游/引入前既有问题”约束未修改生产代码或测试, 留待上游或后续任务跟踪。安全 wiki 同步修正内容审核代理的状态与 1 分钟缓存 TTL 真实语义。 |
 | Verification | `go generate ./ent` 与 `go generate ./cmd/server` 均退出 0, `backend/ent` 和 `backend/cmd/server/wire_gen.go` 目标生成物无漂移；默认 tag `go test -p 1 -count=1 ./...`、integration tag `go test -tags=integration -p 1 -count=1 ./...` 和 server build 均退出 0。unit tag `go test -tags=unit -p 1 -count=1 ./...` 退出 1, 仅 `/auth/me` fixture 比实际响应少 `admin_permissions:null`, 与第一父基线一致, 其余包通过；`golangci-lint run ./...` 退出 1 的 28 项均经 blob/引用审计确认为第一父既有, 增量 lint 因 v2.9.0 的仓库根/Go module 组合报 `no go files to analyze`, 不记为 0 issues。Frontend lint、typecheck 和 production build 均退出 0（Vite 1017 modules）；完整 Vitest 退出 1, 1567/1569 tests 通过, 仅 2 条第一父既有 rollback timeout 参数断言失败, 另有 10 个第一父既有 GroupsView mock unhandled rejection。两个 deploy fixture 经 Git Bash login shell 验证退出 0；首次直接 Bash 调用因 PATH 缺 `dirname` 未启动测试。已知基线失败按用户约束不修复。6 个冲突已暂存, `git ls-files -u` 为空, 冲突标记与 diff check 审计无异常, 23/23 `docs/features` 路径保留。Wiki 图谱已刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved, source hash 与当前 wiki 一致；状态检查仅因未提交 merge 工作树而为预期 `PARTIAL`。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；最终审查修正文档后 Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved, `wikiSourceHash=92afc7f004b5...` 与当前 wiki 一致。状态检查仅因合并工作树中的 wiki/图谱路径未提交而为预期 `PARTIAL`, 未报告图谱损坏。 |
-| Approval / delivery | 最终 scoped re-review 为 `APPROVED`：I-1/I-3 已解决，I-2 满足“不修上游/既有问题”约束并已留痕，新 Critical/Important 为 0。保持 `git merge --no-commit --no-ff`, 等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+| Approval / delivery | 最终 scoped re-review 为 `APPROVED`：I-1/I-3 已解决，I-2 满足“不修上游/既有问题”约束并已留痕，新 Critical/Important 为 0。已通过 PR #33 合入 `main@7a537cff`。 |
+
+## 2026-08-05 main sync (v0.1.171; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10171_merge_sub2api_171` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `7a537cffbbb6455ce2f777e70f369a3912738ebd`（本地 `main`, 已含 v0.1.170 / PR #33）；功能分支创建时上游合入起点为 `12770bc5da8c0ef6a2dd02b0e80a37f6eb26d408` |
+| Merge base with current main | `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`（上游 v0.1.170） |
+| Upstream head / second parent | `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`；功能分支 tip `3547702ff54d324cff2f83ec75bd8d9a501ea68f` |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=3547702ff54d324cff2f83ec75bd8d9a501ea68f`** |
+| Upstream version / delta | `0.1.171`; 相对 v0.1.170 的增量随功能分支带入；固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.171`。 |
+| Conflict files (into main) | `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/prompt_risk_judge_test.go`; `docs/features/sub2api -merage-list.md`; `llm-wiki/wiki/README.md`; `llm-wiki/wiki/backend.md`; `llm-wiki/wiki/data-and-domain.md`; `llm-wiki/wiki/frontend.md`; `llm-wiki/wiki/ops.md` |
+| Conflict handling | 9 个文本冲突按语义并集解决：gateway 继续采用 middleware 形态的 `guardResponsesSubpath` 且必须位于 `RequestIntercept` 前（与 codexDirect/`/v1` group 一致），并保留本地 guard-before-intercept 测试；`prompt_risk_judge_test` 构造参数对齐 `NewContentModerationService(..., proxyRepo, authCacheInvalidator, emailService, cfg)` 共 7 个中间依赖 `nil`；ledger/wiki 同时保留 v0.1.170 与 v0.1.171 记录与增量说明。功能分支上已解决的上游 171 冲突（Wire/captcha/proxy/apicompat 等）随自动合并带入, 未再改写冲突外上游业务实现。 |
+| Local features | 合并过程中未删除本地 `docs/features/` 新增功能文档；除本 ledger 追加记录外, 其他本地 features 文档保持。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 均保留。功能重叠处采用上游实现。 |
+| Upstream behavior | 合入腾讯/阿里云动作验证码、内容审核代理选择、分组利润控制与 `profit-preview`、OpenAI Codex 客户端版本自动同步、上游倍率探测多平台写回、Groups Live capability 确认、Responses tool-output-media 兼容及大量网关/计费/前端增量。v0.1.170 已在 main 的利润控制/path allowlist 等能力继续保留。 |
+| Upstream / baseline issue boundary | 本地 `main` 既有 `/auth/me` 响应多出 `admin_permissions:null` 的 Go contract mismatch 保持不改。Frontend 全量 Vitest 仍有 `admin.system.rollback.spec.ts` 两条旧断言失败, 因实现会向 rollback API 传 15 分钟 timeout；按“只解决冲突、不修上游 bug”要求保持不改。 |
+| Verification | 冲突解决后对 `internal/server/routes` 与 `prompt_risk_judge` 相关包做 focused Go test；其余以上游/功能分支既有验证为参考。已知基线失败不在本分支修复。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`；本条按追加规则写入, 同时保留 v0.1.170 历史条目。 |
+| Approval / delivery | 当前保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |

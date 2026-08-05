@@ -314,6 +314,7 @@ func RegisterGatewayRoutes(
 		h.Gateway.Responses(c)
 	}
 	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, responsesHandler)
+	// guard must run before RequestIntercept so path allowlist cannot be short-circuited by local intercept rules.
 	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, guardResponsesSubpath, requestIntercept, responsesHandler)
 	r.POST("/alpha/search", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, h.OpenAIGateway.AlphaSearch)
 	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, requestArchive, requestIntercept, func(c *gin.Context) {

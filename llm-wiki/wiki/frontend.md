@@ -11,13 +11,19 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.171 合并增量
+
+- 登录、注册、OAuth start 和 Passkey 登录可通过 `ActionCaptchaRequestProof` 传动作验证码。腾讯验证码组件为 `TencentCaptchaGate.vue` / `TencentCaptchaGate` 流程, 阿里云组件为 `AliyunCaptchaWidget.vue`; 阿里云 `captchaVerifyParam` 复用 `turnstile_token` 字段, 腾讯使用 `tencent_captcha_ticket` 与 `tencent_captcha_randstr`。
+- `authStore.loginWithPasskey(proof?)` 会把动作验证码 proof 传给 `passkeyAPI.login`, 并继续复用 token/session 落盘流程；合并 `frontend/src/stores/auth.ts` 时必须同时保留 `ActionCaptchaRequestProof` 类型和本地 `AdminPermission` / 子管理员权限逻辑。
+- `GroupsView.vue` 启用 OpenAI Live 时会调用 `adminAPI.groups.getLiveCapability()`。服务端不支持 Live attestation 时, UI 需要二次确认后才提交 `allow_live=true`; 单测 mock `@/api/admin` 时要补齐该方法, 否则会产生挂载后的 unhandled rejection。
+
 ## 0.1.170 合并增量
 
 - OEM 设置新增 `compact_home_enabled`（默认 `false`）, 并随 public settings 返回。`HomeView.vue` 优先渲染 trim 后非空的 `home_content`; 只有内容为空时才按该开关显示内置简洁首页。简洁首页根据认证状态跳转 `/login`、`/dashboard` 或 `/admin/dashboard`。
-- `GroupsView.vue` 只为 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` 显示和提交利润控制。界面用百分比编辑, API/数据库使用小数；启用时 margin、buffer 均在 `[0,1)` 且和小于 1, 切换到不支持的平台时清零并关闭。
-- 所有 API Key 平台账号都可配置 upstream billing probe；启用 `upstream_billing_rate_sync_enabled` 后必须禁用人工 `rate_multiplier` 编辑。只有 OpenAI OAuth 账号显示 `extra.openai_responses_flatten_namespaces` 兼容开关, 缺省保持 namespace 原样。
+- `GroupsView.vue` 只为 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` 显示和提交利润控制。辅助逻辑在 `frontend/src/views/admin/groupsProfitControl.ts`, 界面用百分比编辑, API/数据库使用小数；启用时 margin、buffer 均在 `[0,1)` 且和小于 1, 并先拦截 `margin + buffer >= 100%` 与四舍五入后等于 1 的边界；切换到不支持的平台时清零并关闭。
+- 所有 API Key 平台账号都可配置 upstream billing probe；启用 `upstream_billing_rate_sync_enabled` 后必须禁用人工 `rate_multiplier` 编辑。只有 OpenAI OAuth 账号显示 `extra.openai_responses_flatten_namespaces` 兼容开关, 缺省保持 namespace 原样。`ModelWhitelistSelector` 等跨平台组件需按 selected platforms 合并候选。
 - 账号列表的“选择全部结果”按当前筛选遍历全部页收集 ID；批量删除调用 `POST /api/v1/admin/accounts/batch-delete`, 并按 `success_ids` / `failed_ids` 展示部分成功结果。
-- 风险控制的内容审核保存与 API Key 测试都支持代理选择：省略表示沿用, `0` 表示强制直连, 正数表示代理 ID。代理列表加载失败不能阻断页面其他配置。
+- 风险控制页 `RiskControlView.vue` 的内容审核保存与 API Key 测试都支持代理选择：省略表示沿用, `0` 表示强制直连/清除, 正数表示代理 ID。依赖 `ProxySelector` 与 `riskControlAPI` 的 `proxy_id` 字段；代理列表加载失败不能阻断页面其他配置。
 
 ## 0.1.168 合并增量
 
