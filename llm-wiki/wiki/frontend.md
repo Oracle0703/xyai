@@ -11,6 +11,15 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.171 合并增量
+
+- 登录、注册、OAuth start 和 Passkey 登录可通过 `ActionCaptchaRequestProof` 传动作验证码。腾讯验证码组件为 `TencentCaptchaGate.vue` / `TencentCaptchaGate` 流程, 阿里云组件为 `AliyunCaptchaWidget.vue`; 阿里云 `captchaVerifyParam` 复用 `turnstile_token` 字段, 腾讯使用 `tencent_captcha_ticket` 与 `tencent_captcha_randstr`。
+- `authStore.loginWithPasskey(proof?)` 会把动作验证码 proof 传给 `passkeyAPI.login`, 并继续复用 token/session 落盘流程；合并 `frontend/src/stores/auth.ts` 时必须同时保留 `ActionCaptchaRequestProof` 类型和本地 `AdminPermission` / 子管理员权限逻辑。
+- `GroupsView.vue` 新增利润控制表单, 只对 OpenAI/Grok 等支持平台显示。辅助逻辑在 `frontend/src/views/admin/groupsProfitControl.ts`, 前端以百分比展示并换算为后端小数, 且先拦截 `margin + buffer >= 100%` 与四舍五入后等于 1 的边界。
+- `GroupsView.vue` 启用 OpenAI Live 时会调用 `adminAPI.groups.getLiveCapability()`。服务端不支持 Live attestation 时, UI 需要二次确认后才提交 `allow_live=true`; 单测 mock `@/api/admin` 时要补齐该方法, 否则会产生挂载后的 unhandled rejection。
+- 风险控制页 `RiskControlView.vue` 的内容审核配置可选择代理, 依赖 `ProxySelector` 与 `riskControlAPI` 的 `proxy_id` 字段。保存时前端提交 `proxy_id ?? 0`, 用 0 表示清除/直连。
+- 账号创建、编辑、批量编辑中的 upstream billing probe 继续可控制自动探测；0.1.171 后探测支持多个 API Key 平台, `ModelWhitelistSelector` 等跨平台组件需按 selected platforms 合并候选。
+
 ## 0.1.168 合并增量
 
 - `/model-plaza` 是公开声明但受 public settings 双门控的页面：`model_plaza_enabled` 控制入口和 API 是否存在, `model_plaza_require_auth` 决定匿名访问是否允许。页面由 `ModelPlazaView.vue` 与 `components/modelPlaza/` 组成, 登录用户从可选 JWT 取得个人倍率；未登录用户只看到可公开分组。

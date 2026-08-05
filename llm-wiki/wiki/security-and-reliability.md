@@ -26,6 +26,12 @@ Passkey / WebAuthn:
 - discoverable login 强制 user verification, begin/finish ceremony session 短期存储且单次消费；登录入口有独立限流和 64 KiB finish body 上限。Passkey 注册与删除要求当前账号密码, 凭据列表/重命名/删除都校验 JWT subject 的 user ID。
 - 模型广场的 `OptionalJWTAuth` 只在 Bearer token 存在时解析用户, 匿名请求继续执行公开策略；带无效 token 的请求不得静默降级为匿名。后端仍以 `model_plaza_enabled`、`model_plaza_require_auth`、backend mode 和分组可见性做最终授权。
 
+动作验证码:
+
+- Turnstile、腾讯验证码和阿里云验证码走同一类 action proof, 可保护登录、注册、OAuth start 和 Passkey begin。验证码失败必须 fail-closed；腾讯灾备 ticket、非 1 `CaptchaCode`、服务端配置不完整或 verifier error 都拒绝。
+- 腾讯 secret 与阿里云 AccessKey Secret 不进入 public settings, 管理端读取只返回 configured 状态。前端只拿 AppID/scene/prefix/region 初始化 SDK, 提交 proof 后由后端调用 provider 校验。
+- OAuth start 支持 POST 带 captcha proof；未启用腾讯验证码时仍保留 legacy GET start URL。修改认证入口时要同步 `auth_captcha_request_test.go`、OAuth captcha start 测试和 Passkey proof 测试。
+
 管理端角色与细粒度权限:
 
 - `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。
@@ -157,6 +163,7 @@ CSP 注意点:
 
 - 默认策略是 `config.DefaultCSPPolicy`; 部署可用 `security.csp.policy` 覆盖。
 - `security_headers.go` 的 `requiredCSPDirectiveValues` 是"旧自定义策略缺新指令"的运行时补丁列表(支付 SDK 域名、`img-src blob:` 等都走这里)。给 CSP 加新的必需指令时**必须同时改默认串和该列表**, 否则覆盖了 policy 的存量部署不会生效。
+- 0.1.171 默认 CSP 已包含腾讯验证码 `https://turing.captcha.qcloud.com` / `https://*.captcha.gtimg.com` 与阿里云验证码 `https://*.alicdn.com`。新增或替换验证码 SDK 域名时同样要同步默认 CSP、运行时补丁列表、`deploy/config.example.yaml` 和安全头测试。
 - `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
 - 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
 - `Server-Timing` 默认关闭。开启后只为 admin UI 或 allowlist 内的 authenticated user UI scope 收集; `X-Admin-UI-Request: 1` / `X-User-UI-Request: 1` 只是 scope signal, 不能替代认证。响应写出前必须再按 context role 与 user path allowlist gate: 管理员可读取已收集的 admin/user UI timing, 普通已认证用户只能读取 allowlisted user API; 未认证请求、公开 payment/webhook 和 AI gateway 不得返回 SQL/Redis/依赖耗时。CORS allow/expose headers 必须与两类 UI signal 和 `Server-Timing` 保持同步。
@@ -238,6 +245,13 @@ Prompt Risk 关键词规则与 LLM 语义复核(`content_moderation.go` / `promp
 - 管理端 Prompt Risk 在线测试器只调用 `TestPromptRisk` 评估关键词规则, 响应 `scope=keyword_rules_only` 且 `judge_evaluated=false`; 它不调用 LLM judge, 不能作为 judge 语义复核效果的验收入口。
 - 内容审核关键词 block 会把命中的具体关键词写入 `content_moderation_logs.matched_keyword`, 管理端风险控制列表和详情展示该字段; 记录前仍需走既有输入摘要/脱敏边界。
 - `risk_control_enabled`、`content_moderation_config` 和 `prompt_risk_config` 共用 stale-while-refresh runtime snapshot; blocked keywords 在 snapshot 构建时预编译 matcher。保存内容审核或 Prompt Risk 配置会立即替换对应 snapshot 部分, 通用 settings 成功保存总开关后也必须通过回调立即原子替换已有 snapshot 的 enabled 状态; 后台刷新失败继续使用最后一个有效快照并按 TTL 退避, 不得清空策略或把 settings 故障扩散到网关热路径。
+- 内容审核可指定 `proxy_id` 访问审核上游。保存配置时会校验代理存在；运行时代理解析结果按 proxy ID 缓存, 配置刷新会清缓存。测试 API 中 `proxy_id=nil` 沿用保存配置, `proxy_id=0` 强制直连, `proxy_id>0` 使用指定代理。代理失效不能回退到未授权直连而掩盖运营配置错误。
+
+分组利润控制:
+
+- 利润控制是调度准入过滤, 不是账单扣费修正。候选账号倍率越过阈值时会从本次候选池排除；全池耗尽时仍走标准 no available accounts 语义, 不应暴露内部利润配置。
+- 下游倍率 D 固定为请求/turn 的定价时刻, 与最终 `RecordUsage` 高峰因子口径一致；上游倍率 U 取账号 `rate_multiplier`, 可由运营手工维护或 upstream billing probe 写回。配置读取失败 fail-open 并采样告警, 避免配置抖动扩大成全站不可调度。
+
 cyber 内容审计硬阻断(`openai_cyber_policy.go` / `openai_cyber_session_block.go`):
 
 - 上游 `error.code=="cyber_policy"` 命中时由 gateway 层 `MarkOpsCyberPolicy` 在 gin context 写一次性标记(同 turn 只记一次, WS 多轮每 turn 结束 `ClearOpsCyberPolicy`); compat 出口(`ForwardAsChatCompletions`/`ForwardAsAnthropic`)返回哨兵 `errOpenAICyberPolicyForwarded`, handler 落 tokens=0 免费用量行(对齐 `/v1/responses`): 不计费、不 failover、不二次写响应。前端 usage 请求类型新增 `cyber` 维度(label/badge/export, 与 stream 正交, 不映射 legacy stream)。

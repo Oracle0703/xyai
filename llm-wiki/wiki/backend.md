@@ -12,6 +12,15 @@
   - 构建: `cd backend && make build`
   - 生成: `cd backend && make generate`
 
+## 0.1.171 合并增量
+
+- `AuthService` 通过 `ProvideAuthService` 注入 `TencentCaptchaService` 与 `AliyunCaptchaService`。登录、注册、Passkey begin 和 OAuth start 可携带统一动作验证码 proof；公开 settings 只暴露腾讯 AppID 与阿里云 scene/prefix/region, secret 仅管理端 masked 展示和保存。
+- 内容审核配置新增 `proxy_id`。`ContentModerationService` 通过 `ProxyRepository` 校验与解析代理, 运行时按 proxy ID 缓存代理 URL；保存配置时 `proxy_id=nil` 表示保留、`<=0` 表示清除, 测试 API 中 `nil` 沿用已保存代理、`0` 强制直连、`>0` 指定代理。
+- `OpenAICodexVersionSyncService` 由 Wire 启动并在 cleanup 中停止。默认每 6 小时查询 `openai/codex` release, 只接受 `rust-v*` 稳定 tag, 将最新版本写入设置供 `codex_cli_only` 版本策略使用；`openai_codex_version_auto_sync_enabled=false` 可关闭, 失败时保留旧值。
+- 分组利润控制新增 `groups.profit_control_enabled`, `profit_min_margin`, `profit_safety_buffer`。利润门是调度候选准入过滤: 上游账号 `accounts.rate_multiplier` 必须不高于请求定价时刻的下游倍率乘以 `(1 - margin - buffer)`；配置读取失败 fail-open 并告警。独立图片/视频、Grok media、count_tokens 和 Live 显式跳过利润门。
+- 上游倍率探测 `/v1/sub2api/billing` 扩展到 OpenAI、Anthropic、Gemini、Antigravity、Grok 的 API Key 账号, 支持把解析到的上游倍率同步写回账号 `rate_multiplier`。OAuth、Bedrock 和旧 `type=upstream` relay 账号不在探测范围。
+- 管理端分组新增 `GET /api/v1/admin/groups/live-capability`, 返回当前服务端是否具备 OpenAI Live attestation 运行环境。前端启用 `allow_live` 时先读取该能力, 不支持时要求管理员确认。
+
 ## 0.1.168 合并增量
 
 - Passkey 由 `config.WebAuthn` 提供固定 RP ID/origins, `repository.PasskeyRepository` 持久化凭据, `PasskeySessionStore` 保存短期 ceremony session, `service.PasskeyService` 执行 discoverable login 与凭据管理。公开登录入口为 `/api/v1/auth/passkey/login/{begin,finish}`, 已认证管理入口为 `/api/v1/user/passkeys`; 注册和删除凭据必须再次校验账号密码。
@@ -50,6 +59,8 @@
 - `server.ProviderSet`
 
 很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner, user platform quota flusher、Ops ingress rejection aggregator 和 auth-cache invalidation worker。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
+
+0.1.171 之后 `provideCleanup` 还必须覆盖 `OpenAICodexVersionSyncService.Stop()`；合并 Wire 冲突时要同时保留本地 `TokenAnalysisService.StopAutoIndex()` 和上游新增后台服务停止步骤。
 
 Prompt Audit 由 `backend/internal/securityaudit/` 提供。`Application.PromptAudit` 在 `main.go` 启动, `provideCleanup` 调用 `PromptService.Shutdown`; 配置默认关闭。`Coordinator` 始终保留既有内容审核：off 只执行 legacy moderation, async 先 best-effort 入队再执行 legacy, blocking 并行执行 Prompt Audit 与 legacy 并按阻断优先级合并结果。
 

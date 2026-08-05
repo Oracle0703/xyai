@@ -2,12 +2,14 @@
 
 ## 当前版本基线
 
-- 当前集成分支为 `feature/hy/10168_同步sub2api主线`: 第一父基线固定为本地 `main@2b5b2d94245cc9f72ca3df5de3b1db98c3c60c7e`, 第二父待提交边界为 `Wei-Shaw/sub2api main@5a6143097db142b72a6fc848c214e97214470bdd`, merge base 为 `59ce11c78000bde5bdd74930b5885753037a5841`, `backend/cmd/server/VERSION` 为 `0.1.168`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签、当前 upstream HEAD 或中间的 0.1.167 version-sync 替代该精确提交。
+- 当前集成分支为 `feature/hy/10171_merge_sub2api_171`: 第一父基线固定为本地 `main@12770bc5da8c0ef6a2dd02b0e80a37f6eb26d408`, 第二父待提交边界为 `Wei-Shaw/sub2api main@aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, merge base 为 `5a6143097db142b72a6fc848c214e97214470bdd`, `backend/cmd/server/VERSION` 为 `0.1.171`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签、当前 upstream HEAD 或其他中间提交替代该精确提交。
+- `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
 - `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - 0.1.168 的 Wire 图还必须包含 `NewPasskeySessionStore`、`NewOptionalJWTAuthMiddleware` 与 Passkey service/handler；冲突处理应修改 provider source 后重新生成, 不直接手改 `wire_gen.go`。`deploy/config.example.yaml` 新增默认关闭的 `webauthn` 配置, 生产启用时必须显式提供 RP ID 和 HTTPS origins。
+- 0.1.171 的 Wire 图还必须包含 Tencent/Aliyun captcha service、`ProvideContentModerationService(..., proxyRepo, ...)`、`ProvideOpenAICodexVersionSyncService` 与 `OpenAICodexVersionSyncService` cleanup。Provider source 改完后运行 `cd backend && go generate ./cmd/server`, 不手工编辑 `wire_gen.go`。
 - `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。
 - 前端 `pnpm.overrides` 强制 `postcss@<8.5.18` 升到安全版本, lockfile 当前解析为 `8.5.23`; 修改 override 必须用 pnpm 9 重建 lockfile 并复跑 frontend security audit。仓库本地已移除 `vite-plugin-checker` 及其 Vite 插件配置, 合并上游时依赖清单与 `vite.config.ts` 必须保持一致。
 - OpenAI Live 的服务端 attestation 仅在 Apple Silicon macOS 且已安装官方 ChatGPT App 时可用；其他平台正常构建但 capability 返回不可用。`gateway.live.max_session_duration_seconds` 默认 3600, 非正值在配置校验时回落该默认值。
@@ -317,6 +319,8 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `api_key_auth_cache`: L1/L2 TTL、singleflight、`lookup_concurrency=64` 和进程内 invalid-auth abuse limiter；默认每可信客户端 IP（IPv6 按 `/64`）60 秒 120 次无效凭据后阻断 60 秒, capacity 16384。它不是 CDN/WAF 的替代品。
 - `ops`: 运维监控开关。
 - Panel API 限流不是 YAML 组, 由数据库 setting `panel_rate_limit_settings` 热管理；默认 `enabled=true,user_rpm=240,heavy_rpm=60,public_ip_rpm=300,exempt_admin=true`, 当前节点保存后立即刷新, 多节点最多等待 60 秒缓存 TTL。
+- 动作验证码不是 YAML 独立组, 由数据库 settings 管理。腾讯验证码保存 AppID、AppSecretKey、Cloud SecretID/SecretKey；阿里云验证码保存 AccessKeyID/Secret、SceneID、Prefix、Region。默认关闭, public settings 只返回前端初始化所需的非 secret 字段。CSP 默认策略已放行 Cloudflare Turnstile、腾讯验证码和阿里云验证码 SDK/样式域名。
+- OpenAI Codex 客户端版本自动同步默认开启, setting key 为 `openai_codex_version_auto_sync_enabled`；同步结果写入版本设置供 `codex_cli_only` 策略缓存读取。若部署不能访问 GitHub release API, 服务会保留旧值并告警。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
 - OAuth: LinuxDo, WeChat, OIDC, DingTalk, GitHub, Google。
 - `pricing`: 模型价格远程源, hash 校验和 fallback 文件。

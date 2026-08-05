@@ -6,7 +6,8 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP 和 Passkey 凭据。普通资料/权限更新使用 `UserUpdateFields` 显式列掩码；余额不经通用 `Update`, 管理员 set/add/subtract 走原子 `SetBalance` / `AdjustBalance`。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。编辑使用 `APIKeyUpdateFields` 显式列掩码, 避免覆盖并发累计的 quota/rate-limit 字段。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 利润控制, 支持模型范围和自定义 `/v1/models` 列表。
+- Group 的利润控制字段为 `profit_control_enabled`, `profit_min_margin`, `profit_safety_buffer`。字段只在管理端 DTO 暴露, 普通用户侧分组 DTO 必须隐藏；auth-cache snapshot 和调度准入会使用这些值。
 - CompositeModelRoute: composite group 的 public model 路由表, 记录 exact/prefix、endpoint、具体 target platform、upstream model、priority 和 enabled；运行时仍以具体平台完成账号调度、配额、计费和 usage 归因。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
@@ -107,6 +108,8 @@ go generate ./cmd/server
 - `backend/migrations/189_add_group_allow_live.sql` 为 `groups` 增加默认关闭的 `allow_live BOOLEAN NOT NULL DEFAULT false`; 它是 Live 路由的分组级显式授权, 与账号 endpoint capability 共同生效。
 - `backend/migrations/190_add_users_email_alias_dedup_index_notx.sql` 为去空白、转小写、去点后的 email 表达式增加并发索引, 支撑注册邮箱别名候选查询；注册事务仍需按归一化收件箱身份加锁并做最终应用层判定, 该索引本身不是唯一约束。
 - `backend/migrations/191_passkey_credentials.sql` 新增 `passkey_credentials` 和用户级稳定 WebAuthn handle, credential ID 全局唯一且按 user/created_at 建索引。凭据内容、签名计数和 backup 状态由 Passkey repository 管理；已发布后只能追加后续 migration, 不得改写本文件。
+- `backend/migrations/192_group_profit_control.sql` 为 `groups` 增加利润控制开关、最小利润率和安全缓冲。比例字段为 decimal 小数口径, 后端要求 `margin`、`buffer` 均在 `[0,1)` 且二者之和 `<1`。
+- `backend/migrations/193_group_profit_control_auth_cache_invalidation.sql` 重建 group auth-cache invalidation trigger, 将利润控制字段以及定价相关字段纳入 outbox 失效判断。直接 SQL 修改这些字段也会让关联 API Key 的鉴权快照失效。
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -203,6 +206,11 @@ Codex alpha search 按次计费:
 - `OpenAIGatewayService.ForwardAlphaSearch` 只有上游 2xx 时返回 `WebSearchCalls=1`; 上游错误已直接透传时返回空结果, 不计费。
 - `BillingService` 对成功调用使用分组 `web_search_price_per_call`; NULL 回落 0.01 USD/次, 显式 0 必须保留为免费, 不能被默认价覆盖。
 - 计费结果仍写 usage log, 需要保持用户余额、订阅和 user x platform quota 的原子扣减/回滚语义。
+
+上游倍率探测:
+
+- Upstream billing probe 适用于 OpenAI、Anthropic、Gemini、Antigravity、Grok 的 API Key 账号；解析到合法声明倍率后可同步写回 `accounts.rate_multiplier`, 作为利润控制的上游成本倍率来源。官方 provider 域名通常返回 unsupported, 第三方 sub2api relay 可实现 `/v1/sub2api/billing` 合同。
+- Snapshot 存在账号 `extra.upstream_billing_probe`, opt-in 开关为 `extra.upstream_billing_probe_enabled`；手工和后台探测都要防止账号 identity/proxy 在飞行中变化后覆盖新状态。
 
 用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。hosted image Responses 的图片 token 可来自 `tool_usage.image_gen` / `response.tool_usage.image_gen`; 解析器仅在标准 usage 图片字段为 0 时补入 image input/output token, 避免与已有字段重复计费。修改用量聚合或展示时要保持各类 token 互斥统计。
 

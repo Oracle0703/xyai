@@ -1652,3 +1652,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Wire 连续生成无漂移（SHA-256 `E1E98395...D498C5D`）；backend 完整 unit 在最终快照仅上述 `/auth/me` 基线合同失败, 其余包通过；focused `internal/service`, `internal/handler/admin`, `internal/pkg/websearch` 通过。Integration 命令退出 0：48 个包、7,578 条测试通过, 16 条因未配置 Redis/PostgreSQL/外部 TLS/OpenAI、Windows symlink 或既有 sentinel 而 skip, 不计为通过。`golangci-lint run ./...` 为 28 项基线, `--new-from-rev=main` 为 0 issues。Frontend lint/typecheck/build（1015 modules）通过, focused 7 files / 84 tests 全通过；全量 Vitest 为 220/221 files、1503/1505 tests, 失败边界见上条。Caddy policy fixture、backend embed build（117,611,008 bytes）通过。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；更新 account/layout 组件 README, 新增 model plaza/profile README。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved, `wikiSourceHash=f06aabd1f751...` 与当前 wiki 一致。 |
 | Approval / delivery | 最终 staged snapshot 为 185 files / `+7806 -364`, 0 unstaged、0 untracked、0 unmerged、0 conflict marker、0 whitespace error、0 `docs/features` 删除；保持 `git merge --no-commit --no-ff`, 等待用户审核。未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-08-05 main sync (v0.1.171; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10171_merge_sub2api_171` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `12770bc5da8c0ef6a2dd02b0e80a37f6eb26d408`（本地 `main`） |
+| Merge base | `5a6143097db142b72a6fc848c214e97214470bdd` |
+| Upstream head / second parent | `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`** |
+| Upstream version / delta | `0.1.171`; 440 files、`+28233/-2050`。固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.171`。 |
+| Conflict files | `backend/cmd/server/wire.go`; `backend/cmd/server/wire_gen.go`; `backend/cmd/server/wire_gen_test.go`; `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/server/routes/gateway_test.go`; `backend/internal/service/content_moderation.go`; `backend/internal/service/wire.go`; `deploy/config.example.yaml`; `frontend/src/stores/auth.ts`; `frontend/src/views/admin/RiskControlView.vue` |
+| Conflict handling | 11 个文本冲突按语义并集解决：Wire/provider 同时保留本地 Token Analysis、Prompt Metrics/Risk 与上游 captcha、content moderation proxy、OpenAI Codex version sync；apicompat 保留上游 tool-output-media 类型并删除重复 request conversion；gateway 路由保留本地 RequestArchive/RequestIntercept 并接入上游 responses subpath guard；RiskControl/Auth 前端同时保留本地权限/import 与上游代理/验证码 proof。未修改冲突之外的上游业务 bug。 |
+| Local features | 合并过程中未删除本地 `docs/features/` 新增功能文档；除本 ledger 追加记录外, 其他本地 features 文档保持。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 均保留。功能重叠处采用上游实现。 |
+| Upstream behavior | 合入腾讯/阿里云动作验证码、内容审核代理选择、分组利润控制与 `profit-preview`、`backend/migrations/192_group_profit_control.sql` / `193_group_profit_control_auth_cache_invalidation.sql`、OpenAI Codex 客户端版本自动同步、上游倍率探测多平台写回、Groups Live capability 确认、Responses tool-output-media 兼容及大量网关/计费/前端增量。 |
+| Upstream / baseline issue boundary | 本地 `main` 既有 `/auth/me` 响应多出 `admin_permissions:null` 的 Go contract mismatch 保持不改。Frontend 全量 Vitest 仍有 `admin.system.rollback.spec.ts` 两条旧断言失败, 因实现会向 rollback API 传 15 分钟 timeout；按“只解决冲突、不修上游 bug”要求保持不改。 |
+| Verification | `go generate ./cmd/server` 首次命中本机默认 Go build cache 权限问题, 改用仓库内 `.gocache` 后通过。`go test -tags=unit -p 1 -count=1 ./...` 使用仓库内 `.gomodcache/.gocache` 完整跑完, 失败为 `internal/handler TestResolvePageImagePath`（direct image path 未被接受）与上述 `/auth/me` contract mismatch；未按要求修复上游/基线问题。`frontend` 下 `vue-tsc --noEmit` 通过；`vitest run --reporter=dot --silent` 为 232/233 files、1624/1626 tests, 仅上述 rollback 两条旧断言失败, GroupsView `getLiveCapability` mock 缺口已修复且相关测试通过。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；本条按追加规则写入。 |
+| Approval / delivery | 当前保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |

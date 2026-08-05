@@ -156,6 +156,7 @@ func newJudgeService(t *testing.T) *ContentModerationService {
 	return NewContentModerationService(
 		&contentModerationTestSettingRepo{values: map[string]string{}},
 		nil, nil, nil, nil, nil, nil,
+		nil,
 		localPromptRiskJudgeTestConfig(),
 	)
 }
@@ -348,6 +349,7 @@ func newCheckServiceWithJudge(t *testing.T, settingsJSON string) (*ContentModera
 			SettingKeyPromptRiskConfig:   settingsJSON,
 		}},
 		repo, nil, nil, nil, nil, nil,
+		nil,
 		localPromptRiskJudgeTestConfig(),
 	)
 	return svc, repo
@@ -563,7 +565,7 @@ func TestPromptRiskJudge_DisabledNoOp(t *testing.T) {
 // GetPromptRiskConfig 必须掩码 judge api_key,Update 传空沿用旧 key。
 func TestPromptRiskJudge_APIKeyMaskAndMerge(t *testing.T) {
 	repo := &contentModerationTestSettingRepo{values: map[string]string{}}
-	svc := NewContentModerationService(repo, &contentModerationTestRepo{}, nil, nil, nil, nil, nil)
+	svc := NewContentModerationService(repo, &contentModerationTestRepo{}, nil, nil, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	in := DefaultPromptRiskConfig()
