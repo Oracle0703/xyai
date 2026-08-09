@@ -150,9 +150,57 @@ describe('organization usage workbook', () => {
       '2026-07-10',
       true,
       'zero@example.com',
-      'other',
+      '其他',
       123
     ])
+  })
+
+  it('uses display names and headcount labels across every workbook organization column', () => {
+    const xunyouPeriod = period({ organization: 'xunyou' })
+    const wsdashiPeriod = period({ organization: 'wsdashi.com' })
+    const summary: OrganizationUsageSummaryResponse = {
+      ...emptySummary,
+      overview: { ...zeroMetrics, active_users: 2, used_users: 1 },
+      organizations: [
+        { ...zeroMetrics, organization: 'xunyou', active_users: 1, used_users: 1 },
+        { ...zeroMetrics, organization: 'wsdashi', active_users: 1, used_users: 0 }
+      ],
+      champions: { day: wsdashiPeriod, week: null, month: null },
+      items: [{
+        ...zeroMetrics,
+        user_id: 7,
+        email: 'alice@xunyou.com',
+        organization: 'xunyou.com',
+        peak_day: null,
+        peak_week: null,
+        peak_month: null
+      }]
+    }
+    const workbook = roundTrip(buildOrganizationUsageWorkbook({
+      summary,
+      periods: { month: [xunyouPeriod], week: [wsdashiPeriod], day: [xunyouPeriod] }
+    }))
+
+    const overviewRows = rows(workbook, '报表概览')
+    expect(overviewRows.find((row) => row[0] === '注册人数')?.slice(0, 2)).toEqual(['注册人数', 2])
+    expect(overviewRows.find((row) => row[0] === '活跃人数')?.slice(0, 2)).toEqual(['活跃人数', 1])
+    expect(overviewRows.some((row) => row[0] === '总活跃人数' || row[0] === '有用量人数')).toBe(false)
+    expect(overviewRows.find((row) => row[0] === '日度 Champion')?.[6]).toBe('速宝')
+
+    const organizationRows = rows(workbook, '组织汇总')
+    expect(organizationRows[0]?.slice(0, 3)).toEqual(['组织', '注册人数', '活跃人数'])
+    expect(organizationRows.slice(1).map((row) => row[0])).toEqual(['迅游', '速宝'])
+    expect(rows(workbook, '人员汇总')[1]?.[2]).toBe('迅游')
+
+    for (const [sheet, expected] of [
+      ['月度明细', '迅游'],
+      ['周度明细', '速宝'],
+      ['日度明细', '迅游']
+    ] as const) {
+      const detailRows = rows(workbook, sheet)
+      const headers = detailRows[0] as string[]
+      expect(detailRows[1]?.[headers.indexOf('组织')]).toBe(expected)
+    }
   })
 
   it('maps period arrays to month, week and day detail sheets without changing numeric cells', () => {

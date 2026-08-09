@@ -177,7 +177,7 @@ function championRow(label: string, champion: OrganizationUsagePeriod | null): u
     champion.period_end,
     champion.partial,
     champion.email,
-    champion.organization,
+    formatOrganizationUsageOrganization(champion.organization),
     champion.total_tokens
   ]
 }
@@ -187,8 +187,8 @@ function buildOverviewRows(summary: OrganizationUsageSummaryResponse): unknown[]
   return [
     ['指标', '值', '周期开始', '周期结束', 'Partial', '用户', '组织', 'Total Tokens'],
     ['日期范围', `${range.start_date} 至 ${range.end_date}`, '', '', '', '', '', ''],
-    ['总活跃人数', overview.active_users, '', '', '', '', '', ''],
-    ['有用量人数', overview.used_users, '', '', '', '', '', ''],
+    ['注册人数', overview.active_users, '', '', '', '', '', ''],
+    ['活跃人数', overview.used_users, '', '', '', '', '', ''],
     ['Requests', overview.requests, '', '', '', '', '', ''],
     ['Input Tokens', overview.input_tokens, '', '', '', '', '', ''],
     ['Output Tokens', overview.output_tokens, '', '', '', '', '', ''],
@@ -204,9 +204,9 @@ function buildOverviewRows(summary: OrganizationUsageSummaryResponse): unknown[]
 
 function buildOrganizationRows(summary: OrganizationUsageSummaryResponse): unknown[][] {
   return [
-    ['组织', '活跃人数', '有用量人数', ...METRIC_HEADERS],
+    ['组织', '注册人数', '活跃人数', ...METRIC_HEADERS],
     ...summary.organizations.map((organization) => [
-      organization.organization,
+      formatOrganizationUsageOrganization(organization.organization),
       organization.active_users,
       organization.used_users,
       ...metricCells(organization)
@@ -234,7 +234,7 @@ function buildPeopleRows(summary: OrganizationUsageSummaryResponse): unknown[][]
     ...summary.items.map((item) => [
       item.user_id,
       item.email,
-      item.organization,
+      formatOrganizationUsageOrganization(item.organization),
       ...metricCells(item),
       ...peakCells(item.peak_day),
       ...peakCells(item.peak_week),
@@ -252,7 +252,7 @@ function buildPeriodRows(periods: OrganizationUsagePeriod[]): unknown[][] {
       period.partial,
       period.user_id,
       period.email,
-      period.organization,
+      formatOrganizationUsageOrganization(period.organization),
       ...metricCells(period)
     ])
   ]
