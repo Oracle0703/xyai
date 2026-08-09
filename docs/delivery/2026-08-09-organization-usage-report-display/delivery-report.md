@@ -7,7 +7,8 @@
 | 日期 | 2026-08-10（Asia/Shanghai） |
 | 分支 | `feature/hy/10174_org_usage_report_display` |
 | 基线 | `github/main=1558cd9f156e034f9d1aa139e6b19780264b4406` |
-| 实现审查基线 | `6828cc1668e5a49d872c7ab634653bce504dde9c` |
+| 最终审查 HEAD | `43e5d9a9918a3e4d4b309ec6d2178a33e5c92ebf` |
+| 修复复审 HEAD | `29047994a6917d9ce32a7e47e068e0890ec0bddc` |
 | 交付状态 | 功能、文档、自动化、静态和范围验证已完成；页面级视觉检查受阻 |
 
 ## 已交付行为
@@ -28,8 +29,8 @@
 | 完整前端 Vitest | 246/246 files、1704/1704 tests，exit 0 |
 | TypeScript | `typecheck` exit 0 |
 | ESLint | `lint:check` exit 0，无 lint warning |
-| Git 范围 | `diff --check` exit 0；24 个固定范围路径；backend/API/受保护控制器路径无 diff |
-| 规格 / 质量审查 | SC-1 至 SC-6 全部符合；Task 6 独立审查批准；findings：无问题 |
+| Git 范围 | `diff --check` exit 0；26 个固定范围路径；backend/API/View 控制器/export worker 无 diff |
+| 规格 / 质量审查 | SC-1 至 SC-6 全部符合；最终审查 Ready to merge；1 项 Minor 文档偏差已修复并通过限定复审 |
 
 测试输出不是 pristine：专项/全量包含既有 `caniuse-lite` 过期 warning，全量还包含测试预期路径产生的 Vue/i18n/异常 stderr；这些输出未导致失败。详细证据见 `test-review.md`。
 
@@ -39,20 +40,20 @@
 | --- | --- |
 | 试用 URL | `http://127.0.0.1:5174/admin/organization-usage` |
 | HTTP | 根路径与目标路由均 200，响应 431 bytes |
-| Dev server | 已保持运行；未关闭成功启动的服务 |
+| Dev server | 仅 `127.0.0.1:5174` 保持运行；误启动的 `3000` 已停止 |
 | 桌面浏览器 | 目标路由重定向到 `/login?redirect=/admin/organization-usage`，只可见登录表单 |
 | 移动视口 | 390x844 下同样进入登录门槛，无法看到报表内容 |
 | 页面级桌面/移动检查 | 受阻：缺少可用管理员会话和后端数据；未输入凭据或读取浏览器存储；Vite 日志记录 public config fetch failed |
 
 ## 文件与范围
 
-- Tasks 1-5 修改 24 个计划内路径，包括 14 个前端路径、稳定文档/wiki 与 linked worktree ignore。
-- Task 6 只修改/新增本目录的 `plan.md`、`delivery-status.md`、`test-review.md`、`delivery-report.md`。
-- 本轮未修改业务代码、wiki、README、后端或 API。
+- 最终分支相对固定基线共有 26 个路径：14 个前端路径、12 个 docs/wiki/ignore 路径。
+- 最终审查修复只校正文档中的缓存字段边界，没有修改业务代码或测试。
+- 后端、API、`OrganizationUsageView.vue` 状态机和 export worker 均无差异。
 
 ## 已知限制
 
 - 仍需在具备管理员会话和真实后端数据的环境中人工确认桌面/移动标题截断、图例外观和表格重叠。
-- Task 6 审查包未保存完整原始测试输出；独立审查确认文档记录与 diff 一致，并将此列为不阻塞的可复核性限制。
+- 完整原始测试输出未提交到仓库；收尾阶段已新鲜重跑并读取退出码与最终汇总。
 - `frontend/node_modules` 为依赖 junction；未执行依赖安装或升级，不构成产品失败。
 - 未 push、未创建 PR、未合并。
