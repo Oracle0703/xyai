@@ -132,6 +132,12 @@ export function getOrganizationUsageExportFileName(startDate: string, endDate: s
   return `organization_usage_${startDate}_to_${endDate}.xlsx`
 }
 
+export function formatOrganizationUsageOrganization(value: string, otherLabel = '其他'): string {
+  if (value === 'xunyou' || value === 'xunyou.com') return '迅游'
+  if (value === 'wsdashi' || value === 'wsdashi.com') return '速宝'
+  return otherLabel
+}
+
 const METRIC_HEADERS = [
   'Requests',
   'Input Tokens',

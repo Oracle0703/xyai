@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
+import Select from '@/components/common/Select.vue'
 import OrganizationUsageFilters, { type OrganizationUsageFilterDraft } from '../OrganizationUsageFilters.vue'
 
 vi.mock('vue-i18n', async () => {
@@ -31,6 +32,17 @@ function mountFilters(modelValue: OrganizationUsageFilterDraft) {
 }
 
 describe('OrganizationUsageFilters date validation', () => {
+  it('shows brand names while preserving organization filter values', () => {
+    const { wrapper } = mountFilters(baseDraft)
+
+    expect(wrapper.getComponent(Select).props('options')).toEqual([
+      { value: 'all', label: 'admin.organizationUsage.organizations.all' },
+      { value: 'xunyou', label: '迅游' },
+      { value: 'wsdashi', label: '速宝' },
+      { value: 'other', label: 'admin.organizationUsage.organizations.other' }
+    ])
+  })
+
   it.each([
     ['month', { month: '' }],
     ['week', { weekAnchor: '' }]

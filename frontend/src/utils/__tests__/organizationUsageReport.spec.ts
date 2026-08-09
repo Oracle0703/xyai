@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import * as organizationUsageReport from '@/utils/organizationUsageReport'
 import {
   getBusinessDateString,
   getDefaultOrganizationUsageRange,
@@ -80,5 +81,21 @@ describe('organization usage report date helpers', () => {
     expect(inferOrganizationUsageTrendGranularity('2026-01-01', '2026-05-02')).toBe('month')
     // Default month report range (28-31 days) stays on day
     expect(inferOrganizationUsageTrendGranularity('2026-02-01', '2026-02-28')).toBe('day')
+  })
+
+  it.each([
+    ['xunyou', undefined, '迅游'],
+    ['xunyou.com', undefined, '迅游'],
+    ['wsdashi', undefined, '速宝'],
+    ['wsdashi.com', undefined, '速宝'],
+    ['other', undefined, '其他'],
+    ['unknown', 'Other', 'Other']
+  ] as const)('formats organization %s for display', (value, otherLabel, expected) => {
+    const formatter = (organizationUsageReport as unknown as {
+      formatOrganizationUsageOrganization?: (organization: string, fallback?: string) => string
+    }).formatOrganizationUsageOrganization
+    expect(formatter).toBeTypeOf('function')
+    if (!formatter) return
+    expect(formatter(value, otherLabel)).toBe(expected)
   })
 })

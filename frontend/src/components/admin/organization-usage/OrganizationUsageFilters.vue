@@ -146,6 +146,7 @@ import type { OrganizationUsageOrganizationFilter, OrganizationUsageRange } from
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import {
+  formatOrganizationUsageOrganization,
   getMonthDateRange,
   getWeekDateRange,
   validateCustomDateRange,
@@ -187,8 +188,8 @@ const modes = computed(() => ([
 
 const organizationOptions = computed(() => ([
   { value: 'all', label: t('admin.organizationUsage.organizations.all') },
-  { value: 'xunyou', label: 'xunyou.com' },
-  { value: 'wsdashi', label: 'wsdashi.com' },
+  { value: 'xunyou', label: formatOrganizationUsageOrganization('xunyou') },
+  { value: 'wsdashi', label: formatOrganizationUsageOrganization('wsdashi') },
   { value: 'other', label: t('admin.organizationUsage.organizations.other') }
 ]))
 

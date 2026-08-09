@@ -100,6 +100,7 @@ import type {
 import Icon from '@/components/icons/Icon.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatCostFixed, formatNumber } from '@/utils/format'
+import { formatOrganizationUsageOrganization } from '@/utils/organizationUsageReport'
 
 const props = defineProps<{
   items: OrganizationUsageSummaryItem[]
@@ -159,8 +160,9 @@ function emitSort(sortBy: OrganizationUsageSortBy) {
 }
 
 function organizationLabel(value: string) {
-  if (value === 'xunyou' || value === 'xunyou.com') return 'xunyou.com'
-  if (value === 'wsdashi' || value === 'wsdashi.com') return 'wsdashi.com'
-  return t('admin.organizationUsage.organizations.other')
+  return formatOrganizationUsageOrganization(
+    value,
+    t('admin.organizationUsage.organizations.other')
+  )
 }
 </script>

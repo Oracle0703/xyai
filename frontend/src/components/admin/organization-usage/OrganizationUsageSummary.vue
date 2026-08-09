@@ -54,6 +54,7 @@ import type {
   OrganizationUsageOrganizationFilter
 } from '@/api/admin/organizationUsage'
 import { formatCostFixed, formatNumber } from '@/utils/format'
+import { formatOrganizationUsageOrganization } from '@/utils/organizationUsageReport'
 
 const props = defineProps<{
   organizations: OrganizationUsageOrganization[]
@@ -84,7 +85,10 @@ const rows = computed(() => {
   const values = (['xunyou', 'wsdashi', 'other'] as const).map((filter) => ({
     ...findOrganization(filter),
     filter,
-    label: filter === 'other' ? t('admin.organizationUsage.organizations.other') : `${filter}.com`
+    label: formatOrganizationUsageOrganization(
+      filter,
+      t('admin.organizationUsage.organizations.other')
+    )
   }))
   const totalTokens = values.reduce((sum, row) => sum + row.total_tokens, 0)
   return values.map((row) => ({ ...row, share: totalTokens ? row.total_tokens / totalTokens * 100 : 0 }))

@@ -267,20 +267,27 @@ describe('OrganizationUsageView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const organizationButton = wrapper.get('[data-organization="xunyou"]')
-    expect(organizationButton.element.tagName).toBe('BUTTON')
-    const organizationRow = organizationButton.element.closest('tr')!
+    const xunyouButton = wrapper.get('[data-organization="xunyou"]')
+    const wsdashiButton = wrapper.get('[data-organization="wsdashi"]')
+    expect(xunyouButton.text()).toBe('迅游')
+    expect(wsdashiButton.text()).toBe('速宝')
+
+    const personEmail = wrapper.get('tbody [title="alice@xunyou.com"]')
+    expect(personEmail.element.closest('tr')?.querySelector('td')?.textContent?.trim()).toBe('迅游')
+
+    expect(xunyouButton.element.tagName).toBe('BUTTON')
+    const organizationRow = xunyouButton.element.closest('tr')!
     expect(organizationRow.getAttribute('role')).toBeNull()
     expect(organizationRow.getAttribute('tabindex')).toBeNull()
     expect(organizationRow.getAttribute('aria-pressed')).toBeNull()
 
-    await organizationButton.trigger('click')
+    await xunyouButton.trigger('click')
     await flushPromises()
 
-    expect(getSummary).toHaveBeenLastCalledWith(expect.objectContaining({
-      organization: 'xunyou',
-      page: 1
-    }), { signal: expect.any(AbortSignal) })
+    expect(getSummary).toHaveBeenLastCalledWith(
+      expect.objectContaining({ organization: 'xunyou', page: 1 }),
+      { signal: expect.any(AbortSignal) }
+    )
     expect(wrapper.get('[data-organization="xunyou"]').attributes('aria-pressed')).toBe('true')
   })
 
