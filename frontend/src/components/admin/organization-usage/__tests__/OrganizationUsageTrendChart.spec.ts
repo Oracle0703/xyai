@@ -74,13 +74,28 @@ describe('OrganizationUsageTrendChart', () => {
   it('exposes four default series on the correct axes with monotone interpolation', () => {
     const wrapper = mountChart()
     const exposed = wrapper.vm as unknown as {
-      chartData: { datasets: Array<Record<string, unknown>> }
+      chartData: {
+        datasets: Array<{
+          label: string
+          data: number[]
+          yAxisID: string
+          cubicInterpolationMode: string
+        }>
+      }
       lineOptions: { scales: Record<string, { beginAtZero?: boolean; ticks?: { maxTicksLimit?: number } }> }
     }
     const datasets = exposed.chartData.datasets
     expect(datasets).toHaveLength(4)
-    expect(datasets.map((d) => d.yAxisID)).toEqual(['y', 'y', 'y', 'yRequests'])
-    expect(datasets.every((d) => d.cubicInterpolationMode === 'monotone')).toBe(true)
+    expect(datasets.map((dataset) => dataset.label)).toEqual([
+      'admin.organizationUsage.metrics.inputTokens',
+      'admin.organizationUsage.metrics.outputTokens',
+      'admin.organizationUsage.metrics.totalTokens',
+      'admin.organizationUsage.metrics.requests'
+    ])
+    expect(datasets.map((dataset) => dataset.data)).toEqual([[10], [20], [36], [3]])
+    expect(datasets.some((dataset) => dataset.label === 'admin.organizationUsage.metrics.cacheTokens')).toBe(false)
+    expect(datasets.map((dataset) => dataset.yAxisID)).toEqual(['y', 'y', 'y', 'yRequests'])
+    expect(datasets.every((dataset) => dataset.cubicInterpolationMode === 'monotone')).toBe(true)
     expect(exposed.lineOptions.scales.y.beginAtZero).toBe(true)
     expect(exposed.lineOptions.scales.yRequests.beginAtZero).toBe(true)
     expect(exposed.lineOptions.scales.x.ticks?.maxTicksLimit).toBe(14)

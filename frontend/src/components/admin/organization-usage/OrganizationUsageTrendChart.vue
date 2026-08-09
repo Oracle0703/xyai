@@ -130,7 +130,7 @@ const chartColors = computed(() => ({
   grid: isDarkMode.value ? '#374151' : '#e5e7eb',
   input: '#3b82f6',
   output: '#10b981',
-  cacheRead: '#06b6d4',
+  total: '#06b6d4',
   requests: '#8b5cf6'
 }))
 
@@ -169,10 +169,10 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: t('admin.organizationUsage.metrics.cacheTokens'),
-        data: props.points.map((p) => p.cache_read_tokens),
-        borderColor: colors.cacheRead,
-        backgroundColor: `${colors.cacheRead}20`,
+        label: t('admin.organizationUsage.metrics.totalTokens'),
+        data: props.points.map((p) => p.total_tokens),
+        borderColor: colors.total,
+        backgroundColor: `${colors.total}20`,
         fill: false,
         yAxisID: 'y',
         cubicInterpolationMode: 'monotone' as const,
