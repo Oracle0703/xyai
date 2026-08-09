@@ -23,7 +23,7 @@
 
 | 顺序 | RED 证据 | 最小实现 | GREEN 证据 |
 | --- | --- | --- | --- |
-| 1 | compile-only helper 对品牌返回回落值，页面仍显示域名 | 完成纯映射并接入三个组件 | helper/Filters/View 通过，request value 仍为 `xunyou` |
+| 1 | namespace import 断言 helper 缺失，页面仍显示域名 | 新增纯映射并接入三个组件 | helper/Filters/View 通过，request value 仍为 `xunyou` |
 | 2 | workbook 仍有旧标题和内部键 | 四类行复用 helper，改两个人数标题 | 六 Sheet 与数值合同通过 |
 | 3 | zh/en 仍是旧人数文案 | 只改两个 locale value | 双语精确值通过 |
 | 4 | Trend 第三条仍读取 `[5]` cache | label/data 改为 total `[36]` | 四曲线与现有状态测试通过 |

@@ -190,3 +190,6 @@ llm-wiki/.understand-anything/tmp/
 
 # Vitest / Vite cache at repo root
 .vite/
+
+# Local linked worktrees
+.worktrees/

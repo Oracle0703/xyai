@@ -62,11 +62,13 @@
 - Consumes: `OrganizationUsageOrganizationFilter` 的现有 `all|xunyou|wsdashi|other` 值。
 - Produces: `formatOrganizationUsageOrganization(value: string, otherLabel?: string): string`，供页面和 Task 2 的 XLSX 使用。
 
-- [ ] **Step 1: 为纯映射函数写失败测试**
+- [ ] **Step 1: 为纯映射函数写可收集的失败测试**
 
-在 `organizationUsageReport.spec.ts` 的 import 中加入 `formatOrganizationUsageOrganization`，并增加：
+在 `organizationUsageReport.spec.ts` 增加 namespace import。通过可选函数类型读取尚不存在的 export，先断言它必须是函数；缺失时测试在行为断言处失败，不产生模块收集错误：
 
 ```ts
+import * as organizationUsageReport from '@/utils/organizationUsageReport'
+
 it.each([
   ['xunyou', undefined, '迅游'],
   ['xunyou.com', undefined, '迅游'],
@@ -75,23 +77,16 @@ it.each([
   ['other', undefined, '其他'],
   ['unknown', 'Other', 'Other']
 ] as const)('formats organization %s for display', (value, otherLabel, expected) => {
-  expect(formatOrganizationUsageOrganization(value, otherLabel)).toBe(expected)
+  const formatter = (organizationUsageReport as unknown as {
+    formatOrganizationUsageOrganization?: (organization: string, fallback?: string) => string
+  }).formatOrganizationUsageOrganization
+  expect(formatter).toBeTypeOf('function')
+  if (!formatter) return
+  expect(formatter(value, otherLabel)).toBe(expected)
 })
 ```
 
-- [ ] **Step 2: 增加 compile-only helper 骨架**
-
-为了让 RED 失败在目标行为而不是 Vitest 模块收集阶段，在 `organizationUsageReport.ts` 先增加可加载但故意不实现品牌映射的骨架：
-
-```ts
-export function formatOrganizationUsageOrganization(_value: string, otherLabel = '其他'): string {
-  return otherLabel
-}
-```
-
-该骨架只满足 named export 和类型检查；`xunyou/wsdashi` 用例会稳定收到“其他”并在行为断言处失败。
-
-- [ ] **Step 3: 为筛选器、组织汇总和人员表写失败断言**
+- [ ] **Step 2: 为筛选器、组织汇总和人员表写失败断言**
 
 在 `OrganizationUsageFilters.spec.ts` 引入 `Select`，断言 option 的 label 改变而 value 不变：
 
@@ -128,7 +123,7 @@ expect(getSummary).toHaveBeenLastCalledWith(
 )
 ```
 
-- [ ] **Step 4: 运行 RED 验证**
+- [ ] **Step 3: 运行 RED 验证**
 
 Run:
 
@@ -136,9 +131,9 @@ Run:
 cmd.exe /c pnpm --dir frontend exec vitest run src/utils/__tests__/organizationUsageReport.spec.ts src/components/admin/organization-usage/__tests__/OrganizationUsageFilters.spec.ts src/views/admin/__tests__/OrganizationUsageView.spec.ts
 ```
 
-Expected: FAIL；工具测试在品牌映射断言处得到“其他”，组件断言仍看到 `xunyou.com` / `wsdashi.com`。不得出现模块收集、named export 或 TypeScript 语法错误。
+Expected: FAIL；工具测试在 `expected undefined to be type of 'function'` 断言处失败，组件断言仍看到 `xunyou.com` / `wsdashi.com`。不得出现模块收集、named export 或 TypeScript 语法错误。
 
-- [ ] **Step 5: 写最小展示映射**
+- [ ] **Step 4: 写最小展示映射**
 
 在 `organizationUsageReport.ts` 增加：
 
@@ -187,13 +182,13 @@ function organizationLabel(value: string) {
 }
 ```
 
-- [ ] **Step 6: 运行 GREEN 验证**
+- [ ] **Step 5: 运行 GREEN 验证**
 
-Run: 与 Step 4 相同。
+Run: 与 Step 3 相同。
 
 Expected: PASS；现有组织行点击测试仍证明请求发送 `xunyou`。
 
-- [ ] **Step 7: 提交本任务**
+- [ ] **Step 6: 提交本任务**
 
 ```powershell
 git add frontend/src/utils/organizationUsageReport.ts frontend/src/utils/__tests__/organizationUsageReport.spec.ts frontend/src/components/admin/organization-usage/OrganizationUsageFilters.vue frontend/src/components/admin/organization-usage/OrganizationUsageSummary.vue frontend/src/components/admin/organization-usage/OrganizationUsagePeopleTable.vue frontend/src/components/admin/organization-usage/__tests__/OrganizationUsageFilters.spec.ts frontend/src/views/admin/__tests__/OrganizationUsageView.spec.ts
