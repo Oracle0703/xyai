@@ -4,7 +4,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | Draft |
+| 状态 | 已实现 |
 | 作者 | Codex（基于现有源码与两轮设计审核修订） |
 | 日期 | 2026-07-26 |
 | 修订 | 2026-07-27（按第二轮 design review 收紧共享快照、PostgreSQL integration、图表比例与验证命令） |
@@ -57,7 +57,7 @@
 - 在 `/admin/organization-usage` 展示与当前已应用筛选联动的用量趋势折线图。
 - 提供 `day|week|month` 粒度：默认按日期跨度自动推断，并允许用户手动覆盖。
 - 服务端返回截至 `data_through` 的连续时间序列（已到达范围内无数据周期补 0，未来周期不返回），一次响应不分页。
-- 默认系列：请求数、输入 Token、输出 Token、缓存 Token（`cache_read_tokens`）。**默认不画** `total_tokens`、`actual_cost`、`cache_creation_tokens`（见 K8）。
+- 默认系列：请求数、输入 Token、输出 Token、总 Token（`total_tokens`）。总 Token 包含缓存创建与缓存读取两类 Token，因此不等于另外两条可见 Token 系列之和（见 K8）。
 - API 仍返回完整 `OrganizationUsageMetrics`（含 `total_tokens`、`actual_cost`、`cache_creation_tokens`），便于后续开关。
 - 权限、时区、日期闭区间、组织三组口径与首版完全一致。
 - 中英文 i18n；暗色主题可用。
@@ -84,7 +84,7 @@
 | K5 | 组织筛选语义 | 与 Overview / Champion / 人员表一致：**应用** `organization` 与 `q` | 点击组织汇总行后趋势应同步收窄；组织汇总表本身仍始终三组（既有行为不变）。 |
 | K6 | `as_of` | 支持可选 `as_of`；Service **完整镜像** Summary：UTC 规范化、`clampAsOfToServerNow`、`repositoryRange()`、响应 `range.as_of = base.asOfCanonical`。页面每次完整加载生成同一个 candidate `as_of`，并行传给 Summary 与 Trend；Summary 返回的 canonical `as_of` 是页面权威快照。若 Trend 返回的 canonical 值不同，自动用 Summary canonical **仅重拉一次 Trend** | 正常时保持并行、无额外 RTT；客户端时钟超前导致两个请求分别 clamp 时，通过一次条件式 reconciliation 保证最终屏幕上的 Overview 与折线使用同一用量上界。人员分页/排序和粒度切换复用当前 canonical，不创建新快照。 |
 | K7 | 与 Summary 加载关系 | **并行独立请求** + **独立状态机** + **共享快照协调**（见下表） | Summary 已较重；趋势 SQL 轻量可并行。禁止把 trend 塞进 Summary。人员 sort/page **不得**清掉或隐藏已成功的趋势数据，并复用当前 canonical `as_of`。 |
-| K8 | 默认展示指标 | **A：requests + input + output + cache_read（i18n 名「缓存 Token」）**；**不默认画** `total_tokens`、`cache_creation_tokens`、`actual_cost` | `total_tokens = input+output+cache_creation+cache_read`。若画 Total 却隐藏 cache_creation，可见折线之和会小于 Total，看起来像 bug。API 仍返回全字段；后续若要 Total，须同时展示 cache_creation，或 Total 默认 `hidden` 且 tooltip 标明「含缓存创建」。 |
+| K8 | 默认展示指标 | **A：requests + input + output + total**；**不默认画**两类缓存 Token 明细或实际消费 | 总 Token 曲线完整包含两类缓存 Token，不能与可见的 input/output 两条曲线相加比较。API 仍返回全字段，缓存创建和缓存读取保留给后续按需展示。 |
 | K9 | 图表库 | 新建 `OrganizationUsageTrendChart.vue`，模式对齐 `TokenUsageTrend.vue`（vue-chartjs Line），不直接复用该组件 | Dashboard 组件绑定 `TrendDataPoint` 与 cache hit rate；组织报表字段与文案不同。 |
 | K10 | 部分周期 `partial` | 用**未裁剪**的 `bucket_start/bucket_end` 计算 `partial`，再按所选范围与 `data_through` 用 GREATEST/LEAST 写响应 `period_start/end` | 历史范围与 Periods 一致；当前 week/month 若尚未结束，也因 `bucket_end > data_through` 返回 `partial=true`。day 桶只表达日历裁剪，不表达日内进度；精确时刻看 `range.as_of`。 |
 | K11 | 点数量上限 | day 最多 366；week ≤ 54；month ≤ 13；**禁止分页** | 366 个闭区间自然日最多可跨 54 个周桶；响应体仍小。SQL **不得** `GROUP BY user_id`。 |
@@ -94,6 +94,8 @@
 | K15 | SQL 参数位 | Trend 保持 Periods 的 `$1..$6` 含义，新增 `$7 = data_through`；不使用分页参数 | 防止 q/org/所选日期占位符静默错位；`$7` 只接收 Service 计算出的北京时间日期，不直接信任客户端。 |
 | K16 | Summary 失败 vs Trend | **采用 (a)**：页面级 `errorMessage`（Summary 失败）时整块内容区（含 Trend）不展示；Retry 同时重拉 Summary+Trend | 与现模板 `v-if="!errorMessage"` 一致，避免半屏成功半屏失败的分裂 UX。Trend **单独**失败不设 `errorMessage`，只在图表区错误+重试。 |
 | K17 | 未来桶与 `data_through` | `data_through = min(end_date, effective_as_of 在 Asia/Shanghai 的日历日期)`；只生成 `start_date..data_through` 桶。若 `data_through < start_date`，返回空 points | 当前月/周筛选通常包含未来日期；把未来桶补 0 会制造虚假下跌。`as_of` 省略时 `effective_as_of = server now`；当前 day 包含截至精确 `as_of` 的数据，week/month 裁剪到 `data_through` 并标 partial。 |
+
+`total_tokens = input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens`；两类缓存 Token 继续由 API 返回，但不属于默认图表系列。
 
 ## Proposed Design
 
@@ -628,10 +630,10 @@ export function inferOrganizationUsageTrendGranularity(
 | --- | --- | --- | --- |
 | 1 | `input_tokens` | `admin.organizationUsage.metrics.inputTokens` | 左 |
 | 2 | `output_tokens` | `...metrics.outputTokens` | 左 |
-| 3 | `cache_read_tokens` | `...metrics.cacheTokens`（**复用**，勿自造 Cache Read） | 左 |
+| 3 | `total_tokens` | `...metrics.totalTokens` | 左 |
 | 4 | `requests` | `...metrics.requests` | **右** |
 
-不默认加入：`total_tokens`、`cache_creation_tokens`、`actual_cost`。
+不默认加入：`cache_creation_tokens`、`cache_read_tokens`、`actual_cost`。`total_tokens` 包含缓存创建和缓存读取两类 Token，不等于可见 `input_tokens` 与 `output_tokens` 曲线之和。
 
 新增 i18n 仅限：`trend.title`、`trend.day|week|month`、`trend.loadFailed`、`trend.retry`、`trend.partialHint`、`trend.asOf` 等壳文案。
 
@@ -810,7 +812,7 @@ Periods **不**增加 `scope=aggregate`。
 | week/month 桶与 Periods 不一致 | 中 | 复用 `organizationUsagePeriodBucketSQL`；周边界合同测试 |
 | 参数位重编号 | 中 | K15 不变式 |
 | 未来日期被补 0 形成虚假下跌 | 高 | K17：Service 派生 `data_through`，Repository 只生成已到达桶；当前月/周 integration + 浏览器验收 |
-| Total 与可见系列不一致 | 中 | K8 默认不画 Total |
+| Total 与可见系列被误读为可相加 | 中 | K8 明确总 Token 包含缓存创建和缓存读取；图表默认不单列两类缓存 Token |
 | Summary peak 慢 | 中（既有） | trend 可先到先画；peak 修复另案 |
 | 双轴自动缩放夸大波动 | 中 | 两轴 `beginAtZero: true`；requests 只显示整数 tick；单调插值避免过冲 |
 | day-366 轴/点拥挤 | 低 | `maxTicksLimit` + 点数大于 60 时 `pointRadius: 0` |
@@ -841,7 +843,7 @@ Periods **不**增加 `scope=aggregate`。
 | `inferOrganizationUsageTrendGranularity` | 31/32、120/121；默认月报 → day；与含首尾 helper 一致 |
 | TrendChart | loading/error/retry、粒度 emit、partial 与最后桶 `as_of` tooltip、运行时明暗主题切换、双轴零基线、requests 整数轴、单调插值、密集点半径、maxTicksLimit、全零仍画轴 |
 | View | 同一 candidate 并行双拉；Summary canonical 缺失走页面错误；canonical 不同只对齐一次；对齐后仍不同走局部错误且不循环；正确渲染 `data_through` 前的点且不补前端未来点；page/sort 复用快照且**不**调 getTrend；filter abort 在途 trend；granularity **不**调 getSummary；旧 cycle 响应丢弃；retry-load 创建新 cycle |
-| i18n | 系列复用 `metrics.cacheTokens` 等；壳文案 zh/en + collision 守卫 |
+| i18n | 系列复用 `metrics.totalTokens` 等；壳文案 zh/en + collision 守卫 |
 | README | 双 controller 说明 |
 
 ### 手动/浏览器
@@ -887,7 +889,8 @@ Windows 下继续使用 `llm-wiki/wiki/ops.md` 的仓库内 `GOCACHE`/`GOMODCACH
 - 筛选（日期/组织/邮箱）变化后趋势重拉；最终 `trend.range.as_of == summary.range.as_of`，固定用户归属条件下 requests/total_tokens 与概览位等。  
 - 自动粒度 31/120 边界正确；手动切换只打 trend。  
 - `data_through` 之前的空周期补 0、折线连续；当前月/周不返回未来桶；整个范围尚未到达时返回空 points。366 天最多返回 366 day 点、54 week 点或 13 month 点。  
-- 默认系列 = requests + input + output + cache_read；**无** Total/cache_creation/actual_cost 线；两个 Y 轴从 0 开始且曲线不产生数值过冲。  
+- 默认系列 = requests + input + output + total；**无**缓存明细或实际消费线；两个 Y 轴从 0 开始且曲线不产生数值过冲。
+- 总 Token 包含缓存创建和缓存读取两类 Token，不能当作输入与输出两条可见 Token 曲线之和。
 - 人员翻页/排序：**不**请求 trend，**不**清空已成功曲线。  
 - Summary 失败：整页错误 + Retry 双拉；Trend 单独失败：仅图表区。  
 - 非管理员不可访问；无 migration；中英文完整。  
@@ -941,7 +944,7 @@ Windows 下继续使用 `llm-wiki/wiki/ops.md` 的仓库内 `GOCACHE`/`GOMODCACH
   - zh/en `admin/organizationUsage.ts`（壳文案；系列复用 metrics）
   - `organization-usage/README.md`
   - **允许**：同步改 `docs/features/organization-usage-report-design-cn.md` 交叉引用（若 PR3 可能滞后）
-- **变更摘要**: 双 controller + report cycle 状态机；共享快照 fast path/单次对齐；双轴零基线与密集点策略；默认四系列；page 不打断 trend
+- **变更摘要**: 双 controller + report cycle 状态机；共享快照 fast path/单次对齐；双轴零基线与密集点策略；默认四系列（input/output/total/requests）；page 不打断 trend
 - **可独立合并**: 需 PR1 可用
 - **Done 约束**: 若本 PR 不改 llm-wiki，则 PR3 必须紧随；**wiki 更新前不得宣称功能完成**
 

@@ -2,11 +2,11 @@
 
 该目录承载管理端组织用量报表的页面子组件。
 
-- `OrganizationUsageFilters.vue`: 报表周期、组织、邮箱筛选与导出入口；日期范围计算复用 `utils/organizationUsageReport.ts`。
-- `OrganizationUsageOverview.vue`: 当前筛选范围的概览指标与日/周/月 Champion。
-- `OrganizationUsageTrendChart.vue`: 用量趋势折线图（Chart.js 双轴）；粒度切换与局部 loading/error/retry；默认系列为输入/输出/缓存 Token + 请求数。
-- `OrganizationUsageSummary.vue`: 固定三组组织汇总；首列使用原生按钮切换组织筛选，表格行保留标准 `tr` 语义。
-- `OrganizationUsagePeopleTable.vue`: 服务端排序、分页的人员汇总表；移动端保持横向滚动表格。
+- `OrganizationUsageFilters.vue`: 报表周期、组织、邮箱筛选与导出入口；日期范围计算复用 `utils/organizationUsageReport.ts`。组织选项把内部键 `xunyou` / `wsdashi` 显示为“迅游”/“速宝”，但提交给 API 的筛选值不变。
+- `OrganizationUsageOverview.vue`: 当前筛选范围的概览指标与日/周/月 Champion；`active_users` 显示为“注册人数”，`used_users` 显示为“活跃人数”，仅为前端展示别名。
+- `OrganizationUsageTrendChart.vue`: 用量趋势折线图（Chart.js 双轴）；粒度切换与局部 loading/error/retry；默认系列为输入 Token、输出 Token、总 Token 与请求数。总 Token 包含缓存创建和缓存读取两类 Token，不能视为另外两条可见 Token 曲线之和。
+- `OrganizationUsageSummary.vue`: 固定三组组织汇总；将 `xunyou` / `wsdashi` / `other` 显示为“迅游”/“速宝”/“其他”，首列使用原生按钮按原内部筛选键切换组织筛选，表格行保留标准 `tr` 语义；人数列沿用“注册人数”=`active_users`、“活跃人数”=`used_users` 的展示别名。
+- `OrganizationUsagePeopleTable.vue`: 服务端排序、分页的人员汇总表；组织列沿用“迅游”/“速宝”/“其他”展示映射而不改内部键，移动端保持横向滚动表格。
 
 ## 页面编排（View）
 

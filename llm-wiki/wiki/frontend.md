@@ -177,7 +177,8 @@ API 模块分布:
 - 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-trend-chart-design-cn.md`。
 - 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持组织/邮箱筛选、服务端排序分页、三组织汇总、用量趋势折线和个人/团队日周月峰值。
 - 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面完整加载并行 Summary+Trend 并共享 candidate `as_of`, 以 Summary canonical 为权威必要时单次对齐 Trend; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
-- 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/缓存 Token 与请求数。
+- 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/总 Token 与请求数。`total_tokens` 包含缓存创建和缓存读取两类 Token，不能视为输入与输出两条可见曲线之和。
+- 人数只改前端展示名：`active_users` 显示为“注册人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
 - Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 固定生成“报表概览、组织汇总、人员汇总、月度明细、周度明细、日度明细”六个 Sheet。客户端四类数据合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
 - 页面组件位于 `frontend/src/components/admin/organization-usage/`; 人员表始终保持宽表横向滚动, 不使用移动端卡片化 DataTable。修改筛选、组织汇总、峰值、趋势或导出交互时同步该目录 README、View/Worker 测试与中英文 `admin/organizationUsage.ts` locale。
 

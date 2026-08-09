@@ -62,14 +62,16 @@ users.deleted_at IS NULL AND users.status = 'active'
 
 `active_users` 表示符合上述条件并符合邮箱搜索、组织筛选条件的账号数；`used_users` 表示这些账号中在选定用量范围内至少存在一条 `usage_logs` 记录的账号数。
 
+前端展示中，`active_users` 标为“注册人数”，`used_users` 标为“活跃人数”；这只是业务展示名，不改变上述统计条件。
+
 ### 组织归属
 
 组织按当前 `users.email` 中第一个 `@` 后的完整域名进行大小写不敏感精确匹配。
 
 | 邮箱域名 | API 值 | 页面显示 |
 | --- | --- | --- |
-| 精确等于 `xunyou.com` | `xunyou` | `xunyou.com` |
-| 精确等于 `wsdashi.com` | `wsdashi` | `wsdashi.com` |
+| 精确等于 `xunyou.com` | `xunyou` | 迅游 |
+| 精确等于 `wsdashi.com` | `wsdashi` | 速宝 |
 | 其他域名、无匹配域名和子域名 | `other` | 其他 |
 
 例如 `USER@XUNYOU.COM` 归入 `xunyou`，`user@sub.xunyou.com` 归入 `other`。
