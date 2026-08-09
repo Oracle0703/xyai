@@ -146,6 +146,15 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - Repository SQL 在 `internal/repository/usage_log_repo_trend.go`; 总 Token 固定为 input/output/cache creation/cache read 四类之和。已有 `idx_usage_logs_user_created` 对应用户等值 + 时间范围访问, 不新增 migration。PostgreSQL 合同和 opt-in 执行计划测试位于 `usage_log_repo_integration_test.go`、`user_usage_trend_explain_integration_test.go`。
 - 响应沿用 `UserUsageTrendPoint`, 不新增 DTO。`dashboard/snapshot-v2` 显式传空用户集合, 继续保持旧 Top N 行为。
 
+## Channel Monitor V2
+
+- V1 主动 probe 与 V2 真实流量被动聚合由 `channel_monitor_mode=v1|v2` 互斥选择, 并同时受 `channel_monitor_enabled` 总开关约束。新库和设置缺失时默认 `v1`; 不得因 V2 代码存在就同时启动 V1 probe 与 V2 aggregator。
+- V2 分层为 `internal/repository/channel_monitor_v2*.go`、`internal/service/channel_monitor_v2*.go`、`internal/handler/channel_monitor_v2_handler.go` 和 admin/user routes。管理端 `/api/v1/admin/channel-monitor-v2/config` 的 GET/PUT 只要功能总开关开启就可预配 V2; dimensions/snapshot/models/matrix/errors/users 读接口还必须满足 mode=v2。用户端 `/api/v1/channel-monitor-v2/*` 同时挂 `PanelRateLimiter.Heavy()` 和 mode=v2 guard。
+- `ChannelMonitorV2Aggregator` 启动后订阅 SettingService 运行态变更并及时唤醒。每轮用 PostgreSQL session advisory lock 保证多实例单主, context 上限 55 秒; 首轮先填最近 2 小时, 之后每 tick 刷新最近 10 分钟并最多回填一个历史块。历史块初始 1 小时、最小 15 分钟, 按深度封顶 2/4/6 小时; 失败时减半并按 1/2/4... 分钟退避, 最高 10 分钟。回填最终到 90 天, UI 优先以 30 天为完整历史目标。
+- V2 以1 分钟事实表为源, 预计算 5m/1h/12h/1d 固定 rollup。用户 1m 明细保留 3 天, 其他 1m 指标/错误/直方图保留 7 天, 5m/1h/12h/1d rollup 分别保留 7/30/45/90 天。水位表记录 coverage 和 backfill cursor, 进程重启后必须从持久水位续跑。
+- 用户视图的脱敏发生在 service/handler 出口, 不依赖前端隐藏：绝对请求量、Token 量、延迟样本量和 upstream attempt 数清空; `channel_monitor_hide_throughput=true` 时再隐藏 RPM/TPM。用户排行只保留查看者本人 identity 和 drilldown, 其他人匿名; errors 不返回 count/details, config 不向用户暴露 group IDs、模型清单、ignored categories 和 updated_by。
+- Wire 源图必须同时保留 `NewChannelMonitorV2Repository`、`ProvideChannelMonitorV2Service`、`ProvideChannelMonitorV2Aggregator` 与 `provideCleanup` 中的 `ChannelMonitorV2Aggregator.Stop()`; 只接入 provider 而不接 cleanup 会泄漏后台协程和 settings listener。
+
 ## 网关路径
 
 `backend/internal/server/routes/gateway.go` 是网关路由入口。
@@ -215,8 +224,17 @@ OpenAI/Codex 兼容桥:
 - OpenAI Codex PAT 账号由 `backend/internal/service/openai_codex_pat_service.go` 校验 `at-*` token, 使用官方 whoami endpoint 读取 email/account/user/plan/FedRAMP 字段。PAT 账号会清理 OAuth-only credential 字段, refresh 时不走 OAuth refresh token。
 - OpenAI 图片生成 Responses 路径会识别 `response.incomplete`: `content_filter`/moderation 视为 400 非重试, 其他 incomplete 视为 502 可 failover。若上游 `response.completed` 但无图片输出, 会记录 ops 诊断摘要并返回 `UpstreamFailoverError{RetryableOnSameAccount:true}`, 先同账号快速重试, 再按 handler 上限换账号。`/v1/responses` 文本请求若未产生图片输出, 不应误触发图片计费。
 - OpenAI 非流式图片 JSON 可用 `gateway.image_nonstream_keepalive_interval` 定期发送空白心跳, 默认 0 关闭; 首个心跳会提交 HTTP 200, 因此后续上游错误只能走已提交响应的协议处理。图片 output item 已有 `result` 但 status 仍为 `generating/in_progress` 时, streaming 与 SSE→JSON 终态统一修正为 `completed`。
+- OpenAI API Key 生图的流式和非流式转发统一使用 `detachUpstreamContext`: 客户端断连后不取消已发往上游的出图, 确保真实 `ImageCount` 仍能进入结算。该 helper 基于 `context.WithoutCancel` 且自身无 deadline, 必须保留 HTTP upstream 的 `ResponseHeaderTimeout` 等传输层上限。
+- `GeminiMessagesCompatService` 的生图计数从解包后 `candidates[].content.parts[].inlineData|inline_data` 读取, 只计算图片 MIME 且 data 非空的 part。可观测时优先真实张数, 不可观测才回退请求/映射后模型启发式; 流式每个 payload 取最大图数而非累加, 避免累积式 SSE 重复计费。每次 Forward/failover 必须重置计数器, 不让失败账号的图片污染成功账号账单。Antigravity 的 `antigravity_gateway_gemini.go` 尚未接入该观察器, 仍仅以 `isImageGenerationModel(mappedModel)` 启发式判断并固定记 1 张, 不具备按响应实际张数计费能力。
 - OpenAI context-window 类上游错误不能触发账号 runtime block, 避免模型上下文长度问题被误判为账号故障切号。
 - OpenAI Fast/Flex policy 的规则支持 `user_ids` 范围。API Key 认证完成后 user ID 必须进入 gateway context, policy 才能只对选中用户执行 `pass/filter/block/force_priority`; 未选用户继续走 fallback/default 规则。设置持久化仍使用 `openai_fast_policy_settings`。
+- OpenAI OAuth 上游请求可生成 `x-codex-routing-hint`: model 取最终上游 body, `service_tier=fast` 映射 `priority`, `flex` 保持 `flex`, default/auto/scale/未知 tier 只发 model。API Key 路径必须删除调用者伪造的任意大小写同名 header。WS pool 将 hint 用于普通拨号软亲和; 强制 continuation 时即使 hint 改变也要复用原连接, 不得把 hint 升级为 continuation 兼容键。
+
+上游响应模型观测:
+
+- `backend/internal/service/upstream_response_model.go` 在客户端模型回写或协议转换之前, 从成功上游的 OpenAI、Anthropic、Gemini/Antigravity 响应中提取声明模型。终态事件声明覆盖早期声明; 多个不同声明只记 `upstream_response_model_conflict` 审计, 不改变转发或计费。不可信模型名会 trim 并截断到 200 个 rune; 热路径先用 gjson 检测候选路径, 只在候选存在时验证整包 JSON。
+- 每次 failover/转发 attempt 都重建 observer, 最终只持久化成功 attempt。`usage_logs.upstream_model_mismatch` 是三态: 未观测到模型为 `NULL`, 与实际发往上游的映射后模型大小写不敏感相等为 `false`, 不等为 `true`。不得用客户原始 requested model 替代映射后 sent model 比较。
+- `/api/v1/admin/usage`、`/api/v1/admin/usage/stats` 和 dashboard trend/models/groups/snapshot 支持 `upstream_model_mismatch=true|false`; 非布尔值返回 400。SQL 必须使用 `IS TRUE` / `IS FALSE`, 所以 `false` 明确不包含未观测的 `NULL`。
 
 Grok/xAI 兼容:
 
@@ -230,6 +248,12 @@ Grok/xAI 兼容:
 - 已确认的 Grok Free OAuth 账号对纯客户端 function tools 默认启用 cache-capable mixed-tools 路由, 账号 `extra.grok_client_tool_cache_enabled` 可显式关闭；请求头 `X-Sub2API-Grok-Client-Tool-Cache` 可逐请求开关且只在本地消费。付费、API Key、未知账号和非法非布尔配置保持 fail-closed, 不能因工具名碰巧叫 `web_search` / `x_search` 就自动进入缓存路由。
 - Grok quota 由 `backend/internal/pkg/xai/quota.go` 解析 xAI rate-limit 和 entitlement headers, 快照写入账号 `extra`。管理端主动探测在 `backend/internal/service/grok_quota_service.go`, 使用最小 Responses 请求读取 headers; reset 当前返回不支持。账号连通性测试由 `AccountTestService.testGrokAccountConnection` 直连 xAI Responses API, 并同步 quota header 快照。
 - Grok 上游 401/403/429/5xx 会按 `handleGrokAccountUpstreamError` 临时摘除账号: 401 约 10 分钟, 403 约 30 分钟, 429 优先按 `Retry-After`, 5xx 约 2 分钟。Grok group 现在可走 `/v1/messages`, `/v1/messages/count_tokens`（含根级别名）本地估算、`/v1/chat/completions`, 根级 `/chat/completions`、images/videos media 路由与 Responses WebSocket/HTTP/compact 兼容入口；本地 count-tokens 不触发上游账号错误状态。
+- Grok audio/voice 路由同时提供 `/v1/tts`、`/v1/stt`、`/v1/custom-voices` CRUD/音频子资源、`/v1/realtime` WebSocket 及全部根级别名; 只允许 Grok group, HTTP 回应保留 JSON/音频原始格式。TTS 按百万输入字符、STT 按小时、Realtime 按分钟写 `AudioUsage`; custom voice 管理本身不生成该用量单位。币值事件使用服务端唯一 request ID, 不能因客户端重用 ID 被 usage dedup 误合并。
+- Grok video 支持 `/videos`、generations/edits/extensions/status/content 的 `/v1` 与根级路由; 按模型族→分辨率的 `video_model_prices` 优先计价, 再回退 legacy `video_price_480p|720p|1080p` 和代码默认价。`POST /v1/web_search` 与根级别名使用 Grok native Responses `web_search` tool, 经内容审核、账号并发槽和最多 4 次账号尝试; 返回结果 URL 必须出现在上游 source 列表, 每次成功调用记一次 search usage。
+- `/v1` Grok media/voice/realtime/web_search 路由继承 group 级的 `RequestArchive` 和 `RequestIntercept`; 每一条根级别名必须显式按 `RequestArchive` 后 `RequestIntercept` 的顺序挂载, 不能因 Gin group 不同而旁路本地审计/拦截。
+- `gateway.grok.password_auth_enabled` 默认 false; `/api/v1/admin/grok/oauth/capabilities` 是前端展示邮箱密码入口的权威能力源。密码只用于 password→临时 SSO→Build OAuth 转换, 不持久化到账号; 开启后依赖 YesCaptcha, 缺 key 返回 `GROK_OAUTH_CAPTCHA_KEY_REQUIRED`。
+- Grok OAuth 授权会话由 `internal/pkg/xai.SessionStore` 管理, Redis key 前缀 `oauth:session:xai`, TTL 30 分钟。Exchange 先校验 code/state/redirect/proxy/client 能力, 再通过 Redis `TryConsume` 原子单次消费; Redis 写失败时只对该次 session 使用本进程 fallback, remote miss 不得回生旧的 local session。
+- Grok 全局映射 settings 默认 `grok_default_text_model=grok-4.5`、`grok_cross_client_model_map_enabled=true`、`grok_default_base_url_mode=cli`。管理 settings 的 GET DTO、前端 form 和 PUT payload 必须三端同步; PUT 的可选指针字段省略时保留旧值, 不得把后端读到的 true 因前端本地 false 初值静默覆盖。
 - 旧 Grok group 会由 migration `158_enable_grok_media_generation_groups.sql` 回填 `allow_image_generation=true`, 因为 Grok media 路由复用图片生成能力 gate。
 - `PlatformGrok` 已加入 `domain/constants.go`, `service/domain_constants.go`, scheduler snapshot 平台列表、token cache invalidator 和 user platform quota 允许列表。新增平台相关能力时要同步这些集中列表。
 - 模型不可用诊断由 `gateway_model_availability.go` 和 `openai_gateway_model_availability.go` 提供; no-account 错误路径会区分"池中无支持该模型账号"并返回 404 `model_not_found`, 避免误报 503。

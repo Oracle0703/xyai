@@ -244,15 +244,26 @@ API 模块分布:
 - `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
 - API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新。标准模式回 `/dashboard`; backend 模式无剩余权限时先 logout 再回 `/login`。
 
+## 渠道监控、注册与模型审计 UI
+
+- `/monitor` 仍由 `ChannelStatusView.vue` 承载, 它通过 `utils/featureFlags.ts` 读取 public settings 的 `channel_monitor_enabled` 和 `channel_monitor_mode`。只有功能开启且 mode 为 `v2` 时渲染 `ChannelStatusV2View.vue`; 缺失、非法或 `v1` 都回落 `ChannelStatusV1View.vue`。
+- 管理端 `/admin/channels/monitor` 在 `ChannelMonitorView.vue` 同时保留 V2 配置和 legacy V1 页签; 当前 mode 决定默认页签, 但管理员可在 V1 正在运行时先用 `features/channel-monitor-v2/MonitorSettingsPanel.vue` 预配 V2。V2 API client 集中在 `frontend/src/api/channelMonitorV2.ts`, admin 走 `/admin/channel-monitor-v2`, user 走 `/channel-monitor-v2`。
+- `ChannelStatusV2View.vue` 不得通过前端重组恢复后端已脱敏的绝对请求/Token/样本/attempt 数。普通用户遵循 `channel_monitor_hide_throughput`, 管理员始终可见 RPM/TPM; 用户排行中只有本人可展示 identity 和 drilldown, 其他行必须使用匿名 label。
+- `SettingsView.vue` 的 `channel_monitor_mode`、`channel_monitor_hide_throughput`、`registration_email_domain_quota_enabled` 和 `grok_cross_client_model_map_enabled` 都是 GET→form→PUT 的保真字段。后端 Grok 跨客户端映射默认 true, 而前端本地 form 初值可为 false; 必须等 GET 值覆盖初值后再保存, 并用 settings round-trip 测试防止与本次编辑无关的 true 被静默写成 false。
+- `UsageView.vue` 和 CSV 导出同时展示 requested/model、`upstream_model`、`upstream_response_model` 及 mismatch。`upstream_model_mismatch` 筛选是 true/false/不筛选三态; 记录值为 `null` 时展示空白/未观测, 不得归入 false 的“一致”集合。Dashboard trend/models/groups 请求要传递同一筛选值。
+- 注册和待完成 OAuth 邮箱页从 public settings 读取 `registration_email_suffix_whitelist` 与 `registration_email_domain_quota_enabled`。额度开启时前端可放行非白名单邮箱提交给后端做权威计数; 后端返回 `EMAIL_DOMAIN_REGISTRATION_LIMIT` 时统一映射为主域额度文案, 不在浏览器端猜测当前账户数。
+
 ## Grok 与 Codex 管理端 UI
 
 - Grok 平台已加入前端 platform 类型: `frontend/src/types/index.ts`, `frontend/src/api/admin/settings.ts`, `frontend/src/api/admin/users.ts`, `frontend/src/utils/platformColors.ts`, `PlatformIcon.vue`, `PlatformTypeBadge.vue`。
 - Grok OAuth 管理 API 在 `frontend/src/api/admin/grok.ts`, 组合逻辑在 `frontend/src/composables/useGrokOAuth.ts`; `CreateAccountModal.vue` 和 `ReAuthAccountModal.vue` 复用 OAuth 授权流, 支持授权码、refresh token 校验和 OAuth credentials 构建。
+- 邮箱密码授权入口必须先请求 `/admin/grok/oauth/capabilities`; 只在 `password_auth_enabled=true` 时显示, capability 请求失败时 fail-closed。前端只把 `email----password` 传给当次授权 API, `buildCredentials` 不得保存密码或 raw SSO; 二次认证只可预填邮箱, 密码由管理员重新输入。
 - `EditAccountModal.vue` 只为 Grok OAuth 账号显示“客户端工具缓存”开关, 持久化到 `extra.grok_client_tool_cache_enabled`; 缺失值在表单中显示为开启并在保存时显式落布尔值。后端只有已确认 Free OAuth 的缺失值默认开启, paid/API Key/unknown 保持 fail-closed；其他账号不显示也不提交该开关。
 - Grok 账号配额展示在 `AccountUsageCell.vue`; `GrokQuotaProbeCell.vue` 提供主动 probe, 只对 `platform === "grok" && type === "oauth"` 显示。xAI 不支持 reset 时前端显示 reset unsupported。账号测试 modal 使用 `buildApiUrl` 请求 `/admin/accounts/:id/test`, Grok OAuth 测试会走 xAI Responses 流。
 - `useModelWhitelist.ts` 为 Grok 维护模型候选和常用映射 preset; 修改 Grok 模型名时要同步白名单 selector、平台颜色和 i18n 文案。
 - Grok media 已接入 images/videos 路由后, 前端平台图标、颜色、Grok quota unknown/reset unsupported 文案要与后端 `allow_image_generation` gate 保持一致; 旧 Grok group 由后端 migration 自动回填图片能力。
 - `GroupsView.vue` 的 Grok media 定价把图片与视频控制分离: 视频支持独立倍率以及 480p/720p/1080p 每秒单价, 表单归一化集中在 `groupsImagePricing.ts`; 不要把视频价格回填为图片价格。
+- `GroupsView.vue` 还维护 Grok 模型族视频价 `video_model_prices`、搜索价 `search_price_per_1k` 和 Voice 价 `audio_realtime_price_per_min` / `audio_tts_price_per_million_chars` / `audio_stt_price_per_hour`。这些可空字段必须区分 NULL（代码默认价）、0（显式免费）和正数（分组覆盖价）; 创建、编辑、复制和 API 类型需同步。
 - OpenAI `codex_cli_only` 管理端新增全局 engine fingerprint signals 与 app-server 开关, 设置页入口在 `SettingsView.vue` + `codexFingerprintSignals.ts`; 账号创建/编辑/批量编辑里有账号级 `codex_cli_only_allow_app_server` 开关。
 - OpenAI Fast/Flex policy 规则支持 `user_ids`; 设置页使用 `OpenAIFastPolicyUserSelector.vue` 按邮箱/ID 搜索并保留已删除用户的可识别标签, API 类型在 `frontend/src/api/admin/settings.ts`。新增文案必须同时补 `locales/en/admin/settings.ts` 与 `locales/zh/admin/settings.ts`, 并通过 `openaiFastPolicyLocales.spec.ts`。
 - `VersionBadge.vue` 展示当前版本及最近 3 个历史版本, 管理员可通过 `frontend/src/api/admin/system.ts` 查询/触发在线回退; 回退按钮必须保留确认、运行状态和失败提示, 不能只改前端版本文本。

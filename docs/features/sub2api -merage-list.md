@@ -1693,3 +1693,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | 冲突解决后对 `internal/server/routes` 与 `prompt_risk_judge` 相关包做 focused Go test；其余以上游/功能分支既有验证为参考。已知基线失败不在本分支修复。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`；本条按追加规则写入, 同时保留 v0.1.170 历史条目。 |
 | Approval / delivery | 当前保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-08-09 main sync (v0.1.173; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10173_merge_sub2api_173` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `ddbb0426bfaa5623e31d588977004a9f62bb4772`（本地 `main`，刷新后与 `github/main` 一致） |
+| Merge base | `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e` |
+| Upstream head / second parent | `48eb3766d2da817b171b45bb3036d42575e42b8f` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=48eb3766d2da817b171b45bb3036d42575e42b8f`** |
+| Upstream version / delta | `0.1.173`; 从 merge base 到固定上游共 174 commits、493 files、`+39486/-3055`。固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.173`。 |
+| Conflict files | `.gitignore`; `backend/cmd/server/wire.go`; `backend/cmd/server/wire_gen.go`; `backend/cmd/server/wire_gen_test.go`; `backend/internal/config/config.go`; `backend/internal/server/routes/gateway.go`; `backend/internal/service/domain_constants.go`; `backend/internal/service/openai_gateway_chat_completions_raw.go`; `backend/internal/service/setting_service.go` |
+| Conflict handling | 9 个文本冲突按语义并集解决：Wire 同时保留本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 与上游 Channel Monitor V2；配置/settings 同时保留本地 archive/intercept、Risk callback 与上游 Grok、monitor listeners；网关根级 video/TTS/STT/custom voices/realtime/web_search 显式保留 `RequestArchive -> RequestIntercept`，Responses guard 仍位于 Intercept 前；raw Chat 先执行上游 response-model observer，再保留本地 compatible cache usage 规范化。未修改上游冲突外生产逻辑。 |
+| Semantic overlap review | 三方路径集合为 only-local 389、only-upstream 414、both 79；79 个双方文件含 9 个文本冲突与 70 个自动合并路径。自动合并另在两个 `GroupsView` 测试中重复声明同名 `getLiveCapability` mock，按双方相同语义去重，不改生产代码；最终独立审查为 0 Critical / 0 Important / 0 Minor。 |
+| Local features | 合并前 23 个 tracked `docs/features/` 文件全部保留；除本 ledger 追加记录外，其余 22 个文件不改。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 均保留；功能真正重叠处采用上游实现。 |
+| Upstream behavior | 合入 Channel Monitor V2 被动聚合与隐私视图、Grok Voice/Realtime/Video/Web Search 和 Redis 单次 OAuth session、上游响应模型审计、Gemini 实际图片数计费、邮箱主域单账户额度，以及 Grok 分组视频/音频/搜索定价。新增双 `194_`、双 `195_` 及 196-206、217-220 migrations，runner 按完整文件名排序和去重。 |
+| Upstream / baseline issue boundary | migration 206 会把部分显式 false-like 隐私设置迁为 true；migration 220 的旧 checksum 数据库存在 composite 视频价格恢复风险；YesCaptcha key 未进入部署示例；`go mod tidy -diff` 仍建议删除固定上游的 5 组 CLI 传递校验和；固定上游文档有 3 处 trailing whitespace。本地第一父既有 `/auth/me` `admin_permissions:null` unit fixture 与全量 lint 28 项也保持不改。以上仅记录，等待上游或独立任务处理。 |
+| Verification | Wire/Ent 重新生成成功且无生成漂移。Backend 默认全量与 integration 全量测试、`go build ./...`、`go build -tags embed` 通过；unit tag 仅上述第一父既有 `/auth/me` fixture 失败；全量 lint 28 项均来自第一父，`--new-from-rev=ddbb0426...` 为 0 issues。Frontend lint、typecheck、focused 2 files / 10 tests、完整 Vitest 246/246 files / 1694/1694 tests、production build（1052 modules）均通过。冲突与适配路径 whitespace/marker 检查通过；全量 diff check 仅报告固定上游文档第 3、4、50 行尾随空格。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，source hash `ef937051fe5e` 与当前 Wiki 一致；状态检查仅因 8 个 Wiki/图谱路径尚未提交而为预期 `PARTIAL`。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；自有 GitHub 尚无同名 feature 分支。未 commit、未 push、未创建 PR、未部署。 |

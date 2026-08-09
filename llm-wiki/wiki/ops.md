@@ -2,6 +2,7 @@
 
 ## 当前版本基线
 
+- 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - 当前集成分支为 `feature/hy/10171_merge_sub2api_171`: 合入已含 v0.1.170 的本地 `main@7a537cffbbb6455ce2f777e70f369a3912738ebd`, 第二父/功能分支 tip 为 `3547702ff54d324cff2f83ec75bd8d9a501ea68f`, 固定上游边界为 `Wei-Shaw/sub2api main@aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, 与 main 的 merge base 为上游 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, `backend/cmd/server/VERSION` 为 `0.1.171`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签、当前 upstream HEAD 或其他中间提交替代该精确提交。
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
 - `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
@@ -161,6 +162,16 @@ go test -tags=integration ./...
 golangci-lint run ./...
 ```
 
+Ent schema 或 Wire provider/lifecycle 变化后必须从生成源刷新产物:
+
+```bash
+cd backend
+go generate ./ent
+go generate ./cmd/server
+```
+
+从仓库根目录可等价运行 `make -C backend generate`；生成失败时修复 schema/provider source 或工具依赖, 不直接手改 `backend/ent/` 与 `backend/cmd/server/wire_gen.go`。
+
 Windows 本地 Go 验证固定入口:
 
 - 不直接用默认 `go env`; 本机默认 `GOMODCACHE` 可能指向 `D:\project\pkg\mod`, 默认 `GOCACHE` 可能指向用户级 `go-build`, 容易出现 `Access is denied` 或 `.test.exe` 文件锁。
@@ -229,6 +240,17 @@ if ($LASTEXITCODE -ne 0) {
 | 网关/service 高风险改动 | `./internal/service` |
 | repository 或 SQL 相关改动 | `./internal/repository ./internal/config` |
 | Wire/provider 变更 | `./cmd/server ./internal/handler ./internal/server/routes` |
+
+0.1.172-0.1.173 专项回归入口（后端命令在 `backend/` 目录运行）:
+
+| 风险面 | 命令 |
+| --- | --- |
+| migration checksum / `_notx` / invalid index 恢复 | `go test -tags=unit -p 1 -count=1 ./internal/repository -run 'Migration|Migrations'`；需要真实 PostgreSQL schema 时再运行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run 'Migration|Migrations'` |
+| Channel Monitor V1/V2 互斥、聚合和权限 | `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/repository ./internal/handler ./internal/server/routes -run 'ChannelMonitor(V2|Mode|Probe)'` |
+| Grok OAuth/session、Voice/Search/Video 路由 | `go test -tags=unit -p 1 -count=1 ./internal/pkg/xai ./internal/service ./internal/repository ./internal/handler ./internal/handler/admin ./internal/server/routes -run 'Grok|SessionStore|WebSearch'` |
+| 上游响应模型采集与 mismatch 三态 | `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/repository ./internal/handler ./internal/handler/dto -run 'Upstream(ResponseModel|ModelMismatch)|UpstreamModel'` |
+| Gemini 实际图片计数与 failover 重置 | `go test -tags=unit -p 1 -count=1 ./internal/service -run 'GeminiImage|Gemini.*Image'` |
+| 前端 settings/auth/usage 往返 | `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts src/views/auth/__tests__/RegisterView.spec.ts src/views/auth/__tests__/EmailVerifyView.spec.ts src/components/admin/usage/__tests__/UsageFilters.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/UsageView.spec.ts`（仓库根目录运行） |
 
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
@@ -302,6 +324,8 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback, `trust_forwarded_ip_for_api_key_acl` 与 `forwarded_client_ip_headers`。客户端 IP 兼容开关默认 `true` 以兼容反代/Docker 升级；自定义 header 最多 16 个、按配置顺序优先, 仅在该开关开启时有效。关闭后必须正确配置 `server.trusted_proxies`。
 - `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。`max_body_size` 默认 256 MiB 供多模态/media, `text_max_body_size` 默认 32 MiB 并只用于 embeddings 与 alpha search 等纯文本入口。
+- `gateway.grok.password_auth_enabled` 默认 `false`, 是 Grok 邮箱/密码转 SSO 再转 Build OAuth 的服务端能力开关；前端必须以 capabilities 响应为权威, 不能只根据本地状态显示入口。开启后 YesCaptcha 优先读取 `YESCAPTCHA_CLIENT_KEY`, 兼容旧名 `YESCAPTCHA_API_KEY`; 两者都缺失时密码授权返回 `GROK_OAUTH_CAPTCHA_KEY_REQUIRED`。密码和原始 SSO 只允许在单次授权链内短暂存在, 不写入配置、日志或账号凭据。
+- Channel Monitor 的 `channel_monitor_enabled`、`channel_monitor_mode`(`v1|v2`)和 `channel_monitor_hide_throughput` 都是数据库 settings, 不是 YAML 配置。`channel_monitor_mode` 默认 `v1`; V1 主动探测与 V2 被动聚合互斥。`CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR=1` 只跳过本节点 aggregator 的 `Start()`, 不改 mode、API guard 或数据库配置, 仅用于本地 seeded-data/demo 场景。
 - 管理端运行时设置 `enable_client_dateline_normalization` 默认 `true`, 仅影响 Anthropic OAuth/SetupToken 转发, 用于清理客户端 dateline 隐写指纹; 关闭后请求体保持原样透传。
 - `gateway.openai_ws.scheduler_score_weights.reset`: 默认 `0.0`, 用于给会话窗口最早重置的 OpenAI 账号加分; 关闭时不改变原调度行为。
 - `gateway.openai_ws.scheduler_score_weights.quota_headroom`: 默认 `0.0`, 用于按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 关闭时不改变原调度行为, 小流量灰度可从 `0.3` 起。

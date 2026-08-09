@@ -54,6 +54,7 @@ OpenAI Agent Identity:
 - 异步图片对象存储运行时设置位于 `/api/v1/admin/backups/image-storage`。修改存储目标会把生成内容导向外部账号, 因此 PUT 与备份 S3 一样必须通过 step-up；独立 `secret_access_key` 用 `SecretEncryptor` 加密入库, GET 清空 secret 只返回 configured 状态。选择复用备份 S3 时不再保存第二份凭据, 只保留图片 bucket/prefix 等覆盖项。
 - Grok 视频生成成功后把 request ID 与原 user/API key 和实际上游账号绑定。status 与 `/videos/:request_id/content` 查找必须命中该绑定, 非所有者统一返回 not found；签名内容由原账号代理, 客户端只看到同源网关 URL。
 - Composite group 不把客户端 public model 直接当作任意 provider 选择器：显式 route 的 target platform/endpoint 受 allowlist 与 group ownership 校验, 未命中时内置 detector 只识别已知模型族, 未知或歧义模型 fail-closed。resolved platform/model 放入请求 context 后再执行具体平台账号选择、配额和计费；根级 Responses/Chat/images/videos 入口仍在 composite 解析和 group gate 后执行本地 RequestArchive/RequestIntercept。
+- Channel Monitor V2 的普通用户 API 必须在服务端脱敏, 前端隐藏只是 defense in depth。用户 snapshot/model/matrix 清零绝对请求数、token 数、延迟样本数和上游 attempt 计数, 并移除 group/model allow-list、忽略类别和 updater 等运营配置；`channel_monitor_hide_throughput=true` 时再清零 RPM/TPM, settings reader 缺失或不可用时按隐藏处理。用户排行只保留本人 ID、`is_self` 与 drilldown, 其他用户删除 ID/email/username 并改为匿名序号；管理员接口保留完整数据。
 - 分组利润控制的开关、最低毛利率和安全缓冲属于内部经营信息, 只能通过 admin group DTO 返回；普通 `Group` 与浅层 DTO 不得暴露这些字段, 防止结合账号倍率反推成本上限。
 - OpenAI Live 创建与 sideband 路由必须同时通过 API Key、OpenAI group、`allow_live` 和账号 endpoint capability 校验；call record 以哈希 key 存 Redis, sideband 接管还要逐项匹配 API key/user/group identity。attestation 明文只在 Apple Silicon macOS 本机生成, 存储前由服务端加密；Live controller、lease 续期、结束标记和最大时长共同防止跨请求并发绕过或重复写终态。
 - `api_key_acl_trust_forwarded_ip` 是旧部署/升级兼容开关, 代码默认 `true`。开启时 API Key ACL、会话绑定和审计使用同一请求级快照（`Config.ForwardedClientIPSettings()`）, 原始转发头可绕过 Gin `server.trusted_proxies` 链；最多 16 个 `forwarded_client_ip_headers` 经规范化/去重后按配置顺序优先于 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For`, 因此只应填写由可信边缘覆盖且外部不能伪造的 header。关闭后才由 Gin `server.trusted_proxies` / 直连 peer 作为统一权威来源, 此时自定义 header 不生效；trusted proxies 未配置或显式空时仅信任直连 peer。`deploy/config.example.yaml` 采用更安全的 false, 生产应按真实代理拓扑显式收紧。
@@ -88,6 +89,14 @@ Prompt Audit 安全与隐私边界:
 - 忘记密码, 重置密码。
 - LinuxDo, WeChat, OIDC, DingTalk, GitHub, Google OAuth。
 - pending OAuth completion/bind/create account。
+
+注册邮箱主域额度覆盖所有“创建新用户”入口: 邮箱注册、邮件验证完成、OAuth 自动注册和 pending OAuth 邮箱建号必须共用 `registration_email_suffix_whitelist` + `registration_email_domain_quota_enabled`。白名单非空且额度开关关闭时仍是严格白名单；开关开启后, 非白名单邮箱按 `publicsuffix.EffectiveTLDPlusOne` 归一的主域最多一个未删除账户。service 预查不能作为并发安全依据, repository 必须在同一 Ent 事务内取得邮箱字面量、收件箱 alias identity、主域三类 scoped lock 并复查后写入。邮箱“绑定”仍执行后缀白名单, 不把建号额度错误扩展为已有账户的通用绑定规则。
+
+Grok OAuth session 与密码授权:
+
+- PKCE session 优先存 Redis `oauth:session:xai:<session_id>`, TTL 30 分钟。只有 Redis `Set` 失败时才把该 session 标记为 process-local fallback；远端写成功后, Redis miss/error 必须返回 session not found, 不能用进程内旧副本复活已过期或已消费 session。
+- code exchange 先校验 code、state（常量时间比较）、redirect URI、proxy 和 OAuth client 可用性, 再通过 Redis 原子 consume 或本地 `TryConsume` 单次消费, attempt 结束删除 session。校验失败不能提前烧掉 session, 已消费 session 不能重放。
+- `gateway.grok.password_auth_enabled` 默认关闭, `/api/v1/admin/grok/oauth/capabilities` 是前端入口的权威；服务端 endpoint 在关闭时同样拒绝, 不能依赖 UI 隐藏。开启后 YesCaptcha 优先使用 `YESCAPTCHA_CLIENT_KEY`, 兼容 `YESCAPTCHA_API_KEY`, 缺失时 fail-closed 为 `GROK_OAUTH_CAPTCHA_KEY_REQUIRED`。密码和 raw SSO 只用于当次 password -> SSO -> Build OAuth 转换, 不持久化、不回显、不写日志。
 
 高风险入口都通过 Redis rate limiter 做 fail-close 限流。
 
@@ -201,6 +210,8 @@ Grok endpoint 也属于 URL 信任边界:
 
 请求链路会记录 request id, ops error, request archive, 并可使用 request intercept 动态改写/阻断。
 
+Grok `/v1/*` media/voice/search 路由继承 gateway group 的审计链；根级兼容别名 `/videos*`、`/tts`、`/stt`、`/custom-voices*`、`/realtime`、`/web_search` 不在该 group 内, 必须在每条 route 上显式保留 `RequestArchive` 后 `RequestIntercept` 的顺序。新增别名时要同时覆盖 API Key/group/composite gate、审计/拦截和 route coverage 测试, 不能只接 handler。
+
 native OpenAI HTTP streaming Responses 的 first-output guard 默认关闭。启用后 deadline 从 attempt 开始并包含响应头等待; 首次语义输出前最多暂存 8 MiB, 只允许 keepalive 等非语义字节先行, 超时/溢出后清理 attempt 并最多换账号一次。该机制不覆盖 passthrough/WS, 也不能撤销已经发生的上游计算或用量, 因而 failover 重放可能造成重复上游计费; 开启前必须把该风险纳入成本与幂等评估。
 OpenAI proxy stream circuit 默认启用, `gateway.openai_proxy_stream_circuit.disabled=true` 时完全不记录或隔离 proxy。启用时只把非取消/非 deadline 的 Responses SSE 中途断流计入 proxy-ID 本地观察, 同一断流 burst 在短时间内合并为一次；达阈值后临时跳过该代理, 成功流清除观察且 TTL 自动恢复。状态有界、仅进程内且重启清空；若隔离导致首轮无账号而仍有被隔离代理, 第二轮必须忽略 quarantine fail-open, 不能由熔断制造“无可用账号”。日志只记录 proxy/account/request ID 与经过 `sanitizeUpstreamErrorMessage` 的错误, 不输出上游凭据或原始响应。
 
@@ -212,6 +223,7 @@ OpenAI 官方 endpoint 的上游 payload 必须避免透传非官方 top-level t
 - 新增上游协议字段时优先放入对应 endpoint 的显式 allow/sanitize 逻辑, 不做跨平台全局删除。
 - `/responses/compact` 上游不接受 `tool_choice`, Codex image-generation bridge 对 compact 请求必须整体跳过工具注入/压缩桥接注入; compact 使用独立默认模型/账号级 mapping, 不应影响普通 Responses。
 - OpenAI credential failover 从 ChatGPT/Codex OAuth 切到 API Key 等跨模式账号时, 必须删除带 `encrypted_content` 的整个 reasoning input item, 不能只清字段后留下空 reasoning skeleton；没有 encrypted content 的历史 reasoning 保留。JSON 重建使用 `UseNumber`, 避免大整数精度漂移。
+- `x-codex-routing-hint` 是 gateway-owned header。HTTP/passthrough/WS 构建器都必须先大小写不敏感地删除客户端输入和 account header override 中的同名值；仅 OpenAI OAuth 账号可从最终映射 model 与规范化后的 service tier 重新生成, API Key/provider credential 路径保持无该 header。model 含 `;`/`=` 或 header value 非法时不生成；诊断日志只记录最终派生值和 `routing_hint_generated` 布尔值, 不记录 header、token 或凭据。WS 中该 hint 只影响新连接的软 affinity, 不能变成 continuation 的硬兼容键。
 
 Anthropic OAuth/SetupToken 请求体默认启用客户端 dateline 归一化(`enable_client_dateline_normalization=true`):
 
