@@ -15,3 +15,11 @@ describe.each([
     expect(messages.admin.organizationUsage.feedback.generatingWorkbook).toBeTypeOf('string')
   })
 })
+
+it.each([
+  ['zh', zh, '注册人数', '活跃人数'],
+  ['en', en, 'Registered users', 'Active users']
+] as const)('uses the requested headcount labels in %s', (_locale, messages, registered, active) => {
+  expect(messages.admin.organizationUsage.metrics.activeUsers).toBe(registered)
+  expect(messages.admin.organizationUsage.metrics.usedUsers).toBe(active)
+})

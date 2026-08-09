@@ -45,8 +45,8 @@ export default {
       other: 'Other'
     },
     metrics: {
-      activeUsers: 'Active users',
-      usedUsers: 'Users with usage',
+      activeUsers: 'Registered users',
+      usedUsers: 'Active users',
       requests: 'Requests',
       inputTokens: 'Input tokens',
       outputTokens: 'Output tokens',

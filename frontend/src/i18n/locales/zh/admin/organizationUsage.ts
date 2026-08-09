@@ -45,8 +45,8 @@ export default {
       other: '其他'
     },
     metrics: {
-      activeUsers: '活跃人数',
-      usedUsers: '有用量人数',
+      activeUsers: '注册人数',
+      usedUsers: '活跃人数',
       requests: '请求数',
       inputTokens: '输入 Token',
       outputTokens: '输出 Token',
