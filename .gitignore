@@ -187,3 +187,6 @@ output/
 llm-wiki/.understand-anything/intermediate/
 llm-wiki/.understand-anything/tmp/
 .ua-dashboard-logs/
+
+# Vitest / Vite cache at repo root
+.vite/

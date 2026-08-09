@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-08-05
+更新时间: 2026-08-09
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,6 +11,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-08-09 在 `feature/hy/10173_merge_sub2api_173` 以本地第一父 `main@ddbb0426bfaa5623e31d588977004a9f62bb4772` 合并 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`, merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, 当前后端版本 `0.1.173`; merge commit 待用户审核后创建。本轮覆盖上游 `0.1.172` / `0.1.173`, 增加 Channel Monitor V2 被动聚合、Grok Voice/Realtime/Video/Web Search 及 OAuth 单次会话、上游响应模型审计、Gemini 生图按实际张数计费、非白名单邮箱主域单账户额度和 Grok 分组媒体/搜索定价。本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 继续保留；本分支只做语义合并和必要适配，上游 migration 206/220 的存量数据风险仅记录、本地未修。
 - 2026-08-05 将 `feature/hy/10171_merge_sub2api_171@3547702ff54d324cff2f83ec75bd8d9a501ea68f` 合入已含 v0.1.170 的本地 `main@7a537cffbbb6455ce2f777e70f369a3912738ebd`, 固定上游边界 `Wei-Shaw/sub2api main@aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, 当前后端版本 `0.1.171`; merge commit 待用户审核后创建。相对 main 的文本冲突 9 个（gateway guard 顺序、judge 测试构造、ledger/wiki）按语义并集解决：`guardResponsesSubpath` 继续作为 middleware 且位于 `RequestIntercept` 前；功能分支上已解决的 captcha/Wire/proxy 等上游冲突随自动合并带入。本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 继续保留；本分支只解决合并冲突及必要测试适配, 不修复上游自身问题。
 - 2026-08-03 从本地 `main@12770bc5da8c0ef6a2dd02b0e80a37f6eb26d408` 创建 `feature/hy/10170_merge_upstream_v170`, 固定合入 `Wei-Shaw/sub2api main@7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, merge base 为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本 `0.1.170`; 已通过 PR #33 合入 `main@7a537cff`。上游增量为 99 commits、294 files、`+16749/-1179`, 增加分组利润控制、跨平台 API Key 上游账单探测与倍率同步、账号跨页全选/批量删除、内容审核代理、上游 path allowlist、compact home、订阅配额窗口到期对齐和部署加固。6 个文本冲突按语义并集解决；Responses path guard 位于 `RequestIntercept` 前。
 - 2026-07-29 从本地 `main@2b5b2d94245cc9f72ca3df5de3b1db98c3c60c7e` 创建 `feature/hy/10168_同步sub2api主线`, 固定合入 `Wei-Shaw/sub2api main@5a6143097db142b72a6fc848c214e97214470bdd`, 当前后端版本 `0.1.168`; merge commit 待用户审核后创建。上游增量为 170 个文件、`+7690/-344`, 增加 Passkey/WebAuthn 登录与凭据管理、可选 JWT 的模型广场、用户/API Key 字段掩码更新和原子余额调整, 并继续修正 OpenAI/Kimi/Live/Prompt Audit 等兼容边界。5 个文本冲突按语义并集解决；134 个仅上游路径中 133 个与固定提交逐 blob 一致, 唯一偏离是为本地子管理员权限补入上游 `UserUpdateFields` mask；冲突解决快照的 424 个仅本地路径均保持 `main` blob, 收尾时只按新接口补齐两个本地并发 preset 测试 adapter 并更新必需文档。23 个合并前 tracked `docs/features/` 文件零删除。本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、用户并发 preset 和 quota flusher 继续保留；本分支只解决合并冲突及其必需的接口兼容, 不修复上游自身问题。

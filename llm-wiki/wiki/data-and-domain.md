@@ -6,7 +6,7 @@ Sub2API 的核心对象:
 
 - User: 用户, 角色, 余额, OAuth identity, 属性, TOTP 和 Passkey 凭据。普通资料/权限更新使用 `UserUpdateFields` 显式列掩码；余额不经通用 `Update`, 管理员 set/add/subtract 走原子 `SetBalance` / `AdjustBalance`。
 - API Key: 用户侧调用凭证, 关联 group, rate limit, quota, last used。编辑使用 `APIKeyUpdateFields` 显式列掩码, 避免覆盖并发累计的 quota/rate-limit 字段。
-- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。`profit_control_enabled`、`profit_min_margin`、`profit_safety_buffer` 控制 token 分组的利润准入, 默认关闭/0/0；仅 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` 可启用。字段只在管理端 DTO 暴露, 普通用户侧分组 DTO 必须隐藏；auth-cache snapshot 和调度准入会使用这些值。
+- Group: 调度和计费分组, 控制 platform, model mapping, rate multiplier, 高峰时段倍率, Grok 图片/视频/Voice/Search 独立定价, Codex alpha search 按次价格, RPM, OpenAI reasoning effort 映射/上限, 支持模型范围和自定义 `/v1/models` 列表。`profit_control_enabled`、`profit_min_margin`、`profit_safety_buffer` 控制 token 分组的利润准入, 默认关闭/0/0；仅 `openai`、`anthropic`、`gemini`、`grok`、`antigravity` 可启用。字段只在管理端 DTO 暴露, 普通用户侧分组 DTO 必须隐藏；auth-cache snapshot 和调度准入会使用这些值。
 - CompositeModelRoute: composite group 的 public model 路由表, 记录 exact/prefix、endpoint、具体 target platform、upstream model、priority 和 enabled；运行时仍以具体平台完成账号调度、配额、计费和 usage 归因。
 - Account: 上游账号, 支持 OAuth/API Key/cookie/setup token 等类型, 可绑定 proxy, group, model whitelist 和 quota; OpenAI 账号支持 endpoint capability, pool retry status codes, quota threshold auto-pause, Codex CLI only、允许 Claude Code 客户端、Agent Identity 和 Spark 影子账号。管理员可安全复制拥有静态凭据的账号, 但新副本默认不可调度且不会继承运行态 quota/probe/cache 状态。
 - Channel: 模型平台定价和渠道能力管理。
@@ -64,6 +64,7 @@ go generate ./cmd/server
 - `schema_migrations` 表记录 filename, checksum, applied_at。
 - checksum 是 trimmed file content 的 SHA256。
 - 已应用 migration 不可修改, 不可删除, 不可重命名, 不可重排。
+- runner 使用 `sort.Strings` 按**完整文件名**排序, 并以完整 filename 去重；数字前缀不是唯一键, 同号 migration 会独立执行。已发布的重复前缀文件不得为了“补齐编号”而重命名。
 - 普通 `*.sql` 在事务内执行。
 - `*_notx.sql` 非事务执行, 仅用于 `CREATE INDEX CONCURRENTLY` / `DROP INDEX CONCURRENTLY` 等场景。
 - `_notx.sql` 必须写幂等 SQL, 如 `CREATE INDEX CONCURRENTLY IF NOT EXISTS`。
@@ -110,7 +111,30 @@ go generate ./cmd/server
 - `backend/migrations/192_group_profit_control.sql` 为 `groups` 增加 `profit_control_enabled BOOLEAN NOT NULL DEFAULT FALSE`、`profit_min_margin DECIMAL(10,4) NOT NULL DEFAULT 0`、`profit_safety_buffer DECIMAL(10,4) NOT NULL DEFAULT 0`。两个比例各在 `[0,1)`, 和必须小于 1；非支持平台归一化为关闭和零值。运行时只允许账号倍率 `U <= D * (1 - margin - buffer)` 的候选参与调度, 其中 `D` 为请求定价时刻的有效下游倍率。
 - `backend/migrations/193_group_profit_control_auth_cache_invalidation.sql` 重建 group auth-cache invalidation trigger, 将三项利润控制字段以及定价相关字段纳入 outbox 失效判断。鉴权快照必须投影这些字段；管理端常规保存主动失效缓存, 直接 SQL 修改也会让关联 API Key 的鉴权快照失效。
 
+0.1.172-0.1.173 新增 migration 合同:
+
+| 文件 | 稳定规则 |
+| --- | --- |
+| `194_add_usage_log_upstream_response_model.sql`、`195_add_usage_log_upstream_model_mismatch_index_notx.sql` | `usage_logs` 新增可空 `upstream_response_model VARCHAR(200)` 与 `upstream_model_mismatch BOOLEAN`, 并为 `IS TRUE` 行建立按时间倒序的部分并发索引。195 是 `_notx.sql`; runner 会先删除同名 invalid index, 再逐语句非事务执行。 |
+| `194_channel_monitor_v2.sql`、`195_channel_monitor_mode.sql` | 创建单行 V2 config/watermark、1 分钟平台/用户/错误/延迟直方图事实表；不在 migration 内回填历史。实现模式存于 setting `channel_monitor_mode`, 当前文件默认 `v1`, 与 V2 被动聚合互斥。 |
+| `196_channel_monitor_v2_ignored_error_categories.sql` 至 `198_channel_monitor_v2_health_thresholds.sql` | 增加忽略错误类别、仅对精确 factory config 播种热门模型, 并加入可配置健康阈值。空模型列表表示展示全部真实模型；非空列表只影响展示归类, 聚合仍保存真实模型名。 |
+| `199_channel_monitor_v2_fixed_rollups.sql` 至 `202_channel_monitor_v2_full_table_permissions.sql` | 增加 5 分钟/1 小时/12 小时/24 小时固定 rollup 缓存、按 `CURRENT_USER` 授予运行时读写权限, 并只把未修改的 factory config 刷新周期从 60 秒迁到 300 秒。 |
+| `203_channel_monitor_v2_default_ignore_and_cache.sql` 至 `206_channel_monitor_v2_privacy_defaults.sql` | 设置 factory 忽略类别；203 曾写入缓存率 0.85/0.60, 205 只把未修改 factory pair 还原 0/0。204 创建吞吐隐藏 setting, 206 将 false-like 值迁为 `true`, 使最终隐私默认隐藏 RPM/TPM。 |
+| `217_group_video_model_prices.sql` | `groups.video_model_prices` 保存 Grok 视频“规范模型族 × 分辨率”的 USD/s 覆盖；解析顺序为该 map、legacy `video_price_*`、代码内 model-aware 默认价。 |
+| `218_group_audio_voice_pricing.sql`、`219_group_search_price_per_1k.sql` | 增加 Grok realtime(USD/min)、TTS(USD/百万字符)、STT(USD/hour)和搜索(USD/1000 calls)价格列。NULL 使用代码默认价, 0 明确免费, 正数为分组覆盖价。 |
+| `220_clear_non_grok_video_generation_config.sql` | 首次执行先创建 `groups_video_price_backup_220`, 再清空非 Grok、非 composite 分组的 legacy 与 per-model 视频价；composite 可能路由 Grok, 当前版本保留其配置。备份表确认无需回滚后才能人工删除。 |
+
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
+
+> 当前还存在双 `194_` 与双 `195_`: 响应模型审计和 Channel Monitor V2 文件都必须按完整文件名保留。`migrations_runner.go` 对 195、218、219、220 使用迁移名 + 已知 checksum 的窄兼容规则：旧 195 已写入 `v2` 的数据库会保留该 mode；218/219 的历史差异仅为注释/语义说明, schema 相同；旧 220 可能已经清空 composite 视频价, checksum 兼容只允许继续启动, 不会重跑或自动恢复数据。
+
+> 上游已知风险（本地未修）: migration 206 会把已有 `false|0|off|disabled` 全部改为 `true`, 无法区分 factory 默认与管理员主动关闭吞吐隐藏, 升级后需复核 `channel_monitor_hide_throughput`。旧版 migration 220 可能在没有当前备份/排除条件时清过 composite 视频价；应按数据库实际 `schema_migrations` checksum 和备份表判断, 不得假设当前 SQL 会自动补偿。
+
+## 注册邮箱主域额度
+
+- `registration_email_suffix_whitelist` 为空时继续允许任意邮箱。白名单非空时, 精确后缀或通配后缀命中的邮箱正常放行；未命中时 `registration_email_domain_quota_enabled=false`（默认）保持严格白名单拒绝, 只有显式开启后才允许每个可注册主域最多创建一个账户。
+- 主域通过 `publicsuffix.EffectiveTLDPlusOne` 归一化, 例如 `team.example.co.uk` 与 `example.co.uk` 共用 `example.co.uk` 额度；公共后缀库无法归一化时保守使用清理后的原域名。额度统计包含该主域及子域下的未删除用户。
+- 注册验证码发送、邮箱注册、邮件验证完成、OAuth 自动注册和 pending OAuth 邮箱建号都必须经过同一策略。service 层 count 是早期提示, 最终约束在 `userRepository.CreateWithEmailAliasGuardAndDomainLimit`: 同一 Ent 事务内按邮箱字面量、归一化收件箱 identity、主域三个 repository-scoped key 串行化, 再复查域额度与别名冲突后写用户, 防止并发绕过。
 
 ## 支付领域
 
@@ -214,7 +238,13 @@ Codex alpha search 按次计费:
 
 用量缓存 token 拆分: `UsageLogStats` 与 repository 聚合把缓存 token 拆为 `cache_creation_tokens`(cache write/缓存创建)与 `cache_read_tokens`(缓存命中), 管理端和用户侧用量统计 DTO/卡片都展示 `total_cache_creation_tokens` / `total_cache_read_tokens` 明细。OpenAI usage 的总 input 要扣除 cache read 和 cache write 后再计算普通输入; GPT-5.6 的 cache-write 单价来自模型价格或渠道显式覆盖, 显式 0 必须保留。hosted image Responses 的图片 token 可来自 `tool_usage.image_gen` / `response.tool_usage.image_gen`; 解析器仅在标准 usage 图片字段为 0 时补入 image input/output token, 避免与已有字段重复计费。修改用量聚合或展示时要保持各类 token 互斥统计。
 
+上游响应模型审计把三层模型名分开保存: `requested_model` 是客户端请求, `upstream_model` 是 mapping 后实际发送值, `upstream_response_model` 是成功上游响应在本地重写前声明的值。OpenAI、Anthropic、Gemini 的流式/非流式 parser 都可采集；每次 account attempt 开始必须重置观察值, 同一 attempt 的终态声明覆盖较早声明, 冲突只记审计而不改变客户端响应。采集值按 rune 截到 200；`upstream_model_mismatch` 为三态：NULL=未观察到/历史数据, false=与实际发送模型一致, true=不同。repository 筛选必须使用 `IS TRUE` / `IS FALSE`, 不能把 NULL 合并进 false。
+
+Grok 多模态定价必须保留 NULL/0/正数三态。视频优先读取 `video_model_prices` 后回退 legacy 分辨率列和 model-aware 默认价；Voice 分别按 realtime 分钟、TTS 百万字符、STT 小时计费；`search_price_per_1k` 默认 10 USD/1000 calls, 与 Codex alpha search 的 `web_search_price_per_call` 是不同字段和单位。
+
 Gemini 3.6 Flash 及 Antigravity `-high/-low/-medium/-tiered` thinking-tier aliases 归一到 `gemini-3.6-flash` 价格卡；内置/远程缺失时 fallback 为 input 1.50 USD/MTok、output 7.50 USD/MTok、cache read 0.15 USD/MTok。lookup 先保留 exact tier 候选, 再回落 base, 便于未来 tier 独立定价。
+
+Gemini 原生生图按响应中实际 `inlineData` / `inline_data` 图片 part（`image/*` 且 data 非空）计数, 因而自定义模型名也能按真实张数计费。累计式 SSE 取单个 payload 观察到的最大图片数, 不把后续重复整包累加；每次 failover/Forward attempt 先清零, 防止失败账号的图片叠加到成功账号账单。没有有效响应观察值时才回落请求/映射模型名的旧启发式。
 
 OpenAI 长上下文计费是账号级 opt-in: `accounts.extra.openai_long_context_billing_enabled` 默认 `false`, 只有该账号真实上游按 OpenAI API 长上下文阈值收费时才开启。计费结果把是否应用写入 `usage_logs.long_context_billing_applied`, 供审计和管理端用量表展示; shadow 账号沿用母账号策略, 不能按 shadow 的空凭据自行决定。
 
