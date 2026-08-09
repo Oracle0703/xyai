@@ -12,12 +12,12 @@
 
 | 状态 | 任务 | 负责人 / 智能体 | 文件 / 模块范围 | 验证方式 |
 | --- | --- | --- | --- | --- |
-| 待开始 | 1. 唯一组织显示映射与页面接入 | RD | report util、Filters、Summary、People、相关测试 | helper + Filters + View Vitest |
-| 待开始 | 2. XLSX 全路径同步 | RD | report util、Workbook 测试 | Workbook Vitest，覆盖 Champion/组织/人员/月周日 |
-| 待开始 | 3. 人数双语文案 | RD | zh/en locale、locale 测试 | Locale + View Vitest |
-| 待开始 | 4. 趋势改为总 Token | RD | TrendChart 及专项测试 | dataset label/data/axis Vitest |
-| 待开始 | 5. 稳定文档同步 | RD | 组件 README、两份 feature 设计、frontend wiki | 过期合同扫描 |
-| 待开始 | 6. 规格审查、代码审查与完整验证 | QA / 控制器 | 全部变更和交付文档 | 专项/全量 Vitest、typecheck、lint、diff、视觉检查 |
+| 已完成 | 1. 唯一组织显示映射与页面接入 | RD | report util、Filters、Summary、People、相关测试 | helper + Filters + View Vitest |
+| 已完成 | 2. XLSX 全路径同步 | RD | report util、Workbook 测试 | Workbook Vitest，覆盖 Champion/组织/人员/月周日 |
+| 已完成 | 3. 人数双语文案 | RD | zh/en locale、locale 测试 | Locale + View Vitest |
+| 已完成 | 4. 趋势改为总 Token | RD | TrendChart 及专项测试 | dataset label/data/axis Vitest |
+| 已完成 | 5. 稳定文档同步 | RD | 组件 README、两份 feature 设计、frontend wiki | 过期合同扫描 |
+| 已完成 | 6. 规格审查、代码审查与完整验证 | QA / 控制器 | 全部变更和交付文档 | 自动化、静态与范围验证完成；页面级视觉检查受环境阻塞并已记录 |
 
 ## 测试优先顺序
 
@@ -42,7 +42,9 @@
 ## 验证命令
 
 ```powershell
-cmd.exe /c pnpm --dir frontend exec vitest run src/utils/__tests__/organizationUsageReport.spec.ts src/utils/__tests__/organizationUsageWorkbook.spec.ts src/components/admin/organization-usage/__tests__/OrganizationUsageFilters.spec.ts src/components/admin/organization-usage/__tests__/OrganizationUsageTrendChart.spec.ts src/i18n/__tests__/organizationUsageLocale.spec.ts src/views/admin/__tests__/OrganizationUsageView.spec.ts
+cd frontend
+cmd.exe /c node_modules\.bin\vitest.cmd run src/utils/__tests__/organizationUsageReport.spec.ts src/utils/__tests__/organizationUsageWorkbook.spec.ts src/components/admin/organization-usage/__tests__/OrganizationUsageFilters.spec.ts src/components/admin/organization-usage/__tests__/OrganizationUsageTrendChart.spec.ts src/i18n/__tests__/organizationUsageLocale.spec.ts src/views/admin/__tests__/OrganizationUsageView.spec.ts
+cd ..
 cmd.exe /c pnpm --dir frontend run test:run
 cmd.exe /c pnpm --dir frontend run typecheck
 cmd.exe /c pnpm --dir frontend run lint:check
@@ -54,9 +56,9 @@ git diff --name-only github/main...HEAD -- backend frontend/src/api/admin/organi
 
 | 关卡 | 必需证据 | 状态 |
 | --- | --- | --- |
-| 规格符合性审查 | SC-1 至 SC-6 都映射到实现与测试；无额外业务变化 | 待开始 |
-| 代码质量审查 | 唯一映射、回落、XLSX、Chart、双语和请求键均经复核 | 待开始 |
-| 最终验证 | 专项/全量测试、typecheck、lint、diff 与视觉检查均有真实结果 | 待开始 |
+| 规格符合性审查 | SC-1 至 SC-6 都映射到实现与测试；无额外业务变化 | 已完成，无问题 |
+| 代码质量审查 | 唯一映射、回落、XLSX、Chart、双语和请求键均经复核 | 已完成，无问题 |
+| 最终验证 | 专项/全量测试、typecheck、lint、diff 与视觉检查均有真实结果 | 已完成；页面级桌面/移动视觉检查因缺少管理员会话和后端数据受阻 |
 
 ## 回滚
 
