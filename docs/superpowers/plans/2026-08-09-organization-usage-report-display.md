@@ -16,7 +16,7 @@
 - 组织筛选值继续使用 `all|xunyou|wsdashi|other`；不得修改 API DTO、后端、SQL 或数据库。
 - `xunyou|xunyou.com` 显示为“迅游”，`wsdashi|wsdashi.com` 显示为“速宝”，未知值回落调用方传入的“其他 / Other”。
 - 趋势数据集顺序固定为 input、output、total、requests；`total_tokens` 仍包含 input、output、cache creation、cache read。
-- 缓存创建/读取字段继续保留在 API、人员表和 XLSX 明细中，仅从趋势折线移除。
+- 缓存创建/读取字段继续保留在 API 与 XLSX 明细中；人员表只保留既有的缓存读取字段；两类字段均从趋势折线移除。
 - 页面与 XLSX 必须同步；不修改 Sheet 名、分页、导出 Worker、`as_of`、粒度或补零逻辑。
 - 未经用户进一步授权，不 push、不创建 PR、不合并。
 

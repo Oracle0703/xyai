@@ -23,7 +23,7 @@
 
 采用集中展示映射：在组织用量报表工具模块维护 `formatOrganizationUsageOrganization(value: string, otherLabel?: string): string`，兼容 API 当前可能返回的短键和域名形式；品牌名固定返回“迅游”或“速宝”，未知值返回调用方提供的本地化其他名称（默认“其他”）。组件和导出逻辑复用该函数。该函数不得反向参与 API 请求、筛选值或数据聚合。
 
-趋势图继续使用现有双轴和交互配置，数据集顺序调整为：输入 Token、输出 Token、总 Token、请求数。总 Token 复用当前第三条 Token 曲线的配色和轴配置，仅替换 label 与数据来源。`total_tokens` 仍是 input、output、cache creation、cache read 四类之和，因此它不是另外两条可见 Token 曲线的简单相加；缓存创建/读取字段继续保留在 API、人员表和 XLSX Token 明细中，仅从趋势折线中移除缓存 Token。
+趋势图继续使用现有双轴和交互配置，数据集顺序调整为：输入 Token、输出 Token、总 Token、请求数。总 Token 复用当前第三条 Token 曲线的配色和轴配置，仅替换 label 与数据来源。`total_tokens` 仍是 input、output、cache creation、cache read 四类之和，因此它不是另外两条可见 Token 曲线的简单相加；缓存创建/读取字段继续保留在 API 与 XLSX Token 明细中，人员表只保留既有的缓存读取 Token 明细，仅从趋势折线中移除缓存 Token。
 
 ## 影响文件
 
@@ -42,5 +42,5 @@
 
 - 不修改后端、数据库、API DTO 或组织分类 SQL。
 - 不重命名 `active_users`、`used_users`、`xunyou`、`wsdashi` 等内部字段和值。
-- 不改变人员表和 XLSX 中已有的缓存创建/读取 Token 明细。
+- 不改变 API 与 XLSX 中已有的缓存创建/读取 Token 明细，或人员表中既有的缓存读取 Token 明细。
 - 不改变趋势请求、`as_of` 对齐、补零、粒度或导出分页逻辑。

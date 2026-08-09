@@ -47,7 +47,7 @@
 | `active_users` | 值不变，显示为注册人数 | Overview、Organization Summary、XLSX |
 | `used_users` | 值不变，显示为活跃人数 | Overview、Organization Summary、XLSX |
 | `total_tokens` | 作为第三条 Token 趋势数据集；仍等于 input + output + cache creation + cache read | API 已返回，无后端变更；不应解释为两条可见 input/output 曲线之和 |
-| `cache_read_tokens` | 不再进入趋势 datasets | 其他表格、DTO 和导出明细仍保留 |
+| `cache_read_tokens` | 不再进入趋势 datasets | 人员表仍保留既有 cache read；API DTO 和 XLSX 明细保留 cache creation/read |
 | `xunyou` / `xunyou.com` | 显示“迅游” | 请求与筛选仍发送 `xunyou` |
 | `wsdashi` / `wsdashi.com` | 显示“速宝” | 请求与筛选仍发送 `wsdashi` |
 | `other` / 未识别值 | 显示本地化“其他 / Other” | 不创建新分组 |
