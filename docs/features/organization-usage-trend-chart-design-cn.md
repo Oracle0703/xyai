@@ -948,17 +948,17 @@ Windows 下继续使用 `llm-wiki/wiki/ops.md` 的仓库内 `GOCACHE`/`GOMODCACH
 - **可独立合并**: 需 PR1 可用
 - **Done 约束**: 若本 PR 不改 llm-wiki，则 PR3 必须紧随；**wiki 更新前不得宣称功能完成**
 
-### PR3 — 文档与 wiki 同步
+### PR3 — 文档与 wiki 同步（已完成，历史 rollout 记录）
 
-- **标题**: `docs: organization usage trend chart design cross-links and wiki`
+- **完成提交**: `79b5863e7080206047e39816834d997c6c15c118`（`docs: align organization usage display contract`）
 - **依赖**: PR1+PR2（或与 PR2 合并）
-- **影响文件**:
-  - 首版 design 交叉引用（若 PR2 未做）
-  - 本文状态 Draft → 已实现 + 提交哈希
-  - 可选 performance 文档一行
-  - `llm-wiki/wiki/backend.md`、`frontend.md`
-  - 按需 `tools\refresh-understand-wiki.cmd`
-- **可独立合并**: 是（纯文档）
+- **实际范围**:
+  - 首版 report design 的展示交叉同步
+  - 本文状态更新为已实现，并同步默认趋势系列
+  - `frontend/src/components/admin/organization-usage/README.md`
+  - `llm-wiki/wiki/frontend.md`
+- **未执行项**: performance 文档、`llm-wiki/wiki/backend.md` 与知识图谱刷新不在本次局部前端展示合同范围内。
+- **完成方式**: 独立纯文档提交。
 
 ### 建议合并顺序
 
