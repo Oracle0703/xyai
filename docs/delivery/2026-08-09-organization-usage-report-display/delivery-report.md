@@ -29,7 +29,7 @@
 | TypeScript | `typecheck` exit 0 |
 | ESLint | `lint:check` exit 0，无 lint warning |
 | Git 范围 | `diff --check` exit 0；24 个固定范围路径；backend/API/受保护控制器路径无 diff |
-| 规格 / 质量审查 | SC-1 至 SC-6 全部符合；findings：无问题 |
+| 规格 / 质量审查 | SC-1 至 SC-6 全部符合；Task 6 独立审查批准；findings：无问题 |
 
 测试输出不是 pristine：专项/全量包含既有 `caniuse-lite` 过期 warning，全量还包含测试预期路径产生的 Vue/i18n/异常 stderr；这些输出未导致失败。详细证据见 `test-review.md`。
 
@@ -40,7 +40,9 @@
 | 试用 URL | `http://127.0.0.1:5174/admin/organization-usage` |
 | HTTP | 根路径与目标路由均 200，响应 431 bytes |
 | Dev server | 已保持运行；未关闭成功启动的服务 |
-| 页面级桌面/移动检查 | 受阻：缺少可用管理员会话和后端数据；Vite 日志记录 public config fetch failed |
+| 桌面浏览器 | 目标路由重定向到 `/login?redirect=/admin/organization-usage`，只可见登录表单 |
+| 移动视口 | 390x844 下同样进入登录门槛，无法看到报表内容 |
+| 页面级桌面/移动检查 | 受阻：缺少可用管理员会话和后端数据；未输入凭据或读取浏览器存储；Vite 日志记录 public config fetch failed |
 
 ## 文件与范围
 
@@ -51,5 +53,6 @@
 ## 已知限制
 
 - 仍需在具备管理员会话和真实后端数据的环境中人工确认桌面/移动标题截断、图例外观和表格重叠。
+- Task 6 审查包未保存完整原始测试输出；独立审查确认文档记录与 diff 一致，并将此列为不阻塞的可复核性限制。
 - `frontend/node_modules` 为依赖 junction；未执行依赖安装或升级，不构成产品失败。
 - 未 push、未创建 PR、未合并。

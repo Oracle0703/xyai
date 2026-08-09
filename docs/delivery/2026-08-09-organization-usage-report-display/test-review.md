@@ -5,11 +5,12 @@
 | 项目 | 结论 |
 | --- | --- |
 | 日期 | 2026-08-10（Asia/Shanghai） |
-| 审查范围 | `github/main` (`1558cd9f1`) 至 Task 5 基线 `6828cc166` |
+| 审查范围 | 实现：`github/main` (`1558cd9f1`) 至 Task 5 基线 `6828cc166`；Task 6 文档：`6828cc166..b1c6525a3` |
 | 规格符合性 | SC-1 至 SC-6 全部符合 |
 | 代码质量 | 无问题 |
 | 严重 / 重要 / 一般 findings | 无问题 |
-| 最终判断 | 自动化、静态和范围验证通过；页面级桌面/移动视觉检查受环境阻塞 |
+| Task 6 独立审查 | 规格符合、质量批准；Critical / Important / Minor 均无问题 |
+| 最终判断 | 自动化、静态和范围验证通过；页面级桌面/移动视觉检查受登录和数据环境阻塞 |
 
 ## 成功标准矩阵
 
@@ -56,6 +57,9 @@
 | 纠偏启动 | 保留已启动的 `3000` 服务，并以 `Start-Process -WindowStyle Hidden` 运行参数可生效的 `pnpm --dir frontend run dev --host 127.0.0.1 --port 5174` |
 | 可访问性 | `http://127.0.0.1:5174/` 和 `/admin/organization-usage` 均 HTTP 200，响应 431 bytes；Vite PID 18200 |
 | 日志 | `.superpowers/sdd/2026-08-09-organization-usage-report-display/task-6-vite-5174.stdout.log` / `.stderr.log` |
+| 桌面浏览器 | 请求 `/admin/organization-usage` 后重定向到 `/login?redirect=/admin/organization-usage`，只显示登录表单，报表 DOM 不可见 |
+| 移动视口 | 390x844 下同样进入登录门槛，无法检查真实报表的标题、图例和表格布局 |
+| 安全边界 | 未输入凭据，未读取 Cookie、localStorage 或浏览器配置文件 |
 | 页面级视觉 | 受阻：本机无可用管理员会话和后端数据，Vite 日志明确 public config fetch failed；未伪造桌面/移动通过 |
 | 未执行项 | 未真实确认人数标题截断、组织筛选交互、图例外观及移动表格重叠；自动化合同已覆盖对应非视觉行为 |
 
@@ -63,4 +67,5 @@
 
 - `frontend/node_modules` 是指向主 checkout 依赖的 junction；本轮未安装或升级依赖，这不是产品失败。
 - ignored 扫描 linked `node_modules` 时出现 Windows 长路径 warning 并超时；该探索命令不属于产品验证，正式 Git 范围命令均成功。
+- Task 6 独立审查可核对文档与 review package，但完整原始测试输出未随审查包保存；审查者将其判定为不阻塞的可复核性限制。
 - 残余风险仅为真实管理员数据下的桌面/移动视觉呈现尚未人工确认。
