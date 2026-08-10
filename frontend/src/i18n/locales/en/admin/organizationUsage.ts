@@ -20,7 +20,8 @@ export default {
       reset: 'Reset',
       retry: 'Retry',
       export: 'Export XLSX',
-      exporting: 'Exporting...'
+      exporting: 'Exporting...',
+      applyFiltersBeforeExport: 'Apply the filters before exporting.'
     },
     overview: { title: 'Overview' },
     trend: {
@@ -47,6 +48,9 @@ export default {
     metrics: {
       activeUsers: 'Registered users',
       usedUsers: 'Active users',
+      activeRate: 'Active rate',
+      registeredUsersHelp: 'Registered users in the selected report scope.',
+      activeUsersHelp: 'Registered users with at least one request in the selected report period.',
       requests: 'Requests',
       inputTokens: 'Input tokens',
       outputTokens: 'Output tokens',
@@ -54,6 +58,7 @@ export default {
       cacheReadTokens: 'Cache read tokens',
       cacheTokens: 'Cache tokens',
       totalTokens: 'Total tokens',
+      totalTokensHelp: 'All input, output and cache tokens consumed in the selected report period.',
       actualCost: 'Actual cost',
       tokenShare: 'Token share'
     },

@@ -22,10 +22,10 @@ const baseDraft: OrganizationUsageFilterDraft = {
   q: ''
 }
 
-function mountFilters(modelValue: OrganizationUsageFilterDraft) {
+function mountFilters(modelValue: OrganizationUsageFilterDraft, exportDisabled = false) {
   const errorHandler = vi.fn()
   const wrapper = mount(OrganizationUsageFilters, {
-    props: { modelValue, loading: false, exporting: false },
+    props: { modelValue, loading: false, exporting: false, exportDisabled },
     global: { config: { errorHandler } }
   })
   return { wrapper, errorHandler }
@@ -41,6 +41,14 @@ describe('OrganizationUsageFilters date validation', () => {
       { value: 'wsdashi', label: '速宝' },
       { value: 'other', label: 'admin.organizationUsage.organizations.other' }
     ])
+  })
+
+  it('disables export and explains that filters are pending', () => {
+    const { wrapper } = mountFilters(baseDraft, true)
+
+    const exportButton = wrapper.get('[data-testid="export-report"]')
+    expect(exportButton.attributes('disabled')).toBeDefined()
+    expect(exportButton.attributes('title')).toBe('admin.organizationUsage.actions.applyFiltersBeforeExport')
   })
 
   it.each([
