@@ -10,6 +10,7 @@
         v-model="draft"
         :loading="loading"
         :exporting="exporting"
+        :export-disabled="hasPendingFilters"
         @apply="applyFilters"
         @reset="resetFilters"
         @export="exportReport"
@@ -71,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
 
@@ -126,6 +127,25 @@ function initialDraft(): OrganizationUsageFilterDraft {
 }
 
 const draft = ref<OrganizationUsageFilterDraft>(initialDraft())
+
+function filterFingerprint(value: OrganizationUsageFilterDraft): string {
+  const activeDateValues = value.mode === 'month'
+    ? [value.month]
+    : value.mode === 'week'
+      ? [value.weekAnchor]
+      : [value.customStart, value.customEnd]
+  return JSON.stringify([value.mode, ...activeDateValues, value.organization, value.q.trim()])
+}
+
+let appliedFilterDraft = { ...draft.value }
+const appliedFilterFingerprint = ref(filterFingerprint(appliedFilterDraft))
+const hasPendingFilters = computed(() => filterFingerprint(draft.value) !== appliedFilterFingerprint.value)
+
+function saveAppliedFilterFingerprint(value: OrganizationUsageFilterDraft) {
+  appliedFilterDraft = { ...value }
+  appliedFilterFingerprint.value = filterFingerprint(appliedFilterDraft)
+}
+
 const initialRange = getDefaultOrganizationUsageRange('month')
 const applied = reactive({
   ...initialRange,
@@ -364,6 +384,7 @@ function applyFilters(range: OrganizationUsageRange) {
     organization: draft.value.organization,
     q: draft.value.q
   })
+  saveAppliedFilterFingerprint(draft.value)
   if (dateChanged) granularityMode.value = 'auto'
   pagination.page = 1
   loadFullReport()
@@ -373,6 +394,7 @@ function resetFilters() {
   draft.value = initialDraft()
   const range = getDefaultOrganizationUsageRange('month')
   Object.assign(applied, range, { organization: 'all', q: '' })
+  saveAppliedFilterFingerprint(draft.value)
   sortBy.value = 'total_tokens'
   sortOrder.value = 'desc'
   pagination.page = 1
@@ -384,6 +406,7 @@ function resetFilters() {
 function selectOrganization(organization: Exclude<OrganizationUsageOrganizationFilter, 'all'>) {
   draft.value = { ...draft.value, organization }
   applied.organization = organization
+  saveAppliedFilterFingerprint({ ...appliedFilterDraft, organization })
   pagination.page = 1
   // Keep granularity mode when only org changes
   loadFullReport()

@@ -20,7 +20,8 @@ export default {
       reset: '重置',
       retry: '重试',
       export: '导出 XLSX',
-      exporting: '导出中...'
+      exporting: '导出中...',
+      applyFiltersBeforeExport: '请先查询筛选条件后再导出。'
     },
     overview: { title: '用量概览' },
     trend: {
@@ -47,6 +48,9 @@ export default {
     metrics: {
       activeUsers: '注册人数',
       usedUsers: '活跃人数',
+      activeRate: '活跃率',
+      registeredUsersHelp: '所选报表范围内的注册用户数。',
+      activeUsersHelp: '所选报表周期内至少发起过一次请求的注册用户数。',
       requests: '请求数',
       inputTokens: '输入 Token',
       outputTokens: '输出 Token',
@@ -54,6 +58,7 @@ export default {
       cacheReadTokens: '缓存读取 Token',
       cacheTokens: '缓存 Token',
       totalTokens: '总 Token',
+      totalTokensHelp: '所选报表周期内消耗的输入、输出和缓存 Token 总量。',
       actualCost: '实际成本',
       tokenShare: 'Token 占比'
     },

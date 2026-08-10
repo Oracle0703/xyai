@@ -291,6 +291,20 @@ describe('OrganizationUsageView', () => {
     expect(wrapper.get('[data-organization="xunyou"]').attributes('aria-pressed')).toBe('true')
   })
 
+  it('keeps export disabled when organization selection leaves an email draft unapplied', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('input[type="search"]').setValue('pending@example.com')
+    await wrapper.get('[data-organization="xunyou"]').trigger('click')
+    await flushPromises()
+
+    const exportButton = wrapper.get('[data-testid="export-report"]')
+    expect(exportButton.attributes('disabled')).toBeDefined()
+    await exportButton.trigger('click')
+    expect(fetchAll).not.toHaveBeenCalled()
+  })
+
   it('performs sorting, paging and page-size changes on the server', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -674,6 +688,28 @@ describe('OrganizationUsageView', () => {
     expect(write).not.toHaveBeenCalled()
     expect(saveAs).toHaveBeenCalledOnce()
     expect(showSuccess).toHaveBeenCalledWith('admin.organizationUsage.feedback.exportSuccess')
+  })
+
+  it('blocks export for an unapplied month draft and exports the applied range', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="month-input"]').setValue('2026-06')
+
+    const exportButton = wrapper.get('[data-testid="export-report"]')
+    expect(exportButton.attributes('disabled')).toBeDefined()
+    await exportButton.trigger('click')
+    expect(fetchAll).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="apply-filters"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="export-report"]').trigger('click')
+    await flushPromises()
+
+    expect(fetchAll).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: '2026-06-01',
+      end_date: '2026-06-30'
+    }), expect.anything())
   })
 
   it('keeps the export filename bound to the query snapshot taken at click time', async () => {

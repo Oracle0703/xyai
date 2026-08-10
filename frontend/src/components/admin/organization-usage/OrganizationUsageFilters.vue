@@ -22,7 +22,8 @@
         type="button"
         data-testid="export-report"
         class="btn btn-secondary inline-flex items-center gap-2"
-        :disabled="exporting"
+        :disabled="exporting || exportDisabled"
+        :title="exportDisabled ? t('admin.organizationUsage.actions.applyFiltersBeforeExport') : undefined"
         @click="emit('export')"
       >
         <Icon name="download" size="sm" />
@@ -167,6 +168,7 @@ const props = defineProps<{
   modelValue: OrganizationUsageFilterDraft
   loading: boolean
   exporting: boolean
+  exportDisabled?: boolean
 }>()
 
 const emit = defineEmits<{

@@ -2,12 +2,18 @@
   <section class="border-b border-gray-200 py-5 dark:border-dark-700">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.organizationUsage.overview.title') }}</h2>
-      <span class="text-xs text-gray-500 dark:text-dark-400">{{ range.start_date }} - {{ range.end_date }}</span>
+      <div class="text-right text-xs text-gray-500 dark:text-dark-400">
+        <p>{{ range.start_date }} - {{ range.end_date }}</p>
+        <p v-if="asOfLabel" class="mt-1">{{ asOfLabel }}</p>
+      </div>
     </div>
 
-    <dl class="mt-4 grid grid-cols-2 divide-x divide-gray-200 border-y border-gray-200 py-3 dark:divide-dark-700 dark:border-dark-700 sm:grid-cols-5">
+    <dl class="mt-4 grid grid-cols-2 gap-y-4 border-y border-gray-200 py-3 dark:border-dark-700 sm:grid-cols-3 lg:grid-cols-6">
       <div v-for="metric in overviewMetrics" :key="metric.label" class="min-w-0 px-3 first:pl-0">
-        <dt class="truncate text-xs text-gray-500 dark:text-dark-400">{{ metric.label }}</dt>
+        <dt class="flex items-center text-xs text-gray-500 dark:text-dark-400">
+          <span class="truncate">{{ metric.label }}</span>
+          <HelpTooltip v-if="metric.help" :content="metric.help" />
+        </dt>
         <dd class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ metric.value }}</dd>
       </div>
     </dl>
@@ -18,6 +24,9 @@
         <template v-if="champion.value">
           <p class="mt-1 truncate text-sm font-medium text-gray-900 dark:text-white" :title="champion.value.email">
             {{ champion.value.email }}
+          </p>
+          <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+            {{ formatOrganizationUsageOrganization(champion.value.organization, t('admin.organizationUsage.organizations.other')) }}
           </p>
           <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
             {{ champion.value.period_start }} - {{ champion.value.period_end }}
@@ -44,7 +53,9 @@ import type {
   OrganizationUsageOverview,
   OrganizationUsageRange
 } from '@/api/admin/organizationUsage'
-import { formatNumber } from '@/utils/format'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
+import { formatCostFixed, formatDateTime, formatNumber } from '@/utils/format'
+import { formatOrganizationUsageOrganization } from '@/utils/organizationUsageReport'
 
 const props = defineProps<{
   overview: OrganizationUsageOverview
@@ -54,13 +65,33 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-// Overview focuses on headcount and token volume; actual cost stays in org/people tables.
+const asOfLabel = computed(() => {
+  if (!props.range.as_of) return ''
+  return t('admin.organizationUsage.trend.asOf', { value: formatDateTime(props.range.as_of) || '-' })
+})
+
 const overviewMetrics = computed(() => [
-  { label: t('admin.organizationUsage.metrics.activeUsers'), value: formatNumber(props.overview.active_users) },
-  { label: t('admin.organizationUsage.metrics.usedUsers'), value: formatNumber(props.overview.used_users) },
+  {
+    label: t('admin.organizationUsage.metrics.activeUsers'),
+    value: formatNumber(props.overview.active_users),
+    help: t('admin.organizationUsage.metrics.registeredUsersHelp')
+  },
+  {
+    label: t('admin.organizationUsage.metrics.usedUsers'),
+    value: formatNumber(props.overview.used_users),
+    help: t('admin.organizationUsage.metrics.activeUsersHelp')
+  },
+  {
+    label: t('admin.organizationUsage.metrics.activeRate'),
+    value: `${(props.overview.active_users > 0 ? props.overview.used_users / props.overview.active_users * 100 : 0).toFixed(1)}%`
+  },
   { label: t('admin.organizationUsage.metrics.requests'), value: formatNumber(props.overview.requests) },
-  { label: t('admin.organizationUsage.metrics.inputTokens'), value: formatNumber(props.overview.input_tokens) },
-  { label: t('admin.organizationUsage.metrics.totalTokens'), value: formatNumber(props.overview.total_tokens) }
+  {
+    label: t('admin.organizationUsage.metrics.totalTokens'),
+    value: formatNumber(props.overview.total_tokens),
+    help: t('admin.organizationUsage.metrics.totalTokensHelp')
+  },
+  { label: t('admin.organizationUsage.metrics.actualCost'), value: `$${formatCostFixed(props.overview.actual_cost)}` }
 ])
 
 const champions = computed(() => [
