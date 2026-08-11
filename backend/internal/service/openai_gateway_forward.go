@@ -57,6 +57,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	if toolSchemaSanitized {
 		body = sanitizedToolBody
 	}
+	sanitizedTextSchemaBody, textSchemaSanitized, textSchemaErr := sanitizeOpenAIResponsesTextFormatSchemaFormats(body)
+	if textSchemaErr != nil {
+		return nil, fmt.Errorf("sanitize OpenAI Responses text format schema: %w", textSchemaErr)
+	}
+	if textSchemaSanitized {
+		body = sanitizedTextSchemaBody
+	}
 	if account.IsOpenAIOAuth() && isOpenAIResponsesLiteHeader(c.GetHeader(responsesLiteHeader)) {
 		liteBody, changed, liteErr := normalizeOpenAIResponsesLiteToolsPayload(body)
 		if liteErr != nil {

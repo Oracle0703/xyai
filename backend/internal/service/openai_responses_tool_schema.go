@@ -2,9 +2,11 @@ package service
 
 import (
 	"bytes"
+	"encoding/json"
 	"sort"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -74,6 +76,104 @@ func sanitizeOpenAIResponsesToolParameterTypes(body []byte) ([]byte, bool, error
 	}
 	sanitized = append(sanitized, body[cursor:]...)
 	return sanitized, true, nil
+}
+
+func sanitizeOpenAIResponsesTextFormatSchemaFormats(body []byte) ([]byte, bool, error) {
+	if len(body) == 0 || gjson.GetBytes(body, "text.format.type").String() != "json_schema" {
+		return body, false, nil
+	}
+	schema := gjson.GetBytes(body, "text.format.schema")
+	if !schema.IsObject() {
+		return body, false, nil
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(schema.Raw), &decoded); err != nil {
+		return body, false, err
+	}
+	if !sanitizeOpenAIResponsesTextFormatSchemaNode(decoded) {
+		return body, false, nil
+	}
+
+	sanitizedSchema, err := json.Marshal(decoded)
+	if err != nil {
+		return body, false, err
+	}
+	out, err := sjson.SetRawBytes(body, "text.format.schema", sanitizedSchema)
+	if err != nil {
+		return body, false, err
+	}
+	return out, true, nil
+}
+
+func sanitizeOpenAIResponsesTextFormatSchemaNode(schema map[string]any) bool {
+	if schema == nil {
+		return false
+	}
+
+	changed := false
+	if rawFormat, ok := schema["format"]; ok {
+		format, ok := rawFormat.(string)
+		if !ok || !isOpenAIResponsesTextFormatSchemaFormatSupported(format) {
+			delete(schema, "format")
+			changed = true
+		}
+	}
+
+	for _, key := range []string{
+		"additionalProperties",
+		"contains",
+		"contentSchema",
+		"else",
+		"if",
+		"items",
+		"not",
+		"propertyNames",
+		"then",
+		"unevaluatedItems",
+		"unevaluatedProperties",
+	} {
+		if child, ok := schema[key].(map[string]any); ok {
+			changed = sanitizeOpenAIResponsesTextFormatSchemaNode(child) || changed
+		}
+	}
+
+	for _, key := range []string{
+		"$defs",
+		"definitions",
+		"dependentSchemas",
+		"patternProperties",
+		"properties",
+	} {
+		if children, ok := schema[key].(map[string]any); ok {
+			for _, rawChild := range children {
+				if child, ok := rawChild.(map[string]any); ok {
+					changed = sanitizeOpenAIResponsesTextFormatSchemaNode(child) || changed
+				}
+			}
+		}
+	}
+
+	for _, key := range []string{"allOf", "anyOf", "oneOf", "prefixItems"} {
+		if children, ok := schema[key].([]any); ok {
+			for _, rawChild := range children {
+				if child, ok := rawChild.(map[string]any); ok {
+					changed = sanitizeOpenAIResponsesTextFormatSchemaNode(child) || changed
+				}
+			}
+		}
+	}
+
+	return changed
+}
+
+func isOpenAIResponsesTextFormatSchemaFormatSupported(format string) bool {
+	switch format {
+	case "date-time", "time", "date", "duration", "email", "hostname", "ipv4", "ipv6", "uuid":
+		return true
+	default:
+		return false
+	}
 }
 
 // collectOpenAIResponsesToolSchemaNullTypes 收集一个 tools 数组里所有需要修正的
