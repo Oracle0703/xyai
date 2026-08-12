@@ -826,6 +826,7 @@ type transactionalIdempotencyRepo struct {
 	committed     bool
 	rolledBack    bool
 	markSawTx     bool
+	markFailedCtx error
 	transactional bool
 	commitErr     error
 	getContextErr error
@@ -862,6 +863,14 @@ func (r *transactionalIdempotencyRepo) GetByScopeAndKeyHash(ctx context.Context,
 func (r *transactionalIdempotencyRepo) MarkSucceeded(ctx context.Context, id int64, responseStatus int, responseBody string, expiresAt time.Time) error {
 	r.markSawTx, _ = ctx.Value(idempotencyTxTestContextKey{}).(bool)
 	return r.markBehaviorRepo.MarkSucceeded(ctx, id, responseStatus, responseBody, expiresAt)
+}
+
+func (r *transactionalIdempotencyRepo) MarkFailedRetryable(ctx context.Context, id int64, errorReason string, lockedUntil, expiresAt time.Time) error {
+	r.markFailedCtx = ctx.Err()
+	if r.markFailedCtx != nil {
+		return r.markFailedCtx
+	}
+	return r.markBehaviorRepo.MarkFailedRetryable(ctx, id, errorReason, lockedUntil, expiresAt)
 }
 
 func TestIdempotencyCoordinator_AtomicSuccessRollsBackExecutionWhenMarkSucceededFails(t *testing.T) {
@@ -919,6 +928,33 @@ func TestIdempotencyCoordinator_AtomicSuccessRunsPostCommitOnlyAfterCommit(t *te
 	require.True(t, repo.committed)
 	require.True(t, postCommitRan)
 	require.False(t, result.Replayed)
+}
+
+func TestIdempotencyCoordinator_AtomicCancellationMarksFailureOutsideRequestContext(t *testing.T) {
+	base := &markBehaviorRepo{inMemoryIdempotencyRepo: *newInMemoryIdempotencyRepo()}
+	repo := &transactionalIdempotencyRepo{markBehaviorRepo: base, transactional: true}
+	coordinator := NewIdempotencyCoordinator(repo, DefaultIdempotencyConfig())
+	requestCtx, cancel := context.WithCancel(context.Background())
+
+	opts := IdempotencyExecuteOptions{
+		Scope:          "scope-atomic-canceled",
+		IdempotencyKey: "atomic-canceled",
+		Method:         "POST",
+		Route:          "/atomic",
+		ActorScope:     "admin:1",
+		Payload:        map[string]any{"a": 1},
+		AtomicSuccess:  true,
+	}
+	_, err := coordinator.Execute(requestCtx, opts, func(context.Context) (any, error) {
+		cancel()
+		return nil, context.Canceled
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.NoError(t, repo.markFailedCtx)
+	stored, getErr := base.GetByScopeAndKeyHash(context.Background(), opts.Scope, HashIdempotencyKey(opts.IdempotencyKey))
+	require.NoError(t, getErr)
+	require.Equal(t, IdempotencyStatusFailedRetryable, stored.Status)
 }
 
 func TestIdempotencyCoordinator_AtomicSuccessRecoversAmbiguousCommittedResult(t *testing.T) {

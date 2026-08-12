@@ -22,6 +22,7 @@ const (
 	IdempotencyStatusSucceeded       = "succeeded"
 	IdempotencyStatusFailedRetryable = "failed_retryable"
 	atomicCommitRecoveryTimeout      = 2 * time.Second
+	idempotencyStatusWriteTimeout    = 2 * time.Second
 )
 
 var (
@@ -456,7 +457,7 @@ func (c *IdempotencyCoordinator) Execute(
 				if reason == "" {
 					reason = "EXECUTION_FAILED"
 				}
-				if markFailedErr := c.repo.MarkFailedRetryable(ctx, record.ID, reason, backoffUntil, expiresAt); markFailedErr != nil {
+				if markFailedErr := c.markFailedRetryable(ctx, record.ID, reason, backoffUntil, expiresAt); markFailedErr != nil {
 					RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_failed_retryable_error")
 				}
 				return nil, execErr
@@ -496,7 +497,7 @@ func (c *IdempotencyCoordinator) Execute(
 		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->failed_retryable", false, map[string]string{
 			"reason": reason,
 		})
-		if markErr := c.repo.MarkFailedRetryable(ctx, record.ID, reason, backoffUntil, expiresAt); markErr != nil {
+		if markErr := c.markFailedRetryable(ctx, record.ID, reason, backoffUntil, expiresAt); markErr != nil {
 			RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_failed_retryable_error")
 			logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
 				"operation": "mark_failed_retryable",
@@ -534,6 +535,12 @@ func (c *IdempotencyCoordinator) conflictWithRetryAfter(base *infraerrors.Applic
 		sec = 1
 	}
 	return base.WithMetadata(map[string]string{"retry_after": strconv.Itoa(sec)})
+}
+
+func (c *IdempotencyCoordinator) markFailedRetryable(ctx context.Context, id int64, reason string, lockedUntil, expiresAt time.Time) error {
+	statusCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStatusWriteTimeout)
+	defer cancel()
+	return c.repo.MarkFailedRetryable(statusCtx, id, reason, lockedUntil, expiresAt)
 }
 
 func (c *IdempotencyCoordinator) atomicCommitSucceeded(scope, keyHash, fingerprint, storedBody string) bool {

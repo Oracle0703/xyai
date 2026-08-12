@@ -159,7 +159,7 @@ API 模块分布:
 - 筛选项包含状态、用户、分组、平台和组织；组织内部值/API 参数为 `xunyou` / `wsdashi`, 页面固定显示“迅游”/“速宝”。列表请求仍发送表格的 `sort_by` / `sort_order`, 后端将其作为同日剩余比例时的次序。
 - 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
 - 操作列的“重置日限”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: false, monthly: false })`, 只归零每日用量, 不修改周/月用量。
-- “分配订阅”后的一键重置按钮对完整管理员和持有 `admin.subscriptions` 的子管理员显示。页面只在最新列表请求成功后更新 `status,user_id,group_id,platform,organization` 的 applied snapshot；初次列表尚未成功时按钮禁用, 后续筛选请求失败或在途时仍使用上一次成功快照。打开确认框时复制该快照, 调用 `resetDailyFiltered` 时不携带分页或排序字段；同一确认框失败重试复用 `Idempotency-Key`, 重新打开才生成新键。
+- “分配订阅”后的一键重置按钮对完整管理员和持有 `admin.subscriptions` 的子管理员显示。每次列表请求开始时立即使 `status,user_id,group_id,platform,organization` 的 applied snapshot 失效, 只有最新请求成功后才恢复；初次加载、筛选请求在途或失败时按钮均禁用, 避免按旧筛选范围批量重置。打开确认框时复制该快照, 调用 `resetDailyFiltered` 时不携带分页或排序字段；同一确认框失败重试复用 `Idempotency-Key`, 重新打开才生成新键。
 - 一键重置成功后关闭确认框并刷新列表, `reset_count > 0` 显示数量, `reset_count = 0` 显示无匹配；失败保留确认框和筛选状态, 请求进行中忽略重复确认。
 - 管理端订阅支持撤销/恢复: revoked 订阅在列表中保留历史, 操作列显示 restore; 恢复时后端会按当前过期时间决定 active/expired。用户侧和管理侧订阅卡展示 `expires_at` 剩余时长, one-time daily quota 会使用剩余时长文案。
 
