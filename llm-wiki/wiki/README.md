@@ -66,6 +66,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 | 改数据库字段或索引 | `data-and-domain.md`, `backend/migrations/README.md` |
 | 改支付, 订阅, 余额, 兑换码 | `data-and-domain.md`, `security-and-reliability.md` |
 | 改启动, 配置, CI | `ops.md` |
+| 还技术债 / 看已知基线红与上游只记不修项 | `docs/features/technical-debt-board-cn.md`（看板 TD-001+；细节仍以 wiki 与源码为准） |
 
 ## 高优先级维护约束
 
