@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
@@ -11,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -331,6 +334,157 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 	}
 
 	return result, paginationResultFromTotal(int64(total), params), nil
+}
+
+func (r *userSubscriptionRepository) ListAdmin(
+	ctx context.Context,
+	params pagination.PaginationParams,
+	filter service.SubscriptionAdminFilter,
+	now time.Time,
+) ([]service.UserSubscription, *pagination.PaginationResult, error) {
+	client := clientFromContext(ctx, r.client)
+	q, queryCtx, includeSoftDeleted := applyUserSubscriptionAdminFilter(
+		client.UserSubscription.Query(),
+		ctx,
+		filter,
+		now,
+	)
+
+	total, err := q.Clone().Count(queryCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !includeSoftDeleted {
+		q = q.WithUser().WithGroup().WithAssignedByUser()
+	}
+
+	subs, err := q.
+		Order(userSubscriptionAdminOrder(filter, timezone.StartOfDay(now))).
+		Offset(params.Offset()).
+		Limit(params.Limit()).
+		All(queryCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	result := userSubscriptionEntitiesToService(subs)
+	if includeSoftDeleted {
+		if err := r.attachUserSubscriptionRelations(ctx, result); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return result, paginationResultFromTotal(int64(total), params), nil
+}
+
+func applyUserSubscriptionAdminFilter(
+	q *dbent.UserSubscriptionQuery,
+	ctx context.Context,
+	filter service.SubscriptionAdminFilter,
+	now time.Time,
+) (*dbent.UserSubscriptionQuery, context.Context, bool) {
+	includeSoftDeleted := filter.Status == "" || filter.Status == service.SubscriptionStatusRevoked
+	if filter.UserID != nil {
+		q = q.Where(usersubscription.UserIDEQ(*filter.UserID))
+	}
+	if filter.GroupID != nil {
+		q = q.Where(usersubscription.GroupIDEQ(*filter.GroupID))
+	}
+	if filter.Platform != "" {
+		groupPredicates := []predicate.Group{group.PlatformEQ(filter.Platform)}
+		if includeSoftDeleted {
+			groupPredicates = append(groupPredicates, group.DeletedAtIsNil())
+		}
+		q = q.Where(usersubscription.HasGroupWith(groupPredicates...))
+	}
+	if filter.Organization != "" {
+		domain := subscriptionOrganizationDomain(filter.Organization)
+		q = q.Where(usersubscription.HasUserWith(predicate.User(func(selector *entsql.Selector) {
+			selector.Where(entsql.ExprP(
+				fmt.Sprintf("LOWER(SPLIT_PART(%s, '@', 2)) = ?", selector.C(user.FieldEmail)),
+				domain,
+			))
+		})))
+	}
+
+	switch filter.Status {
+	case service.SubscriptionStatusActive:
+		q = q.Where(
+			usersubscription.StatusEQ(service.SubscriptionStatusActive),
+			usersubscription.ExpiresAtGT(now),
+		)
+	case service.SubscriptionStatusExpired:
+		q = q.Where(usersubscription.Or(
+			usersubscription.StatusEQ(service.SubscriptionStatusExpired),
+			usersubscription.And(
+				usersubscription.StatusEQ(service.SubscriptionStatusActive),
+				usersubscription.ExpiresAtLTE(now),
+			),
+		))
+	case service.SubscriptionStatusRevoked:
+		q = q.Where(usersubscription.DeletedAtNotNil())
+	case "":
+	default:
+		q = q.Where(usersubscription.StatusEQ(filter.Status))
+	}
+
+	queryCtx := ctx
+	if includeSoftDeleted {
+		queryCtx = mixins.SkipSoftDelete(ctx)
+	}
+	return q, queryCtx, includeSoftDeleted
+}
+
+func subscriptionOrganizationDomain(organization string) string {
+	switch organization {
+	case service.SubscriptionOrganizationXunyou:
+		return "xunyou.com"
+	case service.SubscriptionOrganizationWsdashi:
+		return "wsdashi.com"
+	default:
+		return ""
+	}
+}
+
+func userSubscriptionAdminOrder(filter service.SubscriptionAdminFilter, startOfDay time.Time) func(*entsql.Selector) {
+	return func(selector *entsql.Selector) {
+		groupID := selector.C(usersubscription.FieldGroupID)
+		startsAt := selector.C(usersubscription.FieldStartsAt)
+		expiresAt := selector.C(usersubscription.FieldExpiresAt)
+		dailyWindowStart := selector.C(usersubscription.FieldDailyWindowStart)
+		dailyUsage := selector.C(usersubscription.FieldDailyUsageUsd)
+		dailyLimit := fmt.Sprintf("(SELECT g.daily_limit_usd FROM groups g WHERE g.id = %s AND g.deleted_at IS NULL)", groupID)
+
+		selector.OrderExprFunc(func(builder *entsql.Builder) {
+			builder.WriteString("CASE WHEN ").WriteString(dailyLimit).
+				WriteString(" IS NULL OR ").WriteString(dailyLimit).
+				WriteString(" <= 0 THEN 1 ELSE 0 END ASC, CASE WHEN ").
+				WriteString(dailyLimit).WriteString(" > 0 THEN GREATEST(").
+				WriteString(dailyLimit).WriteString(" - CASE WHEN ").
+				WriteString(expiresAt).WriteString(" <= ").WriteString(startsAt).
+				WriteString(" + INTERVAL '1 day' THEN ").WriteString(dailyUsage).
+				WriteString(" WHEN ").WriteString(dailyWindowStart).WriteString(" IS NOT NULL AND ").
+				WriteString(dailyWindowStart).WriteString(" < ").Arg(startOfDay).
+				WriteString(" THEN 0 ELSE ").WriteString(dailyUsage).WriteString(" END").
+				WriteString(", 0) / ").WriteString(dailyLimit).
+				WriteString(" END ASC")
+		})
+
+		secondaryField := usersubscription.FieldCreatedAt
+		switch filter.SortBy {
+		case "expires_at":
+			secondaryField = usersubscription.FieldExpiresAt
+		case "status":
+			secondaryField = usersubscription.FieldStatus
+		}
+		if filter.SortOrder == "asc" {
+			selector.OrderBy(entsql.Asc(selector.C(secondaryField)))
+		} else {
+			selector.OrderBy(entsql.Desc(selector.C(secondaryField)))
+		}
+		selector.OrderBy(entsql.Asc(selector.C(usersubscription.FieldID)))
+	}
 }
 
 func (r *userSubscriptionRepository) ExistsByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error) {

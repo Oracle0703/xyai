@@ -807,6 +807,27 @@ func (s *SubscriptionService) List(ctx context.Context, page, pageSize int, user
 	return subs, pag, nil
 }
 
+// ListAdmin 获取管理端订阅列表，并在数据库分页前应用每日剩余比例主排序。
+func (s *SubscriptionService) ListAdmin(ctx context.Context, page, pageSize int, filter SubscriptionAdminFilter) ([]UserSubscription, *pagination.PaginationResult, error) {
+	normalized, err := NormalizeSubscriptionAdminFilter(filter)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now()
+	if s.now != nil {
+		now = s.now()
+	}
+	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
+	subs, pag, err := s.userSubRepo.ListAdmin(ctx, params, normalized, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	normalizeExpiredWindowsAt(subs, now)
+	normalizeSubscriptionStatusAt(subs, now)
+	return subs, pag, nil
+}
+
 // normalizeExpiredWindows 将已过期窗口的数据清零（仅影响返回数据，不影响数据库）
 // 这确保前端显示正确的当前窗口状态，而不是过期窗口的历史数据
 func normalizeExpiredWindows(subs []UserSubscription) {
@@ -837,7 +858,10 @@ func normalizeExpiredWindowsAt(subs []UserSubscription, now time.Time) {
 // normalizeSubscriptionStatus 根据实际过期时间修正状态（仅影响返回数据，不影响数据库）
 // 这确保前端显示正确的状态，即使定时任务尚未更新数据库
 func normalizeSubscriptionStatus(subs []UserSubscription) {
-	now := time.Now()
+	normalizeSubscriptionStatusAt(subs, time.Now())
+}
+
+func normalizeSubscriptionStatusAt(subs []UserSubscription, now time.Time) {
 	for i := range subs {
 		sub := &subs[i]
 		if sub.Status == SubscriptionStatusActive && !sub.ExpiresAt.After(now) {

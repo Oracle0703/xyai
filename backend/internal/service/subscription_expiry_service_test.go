@@ -67,6 +67,10 @@ func (r *subscriptionExpiryRepoStub) List(context.Context, pagination.Pagination
 	return nil, &pagination.PaginationResult{Page: 1, Pages: 1}, nil
 }
 
+func (r *subscriptionExpiryRepoStub) ListAdmin(context.Context, pagination.PaginationParams, SubscriptionAdminFilter, time.Time) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("expiry maintenance must not use ListAdmin")
+}
+
 func (r *subscriptionExpiryRepoStub) ExistsByUserIDAndGroupID(context.Context, int64, int64) (bool, error) {
 	return false, nil
 }

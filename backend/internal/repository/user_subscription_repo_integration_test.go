@@ -60,6 +60,20 @@ func (s *UserSubscriptionRepoSuite) mustCreateGroup(name string) *service.Group 
 	return groupEntityToService(g)
 }
 
+func (s *UserSubscriptionRepoSuite) mustCreateGroupWithDailyLimit(name string, dailyLimit *float64) *service.Group {
+	s.T().Helper()
+
+	create := s.client.Group.Create().
+		SetName(name).
+		SetStatus(service.StatusActive)
+	if dailyLimit != nil {
+		create.SetDailyLimitUsd(*dailyLimit)
+	}
+	g, err := create.Save(s.ctx)
+	s.Require().NoError(err, "create group with daily limit")
+	return groupEntityToService(g)
+}
+
 func (s *UserSubscriptionRepoSuite) mustCreateSubscription(userID, groupID int64, mutate func(*dbent.UserSubscriptionCreate)) *dbent.UserSubscription {
 	s.T().Helper()
 
@@ -414,6 +428,170 @@ func (s *UserSubscriptionRepoSuite) TestList_FilterByRevokedStatus() {
 	s.Require().NotEqual(active.ID, subs[0].ID)
 	s.Require().Equal(service.SubscriptionStatusRevoked, subs[0].Status)
 	s.Require().NotNil(subs[0].DeletedAt)
+}
+
+func (s *UserSubscriptionRepoSuite) TestListAdmin_FiltersOrganizationByExactCaseInsensitiveDomain() {
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	dailyLimit := 10.0
+	group := s.mustCreateGroupWithDailyLimit("g-list-admin-org", &dailyLimit)
+
+	xunyou := s.mustCreateUser("DEV@XUNYOU.COM", service.RoleUser)
+	subdomain := s.mustCreateUser("dev@team.xunyou.com", service.RoleUser)
+	wsdashi := s.mustCreateUser("dev@wsdashi.com", service.RoleUser)
+
+	want := s.mustCreateSubscription(xunyou.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetStartsAt(now.Add(-48 * time.Hour)).
+			SetExpiresAt(now.Add(48 * time.Hour)).
+			SetDailyWindowStart(now.Add(-time.Hour)).
+			SetDailyUsageUsd(5)
+	})
+	s.mustCreateSubscription(subdomain.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetStartsAt(now.Add(-48 * time.Hour)).SetExpiresAt(now.Add(48 * time.Hour))
+	})
+	s.mustCreateSubscription(wsdashi.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetStartsAt(now.Add(-48 * time.Hour)).SetExpiresAt(now.Add(48 * time.Hour))
+	})
+
+	items, page, err := s.repo.ListAdmin(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		service.SubscriptionAdminFilter{
+			Organization: service.SubscriptionOrganizationXunyou,
+			SortBy:       "created_at",
+			SortOrder:    "desc",
+		},
+		now,
+	)
+
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), page.Total)
+	s.Require().Equal([]int64{want.ID}, userSubscriptionIDs(items))
+	s.Require().NotNil(items[0].User)
+	s.Require().NotNil(items[0].Group)
+}
+
+func (s *UserSubscriptionRepoSuite) TestListAdmin_SortsGloballyBeforePagination() {
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	dailyLimit := 10.0
+	group := s.mustCreateGroupWithDailyLimit("g-list-admin-pages", &dailyLimit)
+	windowStart := now.Add(-time.Hour)
+
+	createAtUsage := func(email string, usage float64) *dbent.UserSubscription {
+		user := s.mustCreateUser(email, service.RoleUser)
+		return s.mustCreateSubscription(user.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
+			c.SetStartsAt(now.Add(-48 * time.Hour)).
+				SetExpiresAt(now.Add(48 * time.Hour)).
+				SetDailyWindowStart(windowStart).
+				SetDailyUsageUsd(usage)
+		})
+	}
+
+	overLimit := createAtUsage("over@xunyou.com", 12)
+	lowRemaining := createAtUsage("low@xunyou.com", 9)
+	midRemaining := createAtUsage("mid@xunyou.com", 5)
+	fullRemaining := createAtUsage("full@xunyou.com", 0)
+
+	filter := service.SubscriptionAdminFilter{SortBy: "created_at", SortOrder: "desc"}
+	firstPage, firstPagination, err := s.repo.ListAdmin(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 2},
+		filter,
+		now,
+	)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(4), firstPagination.Total)
+	s.Require().Equal([]int64{overLimit.ID, lowRemaining.ID}, userSubscriptionIDs(firstPage))
+
+	secondPage, secondPagination, err := s.repo.ListAdmin(
+		s.ctx,
+		pagination.PaginationParams{Page: 2, PageSize: 2},
+		filter,
+		now,
+	)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(4), secondPagination.Total)
+	s.Require().Equal([]int64{midRemaining.ID, fullRemaining.ID}, userSubscriptionIDs(secondPage))
+}
+
+func (s *UserSubscriptionRepoSuite) TestListAdmin_UsesEffectiveDailyUsageAndSortsUnlimitedLast() {
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	dailyLimit, zeroLimit := 10.0, 0.0
+	limitedGroup := s.mustCreateGroupWithDailyLimit("g-list-admin-effective", &dailyLimit)
+	zeroGroup := s.mustCreateGroupWithDailyLimit("g-list-admin-zero", &zeroLimit)
+	unlimitedGroup := s.mustCreateGroupWithDailyLimit("g-list-admin-unlimited", nil)
+
+	create := func(email string, groupID int64, createdAt time.Time, startsAt, expiresAt, windowStart time.Time, usage float64) *dbent.UserSubscription {
+		user := s.mustCreateUser(email, service.RoleUser)
+		return s.mustCreateSubscription(user.ID, groupID, func(c *dbent.UserSubscriptionCreate) {
+			c.SetCreatedAt(createdAt).
+				SetStartsAt(startsAt).
+				SetExpiresAt(expiresAt).
+				SetDailyWindowStart(windowStart).
+				SetDailyUsageUsd(usage)
+		})
+	}
+
+	overLimit := create("over-effective@xunyou.com", limitedGroup.ID, now.Add(-6*time.Hour), now.Add(-48*time.Hour), now.Add(48*time.Hour), now.Add(-time.Hour), 12)
+	oneTime := create("one-time@xunyou.com", limitedGroup.ID, now.Add(-5*time.Hour), now.Add(-2*time.Hour), now.Add(22*time.Hour), now.Add(-25*time.Hour), 8)
+	freshOrdinary := create("fresh@xunyou.com", limitedGroup.ID, now.Add(-4*time.Hour), now.Add(-48*time.Hour), now.Add(48*time.Hour), now.Add(-time.Hour), 5)
+	expiredWindow := create("expired-window@xunyou.com", limitedGroup.ID, now.Add(-3*time.Hour), now.Add(-48*time.Hour), now.Add(48*time.Hour), now.Add(-25*time.Hour), 9)
+	zero := create("zero-limit@xunyou.com", zeroGroup.ID, now.Add(-time.Hour), now.Add(-48*time.Hour), now.Add(48*time.Hour), now.Add(-time.Hour), 9)
+	unlimited := create("unlimited@xunyou.com", unlimitedGroup.ID, now.Add(-2*time.Hour), now.Add(-48*time.Hour), now.Add(48*time.Hour), now.Add(-time.Hour), 9)
+
+	items, page, err := s.repo.ListAdmin(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		service.SubscriptionAdminFilter{SortBy: "created_at", SortOrder: "desc"},
+		now,
+	)
+
+	s.Require().NoError(err)
+	s.Require().Equal(int64(6), page.Total)
+	s.Require().Equal(
+		[]int64{overLimit.ID, oneTime.ID, freshOrdinary.ID, expiredWindow.ID, zero.ID, unlimited.ID},
+		userSubscriptionIDs(items),
+	)
+}
+
+func (s *UserSubscriptionRepoSuite) TestListAdmin_UsesSecondaryOrderThenStableID() {
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	dailyLimit := 10.0
+	group := s.mustCreateGroupWithDailyLimit("g-list-admin-ties", &dailyLimit)
+	windowStart := now.Add(-time.Hour)
+	tieCreatedAt := now.Add(-time.Hour)
+
+	create := func(email string, createdAt time.Time) *dbent.UserSubscription {
+		user := s.mustCreateUser(email, service.RoleUser)
+		return s.mustCreateSubscription(user.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
+			c.SetCreatedAt(createdAt).
+				SetStartsAt(now.Add(-48 * time.Hour)).
+				SetExpiresAt(now.Add(48 * time.Hour)).
+				SetDailyWindowStart(windowStart).
+				SetDailyUsageUsd(5)
+		})
+	}
+
+	older := create("older-tie@xunyou.com", now.Add(-2*time.Hour))
+	firstStableID := create("first-id@xunyou.com", tieCreatedAt)
+	secondStableID := create("second-id@xunyou.com", tieCreatedAt)
+
+	items, _, err := s.repo.ListAdmin(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		service.SubscriptionAdminFilter{SortBy: "created_at", SortOrder: "desc"},
+		now,
+	)
+
+	s.Require().NoError(err)
+	s.Require().Equal([]int64{firstStableID.ID, secondStableID.ID, older.ID}, userSubscriptionIDs(items))
+}
+
+func userSubscriptionIDs(items []service.UserSubscription) []int64 {
+	ids := make([]int64, 0, len(items))
+	for i := range items {
+		ids = append(ids, items[i].ID)
+	}
+	return ids
 }
 
 // --- Usage tracking ---

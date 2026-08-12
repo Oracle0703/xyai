@@ -143,6 +143,9 @@ func (userSubRepoNoop) ListByGroupID(context.Context, int64, pagination.Paginati
 func (userSubRepoNoop) List(context.Context, pagination.PaginationParams, *int64, *int64, string, string, string, string) ([]UserSubscription, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
+func (userSubRepoNoop) ListAdmin(context.Context, pagination.PaginationParams, SubscriptionAdminFilter, time.Time) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("unexpected ListAdmin call")
+}
 func (userSubRepoNoop) ExistsByUserIDAndGroupID(context.Context, int64, int64) (bool, error) {
 	panic("unexpected ExistsByUserIDAndGroupID call")
 }
