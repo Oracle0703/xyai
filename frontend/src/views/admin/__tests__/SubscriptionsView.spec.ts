@@ -141,14 +141,14 @@ const DataTableStub = defineComponent({
 })
 
 const ConfirmDialogStub = defineComponent({
-  props: ['show', 'title', 'message', 'confirmText', 'cancelText'],
+  props: ['show', 'title', 'message', 'confirmText', 'cancelText', 'disabled'],
   emits: ['confirm', 'cancel'],
   template: `
     <div v-if="show" data-test="confirm-dialog">
       <div data-test="confirm-title">{{ title }}</div>
       <div data-test="confirm-message">{{ message }}</div>
-      <button data-test="confirm" @click="$emit('confirm')">{{ confirmText }}</button>
-      <button data-test="cancel" @click="$emit('cancel')">{{ cancelText }}</button>
+      <button data-test="confirm" :disabled="disabled" @click="$emit('confirm')">{{ confirmText }}</button>
+      <button data-test="cancel" :disabled="disabled" @click="$emit('cancel')">{{ cancelText }}</button>
     </div>
   `
 })
@@ -363,6 +363,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
       'subscription-reset-11111111-1111-4111-8111-111111111111'
     )
     expect(wrapper.get('[data-test="confirm"]').text()).toBe('admin.subscriptions.bulkResetDailyRunning')
+    expect(wrapper.get('[data-test="confirm"]').attributes('disabled')).toBeDefined()
 
     resolveReset?.({ reset_count: 3 })
     await flushPromises()
@@ -370,6 +371,55 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(showSuccess).toHaveBeenCalledWith('admin.subscriptions.bulkResetDailySuccess:3')
     expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
     expect(listSubscriptions).toHaveBeenCalledTimes(4)
+  })
+
+  it('uses the last successfully loaded filters when a newer list request fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const wrapper = await mountView()
+    listSubscriptions.mockRejectedValueOnce(new Error('list failed'))
+
+    await wrapper.get('[data-test="organization-filter"] [data-option-value="xunyou"]').trigger('click')
+    await flushPromises()
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(resetDailyFiltered).toHaveBeenCalledWith(
+      {
+        status: 'active',
+        user_id: undefined,
+        group_id: undefined,
+        platform: undefined,
+        organization: undefined
+      },
+      expect.stringMatching(/^subscription-reset-/)
+    )
+  })
+
+  it('disables bulk reset until the first list request succeeds', async () => {
+    let resolveList: ((value: {
+      items: UserSubscription[]
+      total: number
+      page: number
+      page_size: number
+      pages: number
+    }) => void) | undefined
+    listSubscriptions.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveList = resolve
+    }))
+    const wrapper = await mountView(false)
+
+    expect(findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').attributes('disabled')).toBeDefined()
+
+    resolveList?.({
+      items: [testSubscription],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    await flushPromises()
+    expect(findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').attributes('disabled')).toBeUndefined()
   })
 
   it('reports zero matches and keeps the dialog and idempotency key on failure retry', async () => {

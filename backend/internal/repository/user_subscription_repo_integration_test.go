@@ -439,6 +439,7 @@ func (s *UserSubscriptionRepoSuite) TestListAdmin_FiltersOrganizationByExactCase
 	xunyou := s.mustCreateUser("DEV@XUNYOU.COM", service.RoleUser)
 	subdomain := s.mustCreateUser("dev@team.xunyou.com", service.RoleUser)
 	wsdashi := s.mustCreateUser("dev@wsdashi.com", service.RoleUser)
+	deletedUser := s.mustCreateUser("deleted@xunyou.com", service.RoleUser)
 
 	want := s.mustCreateSubscription(xunyou.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(now.Add(-48 * time.Hour)).
@@ -452,6 +453,10 @@ func (s *UserSubscriptionRepoSuite) TestListAdmin_FiltersOrganizationByExactCase
 	s.mustCreateSubscription(wsdashi.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(now.Add(-48 * time.Hour)).SetExpiresAt(now.Add(48 * time.Hour))
 	})
+	s.mustCreateSubscription(deletedUser.ID, group.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetStartsAt(now.Add(-48 * time.Hour)).SetExpiresAt(now.Add(48 * time.Hour))
+	})
+	s.Require().NoError(s.client.User.DeleteOneID(deletedUser.ID).Exec(s.ctx))
 
 	items, page, err := s.repo.ListAdmin(
 		s.ctx,

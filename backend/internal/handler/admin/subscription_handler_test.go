@@ -52,7 +52,7 @@ func (s *subscriptionHandlerServiceStub) AdminResetDailyFiltered(_ context.Conte
 func setupSubscriptionHandlerRouter(t *testing.T, svc subscriptionHandlerService) *gin.Engine {
 	t.Helper()
 	previousCoordinator := service.DefaultIdempotencyCoordinator()
-	service.SetDefaultIdempotencyCoordinator(nil)
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), service.DefaultIdempotencyConfig()))
 	t.Cleanup(func() { service.SetDefaultIdempotencyCoordinator(previousCoordinator) })
 
 	gin.SetMode(gin.TestMode)
@@ -65,6 +65,21 @@ func setupSubscriptionHandlerRouter(t *testing.T, svc subscriptionHandlerService
 	router.GET("/api/v1/admin/subscriptions", handler.List)
 	router.POST("/api/v1/admin/subscriptions/reset-daily-filtered", handler.ResetDailyFiltered)
 	return router
+}
+
+func TestSubscriptionHandler_ResetDailyFilteredFailsClosedWithoutIdempotencyCoordinator(t *testing.T) {
+	svc := &subscriptionHandlerServiceStub{}
+	router := setupSubscriptionHandlerRouter(t, svc)
+	service.SetDefaultIdempotencyCoordinator(nil)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", bytes.NewBufferString(`{"organization":"xunyou"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "subscriptions-reset-no-coordinator")
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	require.Zero(t, svc.resetCalls)
 }
 
 func TestSubscriptionHandler_ListPassesNormalizedOrganizationFilter(t *testing.T) {
@@ -187,6 +202,64 @@ func TestSubscriptionHandler_ResetDailyFilteredRejectsMalformedJSON(t *testing.T
 	router := setupSubscriptionHandlerRouter(t, svc)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", bytes.NewBufferString(`{"group_id":"wrong"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Zero(t, svc.resetCalls)
+}
+
+func TestSubscriptionHandler_ResetDailyFilteredRejectsUnknownFields(t *testing.T) {
+	svc := &subscriptionHandlerServiceStub{}
+	router := setupSubscriptionHandlerRouter(t, svc)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", bytes.NewBufferString(`{"organisation":"xunyou"}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "subscriptions-reset-unknown-field")
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Zero(t, svc.resetCalls)
+}
+
+func TestSubscriptionHandler_ResetDailyFilteredRejectsTrailingJSON(t *testing.T) {
+	svc := &subscriptionHandlerServiceStub{}
+	router := setupSubscriptionHandlerRouter(t, svc)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", bytes.NewBufferString(`{"organization":"xunyou"}{}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "subscriptions-reset-trailing-json")
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Zero(t, svc.resetCalls)
+}
+
+func TestSubscriptionHandler_ResetDailyFilteredRejectsNullBody(t *testing.T) {
+	svc := &subscriptionHandlerServiceStub{}
+	router := setupSubscriptionHandlerRouter(t, svc)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", bytes.NewBufferString(`null`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "subscriptions-reset-null")
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Zero(t, svc.resetCalls)
+}
+
+func TestSubscriptionHandler_ResetDailyFilteredRequiresIdempotencyKeyInObserveOnlyMode(t *testing.T) {
+	svc := &subscriptionHandlerServiceStub{}
+	router := setupSubscriptionHandlerRouter(t, svc)
+	cfg := service.DefaultIdempotencyConfig()
+	require.True(t, cfg.ObserveOnly)
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), cfg))
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", bytes.NewBufferString(`{"organization":"xunyou"}`))
 	request.Header.Set("Content-Type", "application/json")
 
 	router.ServeHTTP(recorder, request)

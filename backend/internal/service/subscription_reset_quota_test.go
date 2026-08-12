@@ -3,8 +3,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
+	"sync"
 	"testing"
 	"time"
 
@@ -104,22 +107,41 @@ func (r *resetQuotaUserSubRepoStub) ResetDailyFiltered(_ context.Context, filter
 
 type filteredResetBillingCache struct {
 	*billingCacheStub
+	mu            sync.Mutex
 	invalidated   []SubscriptionCacheKey
 	published     []string
 	invalidateErr error
 	publishErr    error
+	invalidateFn  func(context.Context, int64, int64) error
+	publishFn     func(context.Context, string) error
+}
+
+func (c *filteredResetBillingCache) snapshotCalls() ([]SubscriptionCacheKey, []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]SubscriptionCacheKey(nil), c.invalidated...), append([]string(nil), c.published...)
 }
 
 func newFilteredResetBillingCache() *filteredResetBillingCache {
 	return &filteredResetBillingCache{billingCacheStub: newBillingCacheStub(8)}
 }
 
-func (c *filteredResetBillingCache) InvalidateSubscriptionCache(_ context.Context, userID, groupID int64) error {
+func (c *filteredResetBillingCache) InvalidateSubscriptionCache(ctx context.Context, userID, groupID int64) error {
+	if c.invalidateFn != nil {
+		return c.invalidateFn(ctx, userID, groupID)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.invalidated = append(c.invalidated, SubscriptionCacheKey{UserID: userID, GroupID: groupID})
 	return c.invalidateErr
 }
 
-func (c *filteredResetBillingCache) PublishSubscriptionCacheInvalidation(_ context.Context, cacheKey string) error {
+func (c *filteredResetBillingCache) PublishSubscriptionCacheInvalidation(ctx context.Context, cacheKey string) error {
+	if c.publishFn != nil {
+		return c.publishFn(ctx, cacheKey)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.published = append(c.published, cacheKey)
 	return c.publishErr
 }
@@ -348,8 +370,9 @@ func TestAdminResetDailyFiltered_NormalizesFilterAndInvalidatesEveryCache(t *tes
 	require.Equal(t, SubscriptionOrganizationXunyou, repo.filteredFilter.Organization)
 	require.Equal(t, resetAt, repo.filteredNow)
 	require.Equal(t, timezone.StartOfDay(resetAt), repo.filteredDailyStart)
-	require.ElementsMatch(t, keys, cache.invalidated)
-	require.ElementsMatch(t, []string{subCacheKey(10, 20), subCacheKey(11, 21)}, cache.published)
+	invalidated, published := cache.snapshotCalls()
+	require.ElementsMatch(t, keys, invalidated)
+	require.ElementsMatch(t, []string{subCacheKey(10, 20), subCacheKey(11, 21)}, published)
 	for _, key := range keys {
 		_, found := svc.subCacheL1.Get(subCacheKey(key.UserID, key.GroupID))
 		require.False(t, found)
@@ -365,8 +388,9 @@ func TestAdminResetDailyFiltered_ZeroMatchSkipsCacheInvalidation(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Zero(t, count)
-	require.Empty(t, cache.invalidated)
-	require.Empty(t, cache.published)
+	invalidated, published := cache.snapshotCalls()
+	require.Empty(t, invalidated)
+	require.Empty(t, published)
 }
 
 func TestAdminResetDailyFiltered_RepositoryErrorSkipsCacheInvalidation(t *testing.T) {
@@ -379,8 +403,9 @@ func TestAdminResetDailyFiltered_RepositoryErrorSkipsCacheInvalidation(t *testin
 
 	require.ErrorIs(t, err, repoErr)
 	require.Zero(t, count)
-	require.Empty(t, cache.invalidated)
-	require.Empty(t, cache.published)
+	invalidated, published := cache.snapshotCalls()
+	require.Empty(t, invalidated)
+	require.Empty(t, published)
 }
 
 func TestAdminResetDailyFiltered_CacheErrorsDoNotHideCommittedReset(t *testing.T) {
@@ -394,6 +419,80 @@ func TestAdminResetDailyFiltered_CacheErrorsDoNotHideCommittedReset(t *testing.T
 
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
-	require.Equal(t, []SubscriptionCacheKey{{UserID: 10, GroupID: 20}}, cache.invalidated)
-	require.Equal(t, []string{subCacheKey(10, 20)}, cache.published)
+	invalidated, published := cache.snapshotCalls()
+	require.Equal(t, []SubscriptionCacheKey{{UserID: 10, GroupID: 20}}, invalidated)
+	require.Equal(t, []string{subCacheKey(10, 20)}, published)
+}
+
+func TestFilteredDailyResetCacheInvalidationPublishesAfterDeleteTimeoutWithFreshContext(t *testing.T) {
+	cache := newFilteredResetBillingCache()
+	invalidateDone := make(chan struct{})
+	publishStarted := make(chan error, 1)
+	cache.invalidateFn = func(ctx context.Context, _, _ int64) error {
+		<-ctx.Done()
+		close(invalidateDone)
+		return ctx.Err()
+	}
+	cache.publishFn = func(ctx context.Context, _ string) error {
+		select {
+		case <-invalidateDone:
+		default:
+			publishStarted <- errors.New("publish started before invalidation phase finished")
+			return nil
+		}
+		publishStarted <- ctx.Err()
+		return nil
+	}
+	svc := newFilteredResetService(t, &resetQuotaUserSubRepoStub{}, cache)
+	svc.invalidateFilteredDailyResetCachesWithTimeout(
+		[]SubscriptionCacheKey{{UserID: 10, GroupID: 20}},
+		100*time.Millisecond,
+	)
+
+	require.NoError(t, <-publishStarted)
+}
+
+func TestFilteredDailyResetCacheInvalidationUsesSingleTotalBudget(t *testing.T) {
+	cache := newFilteredResetBillingCache()
+	cache.invalidateFn = func(ctx context.Context, _, _ int64) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	cache.publishFn = func(ctx context.Context, _ string) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	svc := newFilteredResetService(t, &resetQuotaUserSubRepoStub{}, cache)
+	keys := make([]SubscriptionCacheKey, 32)
+	for i := range keys {
+		keys[i] = SubscriptionCacheKey{UserID: int64(i + 1), GroupID: 20}
+	}
+
+	started := time.Now()
+	svc.invalidateFilteredDailyResetCachesWithTimeout(keys, 50*time.Millisecond)
+
+	require.Less(t, time.Since(started), 500*time.Millisecond)
+}
+
+func TestFilteredDailyResetCacheInvalidationWarnsWhenBudgetSkipsTasks(t *testing.T) {
+	cache := newFilteredResetBillingCache()
+	cache.invalidateFn = func(ctx context.Context, _, _ int64) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	svc := newFilteredResetService(t, &resetQuotaUserSubRepoStub{}, cache)
+	keys := make([]SubscriptionCacheKey, 32)
+	for i := range keys {
+		keys[i] = SubscriptionCacheKey{UserID: int64(i + 1), GroupID: 20}
+	}
+
+	var logs bytes.Buffer
+	previousOutput := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(previousOutput) })
+
+	svc.invalidateFilteredDailyResetCachesWithTimeout(keys, 50*time.Millisecond)
+
+	require.Contains(t, logs.String(), "skipped cache invalidation tasks after filtered daily reset")
+	require.Contains(t, logs.String(), "phase=invalidate subscription cache")
 }

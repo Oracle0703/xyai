@@ -28,8 +28,22 @@ func executeAdminIdempotent(
 	ttl time.Duration,
 	execute func(context.Context) (any, error),
 ) (*service.IdempotencyExecuteResult, error) {
+	return executeAdminIdempotentWithAtomicSuccess(c, scope, payload, ttl, false, execute)
+}
+
+func executeAdminIdempotentWithAtomicSuccess(
+	c *gin.Context,
+	scope string,
+	payload any,
+	ttl time.Duration,
+	atomicSuccess bool,
+	execute func(context.Context) (any, error),
+) (*service.IdempotencyExecuteResult, error) {
 	coordinator := service.DefaultIdempotencyCoordinator()
 	if coordinator == nil {
+		if atomicSuccess {
+			return nil, service.ErrIdempotencyStoreUnavail
+		}
 		data, err := execute(c.Request.Context())
 		if err != nil {
 			return nil, err
@@ -45,8 +59,20 @@ func executeAdminIdempotent(
 		IdempotencyKey: c.GetHeader("Idempotency-Key"),
 		Payload:        payload,
 		RequireKey:     true,
+		AtomicSuccess:  atomicSuccess,
 		TTL:            ttl,
 	}, execute)
+}
+
+func executeAdminIdempotentJSONAtomicSuccess(
+	c *gin.Context,
+	scope string,
+	payload any,
+	ttl time.Duration,
+	execute func(context.Context) (any, error),
+) {
+	result, err := executeAdminIdempotentWithAtomicSuccess(c, scope, payload, ttl, true, execute)
+	writeAdminIdempotentJSONResult(c, scope, idempotencyStoreUnavailableFailClose, result, err, execute)
 }
 
 func adminActorScope(c *gin.Context) string {
@@ -86,6 +112,17 @@ func executeAdminIdempotentJSONWithMode(
 	execute func(context.Context) (any, error),
 ) {
 	result, err := executeAdminIdempotent(c, scope, payload, ttl, execute)
+	writeAdminIdempotentJSONResult(c, scope, mode, result, err, execute)
+}
+
+func writeAdminIdempotentJSONResult(
+	c *gin.Context,
+	scope string,
+	mode idempotencyStoreUnavailableMode,
+	result *service.IdempotencyExecuteResult,
+	err error,
+	execute func(context.Context) (any, error),
+) {
 	if err != nil {
 		if infraerrors.Code(err) == infraerrors.Code(service.ErrIdempotencyStoreUnavail) {
 			strategy := "fail_close"

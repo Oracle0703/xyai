@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -932,21 +933,99 @@ func (s *SubscriptionService) AdminResetDailyFiltered(ctx context.Context, filte
 		return 0, err
 	}
 
-	for _, key := range keys {
-		s.InvalidateSubCacheSync(key.UserID, key.GroupID)
-		if s.billingCacheService == nil {
-			continue
-		}
-		cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := s.billingCacheService.InvalidateSubscription(cacheCtx, key.UserID, key.GroupID); err != nil {
-			log.Printf("Warning: failed to invalidate subscription cache after filtered daily reset: user=%d group=%d err=%v", key.UserID, key.GroupID, err)
-		}
-		if err := s.billingCacheService.PublishSubscriptionCacheInvalidation(cacheCtx, subCacheKey(key.UserID, key.GroupID)); err != nil {
-			log.Printf("Warning: failed to publish subscription cache invalidation after filtered daily reset: user=%d group=%d err=%v", key.UserID, key.GroupID, err)
-		}
-		cancel()
+	invalidate := func() {
+		s.invalidateFilteredDailyResetCaches(keys)
+	}
+	if !DeferIdempotencyPostCommit(ctx, invalidate) {
+		invalidate()
 	}
 	return len(keys), nil
+}
+
+func (s *SubscriptionService) invalidateFilteredDailyResetCaches(keys []SubscriptionCacheKey) {
+	s.invalidateFilteredDailyResetCachesWithTimeout(keys, 5*time.Second)
+}
+
+func (s *SubscriptionService) invalidateFilteredDailyResetCachesWithTimeout(keys []SubscriptionCacheKey, timeout time.Duration) {
+	if len(keys) == 0 {
+		return
+	}
+	for _, key := range keys {
+		s.InvalidateSubCacheSync(key.UserID, key.GroupID)
+	}
+	if s.billingCacheService == nil {
+		return
+	}
+
+	deadline := time.Now().Add(timeout)
+	type cacheInvalidationTask struct {
+		key    SubscriptionCacheKey
+		action string
+		fn     func(context.Context) error
+	}
+	runPhase := func(tasks []cacheInvalidationTask, phaseDeadline time.Time, phase string) {
+		jobs := make(chan cacheInvalidationTask)
+		var wg sync.WaitGroup
+		var skippedMu sync.Mutex
+		skipped := 0
+		skippedSamples := make([]string, 0, 3)
+		workerCount := 8
+		if len(tasks) < workerCount {
+			workerCount = len(tasks)
+		}
+		for range workerCount {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for task := range jobs {
+					remaining := time.Until(phaseDeadline)
+					if remaining <= 0 {
+						skippedMu.Lock()
+						skipped++
+						if len(skippedSamples) < cap(skippedSamples) {
+							skippedSamples = append(skippedSamples, fmt.Sprintf("%d:%d", task.key.UserID, task.key.GroupID))
+						}
+						skippedMu.Unlock()
+						continue
+					}
+					cacheCtx, cancel := context.WithTimeout(context.Background(), remaining)
+					err := task.fn(cacheCtx)
+					cancel()
+					if err != nil {
+						log.Printf("Warning: failed to %s after filtered daily reset: user=%d group=%d err=%v", task.action, task.key.UserID, task.key.GroupID, err)
+					}
+				}
+			}()
+		}
+		for _, task := range tasks {
+			jobs <- task
+		}
+		close(jobs)
+		wg.Wait()
+		if skipped > 0 {
+			log.Printf(
+				"Warning: skipped cache invalidation tasks after filtered daily reset: phase=%s skipped=%d sample_keys=%s",
+				phase,
+				skipped,
+				strings.Join(skippedSamples, ","),
+			)
+		}
+	}
+
+	invalidateTasks := make([]cacheInvalidationTask, 0, len(keys))
+	publishTasks := make([]cacheInvalidationTask, 0, len(keys))
+	for _, key := range keys {
+		key := key
+		invalidateTasks = append(invalidateTasks, cacheInvalidationTask{key: key, action: "invalidate subscription cache", fn: func(ctx context.Context) error {
+			return s.billingCacheService.InvalidateSubscription(ctx, key.UserID, key.GroupID)
+		}})
+		publishTasks = append(publishTasks, cacheInvalidationTask{key: key, action: "publish subscription cache invalidation", fn: func(ctx context.Context) error {
+			return s.billingCacheService.PublishSubscriptionCacheInvalidation(ctx, subCacheKey(key.UserID, key.GroupID))
+		}})
+	}
+	invalidateDeadline := time.Now().Add(time.Until(deadline) / 2)
+	runPhase(invalidateTasks, invalidateDeadline, "invalidate subscription cache")
+	runPhase(publishTasks, deadline, "publish subscription cache invalidation")
 }
 
 // CheckAndResetWindows 检查并重置过期的窗口

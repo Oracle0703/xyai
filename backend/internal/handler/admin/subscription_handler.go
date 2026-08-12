@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strconv"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -258,9 +260,19 @@ type ResetDailyFilteredResponse struct {
 // ResetDailyFiltered resets daily usage for every active subscription matching the supplied filters.
 // POST /api/v1/admin/subscriptions/reset-daily-filtered
 func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
-	var req ResetDailyFilteredRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var req *ResetDailyFilteredRequest
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		response.BadRequest(c, "Invalid request: request body must contain a single JSON object")
+		return
+	}
+	if req == nil {
+		response.BadRequest(c, "Invalid request: request body must be a JSON object")
 		return
 	}
 	filter, err := service.NormalizeSubscriptionAdminFilter(service.SubscriptionAdminFilter{
@@ -274,8 +286,17 @@ func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	idempotencyKey, err := service.NormalizeIdempotencyKey(c.GetHeader("Idempotency-Key"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if idempotencyKey == "" {
+		response.ErrorFrom(c, service.ErrIdempotencyKeyRequired)
+		return
+	}
 
-	executeAdminIdempotentJSON(c, "admin.subscriptions.reset_daily_filtered", filter, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	executeAdminIdempotentJSONAtomicSuccess(c, "admin.subscriptions.reset_daily_filtered", filter, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		count, execErr := h.subscriptionService.AdminResetDailyFiltered(ctx, filter)
 		if execErr != nil {
 			return nil, execErr

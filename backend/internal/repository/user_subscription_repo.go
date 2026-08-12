@@ -401,12 +401,15 @@ func applyUserSubscriptionAdminFilter(
 	}
 	if filter.Organization != "" {
 		domain := subscriptionOrganizationDomain(filter.Organization)
-		q = q.Where(usersubscription.HasUserWith(predicate.User(func(selector *entsql.Selector) {
-			selector.Where(entsql.ExprP(
-				fmt.Sprintf("LOWER(SPLIT_PART(%s, '@', 2)) = ?", selector.C(user.FieldEmail)),
-				domain,
-			))
-		})))
+		q = q.Where(usersubscription.HasUserWith(
+			user.DeletedAtIsNil(),
+			predicate.User(func(selector *entsql.Selector) {
+				selector.Where(entsql.ExprP(
+					fmt.Sprintf("LOWER(SPLIT_PART(%s, '@', 2)) = ?", selector.C(user.FieldEmail)),
+					domain,
+				))
+			}),
+		))
 	}
 
 	switch filter.Status {
@@ -450,12 +453,16 @@ func subscriptionOrganizationDomain(organization string) string {
 
 func userSubscriptionAdminOrder(filter service.SubscriptionAdminFilter, startOfDay time.Time) func(*entsql.Selector) {
 	return func(selector *entsql.Selector) {
-		groupID := selector.C(usersubscription.FieldGroupID)
+		groupTable := entsql.Table(group.Table).As("admin_sort_group")
+		selector.LeftJoin(groupTable).
+			On(selector.C(usersubscription.FieldGroupID), groupTable.C(group.FieldID)).
+			OnP(entsql.IsNull(groupTable.C(group.FieldDeletedAt)))
+
 		startsAt := selector.C(usersubscription.FieldStartsAt)
 		expiresAt := selector.C(usersubscription.FieldExpiresAt)
 		dailyWindowStart := selector.C(usersubscription.FieldDailyWindowStart)
 		dailyUsage := selector.C(usersubscription.FieldDailyUsageUsd)
-		dailyLimit := fmt.Sprintf("(SELECT g.daily_limit_usd FROM groups g WHERE g.id = %s AND g.deleted_at IS NULL)", groupID)
+		dailyLimit := groupTable.C(group.FieldDailyLimitUsd)
 
 		selector.OrderExprFunc(func(builder *entsql.Builder) {
 			builder.WriteString("CASE WHEN ").WriteString(dailyLimit).

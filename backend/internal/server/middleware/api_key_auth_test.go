@@ -1730,6 +1730,10 @@ func (r *stubUserSubscriptionRepo) List(ctx context.Context, params pagination.P
 	return nil, nil, errors.New("not implemented")
 }
 
+func (r *stubUserSubscriptionRepo) ListAdmin(context.Context, pagination.PaginationParams, service.SubscriptionAdminFilter, time.Time) ([]service.UserSubscription, *pagination.PaginationResult, error) {
+	return nil, nil, errors.New("not implemented")
+}
+
 func (r *stubUserSubscriptionRepo) ExistsByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error) {
 	return false, errors.New("not implemented")
 }
@@ -1783,6 +1787,10 @@ func (r *stubUserSubscriptionRepo) ResetMonthlyUsage(ctx context.Context, id int
 		return r.resetMonthly(ctx, id, newWindowStart)
 	}
 	return errors.New("not implemented")
+}
+
+func (r *stubUserSubscriptionRepo) ResetDailyFiltered(context.Context, service.SubscriptionAdminFilter, time.Time, time.Time) ([]service.SubscriptionCacheKey, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (r *stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {

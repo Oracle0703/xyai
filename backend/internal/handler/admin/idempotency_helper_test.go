@@ -232,6 +232,10 @@ func (r *memoryIdempotencyRepoStub) DeleteExpired(_ context.Context, _ time.Time
 	return 0, nil
 }
 
+func (r *memoryIdempotencyRepoStub) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
 func TestExecuteAdminIdempotentJSONConcurrentRetryOnlyOneSideEffect(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := newMemoryIdempotencyRepoStub()

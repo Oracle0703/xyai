@@ -175,7 +175,7 @@
               v-if="canResetSubscriptionQuotas"
               type="button"
               class="btn btn-secondary"
-              :disabled="resettingDailyFiltered"
+              :disabled="resettingDailyFiltered || !appliedResetFilters"
               @click="openResetDailyFilteredConfirm"
             >
               <Icon name="sun" size="md" class="mr-2" />
@@ -718,6 +718,7 @@
         ? t('admin.subscriptions.bulkResetDailyRunning')
         : t('admin.subscriptions.bulkResetDaily')"
       :cancel-text="t('common.cancel')"
+      :disabled="resettingDailyFiltered"
       @confirm="confirmResetDailyFiltered"
       @cancel="closeResetDailyFilteredConfirm"
     />
@@ -1035,6 +1036,7 @@ const resettingQuota = ref(false)
 const resettingDailyFiltered = ref(false)
 const resetDailyFilteredSnapshot = ref<SubscriptionAdminFilters | null>(null)
 const resetDailyFilteredIdempotencyKey = ref<string | null>(null)
+const appliedResetFilters = ref<SubscriptionAdminFilters | null>(null)
 const resetQuotaMode = ref<'all' | 'daily'>('all')
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
@@ -1125,6 +1127,7 @@ const loadSubscriptions = async () => {
   const requestController = new AbortController()
   abortController = requestController
   const { signal } = requestController
+  const requestFilters = getAppliedResetFilters()
 
   loading.value = true
   try {
@@ -1132,11 +1135,7 @@ const loadSubscriptions = async () => {
       pagination.page,
       pagination.page_size,
       {
-        status: (filters.status as any) || undefined,
-        group_id: filters.group_id ? parseInt(filters.group_id) : undefined,
-        platform: filters.platform || undefined,
-        organization: filters.organization || undefined,
-        user_id: filters.user_id || undefined,
+        ...requestFilters,
         sort_by: sortState.sort_by as SubscriptionAdminFilters['sort_by'],
         sort_order: sortState.sort_order
       },
@@ -1148,6 +1147,7 @@ const loadSubscriptions = async () => {
     subscriptions.value = response.items
     pagination.total = response.total
     pagination.pages = response.pages
+    appliedResetFilters.value = { ...requestFilters }
   } catch (error: any) {
     if (signal.aborted || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') {
       return
@@ -1457,7 +1457,8 @@ const createResetDailyFilteredIdempotencyKey = () => {
 }
 
 const openResetDailyFilteredConfirm = () => {
-  resetDailyFilteredSnapshot.value = { ...getAppliedResetFilters() }
+  if (!appliedResetFilters.value) return
+  resetDailyFilteredSnapshot.value = { ...appliedResetFilters.value }
   resetDailyFilteredIdempotencyKey.value = createResetDailyFilteredIdempotencyKey()
   showResetDailyFilteredConfirm.value = true
 }
