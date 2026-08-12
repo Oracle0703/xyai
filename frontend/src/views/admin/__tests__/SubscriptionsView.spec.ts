@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import type { Group, User, UserSubscription } from '@/types'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { listSubscriptions, resetQuota, searchSubscriptionGroups, getAllGroups, searchUsers, showError, showSuccess } = vi.hoisted(() => ({
+const { listSubscriptions, resetQuota, resetDailyFiltered, searchSubscriptionGroups, getAllGroups, searchUsers, showError, showSuccess } = vi.hoisted(() => ({
   listSubscriptions: vi.fn(),
   resetQuota: vi.fn(),
+  resetDailyFiltered: vi.fn(),
   searchSubscriptionGroups: vi.fn(),
   getAllGroups: vi.fn(),
   searchUsers: vi.fn(),
@@ -17,7 +18,8 @@ const { listSubscriptions, resetQuota, searchSubscriptionGroups, getAllGroups, s
 
 const authState = vi.hoisted(() => ({
   isAdmin: true,
-  isSubAdmin: false
+  isSubAdmin: false,
+  hasAdminPermission: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -28,6 +30,7 @@ vi.mock('@/api/admin', () => ({
       extend: vi.fn(),
       revoke: vi.fn(),
       resetQuota,
+      resetDailyFiltered,
       searchGroups: searchSubscriptionGroups
     },
     groups: {
@@ -55,8 +58,11 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string, params?: Record<string, string | undefined>) =>
-        params?.user ? `${key}:${params.user}` : key
+      t: (key: string, params?: Record<string, string | number | undefined>) => {
+        if (params?.user) return `${key}:${params.user}`
+        if (params?.count !== undefined) return `${key}:${params.count}`
+        return key
+      }
     })
   }
 })
@@ -147,6 +153,25 @@ const ConfirmDialogStub = defineComponent({
   `
 })
 
+const SelectStub = defineComponent({
+  props: ['modelValue', 'options', 'placeholder'],
+  emits: ['update:modelValue', 'change'],
+  template: `
+    <div>
+      <span data-test="selected-option">{{ options.find((option) => option.value === modelValue)?.label || placeholder }}</span>
+      <button
+        v-for="option in options"
+        :key="String(option.value)"
+        type="button"
+        :data-option-value="String(option.value)"
+        @click="$emit('update:modelValue', option.value); $emit('change', option.value, option)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+  `
+})
+
 const mountView = async () => {
   const wrapper = mount(SubscriptionsView, {
     global: {
@@ -160,7 +185,7 @@ const mountView = async () => {
         BaseDialog: true,
         ConfirmDialog: ConfirmDialogStub,
         EmptyState: true,
-        Select: true,
+        Select: SelectStub,
         GroupBadge: true,
         GroupOptionItem: true,
         Icon: true,
@@ -184,6 +209,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
     localStorage.clear()
     listSubscriptions.mockReset()
     resetQuota.mockReset()
+    resetDailyFiltered.mockReset()
     searchSubscriptionGroups.mockReset()
     getAllGroups.mockReset()
     searchUsers.mockReset()
@@ -191,6 +217,8 @@ describe('admin SubscriptionsView quota reset actions', () => {
     showSuccess.mockReset()
     authState.isAdmin = true
     authState.isSubAdmin = false
+    authState.hasAdminPermission.mockReset()
+    authState.hasAdminPermission.mockImplementation(() => authState.isAdmin || authState.isSubAdmin)
 
     listSubscriptions.mockResolvedValue({
       items: [testSubscription],
@@ -200,6 +228,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
       pages: 1
     })
     resetQuota.mockResolvedValue({ ...testSubscription, daily_usage_usd: 0 })
+    resetDailyFiltered.mockResolvedValue({ reset_count: 2 })
     searchSubscriptionGroups.mockResolvedValue([{
       id: testGroup.id,
       name: testGroup.name,
@@ -208,6 +237,10 @@ describe('admin SubscriptionsView quota reset actions', () => {
     }])
     getAllGroups.mockResolvedValue([testGroup])
     searchUsers.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('resets only the daily quota when Reset Daily is confirmed', async () => {
@@ -251,11 +284,118 @@ describe('admin SubscriptionsView quota reset actions', () => {
 
     expect(buttonTexts).toContain('admin.subscriptions.resetQuota')
     expect(buttonTexts).toContain('admin.subscriptions.resetDailyQuota')
+    expect(buttonTexts).toContain('admin.subscriptions.bulkResetDaily')
     expect(buttonTexts).not.toContain('admin.subscriptions.assignSubscription')
     expect(buttonTexts).not.toContain('admin.subscriptions.adjust')
     expect(buttonTexts).not.toContain('admin.subscriptions.revoke')
     expect(buttonTexts).not.toContain('admin.subscriptions.restore')
     expect(searchSubscriptionGroups).toHaveBeenCalledTimes(1)
     expect(getAllGroups).not.toHaveBeenCalled()
+  })
+
+  it('applies the organization filter while retaining secondary sort fields', async () => {
+    const wrapper = await mountView()
+    const organizationFilter = wrapper.get('[data-test="organization-filter"]')
+
+    expect(organizationFilter.text()).toContain('迅游')
+    expect(organizationFilter.text()).toContain('速宝')
+
+    await organizationFilter.get('[data-option-value="xunyou"]').trigger('click')
+    await flushPromises()
+
+    expect(listSubscriptions).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        status: 'active',
+        organization: 'xunyou',
+        sort_by: 'created_at',
+        sort_order: 'desc'
+      }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
+  })
+
+  it('places the bulk reset after assignment and shows it to subscription sub admins', async () => {
+    let wrapper = await mountView()
+    let buttonTexts = wrapper.findAll('button').map((button) => button.text())
+
+    expect(buttonTexts.indexOf('admin.subscriptions.bulkResetDaily')).toBe(
+      buttonTexts.indexOf('admin.subscriptions.assignSubscription') + 1
+    )
+
+    wrapper.unmount()
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+    wrapper = await mountView()
+    buttonTexts = wrapper.findAll('button').map((button) => button.text())
+
+    expect(buttonTexts).not.toContain('admin.subscriptions.assignSubscription')
+    expect(buttonTexts).toContain('admin.subscriptions.bulkResetDaily')
+  })
+
+  it('freezes applied filters and ignores duplicate confirmations while pending', async () => {
+    let resolveReset: ((value: { reset_count: number }) => void) | undefined
+    resetDailyFiltered.mockImplementation(() => new Promise((resolve) => {
+      resolveReset = resolve
+    }))
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+      '11111111-1111-4111-8111-111111111111'
+    )
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="organization-filter"] [data-option-value="xunyou"]').trigger('click')
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="organization-filter"] [data-option-value="wsdashi"]').trigger('click')
+
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+
+    expect(resetDailyFiltered).toHaveBeenCalledTimes(1)
+    expect(resetDailyFiltered).toHaveBeenCalledWith(
+      {
+        status: 'active',
+        user_id: undefined,
+        group_id: undefined,
+        platform: undefined,
+        organization: 'xunyou'
+      },
+      'subscription-reset-11111111-1111-4111-8111-111111111111'
+    )
+    expect(wrapper.get('[data-test="confirm"]').text()).toBe('admin.subscriptions.bulkResetDailyRunning')
+
+    resolveReset?.({ reset_count: 3 })
+    await flushPromises()
+
+    expect(showSuccess).toHaveBeenCalledWith('admin.subscriptions.bulkResetDailySuccess:3')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+    expect(listSubscriptions).toHaveBeenCalledTimes(4)
+  })
+
+  it('reports zero matches and keeps the dialog and idempotency key on failure retry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+      '22222222-2222-4222-8222-222222222222'
+    )
+    resetDailyFiltered
+      .mockRejectedValueOnce(new Error('network timeout'))
+      .mockResolvedValueOnce({ reset_count: 0 })
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="organization-filter"] [data-option-value="xunyou"]').trigger('click')
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.subscriptions.bulkResetDailyFailed')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="organization-filter"] [data-test="selected-option"]').text()).toBe('迅游')
+
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(resetDailyFiltered.mock.calls[1][1]).toBe(resetDailyFiltered.mock.calls[0][1])
+    expect(showSuccess).toHaveBeenCalledWith('admin.subscriptions.bulkResetDailyNoMatches')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
   })
 })

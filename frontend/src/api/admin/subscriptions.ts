@@ -18,24 +18,34 @@ export interface SubscriptionGroupFilterOption {
   name: string
 }
 
+export type SubscriptionOrganization = 'xunyou' | 'wsdashi'
+
+export interface SubscriptionAdminFilters {
+  status?: 'active' | 'expired' | 'revoked' | 'suspended'
+  user_id?: number
+  group_id?: number
+  platform?: string
+  organization?: SubscriptionOrganization
+  sort_by?: 'created_at' | 'expires_at' | 'status'
+  sort_order?: 'asc' | 'desc'
+}
+
+type SubscriptionDailyResetFilters = Pick<
+  SubscriptionAdminFilters,
+  'status' | 'user_id' | 'group_id' | 'platform' | 'organization'
+>
+
 /**
  * List all subscriptions with pagination
  * @param page - Page number (default: 1)
  * @param pageSize - Items per page (default: 20)
- * @param filters - Optional filters (status, user_id, group_id, sort_by, sort_order)
+ * @param filters - Optional filters and secondary sort fields
  * @returns Paginated list of subscriptions
  */
 export async function list(
   page: number = 1,
   pageSize: number = 20,
-  filters?: {
-    status?: 'active' | 'expired' | 'revoked' | 'suspended'
-    user_id?: number
-    group_id?: number
-    platform?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
+  filters?: SubscriptionAdminFilters,
   options?: {
     signal?: AbortSignal
   }
@@ -162,6 +172,28 @@ export async function resetQuota(
   return data
 }
 
+/** Reset the daily quota for every active subscription matching the applied filters. */
+export async function resetDailyFiltered(
+  filters: SubscriptionAdminFilters,
+  idempotencyKey: string
+): Promise<{ reset_count: number }> {
+  const resetFilters: SubscriptionDailyResetFilters = {
+    status: filters.status,
+    user_id: filters.user_id,
+    group_id: filters.group_id,
+    platform: filters.platform,
+    organization: filters.organization
+  }
+  const { data } = await apiClient.post<{ reset_count: number }>(
+    '/admin/subscriptions/reset-daily-filtered',
+    resetFilters,
+    {
+      headers: { 'Idempotency-Key': idempotencyKey }
+    }
+  )
+  return data
+}
+
 /**
  * List subscriptions by group
  * @param groupId - Group ID
@@ -215,6 +247,7 @@ export const subscriptionsAPI = {
   revoke,
   restore,
   resetQuota,
+  resetDailyFiltered,
   listByGroup,
   listByUser
 }
