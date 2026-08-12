@@ -464,7 +464,7 @@ func userSubscriptionAdminOrder(filter service.SubscriptionAdminFilter, startOfD
 		dailyUsage := selector.C(usersubscription.FieldDailyUsageUsd)
 		dailyLimit := groupTable.C(group.FieldDailyLimitUsd)
 
-		selector.OrderExprFunc(func(builder *entsql.Builder) {
+		selector.OrderExpr(entsql.ExprFunc(func(builder *entsql.Builder) {
 			builder.WriteString("CASE WHEN ").WriteString(dailyLimit).
 				WriteString(" IS NULL OR ").WriteString(dailyLimit).
 				WriteString(" <= 0 THEN 1 ELSE 0 END ASC, CASE WHEN ").
@@ -477,7 +477,7 @@ func userSubscriptionAdminOrder(filter service.SubscriptionAdminFilter, startOfD
 				WriteString(" THEN 0 ELSE ").WriteString(dailyUsage).WriteString(" END").
 				WriteString(", 0) / ").WriteString(dailyLimit).
 				WriteString(" END ASC")
-		})
+		}))
 
 		secondaryField := usersubscription.FieldCreatedAt
 		switch filter.SortBy {
