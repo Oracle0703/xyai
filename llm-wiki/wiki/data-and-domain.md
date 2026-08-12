@@ -208,6 +208,9 @@ go generate ./cmd/server
 
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
+- 管理端订阅列表的主序是每日剩余比例 `max(daily_limit_usd - effective_daily_usage, 0) / daily_limit_usd` 升序。日限为空或非正数的无限额订阅排最后；比例相同时沿用请求的 `sort_by` / `sort_order`, 再按订阅 ID 升序。普通订阅的日窗口早于当天零点时 `effective_daily_usage=0`, 未过期的一日订阅仍使用已存日用量, 超限用量钳制为 0% 剩余。
+- `POST /api/v1/admin/subscriptions/reset-daily-filtered` 在单条 PostgreSQL 语句内选择并更新匹配订阅；无论请求是否带 status, 写入时都只处理 active、未删除、未过期且用户/分组未删除的订阅。组织按当前用户邮箱域名精确筛选 `xunyou.com` / `wsdashi.com`, 忽略大小写但不包含子域名。
+- 批量重置只把 `daily_usage_usd` 清零并把 `daily_window_start` 设为当天零点, 不改变 weekly/monthly usage 或窗口。返回值 `reset_count` 是实际更新订阅数；该 UPDATE 与幂等成功结果在同一数据库事务提交。提交后才失效每个 user/group 的本机订阅缓存、共享 billing cache 并发布跨实例失效通知；共享动作使用固定并发和单个总时间预算, 缓存失败只告警且不把已提交写入伪装成失败。
 - API Key `GET /v1/usage` 的 unrestricted subscription 响应在 `subscription.weekly_window_start` 返回周窗口起点, 与 daily/weekly/monthly usage 和 limit 一起供客户端展示当前周口径。
 - API Key 鉴权发现订阅窗口过期时必须同步调用 `EnsureWindowMaintenance`, 用 expected window start 做条件重置并回读数据库快照后再校验限额; 不再异步清零后直接放行。管理员 `ResetUsageWindows` 是显式重置, 会原子更新所选窗口并返回刷新后的订阅。
 - 日/周/月自动配额窗口的下一个边界不得越过订阅 `expires_at`。若订阅到期早于通常的 24 小时、7 天或 30 天周期, 当前窗口在到期时结束；鉴权维护、展示归一化和进度计算必须使用同一边界, 不能在订阅期外展示或复用新的完整窗口。

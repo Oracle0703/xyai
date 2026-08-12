@@ -37,7 +37,7 @@ Passkey / WebAuthn:
 - `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。
 - 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。
 - 权限目录和白名单在 `backend/internal/service/admin_permission.go`; 当前仅有订阅管理、使用记录和 Token 分析。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
-- 订阅权限是唯一含业务写操作的子管理员权限, 只允许 `POST /api/v1/admin/subscriptions/:id/reset-quota`; 使用记录清理、Token 立即索引、订阅分配/延期/撤销/恢复/删除始终拒绝。
+- 订阅权限是唯一含业务写操作的子管理员权限, 只允许 `POST /api/v1/admin/subscriptions/:id/reset-quota` 和 `POST /api/v1/admin/subscriptions/reset-daily-filtered`; 使用记录清理、Token 立即索引、订阅分配/延期/撤销/恢复/删除始终拒绝。
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。
@@ -146,6 +146,8 @@ Grok OAuth session 与密码授权:
 - `idempotency.cleanup_interval_seconds`
 
 新增关键写接口, 尤其支付, 余额, 订阅, 系统操作, 应考虑 `Idempotency-Key` 和失败重试语义。
+
+`POST /api/v1/admin/subscriptions/reset-daily-filtered` 无视全局 `idempotency.observe_only`, 始终强制非空 `Idempotency-Key`; coordinator 或事务能力不可用时 fail-close。scope 为 `admin.subscriptions.reset_daily_filtered`, 规范化后的五个筛选字段参与幂等 payload, 同键同 payload 重放既有 `reset_count`, 同键不同 payload 按通用幂等冲突处理。订阅批量 UPDATE 与幂等 `MarkSucceeded` 在同一 Ent/PostgreSQL 事务内提交, 标记失败会回滚 UPDATE；缓存只在提交成功后失效。`Commit` 返回错误且结果不确定时, coordinator 使用独立短超时 context 回读记录；只有 status、request fingerprint、HTTP status 和 stored response 全部与本次执行一致才恢复成功并执行 post-commit callback, 否则继续 fail-close。共享 billing cache 删除与跨实例发布使用固定 worker 和单个总时间预算、独立 context；预算耗尽会记录跳过任务数和有限 cache-key 样本, 未失效缓存依赖既有 TTL 最终收敛。缓存失败不回滚或伪报数据库更新失败。
 
 `POST /api/v1/admin/accounts/:id/duplicate` 只允许复制静态凭据账号。账号、groups priority 和 scheduler outbox 必须原子落库, 新账号默认 `schedulable=false`, quota/probe/cache/临时调度状态不得复制; credential shadow 和 OAuth/Agent Identity 等旋转凭据账号拒绝。幂等恢复身份绑定 admin actor、source account 和 `Idempotency-Key`; ambiguous commit 只能查询已创建副本, 不能重放 create side effect。
 
