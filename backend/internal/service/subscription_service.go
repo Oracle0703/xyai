@@ -916,6 +916,39 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 	return s.userSubRepo.GetByID(ctx, subscriptionID)
 }
 
+// AdminResetDailyFiltered 原子重置所有匹配且执行时仍生效的订阅日限。
+func (s *SubscriptionService) AdminResetDailyFiltered(ctx context.Context, filter SubscriptionAdminFilter) (int, error) {
+	normalized, err := NormalizeSubscriptionAdminFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now()
+	if s.now != nil {
+		now = s.now()
+	}
+	keys, err := s.userSubRepo.ResetDailyFiltered(ctx, normalized, now, timezone.StartOfDay(now))
+	if err != nil {
+		return 0, err
+	}
+
+	for _, key := range keys {
+		s.InvalidateSubCacheSync(key.UserID, key.GroupID)
+		if s.billingCacheService == nil {
+			continue
+		}
+		cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := s.billingCacheService.InvalidateSubscription(cacheCtx, key.UserID, key.GroupID); err != nil {
+			log.Printf("Warning: failed to invalidate subscription cache after filtered daily reset: user=%d group=%d err=%v", key.UserID, key.GroupID, err)
+		}
+		if err := s.billingCacheService.PublishSubscriptionCacheInvalidation(cacheCtx, subCacheKey(key.UserID, key.GroupID)); err != nil {
+			log.Printf("Warning: failed to publish subscription cache invalidation after filtered daily reset: user=%d group=%d err=%v", key.UserID, key.GroupID, err)
+		}
+		cancel()
+	}
+	return len(keys), nil
+}
+
 // CheckAndResetWindows 检查并重置过期的窗口
 func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *UserSubscription) error {
 	now := s.now()

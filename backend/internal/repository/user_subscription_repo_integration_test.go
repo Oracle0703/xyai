@@ -10,6 +10,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/suite"
 )
@@ -592,6 +593,98 @@ func userSubscriptionIDs(items []service.UserSubscription) []int64 {
 		ids = append(ids, items[i].ID)
 	}
 	return ids
+}
+
+func (s *UserSubscriptionRepoSuite) TestResetDailyFiltered_UpdatesOnlyMatchingActiveSubscriptions() {
+	now := time.Date(2026, 8, 12, 12, 34, 56, 0, time.UTC)
+	resetWindow := timezone.StartOfDay(now)
+	oldDailyWindow := resetWindow.Add(-24 * time.Hour)
+	oldWeeklyWindow := now.Add(-48 * time.Hour)
+	oldMonthlyWindow := now.Add(-72 * time.Hour)
+
+	targetGroup := s.mustCreateGroup("g-reset-filtered-target")
+	otherGroup := s.mustCreateGroup("g-reset-filtered-other")
+	otherPlatformGroupEntity, err := s.client.Group.Create().
+		SetName("g-reset-filtered-platform").
+		SetStatus(service.StatusActive).
+		SetPlatform(service.PlatformOpenAI).
+		Save(s.ctx)
+	s.Require().NoError(err)
+	otherPlatformGroup := groupEntityToService(otherPlatformGroupEntity)
+
+	create := func(email string, groupID int64, status string, expiresAt time.Time) *dbent.UserSubscription {
+		user := s.mustCreateUser(email, service.RoleUser)
+		return s.mustCreateSubscription(user.ID, groupID, func(c *dbent.UserSubscriptionCreate) {
+			c.SetStartsAt(now.Add(-48 * time.Hour)).
+				SetExpiresAt(expiresAt).
+				SetStatus(status).
+				SetDailyWindowStart(oldDailyWindow).
+				SetWeeklyWindowStart(oldWeeklyWindow).
+				SetMonthlyWindowStart(oldMonthlyWindow).
+				SetDailyUsageUsd(3).
+				SetWeeklyUsageUsd(7).
+				SetMonthlyUsageUsd(11)
+		})
+	}
+
+	matchingFirst := create("reset-one@XUNYOU.COM", targetGroup.ID, service.SubscriptionStatusActive, now.Add(48*time.Hour))
+	matchingSecond := create("reset-two@xunyou.com", targetGroup.ID, service.SubscriptionStatusActive, now.Add(48*time.Hour))
+	wrongOrganization := create("reset@wsdashi.com", targetGroup.ID, service.SubscriptionStatusActive, now.Add(48*time.Hour))
+	wrongGroup := create("reset-other-group@xunyou.com", otherGroup.ID, service.SubscriptionStatusActive, now.Add(48*time.Hour))
+	wrongPlatform := create("reset-other-platform@xunyou.com", otherPlatformGroup.ID, service.SubscriptionStatusActive, now.Add(48*time.Hour))
+	suspended := create("reset-suspended@xunyou.com", targetGroup.ID, service.SubscriptionStatusSuspended, now.Add(48*time.Hour))
+	expired := create("reset-expired@xunyou.com", targetGroup.ID, service.SubscriptionStatusActive, now.Add(-time.Hour))
+	revoked := create("reset-revoked@xunyou.com", targetGroup.ID, service.SubscriptionStatusActive, now.Add(48*time.Hour))
+	s.Require().NoError(s.repo.Delete(s.ctx, revoked.ID))
+
+	keys, err := s.repo.ResetDailyFiltered(s.ctx, service.SubscriptionAdminFilter{
+		GroupID:      &targetGroup.ID,
+		Status:       service.SubscriptionStatusActive,
+		Platform:     service.PlatformAnthropic,
+		Organization: service.SubscriptionOrganizationXunyou,
+	}, now, resetWindow)
+
+	s.Require().NoError(err)
+	s.Require().ElementsMatch([]service.SubscriptionCacheKey{
+		{UserID: matchingFirst.UserID, GroupID: targetGroup.ID},
+		{UserID: matchingSecond.UserID, GroupID: targetGroup.ID},
+	}, keys)
+
+	for _, id := range []int64{matchingFirst.ID, matchingSecond.ID} {
+		got, getErr := s.repo.GetByIDIncludeDeleted(s.ctx, id)
+		s.Require().NoError(getErr)
+		s.Require().Zero(got.DailyUsageUSD)
+		s.Require().NotNil(got.DailyWindowStart)
+		s.Require().WithinDuration(resetWindow, *got.DailyWindowStart, time.Microsecond)
+		s.Require().InDelta(7, got.WeeklyUsageUSD, 1e-9)
+		s.Require().WithinDuration(oldWeeklyWindow, *got.WeeklyWindowStart, time.Microsecond)
+		s.Require().InDelta(11, got.MonthlyUsageUSD, 1e-9)
+		s.Require().WithinDuration(oldMonthlyWindow, *got.MonthlyWindowStart, time.Microsecond)
+	}
+
+	for _, id := range []int64{wrongOrganization.ID, wrongGroup.ID, wrongPlatform.ID, suspended.ID, expired.ID, revoked.ID} {
+		got, getErr := s.repo.GetByIDIncludeDeleted(s.ctx, id)
+		s.Require().NoError(getErr)
+		s.Require().InDelta(3, got.DailyUsageUSD, 1e-9)
+		s.Require().WithinDuration(oldDailyWindow, *got.DailyWindowStart, time.Microsecond)
+		s.Require().InDelta(7, got.WeeklyUsageUSD, 1e-9)
+		s.Require().InDelta(11, got.MonthlyUsageUSD, 1e-9)
+	}
+}
+
+func (s *UserSubscriptionRepoSuite) TestResetDailyFiltered_ZeroMatchReturnsEmptyKeys() {
+	now := time.Date(2026, 8, 12, 12, 34, 56, 0, time.UTC)
+	group := s.mustCreateGroup("g-reset-filtered-empty")
+	user := s.mustCreateUser("reset-empty@xunyou.com", service.RoleUser)
+	s.mustCreateSubscription(user.ID, group.ID, nil)
+
+	keys, err := s.repo.ResetDailyFiltered(s.ctx, service.SubscriptionAdminFilter{
+		GroupID:  &group.ID,
+		Platform: service.PlatformGrok,
+	}, now, timezone.StartOfDay(now))
+
+	s.Require().NoError(err)
+	s.Require().Empty(keys)
 }
 
 // --- Usage tracking ---

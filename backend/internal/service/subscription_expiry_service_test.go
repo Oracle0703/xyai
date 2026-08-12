@@ -111,6 +111,10 @@ func (r *subscriptionExpiryRepoStub) ResetMonthlyUsage(context.Context, int64, *
 	return nil
 }
 
+func (r *subscriptionExpiryRepoStub) ResetDailyFiltered(context.Context, SubscriptionAdminFilter, time.Time, time.Time) ([]SubscriptionCacheKey, error) {
+	panic("expiry maintenance must not reset filtered daily usage")
+}
+
 func (r *subscriptionExpiryRepoStub) IncrementUsage(context.Context, int64, float64) error {
 	return nil
 }

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -597,6 +598,89 @@ func (r *userSubscriptionRepository) ResetMonthlyUsage(ctx context.Context, id i
 		SetMonthlyWindowStart(newWindowStart).
 		Save(ctx)
 	return r.translateConditionalWindowReset(ctx, client, id, n, err)
+}
+
+func (r *userSubscriptionRepository) ResetDailyFiltered(
+	ctx context.Context,
+	filter service.SubscriptionAdminFilter,
+	now time.Time,
+	newWindowStart time.Time,
+) ([]service.SubscriptionCacheKey, error) {
+	var predicates []string
+	args := make([]any, 0, 8)
+	addPredicate := func(format string, value any) {
+		args = append(args, value)
+		predicates = append(predicates, fmt.Sprintf(format, len(args)))
+	}
+
+	predicates = append(predicates,
+		"us.deleted_at IS NULL",
+		"u.deleted_at IS NULL",
+		"g.deleted_at IS NULL",
+		"us.status = 'active'",
+	)
+	addPredicate("us.expires_at > $%d", now)
+	if filter.UserID != nil {
+		addPredicate("us.user_id = $%d", *filter.UserID)
+	}
+	if filter.GroupID != nil {
+		addPredicate("us.group_id = $%d", *filter.GroupID)
+	}
+	if filter.Platform != "" {
+		addPredicate("g.platform = $%d", filter.Platform)
+	}
+	if filter.Organization != "" {
+		addPredicate("LOWER(SPLIT_PART(u.email, '@', 2)) = $%d", subscriptionOrganizationDomain(filter.Organization))
+	}
+	if filter.Status != "" {
+		addPredicate("us.status = $%d", filter.Status)
+	}
+
+	args = append(args, newWindowStart)
+	windowArg := len(args)
+	args = append(args, now)
+	updatedAtArg := len(args)
+	query := fmt.Sprintf(`
+		WITH candidates AS (
+			SELECT us.id
+			FROM user_subscriptions us
+			JOIN users u ON u.id = us.user_id
+			JOIN groups g ON g.id = us.group_id
+			WHERE %s
+		)
+		UPDATE user_subscriptions us
+		SET daily_usage_usd = 0,
+			daily_window_start = $%d,
+			updated_at = $%d
+		FROM candidates c
+		WHERE us.id = c.id
+		RETURNING us.user_id, us.group_id
+	`, strings.Join(predicates, " AND "), windowArg, updatedAtArg)
+
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	keys := make([]service.SubscriptionCacheKey, 0)
+	seen := make(map[service.SubscriptionCacheKey]struct{})
+	for rows.Next() {
+		var key service.SubscriptionCacheKey
+		if err := rows.Scan(&key.UserID, &key.GroupID); err != nil {
+			return nil, err
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
 
 func (r *userSubscriptionRepository) translateConditionalWindowReset(ctx context.Context, client *dbent.Client, id int64, affected int, err error) error {
