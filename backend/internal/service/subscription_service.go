@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -807,6 +808,27 @@ func (s *SubscriptionService) List(ctx context.Context, page, pageSize int, user
 	return subs, pag, nil
 }
 
+// ListAdmin 获取管理端订阅列表，并在数据库分页前应用每日剩余比例主排序。
+func (s *SubscriptionService) ListAdmin(ctx context.Context, page, pageSize int, filter SubscriptionAdminFilter) ([]UserSubscription, *pagination.PaginationResult, error) {
+	normalized, err := NormalizeSubscriptionAdminFilter(filter)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now()
+	if s.now != nil {
+		now = s.now()
+	}
+	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
+	subs, pag, err := s.userSubRepo.ListAdmin(ctx, params, normalized, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	normalizeExpiredWindowsAt(subs, now)
+	normalizeSubscriptionStatusAt(subs, now)
+	return subs, pag, nil
+}
+
 // normalizeExpiredWindows 将已过期窗口的数据清零（仅影响返回数据，不影响数据库）
 // 这确保前端显示正确的当前窗口状态，而不是过期窗口的历史数据
 func normalizeExpiredWindows(subs []UserSubscription) {
@@ -837,7 +859,10 @@ func normalizeExpiredWindowsAt(subs []UserSubscription, now time.Time) {
 // normalizeSubscriptionStatus 根据实际过期时间修正状态（仅影响返回数据，不影响数据库）
 // 这确保前端显示正确的状态，即使定时任务尚未更新数据库
 func normalizeSubscriptionStatus(subs []UserSubscription) {
-	now := time.Now()
+	normalizeSubscriptionStatusAt(subs, time.Now())
+}
+
+func normalizeSubscriptionStatusAt(subs []UserSubscription, now time.Time) {
 	for i := range subs {
 		sub := &subs[i]
 		if sub.Status == SubscriptionStatusActive && !sub.ExpiresAt.After(now) {
@@ -890,6 +915,117 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 	}
 	// Return the refreshed subscription from DB
 	return s.userSubRepo.GetByID(ctx, subscriptionID)
+}
+
+// AdminResetDailyFiltered 原子重置所有匹配且执行时仍生效的订阅日限。
+func (s *SubscriptionService) AdminResetDailyFiltered(ctx context.Context, filter SubscriptionAdminFilter) (int, error) {
+	normalized, err := NormalizeSubscriptionAdminFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	now := time.Now()
+	if s.now != nil {
+		now = s.now()
+	}
+	keys, err := s.userSubRepo.ResetDailyFiltered(ctx, normalized, now, timezone.StartOfDay(now))
+	if err != nil {
+		return 0, err
+	}
+
+	invalidate := func() {
+		s.invalidateFilteredDailyResetCaches(keys)
+	}
+	if !DeferIdempotencyPostCommit(ctx, invalidate) {
+		invalidate()
+	}
+	return len(keys), nil
+}
+
+func (s *SubscriptionService) invalidateFilteredDailyResetCaches(keys []SubscriptionCacheKey) {
+	s.invalidateFilteredDailyResetCachesWithTimeout(keys, 5*time.Second)
+}
+
+func (s *SubscriptionService) invalidateFilteredDailyResetCachesWithTimeout(keys []SubscriptionCacheKey, timeout time.Duration) {
+	if len(keys) == 0 {
+		return
+	}
+	for _, key := range keys {
+		s.InvalidateSubCacheSync(key.UserID, key.GroupID)
+	}
+	if s.billingCacheService == nil {
+		return
+	}
+
+	deadline := time.Now().Add(timeout)
+	type cacheInvalidationTask struct {
+		key    SubscriptionCacheKey
+		action string
+		fn     func(context.Context) error
+	}
+	runPhase := func(tasks []cacheInvalidationTask, phaseDeadline time.Time, phase string) {
+		jobs := make(chan cacheInvalidationTask)
+		var wg sync.WaitGroup
+		var skippedMu sync.Mutex
+		skipped := 0
+		skippedSamples := make([]string, 0, 3)
+		workerCount := 8
+		if len(tasks) < workerCount {
+			workerCount = len(tasks)
+		}
+		for range workerCount {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for task := range jobs {
+					remaining := time.Until(phaseDeadline)
+					if remaining <= 0 {
+						skippedMu.Lock()
+						skipped++
+						if len(skippedSamples) < cap(skippedSamples) {
+							skippedSamples = append(skippedSamples, fmt.Sprintf("%d:%d", task.key.UserID, task.key.GroupID))
+						}
+						skippedMu.Unlock()
+						continue
+					}
+					cacheCtx, cancel := context.WithTimeout(context.Background(), remaining)
+					err := task.fn(cacheCtx)
+					cancel()
+					if err != nil {
+						log.Printf("Warning: failed to %s after filtered daily reset: user=%d group=%d err=%v", task.action, task.key.UserID, task.key.GroupID, err)
+					}
+				}
+			}()
+		}
+		for _, task := range tasks {
+			jobs <- task
+		}
+		close(jobs)
+		wg.Wait()
+		if skipped > 0 {
+			log.Printf(
+				"Warning: skipped cache invalidation tasks after filtered daily reset: phase=%s skipped=%d sample_keys=%s",
+				phase,
+				skipped,
+				strings.Join(skippedSamples, ","),
+			)
+		}
+	}
+
+	invalidateTasks := make([]cacheInvalidationTask, 0, len(keys))
+	publishTasks := make([]cacheInvalidationTask, 0, len(keys))
+	for _, key := range keys {
+		key := key
+		invalidateTasks = append(invalidateTasks, cacheInvalidationTask{key: key, action: "invalidate subscription cache", fn: func(ctx context.Context) error {
+			return s.billingCacheService.InvalidateSubscription(ctx, key.UserID, key.GroupID)
+		}})
+		publishTasks = append(publishTasks, cacheInvalidationTask{key: key, action: "publish subscription cache invalidation", fn: func(ctx context.Context) error {
+			return s.billingCacheService.PublishSubscriptionCacheInvalidation(ctx, subCacheKey(key.UserID, key.GroupID))
+		}})
+	}
+	invalidateDeadline := time.Now().Add(time.Until(deadline) / 2)
+	runPhase(invalidateTasks, invalidateDeadline, "invalidate subscription cache")
+	runPhase(publishTasks, deadline, "publish subscription cache invalidation")
 }
 
 // CheckAndResetWindows 检查并重置过期的窗口

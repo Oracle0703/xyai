@@ -143,6 +143,9 @@ func (userSubRepoNoop) ListByGroupID(context.Context, int64, pagination.Paginati
 func (userSubRepoNoop) List(context.Context, pagination.PaginationParams, *int64, *int64, string, string, string, string) ([]UserSubscription, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
+func (userSubRepoNoop) ListAdmin(context.Context, pagination.PaginationParams, SubscriptionAdminFilter, time.Time) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("unexpected ListAdmin call")
+}
 func (userSubRepoNoop) ExistsByUserIDAndGroupID(context.Context, int64, int64) (bool, error) {
 	panic("unexpected ExistsByUserIDAndGroupID call")
 }
@@ -172,6 +175,9 @@ func (userSubRepoNoop) ResetWeeklyUsage(context.Context, int64, *time.Time, time
 }
 func (userSubRepoNoop) ResetMonthlyUsage(context.Context, int64, *time.Time, time.Time) error {
 	panic("unexpected ResetMonthlyUsage call")
+}
+func (userSubRepoNoop) ResetDailyFiltered(context.Context, SubscriptionAdminFilter, time.Time, time.Time) ([]SubscriptionCacheKey, error) {
+	panic("unexpected ResetDailyFiltered call")
 }
 func (userSubRepoNoop) IncrementUsage(context.Context, int64, float64) error {
 	panic("unexpected IncrementUsage call")

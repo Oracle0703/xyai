@@ -213,6 +213,9 @@ func (f fakeGoogleSubscriptionRepo) ListByGroupID(ctx context.Context, groupID i
 func (f fakeGoogleSubscriptionRepo) List(ctx context.Context, params pagination.PaginationParams, userID, groupID *int64, status, platform, sortBy, sortOrder string) ([]service.UserSubscription, *pagination.PaginationResult, error) {
 	return nil, nil, errors.New("not implemented")
 }
+func (f fakeGoogleSubscriptionRepo) ListAdmin(context.Context, pagination.PaginationParams, service.SubscriptionAdminFilter, time.Time) ([]service.UserSubscription, *pagination.PaginationResult, error) {
+	return nil, nil, errors.New("not implemented")
+}
 func (f fakeGoogleSubscriptionRepo) ExistsByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error) {
 	return false, errors.New("not implemented")
 }
@@ -257,6 +260,9 @@ func (f fakeGoogleSubscriptionRepo) ResetMonthlyUsage(ctx context.Context, id in
 		return f.resetMonthly(ctx, id, start)
 	}
 	return errors.New("not implemented")
+}
+func (f fakeGoogleSubscriptionRepo) ResetDailyFiltered(context.Context, service.SubscriptionAdminFilter, time.Time, time.Time) ([]service.SubscriptionCacheKey, error) {
+	return nil, errors.New("not implemented")
 }
 func (f fakeGoogleSubscriptionRepo) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {
 	return errors.New("not implemented")

@@ -21,6 +21,7 @@ const (
 	IdempotencyStatusProcessing      = "processing"
 	IdempotencyStatusSucceeded       = "succeeded"
 	IdempotencyStatusFailedRetryable = "failed_retryable"
+	atomicCommitRecoveryTimeout      = 2 * time.Second
 )
 
 var (
@@ -58,6 +59,10 @@ type IdempotencyRepository interface {
 	DeleteExpired(ctx context.Context, now time.Time, limit int) (int64, error)
 }
 
+type idempotencyTransactionalRepository interface {
+	WithTransaction(ctx context.Context, fn func(context.Context) error) error
+}
+
 type IdempotencyConfig struct {
 	DefaultTTL           time.Duration
 	SystemOperationTTL   time.Duration
@@ -87,6 +92,7 @@ type IdempotencyExecuteOptions struct {
 	Payload        any
 	TTL            time.Duration
 	RequireKey     bool
+	AtomicSuccess  bool
 }
 
 type IdempotencyExecuteResult struct {
@@ -97,6 +103,26 @@ type IdempotencyExecuteResult struct {
 type IdempotencyCoordinator struct {
 	repo IdempotencyRepository
 	cfg  IdempotencyConfig
+}
+
+type idempotencyPostCommitState struct {
+	callbacks []func()
+}
+
+type idempotencyPostCommitContextKey struct{}
+
+// DeferIdempotencyPostCommit registers a side effect that must run only after
+// an AtomicSuccess transaction commits. It returns false outside that mode.
+func DeferIdempotencyPostCommit(ctx context.Context, callback func()) bool {
+	if callback == nil {
+		return false
+	}
+	state, _ := ctx.Value(idempotencyPostCommitContextKey{}).(*idempotencyPostCommitState)
+	if state == nil {
+		return false
+	}
+	state.callbacks = append(state.callbacks, callback)
+	return true
 }
 
 var (
@@ -397,6 +423,68 @@ func (c *IdempotencyCoordinator) Execute(
 		recordIdempotencyProcessingDuration(opts.Route, opts.Scope, time.Since(execStart), nil)
 	}()
 
+	if opts.AtomicSuccess {
+		transactionalRepo, ok := c.repo.(idempotencyTransactionalRepository)
+		if !ok {
+			RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "atomic_transaction_unsupported")
+			return nil, ErrIdempotencyStoreUnavail
+		}
+		postCommit := &idempotencyPostCommitState{}
+		var data any
+		var execErr error
+		var storedBody string
+		var marshalErr error
+		var markErr error
+		txErr := transactionalRepo.WithTransaction(ctx, func(txCtx context.Context) error {
+			txCtx = context.WithValue(txCtx, idempotencyPostCommitContextKey{}, postCommit)
+			data, execErr = execute(txCtx)
+			if execErr != nil {
+				return execErr
+			}
+			storedBody, marshalErr = c.marshalStoredResponse(data)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			markErr = c.repo.MarkSucceeded(txCtx, record.ID, 200, storedBody, expiresAt)
+			return markErr
+		})
+		if txErr != nil {
+			switch {
+			case execErr != nil:
+				backoffUntil := time.Now().Add(c.cfg.FailedRetryBackoff)
+				reason := infraerrors.Reason(execErr)
+				if reason == "" {
+					reason = "EXECUTION_FAILED"
+				}
+				if markFailedErr := c.repo.MarkFailedRetryable(ctx, record.ID, reason, backoffUntil, expiresAt); markFailedErr != nil {
+					RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_failed_retryable_error")
+				}
+				return nil, execErr
+			case marshalErr != nil:
+				RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "marshal_response_error")
+				return nil, ErrIdempotencyStoreUnavail.WithCause(marshalErr)
+			case markErr != nil:
+				RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_succeeded_error")
+				return nil, ErrIdempotencyStoreUnavail.WithCause(markErr)
+			default:
+				if c.atomicCommitSucceeded(opts.Scope, keyHash, fingerprint, storedBody) {
+					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->succeeded_after_commit_error", false, nil)
+					for _, callback := range postCommit.callbacks {
+						callback()
+					}
+					return &IdempotencyExecuteResult{Data: data}, nil
+				}
+				RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "atomic_transaction_error")
+				return nil, ErrIdempotencyStoreUnavail.WithCause(txErr)
+			}
+		}
+		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->succeeded", false, nil)
+		for _, callback := range postCommit.callbacks {
+			callback()
+		}
+		return &IdempotencyExecuteResult{Data: data}, nil
+	}
+
 	data, execErr := execute(ctx)
 	if execErr != nil {
 		backoffUntil := time.Now().Add(c.cfg.FailedRetryBackoff)
@@ -446,6 +534,20 @@ func (c *IdempotencyCoordinator) conflictWithRetryAfter(base *infraerrors.Applic
 		sec = 1
 	}
 	return base.WithMetadata(map[string]string{"retry_after": strconv.Itoa(sec)})
+}
+
+func (c *IdempotencyCoordinator) atomicCommitSucceeded(scope, keyHash, fingerprint, storedBody string) bool {
+	recoveryCtx, cancel := context.WithTimeout(context.Background(), atomicCommitRecoveryTimeout)
+	defer cancel()
+
+	record, err := c.repo.GetByScopeAndKeyHash(recoveryCtx, scope, keyHash)
+	if err != nil || record == nil || record.Status != IdempotencyStatusSucceeded {
+		return false
+	}
+	if record.RequestFingerprint != fingerprint || record.ResponseBody == nil || *record.ResponseBody != storedBody {
+		return false
+	}
+	return record.ResponseStatus != nil && *record.ResponseStatus == 200
 }
 
 func (c *IdempotencyCoordinator) marshalStoredResponse(data any) (string, error) {

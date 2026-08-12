@@ -102,6 +102,8 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 管理端 `GET /api/v1/admin/audit-logs[/:id]` 查询 append-only 操作审计, `POST .../clear` 必须现场 TOTP; `POST /api/v1/admin/users/batch-limits` 批量覆盖 concurrency/RPM, `concurrency=0` 仍表示不限。
 - 管理端 `/api/v1/admin/prompt-audit` 提供 config 更新、节点 probe、runtime、事件列表/详情、单条/批量删除和带预览确认的筛选删除；路由受 admin auth 和全局 risk-control feature gate 约束。
 - 管理端 `GET/PUT /api/v1/admin/settings/panel-rate-limit` 读写 Panel API 限流的总开关、用户/重查询/public IP RPM 和管理员豁免；它是数据库运行时设置, 不是 YAML 配置组。
+- 管理端 `GET /api/v1/admin/subscriptions` 接受 `status,user_id,group_id,platform,organization,sort_by,sort_order`; `organization` 只允许 `xunyou` / `wsdashi`, 按未删除用户的邮箱域名大小写不敏感精确匹配 `xunyou.com` / `wsdashi.com`, 子域名和软删除用户不匹配。仓储在分页前按日剩余比例升序全局排序, 原 `sort_by` / `sort_order` 是比例相同时的次序, 最后以订阅 ID 升序稳定排序。
+- 管理端 `POST /api/v1/admin/subscriptions/reset-daily-filtered` 只接受单个 JSON object 和 `status,user_id,group_id,platform,organization`; 未知字段、`null`、尾随 JSON 及非法值均返回 400, 不能退化为空筛选。接口原子重置全部匹配分页中执行时仍 active、未删除且未过期订阅的日用量并返回 `reset_count`; 该静态路由必须注册在 `/:id` 之前。
 - 通用 `PUT /api/v1/admin/settings` 会先保留原始 JSON field set, value-typed 字段若未出现在 payload 中则从 `SetMultiple` 更新集中删除, 留下数据库现值；显式发送 `false`、`0`、空字符串/数组仍是有效更新。pointer-typed 字段继续使用各自的 omitted merge/fail-closed 归一化。partial write 后进程缓存从数据库重读, 不能用请求 struct 的零值覆盖未发送字段。
 - 管理端 `/api/v1/admin/ops/ingress-rejections` 与 `/api/v1/admin/ops/ingress-rejections/health` 查询入口拒绝聚合与运行态, `/api/v1/admin/ops/auth-cache-invalidation/health` 汇总 outbox、Redis subscriber、DB lookup 和 invalid-auth limiter 健康信息。
 
@@ -117,7 +119,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 用户角色为 `admin`、`sub_admin`、`user`; 权限码与路由白名单集中在 `backend/internal/service/admin_permission.go`。
 - `AdminAuth` 对 `admin` 和 Admin API Key 全量放行; `sub_admin` 每次请求从数据库加载最新角色、状态、TokenVersion 和 `admin_permissions`, 再按 HTTP 方法 + Gin `FullPath()` 精确匹配。未登记路由返回 `403 ADMIN_PERMISSION_DENIED`。
 - 固定权限为 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
-- 订阅权限只允许查看、`POST /subscriptions/:id/reset-quota` 和 compact 用户/分组筛选。分组筛选走 `/admin/subscriptions/search-groups`, 不得重新放行返回完整 `AdminGroup` 的 `/admin/groups/all`。
+- 订阅权限只允许查看、`POST /subscriptions/:id/reset-quota`、`POST /subscriptions/reset-daily-filtered` 和 compact 用户/分组筛选。分组筛选走 `/admin/subscriptions/search-groups`, 不得重新放行返回完整 `AdminGroup` 的 `/admin/groups/all`。
 - 使用记录权限允许 usage、Dashboard 聚合/排行与 Ops 错误只读接口; 账号和分组筛选使用 `/admin/usage/search-accounts`、`search-groups` 的 `{id,name}` 响应。Token 分析权限只允许相关 GET 和选中用户趋势查询。
 - 0.1.161 新增的 `/admin/ops/ingress-rejections`、`/admin/ops/ingress-rejections/health` 与 `/admin/ops/auth-cache-invalidation/health` 不在 `admin.usage` 白名单，当前仅完整管理员可访问。它们包含入口拒绝身份维度和鉴权缓存安全运行态；未知路由默认拒绝是既有 fail-closed 合同，后续若向子管理员开放必须先做显式产品与最小权限评审。
 - backend mode 仅允许至少有一项权限的子管理员登录/刷新 token; 权限清空后不能继续保留 backend 会话。管理端合规查询/确认是所有已认证子管理员的公共白名单, 不代表业务管理权限。

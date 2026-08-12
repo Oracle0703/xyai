@@ -682,6 +682,7 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		subscriptions.GET("", h.Admin.Subscription.List)
 		subscriptions.GET("/search-groups", h.Admin.Usage.SearchGroups)
+		subscriptions.POST("/reset-daily-filtered", h.Admin.Subscription.ResetDailyFiltered)
 		subscriptions.GET("/:id", h.Admin.Subscription.GetByID)
 		subscriptions.GET("/:id/progress", h.Admin.Subscription.GetProgress)
 		subscriptions.POST("/assign", h.Admin.Subscription.Assign)

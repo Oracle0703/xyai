@@ -44,6 +44,7 @@ func TestCanAccessAdminRoute(t *testing.T) {
 	}{
 		{"subscription read allowed", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/subscriptions", true},
 		{"subscription quota reset allowed", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/:id/reset-quota", true},
+		{"subscription filtered daily reset allowed", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", true},
 		{"subscription compact group search allowed", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/subscriptions/search-groups", true},
 		{"subscription full group catalog denied", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/groups/all", false},
 		{"subscription assignment denied", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/assign", false},
@@ -90,7 +91,8 @@ func TestCanAccessAdmin(t *testing.T) {
 func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 	allowedWrites := map[string]map[adminRouteRule]struct{}{
 		AdminPermissionSubscriptions: {
-			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/reset-quota"}: {},
+			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/reset-quota"}:      {},
+			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/reset-daily-filtered"}: {},
 		},
 		AdminPermissionUsage:         {},
 		AdminPermissionTokenAnalysis: {},

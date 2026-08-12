@@ -40,6 +40,7 @@ var adminPermissionRouteRules = map[string][]adminRouteRule{
 		{"GET", "/api/v1/admin/subscriptions/search-groups"},
 		{"GET", "/api/v1/admin/usage/search-users"},
 		{"POST", "/api/v1/admin/subscriptions/:id/reset-quota"},
+		{"POST", "/api/v1/admin/subscriptions/reset-daily-filtered"},
 	},
 	AdminPermissionUsage: {
 		{"GET", "/api/v1/admin/usage"},

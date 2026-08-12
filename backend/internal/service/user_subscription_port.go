@@ -7,6 +7,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
+type SubscriptionCacheKey struct {
+	UserID  int64
+	GroupID int64
+}
+
 type UserSubscriptionRepository interface {
 	Create(ctx context.Context, sub *UserSubscription) error
 	GetByID(ctx context.Context, id int64) (*UserSubscription, error)
@@ -22,6 +27,7 @@ type UserSubscriptionRepository interface {
 	ListActiveByUserID(ctx context.Context, userID int64) ([]UserSubscription, error)
 	ListByGroupID(ctx context.Context, groupID int64, params pagination.PaginationParams) ([]UserSubscription, *pagination.PaginationResult, error)
 	List(ctx context.Context, params pagination.PaginationParams, userID, groupID *int64, status, platform, sortBy, sortOrder string) ([]UserSubscription, *pagination.PaginationResult, error)
+	ListAdmin(ctx context.Context, params pagination.PaginationParams, filter SubscriptionAdminFilter, now time.Time) ([]UserSubscription, *pagination.PaginationResult, error)
 
 	ExistsByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error)
 	ExistsActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error)
@@ -39,6 +45,7 @@ type UserSubscriptionRepository interface {
 	ResetDailyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error
 	ResetWeeklyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error
 	ResetMonthlyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error
+	ResetDailyFiltered(ctx context.Context, filter SubscriptionAdminFilter, now, newWindowStart time.Time) ([]SubscriptionCacheKey, error)
 	IncrementUsage(ctx context.Context, id int64, costUSD float64) error
 
 	BatchUpdateExpiredStatus(ctx context.Context) (int64, error)

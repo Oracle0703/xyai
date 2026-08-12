@@ -89,6 +89,14 @@
                 @change="applyFilters"
               />
             </div>
+            <div class="w-full sm:w-40" data-test="organization-filter">
+              <Select
+                v-model="filters.organization"
+                :options="organizationFilterOptions"
+                :placeholder="t('admin.subscriptions.allOrganizations')"
+                @change="applyFilters"
+              />
+            </div>
           </div>
 
           <!-- Right: Actions -->
@@ -162,6 +170,16 @@
             <button v-if="canManageSubscriptions" @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
+            </button>
+            <button
+              v-if="canResetSubscriptionQuotas"
+              type="button"
+              class="btn btn-secondary"
+              :disabled="resettingDailyFiltered || !appliedResetFilters"
+              @click="openResetDailyFilteredConfirm"
+            >
+              <Icon name="sun" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.bulkResetDaily') }}
             </button>
           </div>
         </div>
@@ -393,7 +411,7 @@
                 <span class="text-xs">{{ t('admin.subscriptions.adjust') }}</span>
               </button>
               <button
-                v-if="row.status === 'active'"
+                v-if="canResetSubscriptionQuotas && row.status === 'active'"
                 @click="handleResetQuota(row)"
                 :disabled="resettingQuota && resettingSubscription?.id === row.id"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
@@ -402,7 +420,7 @@
                 <span class="text-xs">{{ t('admin.subscriptions.resetQuota') }}</span>
               </button>
               <button
-                v-if="row.status === 'active'"
+                v-if="canResetSubscriptionQuotas && row.status === 'active'"
                 @click="handleResetDailyQuota(row)"
                 :disabled="resettingQuota && resettingSubscription?.id === row.id"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-900/20 dark:hover:text-teal-400 disabled:cursor-not-allowed disabled:opacity-50"
@@ -692,6 +710,18 @@
       @confirm="confirmResetQuota"
       @cancel="closeResetQuotaConfirm"
     />
+    <ConfirmDialog
+      :show="showResetDailyFilteredConfirm"
+      :title="t('admin.subscriptions.bulkResetDailyTitle')"
+      :message="t('admin.subscriptions.bulkResetDailyConfirm')"
+      :confirm-text="resettingDailyFiltered
+        ? t('admin.subscriptions.bulkResetDailyRunning')
+        : t('admin.subscriptions.bulkResetDaily')"
+      :cancel-text="t('common.cancel')"
+      :disabled="resettingDailyFiltered"
+      @confirm="confirmResetDailyFiltered"
+      @cancel="closeResetDailyFilteredConfirm"
+    />
     <!-- Subscription Guide Modal -->
     <teleport to="body">
       <transition name="modal">
@@ -782,7 +812,11 @@ import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
-import type { SubscriptionGroupFilterOption } from '@/api/admin/subscriptions'
+import type {
+  SubscriptionAdminFilters,
+  SubscriptionGroupFilterOption,
+  SubscriptionOrganization
+} from '@/api/admin/subscriptions'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -808,6 +842,9 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const canManageSubscriptions = computed(() => authStore.isAdmin)
+const canResetSubscriptionQuotas = computed(() =>
+  authStore.hasAdminPermission('admin.subscriptions')
+)
 
 interface GroupOption {
   value: number
@@ -970,6 +1007,7 @@ const filters = reactive({
   status: 'active',
   group_id: '',
   platform: '',
+  organization: '' as '' | SubscriptionOrganization,
   user_id: null as number | null
 })
 
@@ -991,9 +1029,14 @@ const showExtendModal = ref(false)
 const showRevokeDialog = ref(false)
 const showRestoreDialog = ref(false)
 const showResetQuotaConfirm = ref(false)
+const showResetDailyFilteredConfirm = ref(false)
 const submitting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
+const resettingDailyFiltered = ref(false)
+const resetDailyFilteredSnapshot = ref<SubscriptionAdminFilters | null>(null)
+const resetDailyFilteredIdempotencyKey = ref<string | null>(null)
+const appliedResetFilters = ref<SubscriptionAdminFilters | null>(null)
 const resetQuotaMode = ref<'all' | 'daily'>('all')
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
@@ -1044,6 +1087,12 @@ const platformFilterOptions = computed(() => [
   { value: 'antigravity', label: 'Antigravity' }
 ])
 
+const organizationFilterOptions = computed(() => [
+  { value: '', label: t('admin.subscriptions.allOrganizations') },
+  { value: 'xunyou', label: '迅游' },
+  { value: 'wsdashi', label: '速宝' }
+])
+
 // Group options for assign (only subscription type groups)
 const subscriptionGroupOptions = computed(() =>
   groups.value
@@ -1063,6 +1112,14 @@ const applyFilters = () => {
   loadSubscriptions()
 }
 
+const getAppliedResetFilters = (): SubscriptionAdminFilters => ({
+  status: (filters.status || undefined) as SubscriptionAdminFilters['status'],
+  user_id: filters.user_id || undefined,
+  group_id: filters.group_id ? parseInt(filters.group_id) : undefined,
+  platform: filters.platform || undefined,
+  organization: filters.organization || undefined
+})
+
 const loadSubscriptions = async () => {
   if (abortController) {
     abortController.abort()
@@ -1070,6 +1127,7 @@ const loadSubscriptions = async () => {
   const requestController = new AbortController()
   abortController = requestController
   const { signal } = requestController
+  const requestFilters = getAppliedResetFilters()
 
   loading.value = true
   try {
@@ -1077,11 +1135,8 @@ const loadSubscriptions = async () => {
       pagination.page,
       pagination.page_size,
       {
-        status: (filters.status as any) || undefined,
-        group_id: filters.group_id ? parseInt(filters.group_id) : undefined,
-        platform: filters.platform || undefined,
-        user_id: filters.user_id || undefined,
-        sort_by: sortState.sort_by,
+        ...requestFilters,
+        sort_by: sortState.sort_by as SubscriptionAdminFilters['sort_by'],
         sort_order: sortState.sort_order
       },
       {
@@ -1092,6 +1147,7 @@ const loadSubscriptions = async () => {
     subscriptions.value = response.items
     pagination.total = response.total
     pagination.pages = response.pages
+    appliedResetFilters.value = { ...requestFilters }
   } catch (error: any) {
     if (signal.aborted || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') {
       return
@@ -1391,6 +1447,58 @@ const confirmResetQuota = async () => {
     console.error('Error resetting quota:', error)
   } finally {
     resettingQuota.value = false
+  }
+}
+
+const createResetDailyFilteredIdempotencyKey = () => {
+  const requestID = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `subscription-reset-${requestID}`
+}
+
+const openResetDailyFilteredConfirm = () => {
+  if (!appliedResetFilters.value) return
+  resetDailyFilteredSnapshot.value = { ...appliedResetFilters.value }
+  resetDailyFilteredIdempotencyKey.value = createResetDailyFilteredIdempotencyKey()
+  showResetDailyFilteredConfirm.value = true
+}
+
+const closeResetDailyFilteredConfirm = () => {
+  if (resettingDailyFiltered.value) return
+  showResetDailyFilteredConfirm.value = false
+  resetDailyFilteredSnapshot.value = null
+  resetDailyFilteredIdempotencyKey.value = null
+}
+
+const confirmResetDailyFiltered = async () => {
+  if (
+    resettingDailyFiltered.value
+    || !resetDailyFilteredSnapshot.value
+    || !resetDailyFilteredIdempotencyKey.value
+  ) return
+
+  resettingDailyFiltered.value = true
+  try {
+    const result = await adminAPI.subscriptions.resetDailyFiltered(
+      resetDailyFilteredSnapshot.value,
+      resetDailyFilteredIdempotencyKey.value
+    )
+    if (result.reset_count > 0) {
+      appStore.showSuccess(t('admin.subscriptions.bulkResetDailySuccess', {
+        count: result.reset_count
+      }))
+    } else {
+      appStore.showSuccess(t('admin.subscriptions.bulkResetDailyNoMatches'))
+    }
+    showResetDailyFilteredConfirm.value = false
+    resetDailyFilteredSnapshot.value = null
+    resetDailyFilteredIdempotencyKey.value = null
+    await loadSubscriptions()
+  } catch (error) {
+    appStore.showError(t('admin.subscriptions.bulkResetDailyFailed'))
+    console.error('Error resetting filtered daily quotas:', error)
+  } finally {
+    resettingDailyFiltered.value = false
   }
 }
 

@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strconv"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -28,11 +30,30 @@ func toResponsePagination(p *pagination.PaginationResult) *response.PaginationRe
 
 // SubscriptionHandler handles admin subscription management
 type SubscriptionHandler struct {
-	subscriptionService *service.SubscriptionService
+	subscriptionService subscriptionHandlerService
+}
+
+type subscriptionHandlerService interface {
+	ListAdmin(ctx context.Context, page, pageSize int, filter service.SubscriptionAdminFilter) ([]service.UserSubscription, *pagination.PaginationResult, error)
+	GetByID(ctx context.Context, id int64) (*service.UserSubscription, error)
+	GetSubscriptionProgress(ctx context.Context, subscriptionID int64) (*service.SubscriptionProgress, error)
+	AssignSubscription(ctx context.Context, input *service.AssignSubscriptionInput) (*service.UserSubscription, error)
+	BulkAssignSubscription(ctx context.Context, input *service.BulkAssignSubscriptionInput) (*service.BulkAssignResult, error)
+	ExtendSubscription(ctx context.Context, subscriptionID int64, days int) (*service.UserSubscription, error)
+	AdminResetQuota(ctx context.Context, subscriptionID int64, resetDaily, resetWeekly, resetMonthly bool) (*service.UserSubscription, error)
+	AdminResetDailyFiltered(ctx context.Context, filter service.SubscriptionAdminFilter) (int, error)
+	RevokeSubscription(ctx context.Context, subscriptionID int64) error
+	RestoreSubscription(ctx context.Context, subscriptionID int64) (*service.UserSubscription, error)
+	ListGroupSubscriptions(ctx context.Context, groupID int64, page, pageSize int) ([]service.UserSubscription, *pagination.PaginationResult, error)
+	ListUserSubscriptions(ctx context.Context, userID int64) ([]service.UserSubscription, error)
 }
 
 // NewSubscriptionHandler creates a new admin subscription handler
 func NewSubscriptionHandler(subscriptionService *service.SubscriptionService) *SubscriptionHandler {
+	return newSubscriptionHandler(subscriptionService)
+}
+
+func newSubscriptionHandler(subscriptionService subscriptionHandlerService) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		subscriptionService: subscriptionService,
 	}
@@ -64,26 +85,26 @@ type AdjustSubscriptionRequest struct {
 func (h *SubscriptionHandler) List(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 
-	// Parse optional filters
-	var userID, groupID *int64
-	if userIDStr := c.Query("user_id"); userIDStr != "" {
-		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
-			userID = &id
-		}
+	userID, err := parseOptionalPositiveInt64(c.Query("user_id"), "user_id")
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
-		if id, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			groupID = &id
-		}
+	groupID, err := parseOptionalPositiveInt64(c.Query("group_id"), "group_id")
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
-	status := c.Query("status")
-	platform := c.Query("platform")
 
-	// Parse sorting parameters
-	sortBy := c.DefaultQuery("sort_by", "created_at")
-	sortOrder := c.DefaultQuery("sort_order", "desc")
-
-	subscriptions, pagination, err := h.subscriptionService.List(c.Request.Context(), page, pageSize, userID, groupID, status, platform, sortBy, sortOrder)
+	subscriptions, pagination, err := h.subscriptionService.ListAdmin(c.Request.Context(), page, pageSize, service.SubscriptionAdminFilter{
+		UserID:       userID,
+		GroupID:      groupID,
+		Status:       c.Query("status"),
+		Platform:     c.Query("platform"),
+		Organization: c.Query("organization"),
+		SortBy:       c.DefaultQuery("sort_by", "created_at"),
+		SortOrder:    c.DefaultQuery("sort_order", "desc"),
+	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -224,6 +245,66 @@ type ResetSubscriptionQuotaRequest struct {
 	Monthly bool `json:"monthly"`
 }
 
+type ResetDailyFilteredRequest struct {
+	Status       string `json:"status"`
+	UserID       *int64 `json:"user_id"`
+	GroupID      *int64 `json:"group_id"`
+	Platform     string `json:"platform"`
+	Organization string `json:"organization"`
+}
+
+type ResetDailyFilteredResponse struct {
+	ResetCount int `json:"reset_count"`
+}
+
+// ResetDailyFiltered resets daily usage for every active subscription matching the supplied filters.
+// POST /api/v1/admin/subscriptions/reset-daily-filtered
+func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
+	var req *ResetDailyFilteredRequest
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		response.BadRequest(c, "Invalid request: request body must contain a single JSON object")
+		return
+	}
+	if req == nil {
+		response.BadRequest(c, "Invalid request: request body must be a JSON object")
+		return
+	}
+	filter, err := service.NormalizeSubscriptionAdminFilter(service.SubscriptionAdminFilter{
+		Status:       req.Status,
+		UserID:       req.UserID,
+		GroupID:      req.GroupID,
+		Platform:     req.Platform,
+		Organization: req.Organization,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	idempotencyKey, err := service.NormalizeIdempotencyKey(c.GetHeader("Idempotency-Key"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if idempotencyKey == "" {
+		response.ErrorFrom(c, service.ErrIdempotencyKeyRequired)
+		return
+	}
+
+	executeAdminIdempotentJSONAtomicSuccess(c, "admin.subscriptions.reset_daily_filtered", filter, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		count, execErr := h.subscriptionService.AdminResetDailyFiltered(ctx, filter)
+		if execErr != nil {
+			return nil, execErr
+		}
+		return ResetDailyFilteredResponse{ResetCount: count}, nil
+	})
+}
+
 // ResetQuota resets daily, weekly, and/or monthly usage for a subscription.
 // POST /api/v1/admin/subscriptions/:id/reset-quota
 func (h *SubscriptionHandler) ResetQuota(c *gin.Context) {
@@ -339,4 +420,26 @@ func getAdminIDFromContext(c *gin.Context) int64 {
 		return 0
 	}
 	return subject.UserID
+}
+
+func parseOptionalPositiveInt64(raw, field string) (*int64, error) {
+	if raw == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err == nil && id > 0 {
+		return &id, nil
+	}
+	invalid := int64(0)
+	if err == nil {
+		invalid = id
+	}
+	filter := service.SubscriptionAdminFilter{}
+	if field == "user_id" {
+		filter.UserID = &invalid
+	} else {
+		filter.GroupID = &invalid
+	}
+	_, validationErr := service.NormalizeSubscriptionAdminFilter(filter)
+	return nil, validationErr
 }

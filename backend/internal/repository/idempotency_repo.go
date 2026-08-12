@@ -11,11 +11,38 @@ import (
 )
 
 type idempotencyRepository struct {
-	sql sqlExecutor
+	client *dbent.Client
+	sql    sqlExecutor
 }
 
-func NewIdempotencyRepository(_ *dbent.Client, sqlDB *sql.DB) service.IdempotencyRepository {
-	return &idempotencyRepository{sql: sqlDB}
+func NewIdempotencyRepository(client *dbent.Client, sqlDB *sql.DB) service.IdempotencyRepository {
+	return &idempotencyRepository{client: client, sql: sqlDB}
+}
+
+func (r *idempotencyRepository) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
+	if dbent.TxFromContext(ctx) != nil {
+		return fn(ctx)
+	}
+	if r.client == nil {
+		return errors.New("idempotency transaction client is unavailable")
+	}
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := fn(txCtx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *idempotencyRepository) executor(ctx context.Context) sqlExecutor {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return tx.Client()
+	}
+	return r.sql
 }
 
 func (r *idempotencyRepository) CreateProcessing(ctx context.Context, record *service.IdempotencyRecord) (bool, error) {
@@ -184,7 +211,7 @@ func (r *idempotencyRepository) MarkSucceeded(ctx context.Context, id int64, res
 			updated_at = NOW()
 		WHERE id = $1
 	`
-	_, err := r.sql.ExecContext(ctx, query,
+	_, err := r.executor(ctx).ExecContext(ctx, query,
 		id,
 		service.IdempotencyStatusSucceeded,
 		responseStatus,

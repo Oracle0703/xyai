@@ -820,6 +820,172 @@ func TestIdempotencyCoordinator_MarkAndMarshalBranches(t *testing.T) {
 	require.Equal(t, "plain failure", err.Error())
 }
 
+type transactionalIdempotencyRepo struct {
+	*markBehaviorRepo
+	value         int
+	committed     bool
+	rolledBack    bool
+	markSawTx     bool
+	transactional bool
+	commitErr     error
+	getContextErr error
+	afterCommit   func()
+	mutateRead    func(*IdempotencyRecord)
+}
+
+type idempotencyTxTestContextKey struct{}
+
+func (r *transactionalIdempotencyRepo) WithTransaction(ctx context.Context, fn func(context.Context) error) error {
+	before := r.value
+	err := fn(context.WithValue(ctx, idempotencyTxTestContextKey{}, true))
+	if err != nil {
+		r.value = before
+		r.rolledBack = true
+		return err
+	}
+	r.committed = true
+	if r.afterCommit != nil {
+		r.afterCommit()
+	}
+	return r.commitErr
+}
+
+func (r *transactionalIdempotencyRepo) GetByScopeAndKeyHash(ctx context.Context, scope, keyHash string) (*IdempotencyRecord, error) {
+	r.getContextErr = ctx.Err()
+	record, err := r.markBehaviorRepo.GetByScopeAndKeyHash(ctx, scope, keyHash)
+	if record != nil && r.mutateRead != nil {
+		r.mutateRead(record)
+	}
+	return record, err
+}
+
+func (r *transactionalIdempotencyRepo) MarkSucceeded(ctx context.Context, id int64, responseStatus int, responseBody string, expiresAt time.Time) error {
+	r.markSawTx, _ = ctx.Value(idempotencyTxTestContextKey{}).(bool)
+	return r.markBehaviorRepo.MarkSucceeded(ctx, id, responseStatus, responseBody, expiresAt)
+}
+
+func TestIdempotencyCoordinator_AtomicSuccessRollsBackExecutionWhenMarkSucceededFails(t *testing.T) {
+	base := &markBehaviorRepo{inMemoryIdempotencyRepo: *newInMemoryIdempotencyRepo(), failMarkSucceeded: true}
+	repo := &transactionalIdempotencyRepo{markBehaviorRepo: base, transactional: true}
+	coordinator := NewIdempotencyCoordinator(repo, DefaultIdempotencyConfig())
+
+	_, err := coordinator.Execute(context.Background(), IdempotencyExecuteOptions{
+		Scope:          "scope-atomic-rollback",
+		IdempotencyKey: "atomic-rollback",
+		Method:         "POST",
+		Route:          "/atomic",
+		ActorScope:     "admin:1",
+		Payload:        map[string]any{"a": 1},
+		AtomicSuccess:  true,
+	}, func(ctx context.Context) (any, error) {
+		require.True(t, ctx.Value(idempotencyTxTestContextKey{}).(bool))
+		repo.value++
+		return map[string]any{"count": 1}, nil
+	})
+
+	require.Error(t, err)
+	require.Equal(t, infraerrors.Code(ErrIdempotencyStoreUnavail), infraerrors.Code(err))
+	require.Zero(t, repo.value)
+	require.True(t, repo.rolledBack)
+	require.False(t, repo.committed)
+	require.True(t, repo.markSawTx)
+}
+
+func TestIdempotencyCoordinator_AtomicSuccessRunsPostCommitOnlyAfterCommit(t *testing.T) {
+	base := &markBehaviorRepo{inMemoryIdempotencyRepo: *newInMemoryIdempotencyRepo()}
+	repo := &transactionalIdempotencyRepo{markBehaviorRepo: base, transactional: true}
+	coordinator := NewIdempotencyCoordinator(repo, DefaultIdempotencyConfig())
+	postCommitRan := false
+
+	result, err := coordinator.Execute(context.Background(), IdempotencyExecuteOptions{
+		Scope:          "scope-atomic-success",
+		IdempotencyKey: "atomic-success",
+		Method:         "POST",
+		Route:          "/atomic",
+		ActorScope:     "admin:1",
+		Payload:        map[string]any{"a": 1},
+		AtomicSuccess:  true,
+	}, func(ctx context.Context) (any, error) {
+		repo.value++
+		DeferIdempotencyPostCommit(ctx, func() {
+			require.True(t, repo.committed)
+			postCommitRan = true
+		})
+		return map[string]any{"count": 1}, nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, repo.value)
+	require.True(t, repo.committed)
+	require.True(t, postCommitRan)
+	require.False(t, result.Replayed)
+}
+
+func TestIdempotencyCoordinator_AtomicSuccessRecoversAmbiguousCommittedResult(t *testing.T) {
+	base := &markBehaviorRepo{inMemoryIdempotencyRepo: *newInMemoryIdempotencyRepo()}
+	repo := &transactionalIdempotencyRepo{
+		markBehaviorRepo: base,
+		commitErr:        errors.New("commit result is unknown"),
+	}
+	coordinator := NewIdempotencyCoordinator(repo, DefaultIdempotencyConfig())
+	postCommitRan := false
+	requestCtx, cancel := context.WithCancel(context.Background())
+	repo.afterCommit = cancel
+
+	result, err := coordinator.Execute(requestCtx, IdempotencyExecuteOptions{
+		Scope:          "scope-atomic-ambiguous",
+		IdempotencyKey: "atomic-ambiguous",
+		Method:         "POST",
+		Route:          "/atomic",
+		ActorScope:     "admin:1",
+		Payload:        map[string]any{"a": 1},
+		AtomicSuccess:  true,
+	}, func(ctx context.Context) (any, error) {
+		repo.value++
+		DeferIdempotencyPostCommit(ctx, func() { postCommitRan = true })
+		return map[string]any{"count": 1}, nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"count": 1}, result.Data)
+	require.False(t, result.Replayed)
+	require.True(t, repo.committed)
+	require.True(t, postCommitRan)
+	require.NoError(t, repo.getContextErr, "ambiguous commit recovery must not reuse the canceled request context")
+}
+
+func TestIdempotencyCoordinator_AtomicSuccessFailsClosedWhenAmbiguousRecordDoesNotMatch(t *testing.T) {
+	base := &markBehaviorRepo{inMemoryIdempotencyRepo: *newInMemoryIdempotencyRepo()}
+	repo := &transactionalIdempotencyRepo{
+		markBehaviorRepo: base,
+		commitErr:        errors.New("commit result is unknown"),
+		mutateRead: func(record *IdempotencyRecord) {
+			mismatched := `{"count":2}`
+			record.ResponseBody = &mismatched
+		},
+	}
+	coordinator := NewIdempotencyCoordinator(repo, DefaultIdempotencyConfig())
+	postCommitRan := false
+
+	result, err := coordinator.Execute(context.Background(), IdempotencyExecuteOptions{
+		Scope:          "scope-atomic-ambiguous-mismatch",
+		IdempotencyKey: "atomic-ambiguous-mismatch",
+		Method:         "POST",
+		Route:          "/atomic",
+		ActorScope:     "admin:1",
+		Payload:        map[string]any{"a": 1},
+		AtomicSuccess:  true,
+	}, func(ctx context.Context) (any, error) {
+		DeferIdempotencyPostCommit(ctx, func() { postCommitRan = true })
+		return map[string]any{"count": 1}, nil
+	})
+
+	require.Nil(t, result)
+	require.Error(t, err)
+	require.Equal(t, infraerrors.Code(ErrIdempotencyStoreUnavail), infraerrors.Code(err))
+	require.False(t, postCommitRan)
+}
+
 func TestIdempotencyCoordinator_HelperBranches(t *testing.T) {
 	c := NewIdempotencyCoordinator(newInMemoryIdempotencyRepo(), IdempotencyConfig{
 		DefaultTTL:           time.Hour,

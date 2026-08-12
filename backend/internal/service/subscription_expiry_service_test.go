@@ -67,6 +67,10 @@ func (r *subscriptionExpiryRepoStub) List(context.Context, pagination.Pagination
 	return nil, &pagination.PaginationResult{Page: 1, Pages: 1}, nil
 }
 
+func (r *subscriptionExpiryRepoStub) ListAdmin(context.Context, pagination.PaginationParams, SubscriptionAdminFilter, time.Time) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("expiry maintenance must not use ListAdmin")
+}
+
 func (r *subscriptionExpiryRepoStub) ExistsByUserIDAndGroupID(context.Context, int64, int64) (bool, error) {
 	return false, nil
 }
@@ -105,6 +109,10 @@ func (r *subscriptionExpiryRepoStub) ResetWeeklyUsage(context.Context, int64, *t
 
 func (r *subscriptionExpiryRepoStub) ResetMonthlyUsage(context.Context, int64, *time.Time, time.Time) error {
 	return nil
+}
+
+func (r *subscriptionExpiryRepoStub) ResetDailyFiltered(context.Context, SubscriptionAdminFilter, time.Time, time.Time) ([]SubscriptionCacheKey, error) {
+	panic("expiry maintenance must not reset filtered daily usage")
 }
 
 func (r *subscriptionExpiryRepoStub) IncrementUsage(context.Context, int64, float64) error {

@@ -3,12 +3,16 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/dgraph-io/ristretto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,6 +31,11 @@ type resetQuotaUserSubRepoStub struct {
 	resetMonthlyErr    error
 	dailyStart         time.Time
 	periodicStart      time.Time
+	filteredFilter     SubscriptionAdminFilter
+	filteredNow        time.Time
+	filteredDailyStart time.Time
+	filteredKeys       []SubscriptionCacheKey
+	filteredErr        error
 }
 
 func (r *resetQuotaUserSubRepoStub) GetByID(_ context.Context, id int64) (*UserSubscription, error) {
@@ -87,6 +96,68 @@ func (r *resetQuotaUserSubRepoStub) ResetWeeklyUsage(_ context.Context, _ int64,
 func (r *resetQuotaUserSubRepoStub) ResetMonthlyUsage(_ context.Context, _ int64, _ *time.Time, _ time.Time) error {
 	r.resetMonthlyCalled = true
 	return r.resetMonthlyErr
+}
+
+func (r *resetQuotaUserSubRepoStub) ResetDailyFiltered(_ context.Context, filter SubscriptionAdminFilter, now, dailyStart time.Time) ([]SubscriptionCacheKey, error) {
+	r.filteredFilter = filter
+	r.filteredNow = now
+	r.filteredDailyStart = dailyStart
+	return append([]SubscriptionCacheKey(nil), r.filteredKeys...), r.filteredErr
+}
+
+type filteredResetBillingCache struct {
+	*billingCacheStub
+	mu            sync.Mutex
+	invalidated   []SubscriptionCacheKey
+	published     []string
+	invalidateErr error
+	publishErr    error
+	invalidateFn  func(context.Context, int64, int64) error
+	publishFn     func(context.Context, string) error
+}
+
+func (c *filteredResetBillingCache) snapshotCalls() ([]SubscriptionCacheKey, []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]SubscriptionCacheKey(nil), c.invalidated...), append([]string(nil), c.published...)
+}
+
+func newFilteredResetBillingCache() *filteredResetBillingCache {
+	return &filteredResetBillingCache{billingCacheStub: newBillingCacheStub(8)}
+}
+
+func (c *filteredResetBillingCache) InvalidateSubscriptionCache(ctx context.Context, userID, groupID int64) error {
+	if c.invalidateFn != nil {
+		return c.invalidateFn(ctx, userID, groupID)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.invalidated = append(c.invalidated, SubscriptionCacheKey{UserID: userID, GroupID: groupID})
+	return c.invalidateErr
+}
+
+func (c *filteredResetBillingCache) PublishSubscriptionCacheInvalidation(ctx context.Context, cacheKey string) error {
+	if c.publishFn != nil {
+		return c.publishFn(ctx, cacheKey)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.published = append(c.published, cacheKey)
+	return c.publishErr
+}
+
+func (c *filteredResetBillingCache) SubscribeSubscriptionCacheInvalidation(context.Context, func(string)) error {
+	return nil
+}
+
+func newFilteredResetService(t *testing.T, repo *resetQuotaUserSubRepoStub, cache *filteredResetBillingCache) *SubscriptionService {
+	t.Helper()
+	svc := NewSubscriptionService(groupRepoNoop{}, repo, &BillingCacheService{cache: cache}, nil, nil)
+	l1, err := ristretto.NewCache(&ristretto.Config{NumCounters: 100, MaxCost: 100, BufferItems: 64})
+	require.NoError(t, err)
+	t.Cleanup(l1.Close)
+	svc.subCacheL1 = l1
+	return svc
 }
 
 func newResetQuotaSvc(stub *resetQuotaUserSubRepoStub) *SubscriptionService {
@@ -271,4 +342,157 @@ func TestAdminResetQuota_ReturnsRefreshedSub(t *testing.T) {
 	// 服务应返回第二次 GetByID 的刷新值而非初始的 99.9
 	require.Equal(t, float64(0), result.DailyUsageUSD, "返回的订阅应反映已归零的用量")
 	require.True(t, stub.resetDailyCalled)
+}
+
+func TestAdminResetDailyFiltered_NormalizesFilterAndInvalidatesEveryCache(t *testing.T) {
+	resetAt := time.Date(2026, 8, 12, 15, 47, 0, 0, time.UTC)
+	keys := []SubscriptionCacheKey{{UserID: 10, GroupID: 20}, {UserID: 11, GroupID: 21}}
+	repo := &resetQuotaUserSubRepoStub{filteredKeys: keys}
+	cache := newFilteredResetBillingCache()
+	svc := newFilteredResetService(t, repo, cache)
+	svc.now = func() time.Time { return resetAt }
+
+	for _, key := range keys {
+		require.True(t, svc.subCacheL1.Set(subCacheKey(key.UserID, key.GroupID), "cached", 1))
+	}
+	svc.subCacheL1.Wait()
+
+	count, err := svc.AdminResetDailyFiltered(context.Background(), SubscriptionAdminFilter{
+		Status:       " ACTIVE ",
+		Platform:     " OPENAI ",
+		Organization: " XUNYOU ",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+	require.Equal(t, SubscriptionStatusActive, repo.filteredFilter.Status)
+	require.Equal(t, PlatformOpenAI, repo.filteredFilter.Platform)
+	require.Equal(t, SubscriptionOrganizationXunyou, repo.filteredFilter.Organization)
+	require.Equal(t, resetAt, repo.filteredNow)
+	require.Equal(t, timezone.StartOfDay(resetAt), repo.filteredDailyStart)
+	invalidated, published := cache.snapshotCalls()
+	require.ElementsMatch(t, keys, invalidated)
+	require.ElementsMatch(t, []string{subCacheKey(10, 20), subCacheKey(11, 21)}, published)
+	for _, key := range keys {
+		_, found := svc.subCacheL1.Get(subCacheKey(key.UserID, key.GroupID))
+		require.False(t, found)
+	}
+}
+
+func TestAdminResetDailyFiltered_ZeroMatchSkipsCacheInvalidation(t *testing.T) {
+	repo := &resetQuotaUserSubRepoStub{}
+	cache := newFilteredResetBillingCache()
+	svc := newFilteredResetService(t, repo, cache)
+
+	count, err := svc.AdminResetDailyFiltered(context.Background(), SubscriptionAdminFilter{})
+
+	require.NoError(t, err)
+	require.Zero(t, count)
+	invalidated, published := cache.snapshotCalls()
+	require.Empty(t, invalidated)
+	require.Empty(t, published)
+}
+
+func TestAdminResetDailyFiltered_RepositoryErrorSkipsCacheInvalidation(t *testing.T) {
+	repoErr := errors.New("reset failed")
+	repo := &resetQuotaUserSubRepoStub{filteredErr: repoErr}
+	cache := newFilteredResetBillingCache()
+	svc := newFilteredResetService(t, repo, cache)
+
+	count, err := svc.AdminResetDailyFiltered(context.Background(), SubscriptionAdminFilter{})
+
+	require.ErrorIs(t, err, repoErr)
+	require.Zero(t, count)
+	invalidated, published := cache.snapshotCalls()
+	require.Empty(t, invalidated)
+	require.Empty(t, published)
+}
+
+func TestAdminResetDailyFiltered_CacheErrorsDoNotHideCommittedReset(t *testing.T) {
+	repo := &resetQuotaUserSubRepoStub{filteredKeys: []SubscriptionCacheKey{{UserID: 10, GroupID: 20}}}
+	cache := newFilteredResetBillingCache()
+	cache.invalidateErr = errors.New("cache unavailable")
+	cache.publishErr = errors.New("publish unavailable")
+	svc := newFilteredResetService(t, repo, cache)
+
+	count, err := svc.AdminResetDailyFiltered(context.Background(), SubscriptionAdminFilter{})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	invalidated, published := cache.snapshotCalls()
+	require.Equal(t, []SubscriptionCacheKey{{UserID: 10, GroupID: 20}}, invalidated)
+	require.Equal(t, []string{subCacheKey(10, 20)}, published)
+}
+
+func TestFilteredDailyResetCacheInvalidationPublishesAfterDeleteTimeoutWithFreshContext(t *testing.T) {
+	cache := newFilteredResetBillingCache()
+	invalidateDone := make(chan struct{})
+	publishStarted := make(chan error, 1)
+	cache.invalidateFn = func(ctx context.Context, _, _ int64) error {
+		<-ctx.Done()
+		close(invalidateDone)
+		return ctx.Err()
+	}
+	cache.publishFn = func(ctx context.Context, _ string) error {
+		select {
+		case <-invalidateDone:
+		default:
+			publishStarted <- errors.New("publish started before invalidation phase finished")
+			return nil
+		}
+		publishStarted <- ctx.Err()
+		return nil
+	}
+	svc := newFilteredResetService(t, &resetQuotaUserSubRepoStub{}, cache)
+	svc.invalidateFilteredDailyResetCachesWithTimeout(
+		[]SubscriptionCacheKey{{UserID: 10, GroupID: 20}},
+		100*time.Millisecond,
+	)
+
+	require.NoError(t, <-publishStarted)
+}
+
+func TestFilteredDailyResetCacheInvalidationUsesSingleTotalBudget(t *testing.T) {
+	cache := newFilteredResetBillingCache()
+	cache.invalidateFn = func(ctx context.Context, _, _ int64) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	cache.publishFn = func(ctx context.Context, _ string) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	svc := newFilteredResetService(t, &resetQuotaUserSubRepoStub{}, cache)
+	keys := make([]SubscriptionCacheKey, 32)
+	for i := range keys {
+		keys[i] = SubscriptionCacheKey{UserID: int64(i + 1), GroupID: 20}
+	}
+
+	started := time.Now()
+	svc.invalidateFilteredDailyResetCachesWithTimeout(keys, 50*time.Millisecond)
+
+	require.Less(t, time.Since(started), 500*time.Millisecond)
+}
+
+func TestFilteredDailyResetCacheInvalidationWarnsWhenBudgetSkipsTasks(t *testing.T) {
+	cache := newFilteredResetBillingCache()
+	cache.invalidateFn = func(ctx context.Context, _, _ int64) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	svc := newFilteredResetService(t, &resetQuotaUserSubRepoStub{}, cache)
+	keys := make([]SubscriptionCacheKey, 32)
+	for i := range keys {
+		keys[i] = SubscriptionCacheKey{UserID: int64(i + 1), GroupID: 20}
+	}
+
+	var logs bytes.Buffer
+	previousOutput := log.Writer()
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(previousOutput) })
+
+	svc.invalidateFilteredDailyResetCachesWithTimeout(keys, 50*time.Millisecond)
+
+	require.Contains(t, logs.String(), "skipped cache invalidation tasks after filtered daily reset")
+	require.Contains(t, logs.String(), "phase=invalidate subscription cache")
 }
