@@ -42,3 +42,21 @@ func TestListAdminOrganizationFilterExplicitlyExcludesSoftDeletedUsers(t *testin
 	require.NoError(t, mock.ExpectationsWereMet())
 	require.Regexp(t, `(?i)FROM "users".*"deleted_at" IS NULL`, normalizeSQLWhitespace(capturedSQL))
 }
+
+func TestUserSubscriptionAdminOrder_BindsStartOfDayAfterFilterArguments(t *testing.T) {
+	startOfDay := time.Date(2026, 8, 12, 0, 0, 0, 0, time.UTC)
+	table := entsql.Table("user_subscriptions")
+	selector := entsql.Dialect(dialect.Postgres).
+		Select(table.C("id")).
+		From(table).
+		Where(entsql.EQ(table.C("status"), service.SubscriptionStatusActive))
+
+	userSubscriptionAdminOrder(
+		service.SubscriptionAdminFilter{SortBy: "created_at", SortOrder: "desc"},
+		startOfDay,
+	)(selector)
+
+	query, args := selector.Query()
+	require.Contains(t, normalizeSQLWhitespace(query), `"daily_window_start" < $2`)
+	require.Equal(t, []any{service.SubscriptionStatusActive, startOfDay}, args)
+}
