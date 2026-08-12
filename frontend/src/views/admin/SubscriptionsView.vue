@@ -1129,6 +1129,7 @@ const loadSubscriptions = async () => {
   const { signal } = requestController
   const requestFilters = getAppliedResetFilters()
 
+  appliedResetFilters.value = null
   loading.value = true
   try {
     const response = await adminAPI.subscriptions.list(

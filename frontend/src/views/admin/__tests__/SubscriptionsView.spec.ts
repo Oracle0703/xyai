@@ -373,27 +373,19 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(listSubscriptions).toHaveBeenCalledTimes(4)
   })
 
-  it('uses the last successfully loaded filters when a newer list request fails', async () => {
+  it('disables bulk reset when the current filters fail to load', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const wrapper = await mountView()
     listSubscriptions.mockRejectedValueOnce(new Error('list failed'))
 
     await wrapper.get('[data-test="organization-filter"] [data-option-value="xunyou"]').trigger('click')
     await flushPromises()
-    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
-    await wrapper.get('[data-test="confirm"]').trigger('click')
-    await flushPromises()
 
-    expect(resetDailyFiltered).toHaveBeenCalledWith(
-      {
-        status: 'active',
-        user_id: undefined,
-        group_id: undefined,
-        platform: undefined,
-        organization: undefined
-      },
-      expect.stringMatching(/^subscription-reset-/)
-    )
+    const resetButton = findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily')
+    expect(resetButton.attributes('disabled')).toBeDefined()
+    await resetButton.trigger('click')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+    expect(resetDailyFiltered).not.toHaveBeenCalled()
   })
 
   it('disables bulk reset until the first list request succeeds', async () => {

@@ -404,10 +404,12 @@ func applyUserSubscriptionAdminFilter(
 		q = q.Where(usersubscription.HasUserWith(
 			user.DeletedAtIsNil(),
 			predicate.User(func(selector *entsql.Selector) {
-				selector.Where(entsql.ExprP(
-					fmt.Sprintf("LOWER(SPLIT_PART(%s, '@', 2)) = ?", selector.C(user.FieldEmail)),
-					domain,
-				))
+				selector.Where(entsql.P(func(builder *entsql.Builder) {
+					builder.WriteString("LOWER(SPLIT_PART(").
+						WriteString(selector.C(user.FieldEmail)).
+						WriteString(", '@', 2)) = ").
+						Arg(domain)
+				}))
 			}),
 		))
 	}
