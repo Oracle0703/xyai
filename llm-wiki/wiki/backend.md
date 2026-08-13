@@ -12,6 +12,14 @@
   - 构建: `cd backend && make build`
   - 生成: `cd backend && make generate`
 
+## 0.1.176 合并增量
+
+- 分组定价解析链调整为 `Group -> Channel -> LiteLLM -> Fallback`。`groups.model_pricing` 使用与渠道一致的 `ChannelModelPricing` 结构按模型覆盖 token/per-request/image/video 定价；`long_context_pricing_enabled` 默认开启，关闭时组内 token 模型不进入官方/预设长上下文阶梯。分组 platform 变更后必须立即失效 Channel cache，避免在旧 platform 上命中模型映射、白名单或价格。
+- OpenAI/Gateway 计费可由渠道显式选择 `billing_model_source=response_model`。只采纳单一、可确定识别、不比基线更贵且不绕过显式渠道定价的 token 响应模型；图片、视频、搜索、音频等按次/按量请求不采纳。实际切换会写 `billing.response_model_applied` 审计日志。
+- 根级 `POST /x_search` 只允许 Grok 分组，复用 API Key、composite/group gate、`RequestArchive -> RequestIntercept` 和搜索计费链。Responses -> Chat 转换保留 `x_search` 工具字段与 `tool_choice`, Chat -> Responses 回程提取 sources。
+- `BackupService` 的定时备份通过 `LeaderLockCache` + PostgreSQL advisory lock 取得单主；大备份可切成顺序分卷并在恢复前按 manifest 验证/重组。Wire 的 `ProvideBackupService` 必须注入 leader lock 和 `*sql.DB`, 同时继续保留本地 Prompt Metrics、Token Analysis、并发 preset 与 quota flusher 生命周期。
+- OpenAI 链路新增 pool auth 失败同号指数退避后 failover、Cline `data.usage` / `data.response.usage` 包装解析、Grok compatible 缺 usage 计费阻断、empty `response.completed` failover 及 WS 同 turn 安全审计去重。本地 compatible cache usage 仍在所有 usage candidate 上执行互斥计费桶归一化；reasoning-only silent refusal 仍保持本地 failover 语义。
+
 ## 0.1.171 合并增量
 
 - `AuthService` 通过 `ProvideAuthService` 注入 `TencentCaptchaService` 与 `AliyunCaptchaService`。登录、注册、Passkey begin 和 OAuth start 可携带统一动作验证码 proof；公开 settings 只暴露腾讯 AppID 与阿里云 scene/prefix/region, secret 仅管理端 masked 展示和保存。

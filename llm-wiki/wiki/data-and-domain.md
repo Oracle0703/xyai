@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.1.176 合并增量
+
+- `backend/migrations/221_group_model_pricing.sql` 向 `groups` 增加 `long_context_pricing_enabled BOOLEAN NOT NULL DEFAULT TRUE` 和 `model_pricing JSONB`，并把存量长上下文开关归一为 true 以保持升级前计费语义。Ent schema 与仓储/auth-cache snapshot 必须同时携带这两个字段。
+- `model_pricing` 序列化 `[]ChannelModelPricing`, 保存时清除 channel 实体 ID，验证 model 非空、billing mode 与 tier 合同；运行时优先级为分组逐模型 -> 渠道 -> LiteLLM -> fallback。分组未命中时才继续下一层，不能把空配置解释成零价。
+- Grok 4.6/4.5/4.3 和 Build 的内置 token 价卡使用 200k 包含边界的长上下文阶梯；未登记的 Grok 文本型号保守回落当前 Grok 4.5 价卡，不允许新文本模型默认零计费。`response_model` 计费仅接受确定识别的 token 价格，不使用模糊系列名猜价。
+- `BackupService` 的分卷 manifest 记录 part key/size/hash；恢复程序按顺序流式拼接、验证各卷与整体 checksum，不把完整备份一次性读入内存。
+
 ## 核心领域
 
 Sub2API 的核心对象:
