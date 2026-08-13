@@ -147,36 +147,44 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesRequestArchiveRunsForOpenAIResponsesAlias(t *testing.T) {
-	dir := t.TempDir()
-	t.Cleanup(servermiddleware.CloseRequestArchiveWritersForTest)
-	router := newGatewayRoutesTestRouterWithConfig(&config.Config{
-		Gateway: config.GatewayConfig{
-			MaxBodySize: 1024 * 1024,
-			RequestArchive: config.GatewayRequestArchiveConfig{
-				Enabled:              true,
-				Dir:                  dir,
-				MaxRequestBodyBytes:  1024,
-				MaxResponseBodyBytes: 1024,
-				CaptureResponse:      true,
-			},
-		},
-	})
+	for _, path := range []string{
+		"/v1/responses",
+		"/responses",
+		"/backend-api/codex/responses",
+	} {
+		t.Run(path, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Cleanup(servermiddleware.CloseRequestArchiveWritersForTest)
+			router := newGatewayRoutesTestRouterWithConfig(&config.Config{
+				Gateway: config.GatewayConfig{
+					MaxBodySize: 1024 * 1024,
+					RequestArchive: config.GatewayRequestArchiveConfig{
+						Enabled:              true,
+						Dir:                  dir,
+						MaxRequestBodyBytes:  1024,
+						MaxResponseBodyBytes: 1024,
+						CaptureResponse:      true,
+					},
+				},
+			})
 
-	req := httptest.NewRequest(http.MethodPost, "/backend-api/codex/responses", strings.NewReader(`{"model":"gpt-5","input":"hello"}`))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "route-archive-test/1.0")
-	w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gpt-5","input":"hello"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("User-Agent", "route-archive-test/1.0")
+			w := httptest.NewRecorder()
 
-	router.ServeHTTP(w, req)
+			router.ServeHTTP(w, req)
 
-	require.NotEqual(t, http.StatusNotFound, w.Code)
-	records := readGatewayRouteArchiveRecords(t, dir)
-	require.Len(t, records, 2)
-	require.Equal(t, "request", records[0]["event"])
-	require.Equal(t, "response", records[1]["event"])
-	require.Equal(t, records[0]["archive_id"], records[1]["archive_id"])
-	require.Equal(t, "/v1/responses", records[0]["endpoint"])
-	require.Contains(t, records[0]["body"], `"input":"hello"`)
+			require.NotEqual(t, http.StatusNotFound, w.Code)
+			records := readGatewayRouteArchiveRecords(t, dir)
+			require.Len(t, records, 2)
+			require.Equal(t, "request", records[0]["event"])
+			require.Equal(t, "response", records[1]["event"])
+			require.Equal(t, records[0]["archive_id"], records[1]["archive_id"])
+			require.Equal(t, "/v1/responses", records[0]["endpoint"])
+			require.Contains(t, records[0]["body"], `"input":"hello"`)
+		})
+	}
 }
 
 func TestGatewayRoutesRequestInterceptRunsAfterArchive(t *testing.T) {

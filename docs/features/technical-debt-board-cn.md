@@ -5,10 +5,14 @@
 | 创建 | 2026-08-12 |
 | 深度修订 | 2026-08-12（第二轮全库量化扫描） |
 | 基线 | 本地 `main`（后端约 `0.1.173` 合并后） |
-| 状态约定 | `open` / `doing` / `blocked` / `done` / `wontfix`；**完成只改状态，不删行** |
+| 状态约定 | `open` / `doing` / `blocked` / `mitigated` / `done` / `wontfix`；`mitigated` 表示风险已显著降低但根因仍在，**完成只改状态，不删行** |
 | 扫描方法 | 见下文「扫描方法与仓库体量」；关闭项必须附验证证据 |
+| 增量审计 | `docs/features/codex-full-repo-technical-debt-audit-cn.md`（`CX-TD-*`；含 2026-08-12 Grok 评审） |
+| Fork 设计 | `docs/features/upstream-fork-governance-design-cn.md`（方案 A 五类强类型接缝、迁移与评审闭环） |
+| Fork 度量 | `docs/features/upstream-fork-governance-effectiveness-test-standard-cn.md` v1.1（TD-009 验收尺子；含 Grok 评审） |
 
 > 第一版偏「合并记录里写过的只记不修」。本版补齐：**体量量化、god-file、migration 双前缀全表、源码 TODO 全量、性能/计费洞、前端巨型 SFC、CI 覆盖缺口**。
+> Codex 增量审计补：**发布供应链、Git 敏感产物、支持矩阵、race 门禁、密钥生命周期、仓库卫生**。两套编号独立；偿还时按下方「与 Codex 审计的合并优先级」插队。
 
 ---
 
@@ -244,7 +248,11 @@
 | 证据 | `llm-wiki/wiki/README.md` 每轮同步；`docs/upstream-merge-playbook.md`；merge-list |
 | 影响 | 每轮 Wire/gateway 顺序/settings 省略字段语义复核；人日高 |
 | 缓解 | 冲突热点清单；本地能力模块边界；合并 PR 零还债（已有纪律） |
-| 关闭 | 不追求 done；合并成本显著下降可标 mitigated |
+| 方案设计 | `docs/features/upstream-fork-governance-design-cn.md`；五类编译期强类型接缝，当前待用户评审，不代表已授权实施 |
+| 效果测试 | `docs/features/upstream-fork-governance-effectiveness-test-standard-cn.md` v1.1；用代表性同 SHA A/B、契约零回归和连续三轮指标判定 |
+| 当前进度 | **仍为 `open`**。阶段 0 已在 `github/main@8784a408...` 达到 `14/14` 合同、`97/97` 顶层测试和 `CPR=100%`；仅解除 Gateway Extension RED Gate，尚未实施方案 A、未做同 SHA A/B |
+| 评审 | Grok 意见已纳入并校准：取消绝对 `SDP<=3` 与 `SCF` 硬降幅；先契约包、后结构迁移；`improving` 不降低 mitigated 门槛 |
+| 关闭 | 不追求 done；合并成本显著下降且满足效果标准硬门槛时可标 mitigated |
 
 ### TD-010 · migration 双前缀（系统性问题）
 
@@ -424,32 +432,57 @@ E2E/Redis/Postgres/TLS/外部 Key 大量 Skip — **不是缺陷**，但让「�
 
 ---
 
+## 与 Codex 审计的合并优先级
+
+完整条目与抽检证据见 `docs/features/codex-full-repo-technical-debt-audit-cn.md`（第十一节为 Grok 评审）。此处只列**插队关系**，避免两份清单分叉遗忘。
+
+| 序 | 来源 | 项 | 说明 |
+| --- | --- | --- | --- |
+| 1 | CX | **CX-TD-001** | Git 内 `dump.rdb`：按**安全事件**处理，不是普通 chore |
+| 2 | CX | **CX-TD-002 / 003 / 011** | Release 同 SHA、verify 门禁、VERSION 自洽 |
+| 3 | TD | **TD-001 / TD-027** 等本看板 P0 | 异步图 SSRF、Live 零计费等业务面；与 CX **并行**，不降级 |
+| 4 | CX | **CX-TD-008** | 执行已有 cleanup-plan（diff/死代码/numstat） |
+| 5 | 混合 | 本看板 Sprint A 余项 + CX-TD-004/005/009/010 | 质量门禁、PG 矩阵、race、DEV_GUIDE、govulncheck 钉版本 |
+| 6 | 混合 | Sprint C 性能/数据 + CX-TD-006/007 | SQL、migration 核对、forwarded IP 分阶段、密钥生命周期 |
+| 7 | TD | Sprint D–F + TD-009 设计 | fork 设计评审批准 + 契约包后，再按 v1.1 用代表性 exact SHA 验收 |
+
+**关闭 CX 项时**：在 Codex 文档改状态并留证据，并在本表对应行备注 commit（可只改本节表格，不必复制全文）。
+
+---
+
 ## 推荐还债顺序
 
 ```text
-Sprint A — 计费与安全真问题
+Sprint 0 — 供应链与仓库卫生（Codex 增量，评审后插入）
+  CX-TD-001 (dump.rdb 事件) → CX-TD-002+003+011 (release) → CX-TD-008 (cleanup-plan)
+
+Sprint A — 计费与安全真问题（本看板 P0，不降级）
   TD-027 (Live 计费) → TD-001 (SSRF) → TD-002 → TD-003 → TD-034
 
 Sprint B — 质量信号还魂
   TD-005 → TD-006 → TD-039 → TD-004(+021) → TD-012
+  并行：CX-TD-004 / 005 / 009 / 010
 
 Sprint C — 数据与性能
   TD-025 (组织用量 SQL) → TD-026 (分组汇总扫表) → TD-007/008 运维核对 → TD-010 文档固化
+  并行设计：CX-TD-006 / 007
 
 Sprint D — 网关与合并摩擦
-  TD-011 → TD-015 → TD-040 注册表 → TD-009 热点清单（持续）
+  TD-011 → TD-015 → TD-040 注册表
+  TD-009：先契约包 + 实现设计，再用 fork 效果标准 A/B（非每次 merge）
 
 Sprint E — 巨石拆分（长期、可并行小步）
   TD-028 Settings 子页 → TD-042 大 SFC → TD-029/030 文件拆分 → TD-041 包拆分（最后）
 
 Sprint F — 功能洞与杂项
-  TD-016..019, 032, 035..038, 022, 024, 031, 033, 043
+  TD-016..019, 032, 035..038, 022, 024, 031, 033, 043, CX-TD-012
 ```
 
 **并行约束（再次强调）**
 
-- 版本合并 PR：**零**上表功能修复
-- P0 可插队，仍单独 PR、单独回滚
+- 版本合并 PR：**零**上表功能修复与 CX 清理
+- P0 / CX-TD-001 可插队，仍单独 PR、单独回滚
+- 禁止用 fork A/B 或拆 god-file 代替 Sprint 0 / Sprint A
 
 ---
 
@@ -457,9 +490,13 @@ Sprint F — 功能洞与杂项
 
 | 文档 | 用途 |
 | --- | --- |
+| `docs/features/codex-full-repo-technical-debt-audit-cn.md` | Codex 增量审计 `CX-TD-*` + Grok 评审 |
+| `docs/features/upstream-fork-governance-design-cn.md` | TD-009 方案 A 架构、迁移、回滚和评审闭环 |
+| `docs/features/upstream-fork-governance-effectiveness-test-standard-cn.md` | TD-009 v1.1 效果验收 + Grok 评审 |
 | `docs/features/sub2api -merage-list.md` | 上游合并与只记不修 |
 | `docs/features/golangci-lint-debt-cleanup-plan-cn.md` | lint 明细 |
 | `docs/features/organization-usage-report-performance-cn.md` | TD-025 基线 |
+| `cleanup-plan-2026-07-08.md` | CX-TD-008 待执行清理清单 |
 | `docs/ASYNC_IMAGE_TASKS.md` | 异步图/TD-033 |
 | `docs/upstream-merge-playbook.md` | 合并纪律 |
 | `llm-wiki/wiki/data-and-domain.md` | migration 风险 |
@@ -475,3 +512,5 @@ Sprint F — 功能洞与杂项
 | 2026-08-12 | 首版 TD-001–024（合并记录导向） |
 | 2026-08-12 | **深度扫描修订**：体量快照；migration 42 组双前缀；TODO 全表；读码确认 SSRF/Live 零计费/组织用量未物化；新增 TD-025–043；条目共 40；Sprint 重排 |
 | 2026-08-12 | 补全后台扫描：nolint/interface{}/recover/类型断言/gjson 热文件/本地能力文件足迹 |
+| 2026-08-12 | 接入 Codex 审计与 Grok 评审：合并优先级、Sprint 0、TD-009 评审指针、相关文档链 |
+| 2026-08-12 | TD-009 提升：新增方案 A 正式设计；效果标准升 v1.1；债务状态补 `mitigated` 并与效果等级分离 |

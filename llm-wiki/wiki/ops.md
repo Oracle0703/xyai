@@ -398,6 +398,7 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - 修改网关 body/stream 逻辑要验证流式和非流式两类请求。
 - 更改 OpenAI WS 或调度配置要检查 fallback, sticky session 和连接池策略。
 - 修改 Wire provider 或后台服务启动/清理逻辑后运行 `cd backend && go generate ./cmd/server` 与 `go test ./cmd/server -run Wire`。
+- `provideCleanup` 本身必须幂等：应用层 Stop 并行完成后才顺序关闭 Redis、Ent，重复调用不得再次 Stop/Close。quota flusher 的 Stop 只执行一次最终 flush，`flusher_enabled=false` 只禁止调度、不取消 shutdown flush；调度注册/取消由同一 lifecycle lock 串行化，Stop 必须等待在途 tick。TimingWheel 的 Cancel/Stop 必须使在途 recurring callback 不能再次自我挂载。Prompt Metrics 禁用时不创建 publisher worker；Token Analysis、并发 preset 和 quota flusher 的重复 Start 不得创建第二个后台任务。Token Analysis 的 Stop 是不可逆生命周期边界：之后自动 Start 为空操作，手动 async 索引返回 409，所有 `WaitGroup.Add` 必须在 Stop/Wait 前完成登记。合同入口见 `docs/features/upstream-fork-governance-validation-report-cn.md` 的 V03-V04。
 
 ## 上游历史分支合并注意事项
 

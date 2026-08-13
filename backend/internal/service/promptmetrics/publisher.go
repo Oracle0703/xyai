@@ -3,6 +3,7 @@ package promptmetrics
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,8 @@ type AsyncPublisher struct {
 	pool         pond.Pool
 	writeTimeout time.Duration
 	dropped      atomic.Uint64
+	stopOnce     sync.Once
+	stopDone     chan struct{}
 }
 
 // NewAsyncPublisher 创建异步发布器.
@@ -33,6 +36,7 @@ func NewAsyncPublisher(repo *Repository, workerCount, queueSize int, writeTimeou
 		repo:         repo,
 		pool:         pond.NewPool(workerCount, pond.WithQueueSize(queueSize)),
 		writeTimeout: writeTimeout,
+		stopDone:     make(chan struct{}),
 	}
 }
 
@@ -53,19 +57,20 @@ func (p *AsyncPublisher) Stop(timeout time.Duration) {
 	if p == nil || p.pool == nil {
 		return
 	}
-	done := make(chan struct{})
-	go func() {
-		p.pool.StopAndWait()
-		close(done)
-	}()
+	p.stopOnce.Do(func() {
+		go func() {
+			p.pool.StopAndWait()
+			close(p.stopDone)
+		}()
+	})
 	if timeout <= 0 {
-		<-done
+		<-p.stopDone
 		return
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
-	case <-done:
+	case <-p.stopDone:
 	case <-timer.C:
 		slog.Warn("Prompt metrics publisher stop timed out")
 	}

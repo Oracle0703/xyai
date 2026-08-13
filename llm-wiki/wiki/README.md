@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-08-09
+更新时间: 2026-08-12
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -66,7 +66,12 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 | 改数据库字段或索引 | `data-and-domain.md`, `backend/migrations/README.md` |
 | 改支付, 订阅, 余额, 兑换码 | `data-and-domain.md`, `security-and-reliability.md` |
 | 改启动, 配置, CI | `ops.md` |
-| 还技术债 / 看已知基线红与上游只记不修项 | `docs/features/technical-debt-board-cn.md`（看板 TD-001+；细节仍以 wiki 与源码为准） |
+| 还技术债 / 看已知基线红与上游只记不修项 | `docs/features/technical-debt-board-cn.md`（Grok 看板 `TD-*`）与 `docs/features/codex-full-repo-technical-debt-audit-cn.md`（Codex 增量审计 `CX-TD-*`）；细节仍以 wiki 与源码为准 |
+| 设计本地 fork 扩展边界 | `docs/features/upstream-fork-governance-design-cn.md`；五类编译期强类型接缝、分阶段迁移、回滚与评审门禁 |
+| 验证上游合并成本是否下降 | `docs/features/upstream-fork-governance-effectiveness-test-standard-cn.md` v1.1；以契约零回归、代表性同 SHA A/B 和连续三轮真实同步为准，不只看 Git 冲突数 |
+| 查看方案 A 阶段 0 实测基线 | `docs/features/upstream-fork-governance-validation-report-cn.md`；`github/main@8784a408...` 初测 11/14，补齐后 97/97 顶层测试、14/14 合同通过；当前只允许开始 Gateway Extension RED |
+
+技术债文档分工：`technical-debt-board-cn.md` 维护业务代码、上游已知问题、复杂度和测试基线的主看板（含与 `CX-TD-*` 的合并优先级）；`codex-full-repo-technical-debt-audit-cn.md` 补充发布供应链、版本库敏感产物、支持矩阵、并发门禁、默认安全姿态和文档治理，**第十一节为 2026-08-12 Grok 源码抽检评审**。TD-009 先读 `upstream-fork-governance-design-cn.md` 决定“改成什么样”，再读 `upstream-fork-governance-effectiveness-test-standard-cn.md` v1.1 决定“怎样证明有效”，最后读 `upstream-fork-governance-validation-report-cn.md` 看当前 Gate；阶段 0 已达到 14/14，但只解锁 Gateway Extension 的独立 RED/评审，不代表债务缓解。两套债务编号独立，关闭时保留原条目和验证证据。
 
 ## 高优先级维护约束
 

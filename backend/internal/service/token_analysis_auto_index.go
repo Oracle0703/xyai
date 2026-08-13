@@ -24,24 +24,28 @@ func (s *TokenAnalysisService) startAutoIndexWithInterval(interval time.Duration
 	if s == nil || s.repo == nil || interval <= 0 {
 		return
 	}
-	// lifecycleCtx 在 Stop 时取消, 让正在执行的索引轮次尽快经 repo 调用报错退出,
-	// 避免大文件回扫拖住优雅停机(codex 审查中等3); 手动异步索引同源。
-	s.backgroundWG.Add(1)
-	go func() {
-		defer s.backgroundWG.Done()
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		s.autoIndexOnce(s.lifecycleCtx)
-		for {
-			select {
-			case <-ticker.C:
-				s.autoIndexOnce(s.lifecycleCtx)
-			case <-s.autoIndexStop:
-				return
-			}
+	s.autoIndexStartOnce.Do(func() {
+		if !s.beginBackgroundTask() {
+			return
 		}
-	}()
+		// lifecycleCtx 在 Stop 时取消, 让正在执行的索引轮次尽快经 repo 调用报错退出,
+		// 避免大文件回扫拖住优雅停机(codex 审查中等3); 手动异步索引同源。
+		go func() {
+			defer s.endBackgroundTask()
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+
+			s.autoIndexOnce(s.lifecycleCtx)
+			for {
+				select {
+				case <-ticker.C:
+					s.autoIndexOnce(s.lifecycleCtx)
+				case <-s.autoIndexStop:
+					return
+				}
+			}
+		}()
+	})
 }
 
 // StopAutoIndex 停止自动索引循环与进行中的手动异步索引并等待退出
@@ -51,10 +55,13 @@ func (s *TokenAnalysisService) StopAutoIndex() {
 		return
 	}
 	s.autoIndexStopOnce.Do(func() {
+		s.lifecycleMu.Lock()
+		s.lifecycleStopped = true
 		if s.lifecycleCancel != nil {
 			s.lifecycleCancel()
 		}
 		close(s.autoIndexStop)
+		s.lifecycleMu.Unlock()
 	})
 	s.backgroundWG.Wait()
 }

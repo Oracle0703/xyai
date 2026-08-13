@@ -429,7 +429,8 @@ func provideCleanup(
 	auditLog *service.AuditLogService,
 	promptAudit *securityaudit.PromptService,
 ) func() {
-	return func() {
+	var cleanupOnce sync.Once
+	cleanup := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -732,4 +733,5 @@ func provideCleanup(
 			log.Printf("[Cleanup] All cleanup steps completed")
 		}
 	}
+	return func() { cleanupOnce.Do(cleanup) }
 }

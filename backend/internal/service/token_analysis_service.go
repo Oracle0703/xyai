@@ -20,11 +20,14 @@ type TokenAnalysisService struct {
 	running  bool
 	// 后台索引(自动循环 + 手动异步触发)共享的生命周期控制:
 	// StopAutoIndex 取消 lifecycleCtx 并等待 backgroundWG, 停机不被长索引拖住。
-	lifecycleCtx      context.Context
-	lifecycleCancel   context.CancelFunc
-	backgroundWG      sync.WaitGroup
-	autoIndexStop     chan struct{}
-	autoIndexStopOnce sync.Once
+	lifecycleCtx       context.Context
+	lifecycleCancel    context.CancelFunc
+	lifecycleMu        sync.Mutex
+	lifecycleStopped   bool
+	backgroundWG       sync.WaitGroup
+	autoIndexStartOnce sync.Once
+	autoIndexStop      chan struct{}
+	autoIndexStopOnce  sync.Once
 }
 
 func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
@@ -129,9 +132,12 @@ func (s *TokenAnalysisService) IndexRangeAsync(req TokenAnalysisIndexRequest) er
 	if err := s.acquireIndexRun(); err != nil {
 		return err
 	}
-	s.backgroundWG.Add(1)
+	if !s.beginBackgroundTask() {
+		s.releaseIndexRun()
+		return infraerrors.Conflict("TOKEN_ANALYSIS_INDEX_STOPPED", "token analysis indexing is stopped")
+	}
 	go func() {
-		defer s.backgroundWG.Done()
+		defer s.endBackgroundTask()
 		defer s.releaseIndexRun()
 		result, err := s.indexRange(s.lifecycleCtx, req)
 		if err != nil {
@@ -147,6 +153,20 @@ func (s *TokenAnalysisService) IndexRangeAsync(req TokenAnalysisIndexRequest) er
 		}
 	}()
 	return nil
+}
+
+func (s *TokenAnalysisService) beginBackgroundTask() bool {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.lifecycleStopped {
+		return false
+	}
+	s.backgroundWG.Add(1)
+	return true
+}
+
+func (s *TokenAnalysisService) endBackgroundTask() {
+	s.backgroundWG.Done()
 }
 
 // acquireIndexRun 占用单飞索引槽位: 服务未配置/索引关闭/已有轮次在跑时报错。

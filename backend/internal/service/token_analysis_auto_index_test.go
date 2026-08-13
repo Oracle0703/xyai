@@ -74,6 +74,56 @@ func (r *blockingTokenAnalysisRepoStub) FindNearestUsageLog(ctx context.Context,
 	return nil, ctx.Err()
 }
 
+type startAfterStopTokenAnalysisRepoStub struct {
+	tokenAnalysisRepoStub
+	loadProjectRootsCalled chan struct{}
+}
+
+func (r *startAfterStopTokenAnalysisRepoStub) LoadProjectRoots(context.Context) (map[string]string, error) {
+	select {
+	case r.loadProjectRootsCalled <- struct{}{}:
+	default:
+	}
+	return nil, nil
+}
+
+func TestTokenAnalysisAutoIndexStartAfterStopDoesNotTouchRepository(t *testing.T) {
+	repo := &startAfterStopTokenAnalysisRepoStub{loadProjectRootsCalled: make(chan struct{}, 1)}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true},
+	}, nil)
+
+	svc.StopAutoIndex()
+	svc.startAutoIndexWithInterval(time.Hour)
+
+	select {
+	case <-repo.loadProjectRootsCalled:
+		t.Fatal("StartAutoIndex touched the repository after StopAutoIndex")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestTokenAnalysisIndexRangeAsyncAfterStopIsRejected(t *testing.T) {
+	repo := &startAfterStopTokenAnalysisRepoStub{loadProjectRootsCalled: make(chan struct{}, 1)}
+	svc := NewTokenAnalysisService(repo, &config.Config{
+		TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true},
+	}, nil)
+
+	svc.StopAutoIndex()
+	err := svc.IndexRangeAsync(TokenAnalysisIndexRequest{
+		StartDate: "2026-08-12",
+		EndDate:   "2026-08-12",
+	})
+
+	require.Error(t, err)
+	require.Equal(t, http.StatusConflict, infraerrors.Code(err))
+	select {
+	case <-repo.loadProjectRootsCalled:
+		t.Fatal("IndexRangeAsync touched the repository after StopAutoIndex")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestTokenAnalysisAutoIndexStopCancelsRunningRound(t *testing.T) {
 	dir := t.TempDir()
 	today := time.Now().Format("2006-01-02")
@@ -193,4 +243,27 @@ func TestTokenAnalysisAutoIndexDisabled(t *testing.T) {
 	svcZero.StopAutoIndex()
 
 	require.Zero(t, repo.upsertCount())
+}
+
+func TestProvideTokenAnalysisServiceStartsAutoIndexOnce(t *testing.T) {
+	dir := t.TempDir()
+	today := time.Now().Format("2006-01-02")
+	line := `{"archive_id":"once1","event":"request","timestamp":"` + time.Now().UTC().Format(time.RFC3339) + `","method":"POST","endpoint":"/v1/responses","user_id":7,"api_key_id":9,"model":"gpt-5","body":"{\"model\":\"gpt-5\",\"input\":\"hello\"}","body_size":48,"body_sha256":"hash-once1"}` + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, today+".jsonl"), []byte(line), 0o600))
+
+	repo := &lockedTokenAnalysisRepoStub{}
+	svc := ProvideTokenAnalysisService(repo, &config.Config{
+		Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}},
+		TokenAnalysis: config.TokenAnalysisConfig{
+			IndexEnabled: true, AutoIndexIntervalSeconds: 3600, IndexBatchSize: 1000, MaxPreviewChars: 300, UsageMatchWindowSeconds: 10,
+		},
+	}, nil)
+
+	// Provider 已启动一次；重复调用公开 Start 不能创建第二条 loop。
+	svc.StartAutoIndex()
+	require.Eventually(t, func() bool { return repo.upsertCount() >= 1 }, 3*time.Second, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	svc.StopAutoIndex()
+
+	require.Equal(t, 1, repo.upsertCount(), "repeated StartAutoIndex must not create a second indexing loop")
 }

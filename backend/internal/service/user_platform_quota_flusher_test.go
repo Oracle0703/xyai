@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,6 +57,73 @@ func (m *mockQuotaDirtyCache) BatchGetUserPlatformQuotaCache(_ context.Context, 
 type mockQuotaSnapshotWriter struct {
 	receivedSnaps []UserPlatformQuotaSnapshot
 	returnErr     error
+}
+
+type quotaSchedulerSpy struct {
+	scheduleCalls int
+	cancelCalls   int
+}
+
+func (s *quotaSchedulerSpy) ScheduleRecurring(_ string, _ time.Duration, _ func()) {
+	s.scheduleCalls++
+}
+
+func (s *quotaSchedulerSpy) Cancel(_ string) {
+	s.cancelCalls++
+}
+
+type blockingQuotaScheduler struct {
+	mu              sync.Mutex
+	scheduleEntered chan struct{}
+	releaseSchedule chan struct{}
+	registered      bool
+}
+
+type blockingQuotaTickCache struct {
+	mu      sync.Mutex
+	calls   int
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (c *blockingQuotaTickCache) PopDirtyUserPlatformQuotaKeys(context.Context, int) ([]UserPlatformQuotaKey, error) {
+	c.mu.Lock()
+	c.calls++
+	call := c.calls
+	c.mu.Unlock()
+	if call == 1 {
+		close(c.entered)
+		<-c.release
+	}
+	return nil, nil
+}
+
+func (c *blockingQuotaTickCache) ReaddDirtyUserPlatformQuotaKeys(context.Context, []UserPlatformQuotaKey) error {
+	return nil
+}
+
+func (c *blockingQuotaTickCache) BatchGetUserPlatformQuotaCache(context.Context, []UserPlatformQuotaKey) ([]*UserPlatformQuotaCacheEntry, error) {
+	return nil, nil
+}
+
+func (s *blockingQuotaScheduler) ScheduleRecurring(_ string, _ time.Duration, _ func()) {
+	close(s.scheduleEntered)
+	<-s.releaseSchedule
+	s.mu.Lock()
+	s.registered = true
+	s.mu.Unlock()
+}
+
+func (s *blockingQuotaScheduler) Cancel(_ string) {
+	s.mu.Lock()
+	s.registered = false
+	s.mu.Unlock()
+}
+
+func (s *blockingQuotaScheduler) isRegistered() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.registered
 }
 
 func (m *mockQuotaSnapshotWriter) BatchSnapshotUsage(_ context.Context, snaps []UserPlatformQuotaSnapshot, _ time.Time) error {
@@ -282,6 +350,136 @@ func TestFlusher_StopPreventsFlush(t *testing.T) {
 	}
 	if cache.popCallIdx != 0 {
 		t.Errorf("Pop should not be called after stop, popCallIdx = %d", cache.popCallIdx)
+	}
+}
+
+func TestFlusherStartAndStopAreIdempotentWithFinalFlush(t *testing.T) {
+	keys := []UserPlatformQuotaKey{{UserID: 1, Platform: "openai"}}
+	cache := &mockQuotaDirtyCache{
+		popSequence: [][]UserPlatformQuotaKey{keys, keys},
+		getEntries:  []*UserPlatformQuotaCacheEntry{makeEntry(1, 2, 3)},
+	}
+	writer := &mockQuotaSnapshotWriter{}
+	scheduler := &quotaSchedulerSpy{}
+	f := newTestFlusher(cache, writer)
+	f.enabled = true
+	f.timingWheel = scheduler
+
+	f.Start()
+	f.Start()
+	f.Stop()
+	f.Stop()
+	f.Start()
+
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("ScheduleRecurring calls = %d, want 1", scheduler.scheduleCalls)
+	}
+	if scheduler.cancelCalls != 1 {
+		t.Fatalf("Cancel calls = %d, want 1", scheduler.cancelCalls)
+	}
+	if len(writer.receivedSnaps) != 1 {
+		t.Fatalf("final flush snapshots = %d, want 1", len(writer.receivedSnaps))
+	}
+}
+
+func TestFlusherDisabledDoesNotSchedule(t *testing.T) {
+	scheduler := &quotaSchedulerSpy{}
+	f := newTestFlusher(&mockQuotaDirtyCache{}, &mockQuotaSnapshotWriter{})
+	f.enabled = false
+	f.timingWheel = scheduler
+
+	f.Start()
+
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("ScheduleRecurring calls = %d, want 0", scheduler.scheduleCalls)
+	}
+}
+
+func TestFlusherDisabledStillPerformsFinalFlush(t *testing.T) {
+	keys := []UserPlatformQuotaKey{{UserID: 1, Platform: "openai"}}
+	cache := &mockQuotaDirtyCache{
+		popSequence: [][]UserPlatformQuotaKey{keys},
+		getEntries:  []*UserPlatformQuotaCacheEntry{makeEntry(1, 2, 3)},
+	}
+	writer := &mockQuotaSnapshotWriter{}
+	f := newTestFlusher(cache, writer)
+	f.enabled = false
+
+	f.Stop()
+
+	if len(writer.receivedSnaps) != 1 {
+		t.Fatalf("disabled flusher final flush snapshots = %d, want 1", len(writer.receivedSnaps))
+	}
+}
+
+func TestFlusherConcurrentStartAndStopDoesNotLeaveScheduledTask(t *testing.T) {
+	scheduler := &blockingQuotaScheduler{
+		scheduleEntered: make(chan struct{}),
+		releaseSchedule: make(chan struct{}),
+	}
+	f := newTestFlusher(&mockQuotaDirtyCache{}, &mockQuotaSnapshotWriter{})
+	f.enabled = true
+	f.timingWheel = scheduler
+
+	startDone := make(chan struct{})
+	go func() {
+		f.Start()
+		close(startDone)
+	}()
+	<-scheduler.scheduleEntered
+
+	stopDone := make(chan struct{})
+	go func() {
+		f.Stop()
+		close(stopDone)
+	}()
+	deadline := time.Now().Add(time.Second)
+	for !f.stopped.Load() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !f.stopped.Load() {
+		t.Fatal("quota flusher did not enter stopped state")
+	}
+	close(scheduler.releaseSchedule)
+
+	<-startDone
+	<-stopDone
+	if scheduler.isRegistered() {
+		t.Fatal("quota flusher left a scheduled task registered after concurrent Stop")
+	}
+}
+
+func TestFlusherStopWaitsForInFlightTickBeforeReturning(t *testing.T) {
+	cache := &blockingQuotaTickCache{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	f := newTestFlusher(cache, &mockQuotaSnapshotWriter{})
+
+	tickDone := make(chan struct{})
+	go func() {
+		f.tick()
+		close(tickDone)
+	}()
+	<-cache.entered
+
+	stopDone := make(chan struct{})
+	go func() {
+		f.Stop()
+		close(stopDone)
+	}()
+
+	select {
+	case <-stopDone:
+		t.Fatal("Stop returned while a quota flush tick was still running")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(cache.release)
+	<-tickDone
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not return after the in-flight tick completed")
 	}
 }
 

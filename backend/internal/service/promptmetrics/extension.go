@@ -25,7 +25,10 @@ func NewExtension(cfg *config.Config, db *sql.DB) *Extension {
 	}
 	pmCfg = normalizeConfig(pmCfg)
 	repo := NewRepository(db)
-	publisher := NewAsyncPublisher(repo, pmCfg.WorkerCount, pmCfg.QueueSize, time.Duration(pmCfg.WriteTimeoutSeconds)*time.Second)
+	var publisher *AsyncPublisher
+	if pmCfg.Enabled {
+		publisher = NewAsyncPublisher(repo, pmCfg.WorkerCount, pmCfg.QueueSize, time.Duration(pmCfg.WriteTimeoutSeconds)*time.Second)
+	}
 	extractor := NewExtractor()
 	service := NewService(repo)
 	return &Extension{

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -52,7 +53,7 @@ const defaultFlushBatchSize = 1000
 type UserPlatformQuotaUsageFlusher struct {
 	cache       quotaDirtyCache
 	quotaRepo   quotaSnapshotWriter
-	timingWheel *TimingWheelService
+	timingWheel quotaScheduler
 	// enabled 对应 flusher_enabled 配置；false 时 Start() 不注册定时器。
 	enabled      bool
 	interval     time.Duration
@@ -60,11 +61,24 @@ type UserPlatformQuotaUsageFlusher struct {
 	flushTimeout time.Duration
 	metrics      *FlusherMetrics
 	stopped      atomic.Bool
+	lifecycleMu  sync.Mutex
+	tickWG       sync.WaitGroup
+	startOnce    sync.Once
+	stopOnce     sync.Once
+}
+
+type quotaScheduler interface {
+	ScheduleRecurring(name string, interval time.Duration, fn func())
+	Cancel(name string)
 }
 
 // NewUserPlatformQuotaUsageFlusher 创建 UserPlatformQuotaUsageFlusher。
 // cache(BillingCache) 隐式满足 quotaDirtyCache；quotaRepo(UserPlatformQuotaRepository) 隐式满足 quotaSnapshotWriter。
 func NewUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache, quotaRepo UserPlatformQuotaRepository, tw *TimingWheelService) *UserPlatformQuotaUsageFlusher {
+	var scheduler quotaScheduler
+	if tw != nil {
+		scheduler = tw
+	}
 	batchSize := cfg.Database.UserPlatformQuotaFlushBatchSize
 	if batchSize <= 0 {
 		batchSize = defaultFlushBatchSize
@@ -83,7 +97,7 @@ func NewUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache, qu
 	return &UserPlatformQuotaUsageFlusher{
 		cache:        cache,
 		quotaRepo:    quotaRepo,
-		timingWheel:  tw,
+		timingWheel:  scheduler,
 		enabled:      cfg.Database.UserPlatformQuotaFlusherEnabled,
 		interval:     interval,
 		batchSize:    batchSize,
@@ -242,18 +256,33 @@ func (s *UserPlatformQuotaUsageFlusher) flush() {
 
 // tick 是 TimingWheel 回调。若 flusher 已停止则直接返回。
 func (s *UserPlatformQuotaUsageFlusher) tick() {
-	if s == nil || s.stopped.Load() {
+	if s == nil {
 		return
 	}
+	s.lifecycleMu.Lock()
+	if s.stopped.Load() {
+		s.lifecycleMu.Unlock()
+		return
+	}
+	s.tickWG.Add(1)
+	s.lifecycleMu.Unlock()
+	defer s.tickWG.Done()
 	s.flush()
 }
 
 // Start 注册定时 tick。flusher_enabled=false 时直接返回，不注册定时器。
 func (s *UserPlatformQuotaUsageFlusher) Start() {
-	if s == nil || !s.enabled {
+	if s == nil || !s.enabled || s.timingWheel == nil || s.stopped.Load() {
 		return
 	}
-	s.timingWheel.ScheduleRecurring("deferred:platform_quota", s.interval, s.tick)
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.stopped.Load() {
+		return
+	}
+	s.startOnce.Do(func() {
+		s.timingWheel.ScheduleRecurring("deferred:platform_quota", s.interval, s.tick)
+	})
 }
 
 // Stop 停止 flusher：标记 stopped → Cancel 定时器 → 执行最后一次 flush。
@@ -261,7 +290,14 @@ func (s *UserPlatformQuotaUsageFlusher) Stop() {
 	if s == nil {
 		return
 	}
-	s.stopped.Store(true)
-	s.timingWheel.Cancel("deferred:platform_quota")
-	s.flush()
+	s.stopOnce.Do(func() {
+		s.stopped.Store(true)
+		s.lifecycleMu.Lock()
+		if s.timingWheel != nil {
+			s.timingWheel.Cancel("deferred:platform_quota")
+		}
+		s.lifecycleMu.Unlock()
+		s.tickWG.Wait()
+		s.flush()
+	})
 }
