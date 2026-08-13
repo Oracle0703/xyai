@@ -11,6 +11,13 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.176 合并增量
+
+- `GroupsView.vue` 可维护分组逐模型定价与长上下文阶梯开关；定价表单复用 Channel pricing entry/billing mode 合同，视频使用 `video` 按秒模式。修改 groups pricing 时要同步 `groupsImagePricing.ts`、前后端 DTO 和 `frontend/src/components/admin/channel/PricingEntryCard.vue`。
+- `UsageView.vue` 的管理列包含 `request_id`, 对旧/新本地列配置都默认隐藏，可从列设置显式开启；`UsageTable.vue` 提供单行 Request ID 复制。本地子管理员链继续通过 `userClickable` 禁止未授权的用户跳转，测试 stub 必须同时声明 `columns` 和 `userClickable`。
+- `BackupView.vue` 显示分卷数并按顺序下载各卷；分卷是同一 gzip 字节流的物理切分，必须按 part index 串联后再解压。
+- Grok 账号徽章与用量单元格优先读实时 `grok_usage_snapshot`, 并识别 `xbasic`、`supergroklite`、`supergrokplus`、`supergrokheavy` 等 JWT 档位；不应只靠过期的持久化 `plan_type` 判断容量。
+
 ## 0.1.171 合并增量
 
 - 登录、注册、OAuth start 和 Passkey 登录可通过 `ActionCaptchaRequestProof` 传动作验证码。腾讯验证码组件为 `TencentCaptchaGate.vue` / `TencentCaptchaGate` 流程, 阿里云组件为 `AliyunCaptchaWidget.vue`; 阿里云 `captchaVerifyParam` 复用 `turnstile_token` 字段, 腾讯使用 `tencent_captcha_ticket` 与 `tencent_captcha_randstr`。

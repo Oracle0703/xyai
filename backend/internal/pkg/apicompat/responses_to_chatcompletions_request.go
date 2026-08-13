@@ -71,6 +71,9 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts Re
 			if tool.Function != nil {
 				declared[tool.Function.Name] = true
 			}
+			if strings.EqualFold(strings.TrimSpace(tool.Type), "x_search") {
+				declared["x_search"] = true
+			}
 		}
 		out.ToolChoice = responsesToolChoiceToChatToolChoice(req.ToolChoice, declared)
 	}

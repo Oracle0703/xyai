@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.1.176 合并增量
+
+- OpenAI pool mode 的可重试 401/403/5xx 先在同账号内按次数指数退避，达到 `pool_mode_retry_count` 后才切号；上游 `Retry-After` 只允许 1-604800 秒或未来 7 天内的 HTTP date，原始值含 CR/LF、超过 128 字符或超界时不转发。
+- OpenAI WS 同一 turn 的安全审计以 `stage + turn + body SHA-256` 去重，只缓存 allow 决策；unavailable/flag/block 不缓存，下一 turn 必须重新审计。安全审计 request 仍必须保留本地 `X-Sub2API-Prompt-Risk-Judge` 回环标记。
+- OpenAI OAuth 账号的 `codex_fingerprint_mode` 可将设备/会话/完整身份信号收敛为账号级 HMAC 稳定值，减少共享账号暴露的设备数；默认 off 原样透传。派生值不得写入日志/wiki，模式变更必须使旧 WS/session identity 自然失效。
+- 响应模型计费把上游自报模型视为不可信输入：冲突声明、不可确定识别价格、媒体/搜索请求、价格更高、将非零基线归零或绕过渠道明示定价时一律回落原计费模型。
+- 定时备份在多实例下使用 Redis leader lock 并以 PostgreSQL advisory lock 作 DB 层二次互斥；分卷恢复必须先校验 manifest、part hash/大小和整体 checksum，不接受缺卷、乱序或被篡改字节流。
+
 ## 认证与权限
 
 后端中间件:
@@ -212,7 +220,7 @@ Grok endpoint 也属于 URL 信任边界:
 
 请求链路会记录 request id, ops error, request archive, 并可使用 request intercept 动态改写/阻断。
 
-Grok `/v1/*` media/voice/search 路由继承 gateway group 的审计链；根级兼容别名 `/videos*`、`/tts`、`/stt`、`/custom-voices*`、`/realtime`、`/web_search` 不在该 group 内, 必须在每条 route 上显式保留 `RequestArchive` 后 `RequestIntercept` 的顺序。新增别名时要同时覆盖 API Key/group/composite gate、审计/拦截和 route coverage 测试, 不能只接 handler。
+Grok `/v1/*` media/voice/search 路由继承 gateway group 的审计链；根级兼容别名 `/videos*`、`/tts`、`/stt`、`/custom-voices*`、`/realtime`、`/web_search`、`/x_search` 不在该 group 内, 必须在每条 route 上显式保留 `RequestArchive` 后 `RequestIntercept` 的顺序。新增别名时要同时覆盖 API Key/group/composite gate、审计/拦截和 route coverage 测试, 不能只接 handler。
 
 native OpenAI HTTP streaming Responses 的 first-output guard 默认关闭。启用后 deadline 从 attempt 开始并包含响应头等待; 首次语义输出前最多暂存 8 MiB, 只允许 keepalive 等非语义字节先行, 超时/溢出后清理 attempt 并最多换账号一次。该机制不覆盖 passthrough/WS, 也不能撤销已经发生的上游计算或用量, 因而 failover 重放可能造成重复上游计费; 开启前必须把该风险纳入成本与幂等评估。
 OpenAI proxy stream circuit 默认启用, `gateway.openai_proxy_stream_circuit.disabled=true` 时完全不记录或隔离 proxy。启用时只把非取消/非 deadline 的 Responses SSE 中途断流计入 proxy-ID 本地观察, 同一断流 burst 在短时间内合并为一次；达阈值后临时跳过该代理, 成功流清除观察且 TTL 自动恢复。状态有界、仅进程内且重启清空；若隔离导致首轮无账号而仍有被隔离代理, 第二轮必须忽略 quarantine fail-open, 不能由熔断制造“无可用账号”。日志只记录 proxy/account/request ID 与经过 `sanitizeUpstreamErrorMessage` 的错误, 不输出上游凭据或原始响应。

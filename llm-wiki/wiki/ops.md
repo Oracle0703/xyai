@@ -2,6 +2,7 @@
 
 ## 当前版本基线
 
+- 当前正在 `feature/hy/10176_merge_sub2api_176` 合并上游 `Wei-Shaw/sub2api main@0e82efe48951cb7da1f8554639afdeab05bf16b8`: 本地第一父/合并前 HEAD 为 `cf5b7ee5a15cd04bb6134a372d20e86534660b93`, 与上游的 merge base 为 `48eb3766d2da817b171b45bb3036d42575e42b8f`, `backend/cmd/server/VERSION` 为 `0.1.176`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - 当前集成分支为 `feature/hy/10171_merge_sub2api_171`: 合入已含 v0.1.170 的本地 `main@7a537cffbbb6455ce2f777e70f369a3912738ebd`, 第二父/功能分支 tip 为 `3547702ff54d324cff2f83ec75bd8d9a501ea68f`, 固定上游边界为 `Wei-Shaw/sub2api main@aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, 与 main 的 merge base 为上游 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, `backend/cmd/server/VERSION` 为 `0.1.171`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签、当前 upstream HEAD 或其他中间提交替代该精确提交。
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
@@ -251,6 +252,16 @@ if ($LASTEXITCODE -ne 0) {
 | 上游响应模型采集与 mismatch 三态 | `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/repository ./internal/handler ./internal/handler/dto -run 'Upstream(ResponseModel|ModelMismatch)|UpstreamModel'` |
 | Gemini 实际图片计数与 failover 重置 | `go test -tags=unit -p 1 -count=1 ./internal/service -run 'GeminiImage|Gemini.*Image'` |
 | 前端 settings/auth/usage 往返 | `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts src/views/auth/__tests__/RegisterView.spec.ts src/views/auth/__tests__/EmailVerifyView.spec.ts src/components/admin/usage/__tests__/UsageFilters.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/UsageView.spec.ts`（仓库根目录运行） |
+
+0.1.174-0.1.176 专项回归入口（后端命令在 `backend/` 目录运行）:
+
+| 风险面 | 命令 |
+| --- | --- |
+| Responses/Chat `x_search`、reasoning alias、Cline usage 包装与 compatible cache | `go test -p 1 -count=1 ./internal/pkg/apicompat ./internal/service -run 'XSearch|ReasoningAlias|NestedData|CompatibleCache|ExtractOpenAIUsage'` |
+| Grok 缺 usage guard、Grok 4.6/JWT tier、Realtime 音频计费 | `go test -p 1 -count=1 ./internal/pkg/xai ./internal/service ./internal/handler -run 'Grok|SubscriptionTier|Realtime|MissingUsage'` |
+| 分组逐模型定价、长上下文开关与 migration 221 | `go test -p 1 -count=1 ./internal/service ./internal/repository ./internal/handler/admin -run 'Group.*Pricing|ModelPricing|LongContext|Migration'` |
+| 备份分卷、manifest 验证与定时 leader lock | `go test -p 1 -count=1 ./internal/service ./internal/repository -run 'Backup|Archive|Leader'` |
+| 前端分组定价、备份、Usage Request ID 和 Grok 档位 | `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsageView.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/BackupView.spec.ts src/views/admin/__tests__/groupsImagePricing.spec.ts src/components/common/__tests__/PlatformTypeBadge.grok.spec.ts`（仓库根目录运行） |
 
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
