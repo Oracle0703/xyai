@@ -2,7 +2,7 @@
 
 ## 当前版本基线
 
-- 当前正在 `feature/hy/10177_merge_sub2api_177` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
+- `feature/hy/10177_merge_sub2api_177` 已以 merge commit `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - `feature/hy/10176_merge_sub2api_176` 已以 merge commit `e2d3a4984087e69ae778b1237dfcc14bca9f1749` 通过 PR #40 合入 `main@65bd97fe3b8e78888f544f26027081bec97f7177`; 固定上游提交为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, 后端版本为 `0.1.176`。
 - 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - 当前集成分支为 `feature/hy/10171_merge_sub2api_171`: 合入已含 v0.1.170 的本地 `main@7a537cffbbb6455ce2f777e70f369a3912738ebd`, 第二父/功能分支 tip 为 `3547702ff54d324cff2f83ec75bd8d9a501ea68f`, 固定上游边界为 `Wei-Shaw/sub2api main@aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, 与 main 的 merge base 为上游 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, `backend/cmd/server/VERSION` 为 `0.1.171`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签、当前 upstream HEAD 或其他中间提交替代该精确提交。

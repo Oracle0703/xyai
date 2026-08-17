@@ -1736,7 +1736,7 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，状态检查仅因未提交 merge 工作树为预期 `PARTIAL`。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`, 等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
 
-## 2026-08-17 main sync (v0.1.177; awaiting review)
+## 2026-08-17 main sync (v0.1.177)
 
 | Item | Value |
 |---|---|
@@ -1745,14 +1745,14 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Base before merge / first parent | `65bd97fe3b8e78888f544f26027081bec97f7177`（最新本地 `main`，即 PR #40 合入后的 tip） |
 | Merge base | `0e82efe48951cb7da1f8554639afdeab05bf16b8`（上游 v0.1.176） |
 | Upstream head / second parent | `baeac1f3de21d37b129405f092ef86c24b3f203d` |
-| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=baeac1f3de21d37b129405f092ef86c24b3f203d`** |
+| Merge commit | `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2`（第一父 `65bd97fe3b8e78888f544f26027081bec97f7177`，第二父 `baeac1f3de21d37b129405f092ef86c24b3f203d`） |
 | Upstream version / delta | `0.1.177`; 从 merge base 到固定上游共 17 commits、76 paths、`+4522/-326`。固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.177`; 不以更晚的 `upstream/main`、tag 或中间提交替代该边界。 |
-| Conflict files | 无文本冲突。`git merge --no-commit --no-ff` 自动合并后保留 `MERGE_HEAD`。 |
+| Conflict files | 无文本冲突。`git merge --no-commit --no-ff` 自动合并后创建上述双亲 merge commit。 |
 | Conflict handling | 本轮没有手工修改业务代码。20 个双方修改路径逐一做三方语义审查：OpenAI 网关同时保留本地 schema 清洗、compatible cache usage 和计费保护，以及上游 remote compaction v2、turn-state、fingerprint opt-in；前端同时保留本地 compatible provider preset、子管理员合同和上游账号/分组改动。功能真正重叠处采用上游实现，不修复上游自身问题。 |
 | Semantic overlap review | 三方路径集合为 only-local 496、only-upstream 56、both 20。56 个 only-upstream 文件逐 blob 等于固定上游目标，496 个 only-local 文件未被本次 merge 触碰；20 个 both 路径完成 config/service/repository/handler/routes/frontend 分组审查。 |
 | Local features | 合并前 24 个 tracked `docs/features/` 文件全部保留、零删除；除本 ledger 追加外其余 23 个文件不改。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset、quota flusher 和 reasoning-only failover 均保留。 |
 | Upstream behavior | 合入按配置时区维护的 `usage_group_daily_rollups`、昨日分组费用与清理/重算水位失效链（migrations 222/223），OpenAI 原生 remote compaction v2、`x-codex-turn-state` 同回合转发与跨账号回放防护，以及默认关闭且覆盖 passthrough 的 Codex 指纹收敛；Go module/CI/release 校验升到 `1.26.6`。 |
 | Upstream / baseline issue boundary | 完整 unit 仍仅有第一父既有 `/api/v1/auth/me` fixture 少 `admin_permissions:null` 的失败；完整 integration 仅 `internal/pkg/tlsfingerprint` 访问 `tls.peet.ws` 时 3 条 `x509: certificate signed by unknown authority`，宿主环境精确重跑同样失败，相关包本轮未修改。全量 Go lint 仍为第一父既有 29 项，增量 `--new-from-rev=HEAD` 为 `0 issues`。`go mod tidy -diff` 仍建议删除第一父既有的 5 组 CLI 传递依赖 checksum；固定目标的 `deploy/Dockerfile` builder 仍为 Go 1.26.5，与 1.26.6 module/CI 基线不同。以上按“只解决冲突、不修上游 bug”要求仅记录、不改代码。 |
 | Verification | Ent/Wire 连续生成两次均退出 0，生成物无漂移。Backend 默认全量、`go build ./...`、`go build -tags=embed ./...` 退出 0；unit 与 integration 的非通过边界如上，其余包（含 repository/service/migrations）通过。Frontend pnpm 9.15.9 下 lint、typecheck、完整 Vitest 252/252 files、1742/1742 tests，以及 production build 1052 modules 全部退出 0。 |
-| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，同步 `frontend/src/components/account/README.md` 并追加本条。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，source hash `0b8885d51159` 与当前 Wiki 一致；状态检查仅因 8 个 Wiki/图谱路径尚未提交而为预期 `PARTIAL`。 |
-| Approval / delivery | 保持 `git merge --no-commit --no-ff`, 等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，同步 `frontend/src/components/account/README.md` 并追加本条。创建 merge commit 并回填真实 SHA 后，Wiki 图谱再次刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，source hash `c8a54acd1b64` 与当前 Wiki 一致。 |
+| Approval / delivery | 最终 staged snapshot 为 86 files / `+4612 -349`；0 unstaged、0 untracked、0 unmerged，`git diff --cached --check` 退出 0。用户审核后授权创建上述 merge commit；未 push、未创建 PR、未部署。 |
