@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.1.177 合并增量
+
+- Codex 指纹收敛改为显式 opt-in：账号未配置 `codex_fingerprint_mode` 时原样透传客户端 device/session 标识。启用收敛后，请求体 `client_metadata` 与出站 header 必须共享同一组派生 ID；passthrough 只局部解析 `client_metadata`，不对大请求做全量 Unmarshal。
+- `x-codex-turn-state` 是上游铸造、客户端同回合回带的不透明值。网关只在响应真正提交后记录 `(API Key, client session) -> account` 溯源；首输出超时后被丢弃的 attempt 不得写入溯源。出站只剥离已知跨账号回放，不注入或解析 blob，也不把它写入日志/wiki。
+- 原生 remote compaction v2 与 legacy `/responses/compact` 必须分流：v2 继续走裸 `/responses` streaming，并在上游请求中保留/补齐 `remote_compaction_v2` capability；legacy compact 才应用 compact-only mapping 和 `ErrNoAvailableCompactAccounts` 客户端错误。该区分同时用于 handler、调度、账号 probe 与渠道模型限制。
+- 分组日汇总的高频 INSERT 通过 statement transition-table trigger 每批只锁一次 state；重算、清理和分区删除先锁 rollup state 再修改源记录。后台启动回填使用独立 leader lock，周期同步在 dashboard aggregation 单主任务内执行，避免多实例重复发布或数据清理与水位推进竞态。
+
 ## 0.1.176 合并增量
 
 - OpenAI pool mode 的可重试 401/403/5xx 先在同账号内按次数指数退避，达到 `pool_mode_retry_count` 后才切号；上游 `Retry-After` 只允许 1-604800 秒或未来 7 天内的 HTTP date，原始值含 CR/LF、超过 128 字符或超界时不转发。
