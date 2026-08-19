@@ -11,6 +11,12 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.177 合并增量
+
+- `GroupsView.vue` 的用量列同时展示服务端配置时区下的今日、昨日和当前保留记录累计费用。`adminAPI.groups.getUsageSummary()` 不再接收浏览器时区参数，响应新增 `yesterday_cost`；前端不得用 `Intl.DateTimeFormat()` 覆盖服务端统计口径。
+- OpenAI OAuth 账号的 Codex 指纹收敛默认值改为 `off`。创建、重置和提交都以显式 opt-in 为准：`off` 不写 `extra.codex_fingerprint_mode`，`device/session/full` 必须原样持久化；编辑和批量编辑沿用同一默认，不能再把缺失键解释成 `session`。
+- `CreateAccountModal.vue` 继续保留本地 OpenAI-compatible provider preset；它与上游 fingerprint 默认值、remote compaction capability、上游倍率 probe 是独立状态，平台切换和表单 reset 必须分别归零，不能互相覆盖。
+
 ## 0.1.176 合并增量
 
 - `GroupsView.vue` 可维护分组逐模型定价与长上下文阶梯开关；定价表单复用 Channel pricing entry/billing mode 合同，视频使用 `video` 按秒模式。修改 groups pricing 时要同步 `groupsImagePricing.ts`、前后端 DTO 和 `frontend/src/components/admin/channel/PricingEntryCard.vue`。

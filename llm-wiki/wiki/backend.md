@@ -12,6 +12,15 @@
   - 构建: `cd backend && make build`
   - 生成: `cd backend && make generate`
 
+## 0.1.177 合并增量
+
+- 管理端分组用量从全表实时累计改为 `usage_group_daily_rollups` + 未关闭尾部的组合查询，返回今日、昨日和当前保留记录累计 `actual_cost`。`DashboardAggregationService` 启动时用独立 leader lock 回填历史日桶，周期任务在原聚合 leader lock 内同步已关闭日期；清理、重算和分区删除会在同一事务内后退发布水位，避免读到 stale rollup。
+- 分组自然日统一使用服务端配置时区。标准 `TZ` 环境变量优先于 `TIMEZONE` 和配置文件；PostgreSQL session `TimeZone`、应用 `pkg/timezone` 与 rollup state 的 `timezone_name` 必须一致。时区变化会让后台重建现存日桶，前端不再上传浏览器时区。
+- OpenAI 原生 remote compaction v2 使用裸 `/responses`、`stream=true` 和 `compaction_trigger`，不再提升为 legacy `/responses/compact`。调度、渠道限制与账号模型映射通过 `WithOpenAIForwardModel` 对齐实际 forward model；原生 v2 要求 Responses capability，但不应用 compact-only model mapping。
+- `x-codex-beta-features` 按会话级 Codex 语义补齐；OAuth 普通 Responses、WS 与 compact 共享默认 `remote_compaction_v2` 能力声明，客户端已有非空声明时保持原样。原生 v2 请求会确保该 token 存在，API Key 非压缩请求不注入 Codex 专属头。
+- `x-codex-turn-state` 在流式、非流式、SSE-to-JSON 与 passthrough 路径显式回传；进程内按 API Key + 客户端 session 记录铸造账号，failover 换号时剥离已知由其他账号产生的回带值。没有会话标识或没有溯源记录时保持透传。
+- `codex_fingerprint_mode` 缺失、空值或非法值统一为 `off`；只有 `device`、`session`、`full` 显式开启收敛。非 passthrough 与 passthrough 共用同一套 body/header ID，且每次 account attempt 包括 `nil` 都覆盖暂存值，避免 failover 把上一账号的指纹带到下一账号。
+
 ## 0.1.176 合并增量
 
 - 分组定价解析链调整为 `Group -> Channel -> LiteLLM -> Fallback`。`groups.model_pricing` 使用与渠道一致的 `ChannelModelPricing` 结构按模型覆盖 token/per-request/image/video 定价；`long_context_pricing_enabled` 默认开启，关闭时组内 token 模型不进入官方/预设长上下文阶梯。分组 platform 变更后必须立即失效 Channel cache，避免在旧 platform 上命中模型映射、白名单或价格。

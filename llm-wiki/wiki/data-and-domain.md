@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.1.177 合并增量
+
+- `backend/migrations/222_group_usage_daily_rollups.sql` 新增 `usage_group_daily_rollups(bucket_date, group_id, actual_cost, computed_at)` 与单行 `usage_group_rollup_state`。INSERT transition-table trigger、UPDATE/DELETE row trigger 会在已发布范围内的源记录变化时后退 `closed_before`；迁移只建结构和失效链，历史回填由后台作业执行。
+- `backend/migrations/223_group_usage_rollup_timezone.sql` 为 state 新增 `timezone_name`, 并让 trigger 以 PostgreSQL `current_setting('TimeZone')` 计算自然日。222 创建的既有日桶标记为 `Asia/Shanghai`; 若当前服务时区不同，首次同步会从当前保留范围重建日桶。
+- 分组汇总的 `total_cost` 是当前仍保留在 `usage_logs` 范围内的 rollup + tail，并非永久全历史账本。`retained_from` 随最早保留 usage 更新；清理旧 usage 时会同步删除超出保留范围的 rollup，避免把已清理原始记录继续计入管理端累计值。
+- Grok 长上下文只受分组 `long_context_pricing_enabled` 控制，不再与 OpenAI 账号级 `openai_long_context_billing_enabled` 取交集；未知 Grok 文本模型仍回落 4.5 价卡，但 image/video/audio 等媒体族必须排除该文本兜底。
+
 ## 0.1.176 合并增量
 
 - `backend/migrations/221_group_model_pricing.sql` 向 `groups` 增加 `long_context_pricing_enabled BOOLEAN NOT NULL DEFAULT TRUE` 和 `model_pricing JSONB`，并把存量长上下文开关归一为 true 以保持升级前计费语义。Ent schema 与仓储/auth-cache snapshot 必须同时携带这两个字段。

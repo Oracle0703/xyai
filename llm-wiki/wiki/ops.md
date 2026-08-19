@@ -2,13 +2,14 @@
 
 ## 当前版本基线
 
-- 当前正在 `feature/hy/10176_merge_sub2api_176` 合并上游 `Wei-Shaw/sub2api main@0e82efe48951cb7da1f8554639afdeab05bf16b8`: 本地第一父/合并前 HEAD 为 `cf5b7ee5a15cd04bb6134a372d20e86534660b93`, 与上游的 merge base 为 `48eb3766d2da817b171b45bb3036d42575e42b8f`, `backend/cmd/server/VERSION` 为 `0.1.176`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
+- `feature/hy/10177_merge_sub2api_177` 已以 merge commit `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
+- `feature/hy/10176_merge_sub2api_176` 已以 merge commit `e2d3a4984087e69ae778b1237dfcc14bca9f1749` 通过 PR #40 合入 `main@65bd97fe3b8e78888f544f26027081bec97f7177`; 固定上游提交为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, 后端版本为 `0.1.176`。
 - 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - 当前集成分支为 `feature/hy/10171_merge_sub2api_171`: 合入已含 v0.1.170 的本地 `main@7a537cffbbb6455ce2f777e70f369a3912738ebd`, 第二父/功能分支 tip 为 `3547702ff54d324cff2f83ec75bd8d9a501ea68f`, 固定上游边界为 `Wei-Shaw/sub2api main@aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, 与 main 的 merge base 为上游 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, `backend/cmd/server/VERSION` 为 `0.1.171`。合并保持 `MERGE_HEAD` 待用户审核；不要用版本标签、当前 upstream HEAD 或其他中间提交替代该精确提交。
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
 - `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
-- `backend/go.mod` 声明 Go `1.26.5`; CI、Dockerfile 和 release workflow 的 Go 版本引用应保持 `go1.26.5`。
+- `backend/go.mod` 声明 Go `1.26.6`; backend CI、security scan 和 release workflow 均校验 `go1.26.6`。固定上游提交中的 `deploy/Dockerfile` 默认 builder image 仍为 `golang:1.26.5-alpine`, 本次冲突-only 合并只记录该基线差异, 不在本地改写。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - 0.1.168 的 Wire 图还必须包含 `NewPasskeySessionStore`、`NewOptionalJWTAuthMiddleware` 与 Passkey service/handler；冲突处理应修改 provider source 后重新生成, 不直接手改 `wire_gen.go`。`deploy/config.example.yaml` 新增默认关闭的 `webauthn` 配置, 生产启用时必须显式提供 RP ID 和 HTTPS origins。
@@ -263,6 +264,15 @@ if ($LASTEXITCODE -ne 0) {
 | 备份分卷、manifest 验证与定时 leader lock | `go test -p 1 -count=1 ./internal/service ./internal/repository -run 'Backup|Archive|Leader'` |
 | 前端分组定价、备份、Usage Request ID 和 Grok 档位 | `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsageView.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/BackupView.spec.ts src/views/admin/__tests__/groupsImagePricing.spec.ts src/components/common/__tests__/PlatformTypeBadge.grok.spec.ts`（仓库根目录运行） |
 
+0.1.177 专项回归入口（后端命令在 `backend/` 目录运行）:
+
+| 风险面 | 命令 |
+| --- | --- |
+| 分组日用量 rollup、清理/重算水位和配置时区 | `go test -p 1 -count=1 ./internal/repository ./internal/service ./internal/handler/admin -run 'GroupUsage|Rollup|UsageSummary|Timezone'`；真实 PostgreSQL trigger/DST 行为再用 `-tags=integration` 对 `./internal/repository` 运行同一过滤条件 |
+| remote compaction v2、Responses capability 与账号调度 | `go test -p 1 -count=1 ./internal/handler ./internal/service -run 'Compact|Compaction'` |
+| `x-codex-turn-state`、指纹 opt-in 与 passthrough | `go test -p 1 -count=1 ./internal/service -run 'TurnState|Fingerprint|Passthrough'` |
+| 前端分组今日/昨日费用和账号表单默认值 | `pnpm --dir frontend exec vitest run src/api/__tests__/admin.groups.usage-summary.spec.ts src/views/admin/__tests__/GroupsView.columnSettings.spec.ts src/components/account/__tests__/CreateAccountModal.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/BulkEditAccountModal.spec.ts`（仓库根目录运行） |
+
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
 如果同一测试二进制在多个 fresh `GOTMPDIR` 中持续 `Access is denied`, 且连 `Get-Acl` 或只读文件句柄都被拒绝, 应通过 `Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct` 核对第三方安全软件, 不要只查 Windows Defender。未经授权不得关闭杀软或添加白名单; 也不能把 `go list -tags=...` 的文件集合等价、其他 tag 通过或 `go test -c` 编译成功写成被阻断命令的“通过”。交付记录必须分别列出完整命令的通过包、被阻断包、独立重跑和环境证据。
@@ -311,7 +321,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.9`, working-directory `backend`
-- Go 版本校验: `go1.26.5`
+- Go 版本校验: `go1.26.6`
 
 `.github/workflows/security-scan.yml`:
 

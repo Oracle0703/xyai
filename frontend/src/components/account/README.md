@@ -13,7 +13,7 @@
 | `AccountStatusIndicator.vue` | 账号状态、模型 scope 和短标签展示；Claude Opus 5 / Sonnet 5 分别使用 `COpus5` / `CSonnet5` |
 | `ModelWhitelistSelector.vue` | 账号模型白名单选择、搜索和模型 ID 复制；复制动作不改变当前选中状态 |
 | `OAuthAuthorizationFlow.vue` | OAuth 授权输入和状态复用 |
-| `UpstreamBillingRateCell.vue` | OpenAI API Key 账号的自动探测状态、倍率快照、下次 probe、stale 状态和手动 probe |
+| `UpstreamBillingRateCell.vue` | 全部 API Key 平台账号的自动探测状态、倍率快照、下次 probe、stale 状态和手动 probe |
 | `GrokBaseUrlPresets.vue` / `HeaderOverrideEditor.vue` | Grok 上游地址 preset 与自定义请求头编辑 |
 
 ## API Key 创建契约
@@ -39,6 +39,12 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 - 选择空值表示恢复自动识别，提交时必须删除 `credentials.plan_type`，不能发送 stale value。
 - 该字段影响 `Account.IsOpenAIChatGPTSubscription`，空、`free`、`abnormal` 不视为订阅账号。
 
+### OpenAI Codex 指纹收敛
+
+- 仅 OpenAI OAuth 账号可配置 `codex_fingerprint_mode`；缺失、空值、`off` 或非法值都表示关闭收敛，保留客户端原始 device/session 标识。
+- `device`、`session`、`full` 是显式 opt-in，创建、编辑和批量编辑提交时必须原样写入 `extra.codex_fingerprint_mode`；选择 `off` 时删除该键。
+- passthrough 与普通 Responses 转发使用同一套派生 ID。每次账号 attempt 都要覆盖暂存指纹状态，不能在 failover 时复用上一账号的值。
+
 ### Pool mode retry
 
 - `pool_mode_retry_count` 只在 pool mode 开启时提交，关闭时与 status code 列表一起删除。
@@ -59,8 +65,8 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 
 ### 上游计费倍率与账号外链
 
-- upstream billing probe 只适用于 `platform=openai && type=apikey`; 单个/批量 probe 结果更新 `account.extra.upstream_billing_probe`，UI 根据采集时间显示 stale 状态。
-- 创建 OpenAI API Key 账号时 `upstream_billing_probe_enabled` 默认 `true`; 创建成功后等待首次 `probeUpstreamBilling(account.id)` 完成再刷新列表, probe 失败只告警而不撤销已创建账号。用户关闭 toggle 时必须显式提交 `false`, 其他平台不发送该字段。
+- upstream billing probe 适用于全部 `type=apikey` 平台；单个/批量 probe 结果更新 `account.extra.upstream_billing_probe`，UI 根据采集时间显示 stale 状态。
+- 创建 API Key 账号时 `upstream_billing_probe_enabled` 默认 `true`; 创建成功后等待首次 `probeUpstreamBilling(account.id)` 完成再刷新列表, probe 失败只告警而不撤销已创建账号。用户关闭 toggle 时必须显式提交 `false`; OAuth、Bedrock 等非 API Key 类型不发送该字段。
 - 本地 OpenAI-compatible provider preset 与上游自动 probe 是两个独立合同：preset 继续决定 base URL、key placeholder 和 endpoint capability, auto probe 只决定倍率探测。reset 和 submit 必须同时保留两套状态。
 - 账号名称只有在上游 URL 可安全解析为 HTTP(S) 站点时才渲染外链；缺失、非法或凭据型值保持纯文本，不能拼接为可点击 URL。
 - probe 设置、账号快照和调度成本倍率属于同一合同；修改 `UpstreamBillingRateCell.vue` 时同步 API client、账号类型和对应 spec。
