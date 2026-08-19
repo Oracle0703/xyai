@@ -91,6 +91,7 @@ func provideCleanup(
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
 	tokenAnalysis *service.TokenAnalysisService,
+	cnProviderBalanceCheck *service.CNProviderBalanceCheckService,
 	codexVersionSync *service.OpenAICodexVersionSyncService,
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
@@ -245,6 +246,12 @@ func provideCleanup(
 			}},
 			{"TokenAnalysisAutoIndex", func() error {
 				tokenAnalysis.StopAutoIndex()
+				return nil
+			}},
+			{"CNProviderBalanceCheckService", func() error {
+				if cnProviderBalanceCheck != nil {
+					cnProviderBalanceCheck.Stop()
+				}
 				return nil
 			}},
 			{"OpenAICodexVersionSyncService", func() error {

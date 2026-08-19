@@ -2,6 +2,10 @@
 
 ## 当前版本基线
 
+- 当前合并分支为 `feature/hy/10178_merge_sub2api_178`，第一父为本地 `main@0747c896abf8202dff9935a30f020317ebdc91fc`，merge base 为 `baeac1f3de21d37b129405f092ef86c24b3f203d`，固定 `MERGE_HEAD=49504adc98d2b6d539491e865a340e644548979e`，版本 `0.1.178`；用户审核前不得创建 merge commit。
+- 0.1.178 的 Wire provider 新增 CN provider balance check 与 Channel Monitor quota fetcher；必须修改源 provider 后生成 `wire_gen.go`，不要直接手改生成文件。Windows 生成/测试优先使用仓库本地 `.gomodcache`、`.gocache`、新建 `GOTMPDIR` 和 `-p 1 -count=1`，默认全局 Go cache 可能返回 Access denied。
+- 0.1.178 merge gate 的默认全量、focused、普通/embed build 与增量 lint 通过。unit 的 `/api/v1/auth/me` `admin_permissions:null` fixture 差异来自第一父；integration 的 `tls.peet.ws` 证书链失败属于本机外部环境，`TestCNProviderBalanceCheckRunOnceProbesCodingPlanQuota` 在固定上游 blob 上精确重跑仍失败。以上不应在 conflict-only 合并中顺手修复；frontend lint/typecheck、257 files / 1815 tests 和 production build 通过。
+
 - `feature/hy/10177_merge_sub2api_177` 已以 merge commit `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - `feature/hy/10176_merge_sub2api_176` 已以 merge commit `e2d3a4984087e69ae778b1237dfcc14bca9f1749` 通过 PR #40 合入 `main@65bd97fe3b8e78888f544f26027081bec97f7177`; 固定上游提交为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, 后端版本为 `0.1.176`。
 - 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
@@ -9,7 +13,7 @@
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
 - `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
-- `backend/go.mod` 声明 Go `1.26.6`; backend CI、security scan 和 release workflow 均校验 `go1.26.6`。固定上游提交中的 `deploy/Dockerfile` 默认 builder image 仍为 `golang:1.26.5-alpine`, 本次冲突-only 合并只记录该基线差异, 不在本地改写。
+- `backend/go.mod` 声明 Go `1.26.6`; backend CI、security scan、release workflow 与 0.1.178 builder 均校验 `go1.26.6`。固定上游目标的 Docker builder 已随本轮增量对齐该版本。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - 0.1.168 的 Wire 图还必须包含 `NewPasskeySessionStore`、`NewOptionalJWTAuthMiddleware` 与 Passkey service/handler；冲突处理应修改 provider source 后重新生成, 不直接手改 `wire_gen.go`。`deploy/config.example.yaml` 新增默认关闭的 `webauthn` 配置, 生产启用时必须显式提供 RP ID 和 HTTPS origins。

@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-08-17
+更新时间: 2026-08-19
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -10,6 +10,8 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 
 ## 最近同步
+
+- 2026-08-19 基于最新本地 `main@0747c896abf8202dff9935a30f020317ebdc91fc` 创建 `feature/hy/10178_merge_sub2api_178`，固定合并 `Wei-Shaw/sub2api main@49504adc98d2b6d539491e865a340e644548979e`（`backend/cmd/server/VERSION=0.1.178`），merge base 为 `baeac1f3de21d37b129405f092ef86c24b3f203d`，当前保持 `MERGE_HEAD` 等待审核。上游增量为 301 files、`+19904/-1017`，包含 Kimi/Zhipu/DeepSeek 多协议与余额/配额监控、国产平台分组与渠道定价、渠道模型分时倍率定价、Channel Monitor 配额模式和 OpenAI Team/custom tools 等能力，并将 Go builder/module 对齐到 `1.26.6`。6 个文本冲突按三方语义并集解决：Wire 同时保留本地 Token Analysis 与上游 CN provider cleanup，配置同时保留 RequestArchive/RequestIntercept 与 `cn_providers`，passthrough 同时保留 client-tool adaptation 与本地 official field sanitizer，账号弹窗同时保留 OpenAI-compatible provider preset 与国产平台动态占位符；功能重叠处采用上游实现，不修复上游自身问题。三方路径集合为 only-local 470、only-upstream 255、both 46，合并前 24 个 tracked `docs/features/` 文件零删除。Backend 默认全量、focused、普通/embed build 和增量 lint 通过；unit 保留第一父 `/auth/me` fixture 基线差异，integration 保留本机 `tls.peet.ws` 证书链失败与固定上游 CN provider 轮转测试失败。Frontend lint/typecheck、257 files / 1815 tests 和 production build 通过。
 
 - 2026-08-17 在 `feature/hy/10177_merge_sub2api_177` 以最新本地 `main@65bd97fe3b8e78888f544f26027081bec97f7177` 合并 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`, merge base 为上游 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, merge commit 为 `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2`, 当前后端版本 `0.1.177`。上游增量为 17 commits、76 paths、`+4522/-326`, 增加按配置时区维护的分组日用量汇总和昨日金额、OpenAI 原生 remote compaction v2、`x-codex-turn-state` 同回合转发与跨账号回放防护，并把 Codex 指纹收敛改为显式 opt-in 且覆盖 passthrough；Go 基线升到 `1.26.6`。本轮 0 个文本冲突，20 个双方修改路径完成三方语义审查；24 个 `docs/features` 文件及本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、compatible cache usage、默认 reasoning effort、并发 preset、quota flusher 和 reasoning-only failover 继续保留，不修复上游自身问题。
 - 2026-08-13 在 `feature/hy/10176_merge_sub2api_176` 以本地第一父 `main@cf5b7ee5a15cd04bb6134a372d20e86534660b93` 合并 `Wei-Shaw/sub2api main@0e82efe48951cb7da1f8554639afdeab05bf16b8`, merge base 为上游 `48eb3766d2da817b171b45bb3036d42575e42b8f`, 后端版本 `0.1.176`; merge commit 为 `e2d3a4984087e69ae778b1237dfcc14bca9f1749`, 已通过 PR #40 合入 `main@65bd97fe3b8e78888f544f26027081bec97f7177`。上游增量为 107 commits、194 paths、`+10986/-667`, 增加分组逐模型定价与长上下文开关、Grok 4.6/JWT 订阅档位、原生 `/x_search`、上游响应模型安全计费、备份分卷与定时备份 leader lock、Codex 指纹收敛、OpenAI usage/failover 加固及管理用量 Request ID 列。本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset、quota flusher 和 reasoning-only failover 继续保留；重叠功能采用上游实现，本分支只解决合并冲突与必要语义适配，不修复上游自身问题。

@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.1.178 合并增量
+
+- `CreateAccountModal.vue` 同时保留本地 OpenAI-compatible provider preset 和上游 Kimi/Zhipu/DeepSeek 账号模式、协议、默认端点与 API key 动态占位符；OpenAI provider 选择不能被上游通用 `sk-proj-...` 占位符覆盖。
+- 管理端 Channel Monitor 新增 quota mode 表单、配额快照/用量单元格和远程账号选择器；开关受 `channel_monitor_show_quota` 服务端设置门控，前端不自行推断配额可用性。
+- 渠道模型分时倍率定价由 `TimePricingSection.vue` 与 channel API/types 共同承载，时间窗口和 billing mode 必须与后端 DTO 保持一致。
+
 ## 技术栈与入口
 
 - Vue 3 + Composition API + TypeScript。

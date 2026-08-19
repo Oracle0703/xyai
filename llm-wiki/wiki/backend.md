@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.1.178 合并增量
+
+- `backend/go.mod`、CI 与 Docker builder 对齐 Go `1.26.6`；固定上游 `backend/cmd/server/VERSION` 为 `0.1.178`。
+- 国产 OpenAI 兼容供应商由 `Kimi/Zhipu/DeepSeek` 多协议、余额/配额 service、分组入口、路由计费和限流组成。`CNProviderBalanceCheckService` 由 Wire 启动并在 cleanup 停止；配置位于 `gateway.cn_providers`，只对 payg 账号按周期探测并在低余额时临时停调。
+- Channel Monitor 新增 quota mode、配额 fetcher、快照与多平台 UI；`channel_monitor_show_quota` 默认关闭，Wire 必须同时注入上游 quota fetcher 和本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 生命周期。
+- 渠道模型支持分时倍率定价，Channel/Group DTO、仓储、计费解析和 migration 225 必须保持时间窗口与默认价卡合同。
+- 本轮冲突只保留上游已有业务实现：Wire 的 `provideCleanup` 同时停止 `TokenAnalysisAutoIndex` 与 `CNProviderBalanceCheckService`；OpenAI passthrough 在 client-tool adaptation 后继续清理官方不支持的 `thinking` 顶层字段。上游测试/实现中的既有问题只记录，不在本分支修复。
+
 ## 技术栈与入口
 
 - Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.5`。

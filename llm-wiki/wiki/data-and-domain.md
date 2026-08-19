@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.1.178 合并增量
+
+- `backend/migrations/224_user_platform_quotas_add_cn_providers.sql` 扩展用户平台配额到 CN provider；`225_channel_model_time_pricing.sql` 增加渠道模型分时倍率价卡；`226_channel_monitor_quota_mode.sql` 增加 Channel Monitor quota mode、检查模式和相关索引/状态字段。迁移仍按完整文件名排序、只追加不可修改旧 migration。
+- Kimi/Zhipu/DeepSeek 账号的 `account_mode`、`api_protocol`、`base_url` 与余额/配额快照共同决定调度和计费；CN balance check 低于阈值时通过临时不可调度状态保护 payg 账号，不能把未知配额当作耗尽。
+- Channel model time pricing 只在有效时间窗口内覆盖基础价卡；窗口外继续使用既有 channel/group/litellm fallback 顺序，不能把缺失价卡解释为零价。
+
 ## 0.1.177 合并增量
 
 - `backend/migrations/222_group_usage_daily_rollups.sql` 新增 `usage_group_daily_rollups(bucket_date, group_id, actual_cost, computed_at)` 与单行 `usage_group_rollup_state`。INSERT transition-table trigger、UPDATE/DELETE row trigger 会在已发布范围内的源记录变化时后退 `closed_before`；迁移只建结构和失效链，历史回填由后台作业执行。

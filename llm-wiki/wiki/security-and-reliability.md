@@ -1,5 +1,11 @@
 # 安全与可靠性基线
 
+## 0.1.178 合并增量
+
+- CN provider balance/quota probe 只接受账号配置的上游端点和已授权代理边界；低余额只产生临时调度隔离，不修改凭据、不回退到未授权直连。未知/探测失败按现有 fail-open 或 provider 级错误语义处理，不能伪造 exhausted。
+- Channel Monitor quota 数据属于运营敏感信息。用户侧接口继续使用脱敏 snapshot 和 `channel_monitor_show_quota` 门控，管理员接口才可返回配额检查细节；前端隐藏不是唯一授权边界。
+- OpenAI passthrough 的 client-tool adaptation 与官方字段清理必须在同一请求 attempt 内完成，mapping 仅用于响应恢复；不把客户端工具名、凭据或 upstream 详情写入日志/wiki。上游既有 tool/计费问题按本轮“不修复上游 bug”边界保留。
+
 ## 0.1.177 合并增量
 
 - Codex 指纹收敛改为显式 opt-in：账号未配置 `codex_fingerprint_mode` 时原样透传客户端 device/session 标识。启用收敛后，请求体 `client_metadata` 与出站 header 必须共享同一组派生 ID；passthrough 只局部解析 `client_metadata`，不对大请求做全量 Unmarshal。

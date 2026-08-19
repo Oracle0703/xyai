@@ -1756,3 +1756,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Ent/Wire 连续生成两次均退出 0，生成物无漂移。Backend 默认全量、`go build ./...`、`go build -tags=embed ./...` 退出 0；unit 与 integration 的非通过边界如上，其余包（含 repository/service/migrations）通过。Frontend pnpm 9.15.9 下 lint、typecheck、完整 Vitest 252/252 files、1742/1742 tests，以及 production build 1052 modules 全部退出 0。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，同步 `frontend/src/components/account/README.md` 并追加本条。创建 merge commit 并回填真实 SHA 后，Wiki 图谱再次刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，source hash `c8a54acd1b64` 与当前 Wiki 一致。 |
 | Approval / delivery | 最终 staged snapshot 为 86 files / `+4612 -349`；0 unstaged、0 untracked、0 unmerged，`git diff --cached --check` 退出 0。用户审核后授权创建上述 merge commit；未 push、未创建 PR、未部署。 |
+
+## 2026-08-19 main sync (v0.1.178; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10178_merge_sub2api_178` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `0747c896abf8202dff9935a30f020317ebdc91fc`（最新本地 `main`，与 `github/main` 一致） |
+| Merge base | `baeac1f3de21d37b129405f092ef86c24b3f203d`（上游 v0.1.177） |
+| Upstream head / second parent | `49504adc98d2b6d539491e865a340e644548979e`（固定 `0.1.178` version-sync 提交；不以更晚 `upstream/main` 替代） |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=49504adc98d2b6d539491e865a340e644548979e`** |
+| Upstream version / delta | `0.1.178`; 相对 merge base 301 files、`+19904/-1017`；固定提交自身的 `backend/cmd/server/VERSION` 已验证为 `0.1.178`。 |
+| Conflict files | `backend/cmd/server/wire.go`; `backend/cmd/server/wire_gen.go`; `backend/cmd/server/wire_gen_test.go`; `backend/internal/config/config.go`; `backend/internal/service/openai_gateway_passthrough.go`; `frontend/src/components/account/CreateAccountModal.vue` |
+| Conflict handling | 6 个文本冲突按三方语义并集解决：Wire 的 cleanup 同时保留本地 `TokenAnalysisAutoIndex` 和上游 `CNProviderBalanceCheckService`；配置同时保留 `RequestArchive`/`RequestIntercept` 与 `gateway.cn_providers`；passthrough 先采用上游 API-key client-tool adaptation，再执行本地官方 `thinking` 字段清理；账号弹窗保留本地 OpenAI-compatible provider preset，并合入上游 CN 平台端点/协议动态占位符。Wire 生成文件由已修正的源 provider 重新生成，测试补齐两个 cleanup 参数。功能真正重叠处采用上游实现，不修复上游自身问题。 |
+| Semantic overlap review | 三方路径集合为 only-local 470、only-upstream 255、both 46；46 个双方修改路径按 Wire/Ent/配置、网关/计费、DTO/仓储、前端组件/i18n 分组审查。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件全部保留、零删除；除本 ledger 追加外其余文件未删除。本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset、quota flusher 和 reasoning-only failover 均保留；重叠能力采用上游实现。 |
+| Upstream behavior | 合入 Kimi/Zhipu/DeepSeek 多协议、余额与配额监控及 CN 分组/计费/限流；渠道模型分时倍率定价（migration 225）；Channel Monitor quota mode、fetcher、快照和多平台 UI（migration 226）；用户平台 CN quota（migration 224）；OpenAI Team 联动熔断、API-key custom tools 恢复、Codex identity 对齐、Ollama usage query、邀请注册原子性和 Go 1.26.6 builder/module 对齐。 |
+| Upstream / baseline issue boundary | 完整 unit 仍复现第一父既有 `/api/v1/auth/me` fixture 缺少 `admin_permissions:null`；`internal/service` 首轮全包 unit 失败后使用相同最终代码和 fresh `GOTMPDIR` 精确包重跑通过。完整 integration 的 `internal/pkg/tlsfingerprint` 访问 `tls.peet.ws` 时 3 个用例因本机证书链 `x509: certificate signed by unknown authority` 失败；上游新增 `TestCNProviderBalanceCheckRunOnceProbesCodingPlanQuota` 期望轮转子集却探测全部 3 个账号，integration 精确单测和 `-count=10` 均失败。CN provider 实现/测试的 index blob 与固定上游提交完全一致且第一父不存在这两个文件，按要求只记录、不修复。`go mod tidy -diff` 仍只建议删除第一父已有的 5 组 Wire CLI 传递 checksum，模块文件未改。 |
+| Verification | Wire 连续生成稳定，`wire_gen.go` SHA-256 为 `448881E1E4F18707C4C901A22FB801322AE348A1BBE4AD72DE1EC765791CB87E`；backend focused（`cmd/server`、config、apicompat、service、handler、migrations）与默认全量测试退出 0，普通和 `-tags embed` build 退出 0，`golangci-lint run --new-from-rev=HEAD ./...` 在仓库隔离 cache 下为 `0 issues`。unit/integration 的非通过边界如上，其余包通过。Frontend lint、typecheck、focused 6 files / 97 tests、完整 Vitest 257 files / 1815 tests、production build（1063 modules）全部退出 0。only-upstream 255 paths 全部逐 blob 等于固定目标；24/24 feature 文档保留。 |
+| Documentation | 已更新 `llm-wiki/wiki/README.md`、`backend.md`、`frontend.md`、`ops.md`、`data-and-domain.md`、`security-and-reliability.md`，本条按 append-only 规则追加。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，完成验证后等待用户审核；不 commit、不 push、不创建 PR、不部署。 |
