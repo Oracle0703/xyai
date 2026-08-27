@@ -31,11 +31,12 @@
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
-        <select v-model="form.role" class="input" data-testid="role-select">
-          <option value="user">{{ t('admin.users.roles.user') }}</option>
-          <option value="sub_admin">{{ t('admin.users.roles.sub_admin') }}</option>
-          <option value="admin">{{ t('admin.users.roles.admin') }}</option>
-        </select>
+        <Select
+          v-model="form.role"
+          :options="roleOptions"
+          :searchable="false"
+          data-testid="role-select"
+        />
       </div>
       <fieldset v-if="form.role === 'sub_admin'" class="space-y-2">
         <legend class="input-label">{{ t('admin.users.form.permissionsLabel') }}</legend>
@@ -70,7 +71,16 @@
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.columns.concurrency') }}</label>
-        <input v-model.number="form.concurrency" type="number" class="input" />
+        <input
+          v-model.number="form.concurrency"
+          type="number"
+          min="0"
+          step="1"
+          class="input"
+          :placeholder="t('admin.users.form.concurrencyPlaceholder')"
+          data-test="concurrency-input"
+        />
+        <p class="input-hint">{{ t('admin.users.form.concurrencyHint') }}</p>
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.form.rpmLimit') }}</label>
@@ -101,13 +111,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { computed, ref, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { adminAPI } from '@/api/admin'
 import type { AdminPermission, AdminUser, UpdateUserRequest, UserAttributeValuesMap, UserRole } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
 import UserAttributeForm from '@/components/user/UserAttributeForm.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
@@ -144,7 +155,22 @@ const loadPermissionCatalog = async () => {
     permissionsLoading.value = false
   }
 }
-const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as UserRole, admin_permissions: [] as AdminPermission[], concurrency: 1, rpm_limit: 0, customAttributes: {} as UserAttributeValuesMap })
+const roleOptions = computed(() => [
+  { value: 'user', label: t('admin.users.roles.user') },
+  { value: 'sub_admin', label: t('admin.users.roles.sub_admin') },
+  { value: 'admin', label: t('admin.users.roles.admin') }
+])
+const form = reactive({
+  email: '',
+  password: '',
+  username: '',
+  notes: '',
+  role: 'user' as UserRole,
+  admin_permissions: [] as AdminPermission[],
+  concurrency: 1,
+  rpm_limit: 0,
+  customAttributes: {} as UserAttributeValuesMap
+})
 
 watch(() => props.user, (u) => {
   if (u) {
@@ -153,9 +179,15 @@ watch(() => props.user, (u) => {
   }
 }, { immediate: true })
 
-watch(() => props.show, (show) => {
-  if (show) void loadPermissionCatalog()
-}, { immediate: true })
+watch(
+  () => [props.show, form.role] as const,
+  ([show, role]) => {
+    if (show && role === 'sub_admin' && !permissionsLoading.value) {
+      void loadPermissionCatalog()
+    }
+  },
+  { immediate: true }
+)
 
 const generatePassword = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'
@@ -175,8 +207,9 @@ const handleUpdateUser = async () => {
     appStore.showError(t('admin.users.emailRequired'))
     return
   }
-  if (form.concurrency < 1) {
-    appStore.showError(t('admin.users.concurrencyMin'))
+  // 0 = 不限制，与网关 (AcquireUserSlot: maxConcurrency <= 0) 和批量改限额一致
+  if (!Number.isInteger(form.concurrency) || form.concurrency < 0) {
+    appStore.showError(t('admin.users.concurrencyNonNegative'))
     return
   }
   const userId = props.user.id

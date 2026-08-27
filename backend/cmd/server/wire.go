@@ -26,9 +26,10 @@ import (
 )
 
 type Application struct {
-	Server      *http.Server
-	PromptAudit *securityaudit.PromptService
-	Cleanup     func()
+	Server        *http.Server
+	PromptAudit   *securityaudit.PromptService
+	PluginManager *service.PluginManager
+	Cleanup       func()
 }
 
 func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
@@ -53,12 +54,13 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 
 		// BuildInfo provider
 		provideServiceBuildInfo,
+		providePluginHostInfo,
 
 		// Cleanup function provider
 		provideCleanup,
 
 		// Application struct
-		wire.Struct(new(Application), "Server", "PromptAudit", "Cleanup"),
+		wire.Struct(new(Application), "Server", "PromptAudit", "PluginManager", "Cleanup"),
 	)
 	return nil, nil
 }
@@ -69,6 +71,13 @@ func providePrivacyClientFactory() service.PrivacyClientFactory {
 
 func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 	return service.BuildInfo{
+		Version:   buildInfo.Version,
+		BuildType: buildInfo.BuildType,
+	}
+}
+
+func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
+	return service.PluginHostInfo{
 		Version:   buildInfo.Version,
 		BuildType: buildInfo.BuildType,
 	}
@@ -91,6 +100,7 @@ func provideCleanup(
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
 	tokenAnalysis *service.TokenAnalysisService,
+	cnProviderBalanceCheck *service.CNProviderBalanceCheckService,
 	codexVersionSync *service.OpenAICodexVersionSyncService,
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
@@ -120,7 +130,9 @@ func provideCleanup(
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	auditLog *service.AuditLogService,
+	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
+	pluginManager *service.PluginManager,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -133,6 +145,18 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"PluginManager", func() error {
+				if pluginManager != nil {
+					pluginManager.Stop()
+				}
+				return nil
+			}},
+			{"OpenAIQuotaAutoResetService", func() error {
+				if openAIAutoReset != nil {
+					openAIAutoReset.Stop()
+				}
+				return nil
+			}},
 			{"OpsIngressRejectAggregator", func() error {
 				if opsIngressReject != nil {
 					opsIngressReject.Stop()
@@ -245,6 +269,12 @@ func provideCleanup(
 			}},
 			{"TokenAnalysisAutoIndex", func() error {
 				tokenAnalysis.StopAutoIndex()
+				return nil
+			}},
+			{"CNProviderBalanceCheckService", func() error {
+				if cnProviderBalanceCheck != nil {
+					cnProviderBalanceCheck.Stop()
+				}
 				return nil
 			}},
 			{"OpenAICodexVersionSyncService", func() error {

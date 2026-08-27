@@ -2,6 +2,7 @@
 
 ## 当前版本基线
 
+- 当前在 `feature/hy/10183_merge_sub2api_183` 以 `main@0747c896abf8202dff9935a30f020317ebdc91fc` 为第一父，固定合并上游 `Wei-Shaw/sub2api main@7634e3c23b5b9afc588c37b170820f63f1d41bbb`；merge base 为 `baeac1f3de21d37b129405f092ef86c24b3f203d`，`backend/cmd/server/VERSION` 为 `0.1.183`，当前保留 `MERGE_HEAD` 等待用户审核。该 exact SHA 依次包含 VERSION 同步边界 `0.1.179@2bc139ab`、`0.1.180@03e8ab41`、`0.1.181@e2d9b823`、`0.1.182@aa2c4e8d`、`0.1.183@7634e3c2`，并包含 `0.1.178@49504adc`；不要用用户口述版本、标签或更晚 upstream HEAD 替代固定提交。
 - `feature/hy/10177_merge_sub2api_177` 已以 merge commit `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - `feature/hy/10176_merge_sub2api_176` 已以 merge commit `e2d3a4984087e69ae778b1237dfcc14bca9f1749` 通过 PR #40 合入 `main@65bd97fe3b8e78888f544f26027081bec97f7177`; 固定上游提交为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, 后端版本为 `0.1.176`。
 - 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
@@ -9,12 +10,14 @@
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
 - `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
-- `backend/go.mod` 声明 Go `1.26.6`; backend CI、security scan 和 release workflow 均校验 `go1.26.6`。固定上游提交中的 `deploy/Dockerfile` 默认 builder image 仍为 `golang:1.26.5-alpine`, 本次冲突-only 合并只记录该基线差异, 不在本地改写。
+- `backend/go.mod` 声明 Go `1.27.0`; backend CI、security scan 和 release workflow 均校验 `go1.27.0`，根、backend、deploy Dockerfile builder 也统一为 `golang:1.27.0-alpine`。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - 0.1.168 的 Wire 图还必须包含 `NewPasskeySessionStore`、`NewOptionalJWTAuthMiddleware` 与 Passkey service/handler；冲突处理应修改 provider source 后重新生成, 不直接手改 `wire_gen.go`。`deploy/config.example.yaml` 新增默认关闭的 `webauthn` 配置, 生产启用时必须显式提供 RP ID 和 HTTPS origins。
 - 0.1.170 的 Content Moderation service 新增 `ProxyRepository` 注入；Wire 必须从 `backend/internal/service/wire.go` 生成该依赖, 本地测试桩可传 `nil` 表示不启用代理。不要直接手改 `wire_gen.go` 固化构造签名。
 - 0.1.171 的 Wire 图还必须包含 Tencent/Aliyun captcha service、`ProvideContentModerationService(..., proxyRepo, ...)`、`ProvideOpenAICodexVersionSyncService` 与 `OpenAICodexVersionSyncService` cleanup。Provider source 改完后运行 `cd backend && go generate ./cmd/server`, 不手工编辑 `wire_gen.go`。
+- 0.1.183 的 Wire 图还必须包含 CN provider quota/balance/adaptive services、Plugin repository/manager/runtime cleanup 与 `ModelPlazaService`。`go generate ./cmd/server` 可能因 Wire CLI 下载临时增加 tool checksum；生成后以目标依赖合同复核 `go.sum`，不要把工具副作用当业务依赖提交。
+- 插件配置位于 `plugins`: `data_dir` 默认继承 `DATA_DIR/plugins`，`allow_unsigned=false`，`trusted_publishers` 只追加 Ed25519 公钥，上传/解压上限默认 128/256 MiB，启动超时默认 15 秒。生产必须维持签名校验并使用低权限服务用户；插件子进程不是 OS sandbox。
 - `frontend/src/i18n/__tests__/localesMessageCompile.spec.ts` 使用的 `@intlify/message-compiler@9.14.5` 已由上游补入 `frontend/package.json` 与 lockfile；Windows 完整前端验证使用 `corepack pnpm@9.15.9` 读取 lockfile v9。
 - 前端 `pnpm.overrides` 强制 `postcss@<8.5.18` 升到安全版本, lockfile 当前解析为 `8.5.23`; 修改 override 必须用 pnpm 9 重建 lockfile 并复跑 frontend security audit。仓库本地已移除 `vite-plugin-checker` 及其 Vite 插件配置, 合并上游时依赖清单与 `vite.config.ts` 必须保持一致。
 - OpenAI Live 的服务端 attestation 仅在 Apple Silicon macOS 且已安装官方 ChatGPT App 时可用；其他平台正常构建但 capability 返回不可用。`gateway.live.max_session_duration_seconds` 默认 3600, 非正值在配置校验时回落该默认值。

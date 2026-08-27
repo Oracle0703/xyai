@@ -10,6 +10,7 @@ import promptMetrics from './promptMetrics'
 import organizationUsage from './organizationUsage'
 import audit from './audit'
 import promptAudit from './promptAudit'
+import plugins from './plugins'
 
 export default {
   ...overview,
@@ -24,4 +25,5 @@ export default {
   ...organizationUsage,
   ...audit,
   ...promptAudit,
+  ...plugins,
 }

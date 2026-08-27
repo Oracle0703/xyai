@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.1.183 合并增量
+
+- 插件默认拒绝未签名 `.s2plugin`；Ed25519 签名验证 publisher，manifest/file SHA-256 验证包内容，但不证明实现安全。插件是继承服务用户文件、环境和网络权限的独立子进程，不是 OS sandbox；OAuth transport 插件故障必须 fail-closed，不能静默改走另一条网络路径。
+- 插件上传、启停、删除、配置和测试要求管理员 step-up。配置由宿主加密保存，日志和诊断不得包含 OAuth header、代理凭据、完整请求体或敏感响应；UI 只在 sandbox iframe 中通过短时 asset/bridge token 通信，并校验 `event.source`、来源标识、request ID。
+- CN provider 的 quota/balance probe 从账号 base URL 派生只读端点，但发送 API Key 前仍必须经过统一出站 URL 安全策略；Kimi/智谱额度探测使用 singleflight 和有界 timeout/body。Composite 只允许已知 Kimi/智谱/DeepSeek 模型族解析到对应平台，未知或歧义模型继续 fail-closed。
+- Responses Tool Schema 清洗受 body size、JSON depth、编辑次数和 union size/depth 上限约束，超限返回明确错误而不是无界分配；OpenAI-only regex lookaround 清洗与 CN/Anthropic 的根类型修复分开。`text.format.schema` 的 format 清理只删除非支持 format，不改变其他 schema 语义。
+- `/v1/responses/input_tokens` 计数请求与普通生成请求分流，不应进入自定义 relay 或产生上游生成副作用；根级/alias Responses 路由继续先执行 subpath guard，再进入本地 `RequestIntercept`。
+
 ## 0.1.177 合并增量
 
 - Codex 指纹收敛改为显式 opt-in：账号未配置 `codex_fingerprint_mode` 时原样透传客户端 device/session 标识。启用收敛后，请求体 `client_metadata` 与出站 header 必须共享同一组派生 ID；passthrough 只局部解析 `client_metadata`，不对大请求做全量 Unmarshal。

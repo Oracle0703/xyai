@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UserCreateModal from '../UserCreateModal.vue'
 import UserEditModal from '../UserEditModal.vue'
+import Select from '@/components/common/Select.vue'
 
 const api = vi.hoisted(() => ({
   create: vi.fn(),
@@ -108,7 +109,8 @@ describe('admin user role permission forms', () => {
     expect(api.getPermissionCatalog).toHaveBeenCalledTimes(1)
 
     expect((wrapper.get('[data-admin-permission="admin.usage"]').element as HTMLInputElement).checked).toBe(true)
-    await wrapper.get('[data-testid="role-select"]').setValue('user')
+    wrapper.findComponent(Select).vm.$emit('update:modelValue', 'user')
+    await flushPromises()
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 

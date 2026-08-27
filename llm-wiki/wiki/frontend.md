@@ -11,6 +11,14 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.183 合并增量
+
+- 账号创建/编辑支持 Kimi、智谱、DeepSeek，统一 provider catalog、颜色和图标；CN 账号可配置 OpenAI/Anthropic/adaptive protocol、base URL preset 与 header overrides。`CreateAccountModal.vue` 仍必须保留本地 OpenAI-compatible provider preset，平台切换时分别重置上游 CN 状态与本地 preset 状态。
+- Channel Monitor 表单使用 segmented mode 选择 `probe`、`quota`、`quota_probe`；quota 模式通过可远程搜索的统一 `Select` 关联账号，用户/管理员视图复用 `MonitorQuotaView`。纯 quota 行的模型占位符为 `quota`，展示时必须本地化，不能当作真实模型。
+- `/admin/plugins` 及侧边栏入口受 opt-in `plugin_management_enabled` 控制。`PluginsView.vue` 提供 `.s2plugin` 上传、兼容性/签名/运行时状态、rollout、启停/卸载/测试和 sandbox iframe 配置；写操作复用 `useStepUp`，iframe bridge 必须校验 source、token 和 request ID。
+- 渠道页新增分时定价与 Fast/Flex multiplier 编辑；Model Plaza 统一通过 `ModelPlazaService` 数据合同，并修正首页/分组展示。账号、渠道、监控等 option set 继续复用 `components/common/Select.vue`，远程搜索必须保留 loading/search 事件合同。
+- `UserEditModal.vue` 接入统一 `Select` 后仍保留本地 `sub_admin` 和 `admin_permissions` 精确提交；并发值 `0` 是合法值，不得被 falsy fallback 改写。
+
 ## 0.1.177 合并增量
 
 - `GroupsView.vue` 的用量列同时展示服务端配置时区下的今日、昨日和当前保留记录累计费用。`adminAPI.groups.getUsageSummary()` 不再接收浏览器时区参数，响应新增 `yesterday_cost`；前端不得用 `Intl.DateTimeFormat()` 覆盖服务端统计口径。

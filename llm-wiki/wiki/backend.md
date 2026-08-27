@@ -2,7 +2,7 @@
 
 ## 技术栈与入口
 
-- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.26.5`。
+- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.27.0`。
 - HTTP 框架: Gin。
 - ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。
 - 依赖注入: Google Wire, 入口在 `backend/cmd/server/wire.go`, 生成文件 `wire_gen.go`。
@@ -10,7 +10,16 @@
 - 主要命令:
   - 启动: `cd backend && go run ./cmd/server`
   - 构建: `cd backend && make build`
-  - 生成: `cd backend && make generate`
+- 生成: `cd backend && make generate`
+
+## 0.1.183 合并增量
+
+- 国产 provider 扩为 `kimi`、`zhipu`、`deepseek` 三个具体平台，复用 OpenAI-compatible 数据面但可按账号选择 `chat_completions`、`anthropic` 或 adaptive protocol。Adaptive 账号测试必须覆盖 Chat Completions、原生 `/v1/messages`，DeepSeek 还覆盖原生 `/v1/responses`；Composite route 可解析并路由这三类平台，但 Responses WebSocket 仍只允许 OpenAI/Grok。
+- Channel Monitor 新增 `probe`、`quota`、`quota_probe` 三种 `check_mode`。配额模式通过 `account_id` 复用账号用量服务并把归一化 `MonitorQuotaSnapshot` 写入 history；Antigravity 只支持 quota，Kimi/智谱 Coding Plan 复用 CN quota fetcher。用户侧配额展示还受公开设置 `channel_monitor_show_quota` 控制，默认关闭。
+- OpenAI OAuth transport 插件由 `PluginManager` 管理 `.s2plugin` 包、独立 gRPC 子进程、配置加密、能力 binding 和 rollout；当前宿主只消费 `openai.oauth.outbound_transport.v1`。管理 API 位于 `/api/v1/admin/plugins`，上传、启停、删除、配置和测试均要求 step-up；插件 UI 使用 `/api/v1/plugin-ui/:token/*path` 的短时会话。
+- `/v1/responses/input_tokens` 成为正式 canonical endpoint，并可在兼容 provider 不支持该路径时回落本地 token count。Responses->Chat 采用上游 reasoning cache/tool-call identity 主实现，同时保留本地 `DropTemperature` / `DropMaxCompletionTokens` options；Tool Schema 采用上游有界 parser，并继续清理本地独有的 `text.format.schema` 非支持 `format`。
+- 渠道定价支持模型级 Fast/Flex multiplier、IANA 时区重复时段和时段内 input/output/cache read/write multiplier。Model Plaza 后端从旧 `channel_plaza` 收敛到 `ModelPlazaService`，对外开关与可选 JWT 鉴权合同不变。
+- Wire 源图同时注册本地 Prompt Metrics/Token Analysis/RequestIntercept 等 provider 与上游 CN provider、Channel Monitor quota、Plugin、Model Plaza 生命周期。修改 provider source 后必须重新生成 `backend/cmd/server/wire_gen.go`，不得手工拼接生成文件。
 
 ## 0.1.177 合并增量
 

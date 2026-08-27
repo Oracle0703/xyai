@@ -19,6 +19,7 @@ import tokenAnalysisAPI from './tokenAnalysis'
 import geminiAPI from './gemini'
 import antigravityAPI from './antigravity'
 import grokAPI from './grok'
+import cnProvidersAPI from './cnProviders'
 import userAttributesAPI from './userAttributes'
 import opsAPI from './ops'
 import errorPassthroughAPI from './errorPassthrough'
@@ -39,6 +40,7 @@ import promptMetricsAPI from './promptMetrics'
 import adminComplianceAPI from './compliance'
 import organizationUsageAPI from './organizationUsage'
 import auditAPI from './audit'
+import pluginsAPI from './plugins'
 
 /**
  * Unified admin API object for convenient access
@@ -60,6 +62,7 @@ export const adminAPI = {
   gemini: geminiAPI,
   antigravity: antigravityAPI,
   grok: grokAPI,
+  cnProviders: cnProvidersAPI,
   userAttributes: userAttributesAPI,
   ops: opsAPI,
   errorPassthrough: errorPassthroughAPI,
@@ -79,7 +82,8 @@ export const adminAPI = {
   promptMetrics: promptMetricsAPI,
   compliance: adminComplianceAPI,
   organizationUsage: organizationUsageAPI,
-  audit: auditAPI
+  audit: auditAPI,
+  plugins: pluginsAPI
 }
 
 export {
@@ -99,6 +103,7 @@ export {
   geminiAPI,
   antigravityAPI,
   grokAPI,
+  cnProvidersAPI,
   userAttributesAPI,
   opsAPI,
   errorPassthroughAPI,
@@ -118,7 +123,8 @@ export {
   promptMetricsAPI,
   adminComplianceAPI,
   organizationUsageAPI,
-  auditAPI
+  auditAPI,
+  pluginsAPI
 }
 
 export default adminAPI
@@ -162,3 +168,9 @@ export {
   MAX_XLSX_DATA_ROWS,
   ORGANIZATION_USAGE_SORT_FIELDS
 } from './organizationUsage'
+export type {
+  PluginInstallation,
+  PluginCompatibility,
+  PluginUISession,
+  PluginTestResult
+} from './plugins'

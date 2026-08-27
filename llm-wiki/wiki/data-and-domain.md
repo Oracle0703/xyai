@@ -1,5 +1,14 @@
 # 数据与领域基线
 
+## 0.1.183 合并增量
+
+- `backend/migrations/224_user_platform_quotas_add_cn_providers.sql` 把 `kimi`、`zhipu`、`deepseek` 加入用户平台配额约束；缺失配额行会被解释为无限额，因此该约束必须与 `AllowedQuotaPlatforms` 同步。`225_backfill_codex_fingerprint_seed.sql` 为已启用 fingerprint mode 的 OpenAI OAuth 账号补合法 UUID seed，保留既有有效值。
+- `225_channel_model_time_pricing.sql` 为 `channel_model_pricing` 增加 `time_pricing JSONB`；`228_channel_pricing_multipliers.sql` 增加模型 Fast/Flex multiplier 与时段 input/output/cache write/cache read multiplier，所有非空倍率必须大于 0。运行时先选择标准渠道价格，再叠加 service tier 或命中时段的覆盖/倍率。
+- `226_channel_monitor_quota_mode.sql` 扩展 8 平台 provider 约束，新增 monitor `check_mode`、关联 `account_id`、history `quota JSONB` 和默认关闭的 `channel_monitor_show_quota`。`quota` 只查询账号用量，`quota_probe` 同时探活；账号删除时外键置空但监控记录保留。
+- `226_add_usage_log_effective_model_indexes_notx.sql` 为 `COALESCE(NULLIF(BTRIM(requested_model), ''), model)` 和 upstream model 等效表达式增加 created/id 降序并发索引；该 `_notx.sql` 必须由 migration runner 在事务外执行。`227_composite_routes_add_cn_providers.sql` 允许 Composite route 指向三种 CN provider。
+- `229_plugins.sql` 新增 `sub2api_plugin_installations` 与 `sub2api_plugin_bindings`，启用范围以 capability/platform/account type 唯一；账号表不保存插件字段。`230_plugin_artifacts.sql` 增加原始签名包 `artifact_data BYTEA`，供多实例节点重新复验和解包，旧记录允许为空。
+- 新增领域对象 `PluginInstallation`/`PluginBinding` 由 SQL repository 管理而非 Ent schema；包清单、二进制、签名和配置状态与运行时健康分离。Channel Monitor history 的 `MonitorQuotaSnapshot` 与账号 `extra` 中的 provider quota snapshot 口径也必须分离。
+
 ## 0.1.177 合并增量
 
 - `backend/migrations/222_group_usage_daily_rollups.sql` 新增 `usage_group_daily_rollups(bucket_date, group_id, actual_cost, computed_at)` 与单行 `usage_group_rollup_state`。INSERT transition-table trigger、UPDATE/DELETE row trigger 会在已发布范围内的源记录变化时后退 `closed_before`；迁移只建结构和失效链，历史回填由后台作业执行。
