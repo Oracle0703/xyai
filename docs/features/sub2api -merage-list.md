@@ -1777,3 +1777,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Ent/Wire 连续生成两次均退出 0，生成物无漂移，`go.sum` 复核为固定上游 blob。Backend `go build ./...`、`go build -tags=embed ./...` 通过；`golangci-lint v2.13` 在 Go 1.27 下以 `--new-from-rev=HEAD` 检查为 `0 issues`；`internal/service` 排除 `TestPluginPackageInstaller` 后全包通过（117.237s），完整套件仅有上述明确保留问题。Frontend pnpm 9.15.9 下 lint、typecheck、完整 Vitest 273/273 files、1940/1940 tests，以及 production build（1070 modules）全部通过。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；覆盖 0.1.183 架构、Go 1.27、CN provider、Channel Monitor quota、Plugin、Responses input tokens、migrations 224-230 和安全边界。Wiki 图谱在审核快照前刷新。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-09-01 main sync (v0.1.185; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10185_merge_sub2api_185` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `48b74c5d55ac4544cfef47411ac0cf1194c33859`（任务开始时最新本地 `main`；刷新后与 `github/main` 一致） |
+| Merge base | `7634e3c23b5b9afc588c37b170820f63f1d41bbb`（上游 v0.1.183） |
+| Upstream head / second parent | `a2fb09260a955676f99cdc92f05469febee82a08` |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=a2fb09260a955676f99cdc92f05469febee82a08`** |
+| Upstream version / delta | 固定 SHA 的 `backend/cmd/server/VERSION` 为 `0.1.185`。从 merge base 到固定上游共 196 commits、370 files、`+22665/-1995`；不以标签、版本口述或更晚 upstream HEAD 替代该精确边界。 |
+| Conflict files | `backend/ent/user.go`; `backend/internal/handler/admin/user_handler.go`; `backend/internal/handler/dto/settings.go`; `backend/internal/server/routes/admin.go`; `backend/internal/service/admin_service.go`; `backend/internal/service/admin_user.go`; `backend/internal/service/settings_view.go`; `backend/internal/service/user.go`; `frontend/src/components/account/CreateAccountModal.vue`; `frontend/src/components/admin/usage/__tests__/UsageFilters.spec.ts`; `frontend/src/components/keys/UseKeyModal.vue` |
+| Conflict handling | 11 个文本冲突按三方语义解决。用户链同时保留本地 `sub_admin` / `admin_permissions` 与上游 `restrict_public_groups`，并将权限、allowed groups 和公开分组限制变化都纳入 API Key auth cache 失效；设置 DTO/视图及 admin routes 同时保留本地 RequestArchive/RequestIntercept、Prompt Risk、Token Analysis、组织用量、并发 preset 入口与上游 OpenAI image cooldown 等新增设置；`CreateAccountModal` 保留本地 OpenAI-compatible provider preset，并接入上游智谱 team/model sync 与浏览器时区合同；`UsageFilters` 同时保留 sub-admin 限制与上游 native compaction 过滤。`UseKeyModal.vue` 属真实重叠功能，最终 blob 精确采用上游 routed Codex catalog / `OpenAI` provider 实现；自动合并测试遗留的两处旧 `xunyou` 断言仅按已采用的上游合同改为 `OpenAI`，未修改生产逻辑。 |
+| Semantic overlap review | 三方路径集合为 local 515、upstream 370、both 75、only-local 440、only-upstream 295。在 wiki/ledger 收尾前的冲突解决快照中，295 个 only-upstream 索引 blob 等于固定上游，440 个 only-local 索引 blob 等于第一父，均 0 mismatch；随后只按项目规则更新 6 页 wiki、2 个 Wiki 图谱文件和本 ledger。11 个冲突与其余 64 个自动合并路径完成逐文件和非平凡新增行深扫；除 Ent 生成字段序号/容量、格式重排、UseKey 重叠实现替代及上述两处测试合同适配外，未发现本地独有调用链或上游增量丢失。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件在当前索引中 24/24 保留、零删除；除本 ledger 追加外其余 feature 文档不改。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、用户并发 preset、quota flusher 和 reasoning-only failover 均保留；功能真正重叠处采用上游实现。 |
+| Upstream behavior | 合入按 API Key 分组生成的 Codex routed model catalog 与鉴权 catalog 下载、请求值/最终转发值双 reasoning effort 口径、native compaction v2 用量标记和过滤、用户级公开分组限制、数据驱动长上下文阶梯、`pricing.override_file` 字段级浅合并，以及 PostgreSQL `57P03` / `08*` 短暂启动错误的有界重试。新增三个独立 `231_*` migrations：native compaction、requested reasoning effort、user restrict public groups。 |
+| Upstream / baseline issue boundary | Backend 全量中的 `TestForwardStreaming_ServiceTierPropagatedToResult` 因固定上游新增 TTFT settings 读取与旧测试 stub 不兼容，panic `unexpected GetMultiple call`；固定上游目标可复现，按“仅解决冲突、不修上游 bug”要求保持不改。本地第一父既有 `/api/v1/auth/me` golden 少 `admin_permissions:null` 的差异同样保留。Cyber policy integration 的 1 秒条件曾偶发失败，fresh `GOTMPDIR` 精确复跑通过；需要 PostgreSQL 的 integration 因本机 Docker 不可用而 skip，不记为通过。 |
+| Verification | Backend v0.1.185 focused tests 与本地 features 核心回归通过；`go build ./...`、`go build -tags=embed ./...`、`go mod tidy -diff` 均退出 0；`golangci-lint v2.13 --new-from-rev=HEAD` 为 `0 issues`。Frontend 首轮全量测试暴露上述两处旧 provider 断言，合同适配后 `UseKeyModal.spec.ts` 20/20 通过；最终 lint、typecheck、完整 Vitest 278/278 files、1999/1999 tests、production build 1072 modules 均通过。索引无 unmerged 文件或冲突标记，`git diff --cached --check` 与工作树 diff check 通过。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，source hash 与当前 Wiki 一致；`tools\check-understand-status.cmd -AllowDirtyWiki` 返回 READY。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |

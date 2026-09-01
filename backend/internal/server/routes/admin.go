@@ -391,6 +391,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 	accounts := admin.Group("/accounts")
 	{
 		accounts.GET("", h.Admin.Account.List)
+		accounts.GET("/upstream-billing-rates", h.Admin.Account.GetUpstreamBillingRates)
 		accounts.GET("/upstream-billing-probe/settings", h.Admin.Account.GetUpstreamBillingProbeSettings)
 		accounts.PUT("/upstream-billing-probe/settings", h.Admin.Account.UpdateUpstreamBillingProbeSettings)
 		accounts.POST("/upstream-billing-probe/batch", h.Admin.Account.ProbeUpstreamBillingBatch)
@@ -609,6 +610,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 网关请求归档配置
 		adminSettings.GET("/request-archive", h.Admin.Setting.GetRequestArchiveSettings)
 		adminSettings.PUT("/request-archive", h.Admin.Setting.UpdateRequestArchiveSettings)
+		// OpenAI OAuth image-tool unavailable cooldown configuration
+		adminSettings.GET("/openai-images-oauth-unavailable-cooldown", h.Admin.Setting.GetOpenAIImagesOAuthUnavailableCooldownSettings)
+		adminSettings.PUT("/openai-images-oauth-unavailable-cooldown", h.Admin.Setting.UpdateOpenAIImagesOAuthUnavailableCooldownSettings)
 		// 面板 API 限流配置
 		adminSettings.GET("/panel-rate-limit", h.Admin.Setting.GetPanelRateLimitSettings)
 		adminSettings.PUT("/panel-rate-limit", h.Admin.Setting.UpdatePanelRateLimitSettings)

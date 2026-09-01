@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.1.185 合并增量
+
+- `restrict_public_groups` 默认 false 以保持存量权限；开启后，用户只能把 API Key 绑定到 `user_allowed_groups` 中的公开分组，专属分组仍沿用同一白名单。开关或关系变更后必须失效 API Key auth cache，避免 L1/L2 快照在 TTL 内继续放行旧权限。
+- Codex catalog 入口必须先完成 API Key 鉴权并绑定具体 group。生成/增强后的 manifest 按分组 custom models、账号映射和能力交集过滤，最终 ETag 基于分组特定 body；不得跨 API Key/group 复用已过滤 manifest，也不将通配映射键或专用媒体生成模型当作可选 Codex 模型。
+- 普通用户用量 DTO 只展示客户端请求的 reasoning effort，不暴露策略改写后的 `upstream_reasoning_effort`；管理侧仅在有效值与请求值不同时返回上游口径。在用量查询合同中，`native_compaction_v2` 是独立分类标记，不替代 `request_type`/`stream`，过滤参数也不得改变原有路由、鉴权或计费准入。
+- 数据库初始化重试必须 fail-closed 区分短暂与永久错误：只重试 PostgreSQL SQLSTATE `57P03` 和 `08*`，最多额外 8 次、1 秒起并在 30 秒封顶；`28P01`、migration checksum mismatch、SQL/数据错误立即失败，不得用无界重试隐藏配置或数据损坏。
+
 ## 0.1.183 合并增量
 
 - 插件默认拒绝未签名 `.s2plugin`；Ed25519 签名验证 publisher，manifest/file SHA-256 验证包内容，但不证明实现安全。插件是继承服务用户文件、环境和网络权限的独立子进程，不是 OS sandbox；OAuth transport 插件故障必须 fail-closed，不能静默改走另一条网络路径。

@@ -1,5 +1,13 @@
 # 数据与领域基线
 
+## 0.1.185 合并增量
+
+- 本轮新增三个独立的 `231_*` migration：`231_add_usage_log_native_compaction_v2.sql`、`231_add_usage_log_requested_reasoning_effort.sql` 和 `231_user_restrict_public_groups.sql`。migration runner 按完整文件名排序与记录 checksum；同序号文件不得合并、重命名或修改已应用内容。
+- `usage_logs.native_compaction_v2 BOOLEAN NOT NULL DEFAULT FALSE` 只标记运行时确认的原生 OpenAI remote compaction v2，不替代 `request_type` 或 `stream`。列表、费用/模型聚合、trend 与 dashboard snapshot 都必须传递同一个可选布尔过滤。
+- `usage_logs.requested_reasoning_effort VARCHAR(20)` 可空且无默认值，保存策略改写和模型族映射前的客户端值；原 `reasoning_effort` 保存有效转发值。历史行或客户端未声明时新列为 NULL，展示层才可回退旧口径。
+- `users.restrict_public_groups BOOLEAN NOT NULL DEFAULT false` 保持存量用户可绑定任意公开分组。为 true 时，现有 `user_allowed_groups` 关系同时表示公开分组白名单和专属分组授权；只有管理侧 DTO 暴露该开关。
+- 长上下文阶梯的数据源是模型价格目录或 `pricing.override_file`。override 在远程目录与 fallback 之上按字段浅合并，`null` 删除字段；条目显式 `long_context_*` 值优先于从 `*_above_<N>k_tokens` 折算的阶梯。
+
 ## 0.1.183 合并增量
 
 - `backend/migrations/224_user_platform_quotas_add_cn_providers.sql` 把 `kimi`、`zhipu`、`deepseek` 加入用户平台配额约束；缺失配额行会被解释为无限额，因此该约束必须与 `AllowedQuotaPlatforms` 同步。`225_backfill_codex_fingerprint_seed.sql` 为已启用 fingerprint mode 的 OpenAI OAuth 账号补合法 UUID seed，保留既有有效值。

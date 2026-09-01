@@ -12,6 +12,14 @@
   - 构建: `cd backend && make build`
 - 生成: `cd backend && make generate`
 
+## 0.1.185 合并增量
+
+- Codex model catalog 由 API Key 绑定分组决定。`GET /models?client_version=...` 与 `GET /backend-api/codex/models` 共用分派入口：OpenAI 分组可在上游 manifest 上合并账号模型映射，Composite/CN 等路由分组从有效模型列表生成完整 catalog。分组 custom model list 继续过滤最终 picker，ETag 必须基于分组特定的最终 body，不能跨分组复用过滤结果。
+- 价格目录可从 `*_above_<N>k_tokens` 绝对价格字段折算长上下文阈值与输入/输出倍率；条目显式携带 `long_context_*` 字段时以显式值为准。`pricing.override_file` 按精确模型名对目录/回退数据做 JSON 字段级浅合并，patch 值为 `null` 时删除对应字段，优先级最高。
+- 用量链保留两个 reasoning 口径：`requested_reasoning_effort` 记录分组策略/模型族映射前的客户端请求值，原 `reasoning_effort` 记录最终转发值。`native_compaction_v2` 只在运行时确认原生 OpenAI remote compaction v2 时为 true，并作为用户/管理用量列表、聚合与看板的独立过滤维度。
+- `users.restrict_public_groups=false` 保持公开分组默认可绑定；开启后，公开分组与专属分组都必须出现在该用户的 `user_allowed_groups` 关系中。管理端更新该开关或 allowed groups 后必须失效用户的 API Key auth cache。
+- PostgreSQL migration 初始化只对 SQLSTATE `57P03` 和 connection exception class `08*` 做有界重试：最多额外重试 8 次，从 1 秒指数退避，30 秒封顶。认证失败、migration checksum/SQL 错误等永久错误立即返回，context 取消也必须停止等待。
+
 ## 0.1.183 合并增量
 
 - 国产 provider 扩为 `kimi`、`zhipu`、`deepseek` 三个具体平台，复用 OpenAI-compatible 数据面但可按账号选择 `chat_completions`、`anthropic` 或 adaptive protocol。Adaptive 账号测试必须覆盖 Chat Completions、原生 `/v1/messages`，DeepSeek 还覆盖原生 `/v1/responses`；Composite route 可解析并路由这三类平台，但 Responses WebSocket 仍只允许 OpenAI/Grok。

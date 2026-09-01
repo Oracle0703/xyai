@@ -11,6 +11,13 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.1.185 合并增量
+
+- `UseKeyModal.vue` 通过当前 API Key 请求 Codex routed catalog，可下载 `codex-models.json` 并在 `config.toml` 写入 `model_catalog_json`。Unix 默认使用 `~/.codex/codex-models.json`，Windows 使用 `%userprofile%\.codex\codex-models.json`；界面不能从未鉴权的公共模型列表猜测 catalog。
+- 用量界面优先展示客户端请求的 reasoning effort；管理表格可同时展示策略/模型映射后的 `upstream_reasoning_effort`，普通用户响应不暴露该字段。用户与管理视图都支持 `native_compaction_v2` 三态过滤，并将该维度传入列表、统计、模型分布和 snapshot 请求。
+- `UserAllowedGroupsModal.vue` 的公开分组默认仅展示为可用；开启 `restrict_public_groups` 后才允许逐项选择，保存时将选中的公开分组与专属分组一起写入 `allowed_groups`。关闭限制时公开分组恢复全选展示，且不作为额外授权提交。
+- 兑换码到期时间按用户本地时区严格解析 `datetime-local`，编辑、复制和展示必须共用 `formatDateTimeLocalInput` 口径，不能将无时区字符串当 UTC 再二次偏移。
+
 ## 0.1.183 合并增量
 
 - 账号创建/编辑支持 Kimi、智谱、DeepSeek，统一 provider catalog、颜色和图标；CN 账号可配置 OpenAI/Anthropic/adaptive protocol、base URL preset 与 header overrides。`CreateAccountModal.vue` 仍必须保留本地 OpenAI-compatible provider preset，平台切换时分别重置上游 CN 状态与本地 preset 状态。

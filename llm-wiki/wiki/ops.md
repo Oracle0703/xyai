@@ -2,7 +2,8 @@
 
 ## 当前版本基线
 
-- 当前在 `feature/hy/10183_merge_sub2api_183` 以 `main@0747c896abf8202dff9935a30f020317ebdc91fc` 为第一父，固定合并上游 `Wei-Shaw/sub2api main@7634e3c23b5b9afc588c37b170820f63f1d41bbb`；merge base 为 `baeac1f3de21d37b129405f092ef86c24b3f203d`，`backend/cmd/server/VERSION` 为 `0.1.183`，当前保留 `MERGE_HEAD` 等待用户审核。该 exact SHA 依次包含 VERSION 同步边界 `0.1.179@2bc139ab`、`0.1.180@03e8ab41`、`0.1.181@e2d9b823`、`0.1.182@aa2c4e8d`、`0.1.183@7634e3c2`，并包含 `0.1.178@49504adc`；不要用用户口述版本、标签或更晚 upstream HEAD 替代固定提交。
+- 当前在 `feature/hy/10185_merge_sub2api_185` 以最新 `main@48b74c5d55ac4544cfef47411ac0cf1194c33859` 为第一父，固定合并上游 `Wei-Shaw/sub2api main@a2fb09260a955676f99cdc92f05469febee82a08`；merge base 为 `7634e3c23b5b9afc588c37b170820f63f1d41bbb`，`backend/cmd/server/VERSION` 为 `0.1.185`。相对 merge base 共 196 commits、370 files、`+22665/-1995`，当前保留 `MERGE_HEAD=a2fb09260a955676f99cdc92f05469febee82a08` 等待用户审核；不要用标签、版本口述或更晚 upstream HEAD 替代该精确边界。
+- `feature/hy/10183_merge_sub2api_183` 已以 merge commit `48b74c5d55ac4544cfef47411ac0cf1194c33859` 合并上游 `Wei-Shaw/sub2api main@7634e3c23b5b9afc588c37b170820f63f1d41bbb`；第一父为 `0747c896abf8202dff9935a30f020317ebdc91fc`，merge base 为 `baeac1f3de21d37b129405f092ef86c24b3f203d`，当时 `backend/cmd/server/VERSION` 为 `0.1.183`。该 exact SHA 依次包含 VERSION 同步边界 `0.1.179@2bc139ab`、`0.1.180@03e8ab41`、`0.1.181@e2d9b823`、`0.1.182@aa2c4e8d`、`0.1.183@7634e3c2`，并包含 `0.1.178@49504adc`。
 - `feature/hy/10177_merge_sub2api_177` 已以 merge commit `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
 - `feature/hy/10176_merge_sub2api_176` 已以 merge commit `e2d3a4984087e69ae778b1237dfcc14bca9f1749` 通过 PR #40 合入 `main@65bd97fe3b8e78888f544f26027081bec97f7177`; 固定上游提交为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, 后端版本为 `0.1.176`。
 - 当前正在 `feature/hy/10173_merge_sub2api_173` 合并上游 `Wei-Shaw/sub2api main@48eb3766d2da817b171b45bb3036d42575e42b8f`: 本地第一父/合并前 HEAD 为 `ddbb0426bfaa5623e31d588977004a9f62bb4772`, 与上游的 merge base 为 `aac53afe0ef1ae850e2f18b5d2814ac67c835e7e`, `backend/cmd/server/VERSION` 为 `0.1.173`。当前保留 `MERGE_HEAD`, merge commit 待用户审核；不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
@@ -276,6 +277,15 @@ if ($LASTEXITCODE -ne 0) {
 | `x-codex-turn-state`、指纹 opt-in 与 passthrough | `go test -p 1 -count=1 ./internal/service -run 'TurnState|Fingerprint|Passthrough'` |
 | 前端分组今日/昨日费用和账号表单默认值 | `pnpm --dir frontend exec vitest run src/api/__tests__/admin.groups.usage-summary.spec.ts src/views/admin/__tests__/GroupsView.columnSettings.spec.ts src/components/account/__tests__/CreateAccountModal.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/BulkEditAccountModal.spec.ts`（仓库根目录运行） |
 
+0.1.185 专项回归入口（后端命令在 `backend/` 目录运行）:
+
+| 风险面 | 命令 |
+| --- | --- |
+| Codex routed catalog、分组隔离与路由 | `go test -p 1 -count=1 ./internal/handler ./internal/server/routes ./internal/service -run 'CodexModels|GatewayCodexModels|CodexModel|Catalog'` |
+| 价格 override、目录长上下文阶梯与 DB 启动重试 | `go test -p 1 -count=1 ./internal/service ./internal/repository -run 'Pricing|LongContext|DeepSeek|TransientDatabase|InitializeDatabase'` |
+| native compaction、reasoning 双口径与公开分组限制 | `go test -p 1 -count=1 ./internal/handler ./internal/handler/admin ./internal/repository ./internal/service -run 'NativeCompaction|RequestedReasoningEffort|ReasoningEffort|UserCanBindGroup|RestrictPublicGroups'` |
+| 前端 Codex config、用量和本地时间口径 | `pnpm --dir frontend exec vitest run src/__tests__/integration/usage-reasoning-effort.spec.ts src/api/__tests__/codex.spec.ts src/utils/__tests__/codexCatalogConfig.spec.ts src/utils/__tests__/formatDateTimeLocalInput.spec.ts src/utils/__tests__/formatReasoningEffort.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts src/components/admin/usage/__tests__/UsageFilters.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/UsageView.spec.ts src/views/user/__tests__/UsageView.spec.ts`（仓库根目录运行） |
+
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 
 如果同一测试二进制在多个 fresh `GOTMPDIR` 中持续 `Access is denied`, 且连 `Get-Acl` 或只读文件句柄都被拒绝, 应通过 `Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct` 核对第三方安全软件, 不要只查 Windows Defender。未经授权不得关闭杀软或添加白名单; 也不能把 `go list -tags=...` 的文件集合等价、其他 tag 通过或 `go test -c` 编译成功写成被阻断命令的“通过”。交付记录必须分别列出完整命令的通过包、被阻断包、独立重跑和环境证据。
@@ -324,7 +334,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.9`, working-directory `backend`
-- Go 版本校验: `go1.26.6`
+- Go 版本校验: `go1.27.0`
 
 `.github/workflows/security-scan.yml`:
 
@@ -364,7 +374,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_ws.client_first_message_timeout_seconds`: 默认 30 秒, 必须为正数, 否则启动校验失败; 覆盖首条客户端 `response.create` 的完整读取和解压。大请求或慢链路可调到 120-300 秒, 但值越大会越久占用 ingress 连接和 lease 资源。
 - `gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds`: completed turn 之间的客户端空闲上限, 默认 300 秒, 0 关闭, 负数配置拒绝启动。
 - `gateway.openai_ws.max_ingress_connections_per_api_key`: 多实例范围每个 API Key 的存活 ingress 连接上限, 默认 64, 0 关闭; 依赖 Redis lease, 缓存不支持或 lease 丢失时 fail-close。
-- `database`: PostgreSQL 连接池。
+- `database`: PostgreSQL 连接池。启动 migration 对 SQLSTATE `57P03` 和 `08*` 连接异常最多额外重试 8 次，退避从 1 秒开始并在 30 秒封顶；认证、checksum 和 SQL 等永久错误立即失败。Compose PostgreSQL healthcheck 同时执行 `pg_isready` 与 `SELECT 1`，只负责启动排序，不替代应用层重试。
 - `database.user_platform_quota_flusher_*`: user x platform quota 写聚合 flusher 配置; 默认关闭, 开启时必须考虑多实例 leader lock。
 - `redis`: Redis 连接池、ACL `username`、password 和 TLS；使用默认 Redis 用户时 `username` 留空。
 - `api_key_auth_cache`: L1/L2 TTL、singleflight、`lookup_concurrency=64` 和进程内 invalid-auth abuse limiter；默认每可信客户端 IP（IPv6 按 `/64`）60 秒 120 次无效凭据后阻断 60 秒, capacity 16384。它不是 CDN/WAF 的替代品。
@@ -374,7 +384,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - OpenAI Codex 客户端版本自动同步默认开启, setting key 为 `openai_codex_version_auto_sync_enabled`；同步结果写入版本设置供 `codex_cli_only` 策略缓存读取。若部署不能访问 GitHub release API, 服务会保留旧值并告警。
 - `jwt`, `totp`: 登录和 2FA 安全配置。
 - OAuth: LinuxDo, WeChat, OIDC, DingTalk, GitHub, Google。
-- `pricing`: 模型价格远程源, hash 校验和 fallback 文件。
+- `pricing`: 模型价格远程源、hash 校验和 fallback 文件。可选 `override_file` 优先级最高，按精确模型名对 JSON 字段做浅合并，值为 `null` 表示删除字段；修改后重启或等待下次目录下载生效。文件缺失/无效只告警并跳过 override，不中断目录/fallback 加载。
 - `billing`: 计费熔断。
 - `gemini`: OAuth 和本地 quota 模拟。
 - `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。管理端备份页通过 `/api/v1/admin/backups/image-storage` 读取、测试和保存运行时设置, 可复用备份 S3 凭据；保存目标受 step-up 2FA 保护, 独立 secret 加密入库且 API 不回显。数据库配置优先且保存后失效 resolver/uploader 缓存, 下一次异步图片请求立即采用新配置, 无需重启；从未保存过后台配置时回落 YAML/环境变量。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。生产环境若上游 URL 不可信, 应保持 `image_storage` 关闭直至 SSRF/任务恢复风险被上游修复。
