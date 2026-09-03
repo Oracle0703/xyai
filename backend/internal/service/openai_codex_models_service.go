@@ -310,7 +310,7 @@ const (
 	configuredCodexDeepSeekV4Context   = 1_000_000
 	configuredCodexGrokContext         = 500_000
 	configuredCodexGrokBuildContext    = 256_000
-	configuredCodexGPT56MaxContext     = 872_000
+	configuredCodexGPT56MaxContext     = configuredCodexFallbackContext
 	configuredCodexToolOutputMaxTokens = 10_000
 )
 

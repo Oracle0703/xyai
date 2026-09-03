@@ -15,6 +15,7 @@
 ## 0.1.185 合并增量
 
 - Codex model catalog 由 API Key 绑定分组决定。`GET /models?client_version=...` 与 `GET /backend-api/codex/models` 共用分派入口：OpenAI 分组可在上游 manifest 上合并账号模型映射，Composite/CN 等路由分组从有效模型列表生成完整 catalog。分组 custom model list 继续过滤最终 picker，ETag 必须基于分组特定的最终 body，不能跨分组复用过滤结果。
+- 本地生成的 GPT-5.6 Codex descriptor 将 `max_context_window` 固定为 fallback `272000`，与默认 `context_window` 一致，使遵守 catalog 的 Codex 客户端保持标准上下文和自动压缩口径。该字段是客户端能力合同，不是网关请求前 token 准入限制，也不改变长上下文计费开关。
 - 价格目录可从 `*_above_<N>k_tokens` 绝对价格字段折算长上下文阈值与输入/输出倍率；条目显式携带 `long_context_*` 字段时以显式值为准。`pricing.override_file` 按精确模型名对目录/回退数据做 JSON 字段级浅合并，patch 值为 `null` 时删除对应字段，优先级最高。
 - 用量链保留两个 reasoning 口径：`requested_reasoning_effort` 记录分组策略/模型族映射前的客户端请求值，原 `reasoning_effort` 记录最终转发值。`native_compaction_v2` 只在运行时确认原生 OpenAI remote compaction v2 时为 true，并作为用户/管理用量列表、聚合与看板的独立过滤维度。
 - `users.restrict_public_groups=false` 保持公开分组默认可绑定；开启后，公开分组与专属分组都必须出现在该用户的 `user_allowed_groups` 关系中。管理端更新该开关或 allowed groups 后必须失效用户的 API Key auth cache。
