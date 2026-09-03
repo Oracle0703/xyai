@@ -1798,3 +1798,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Backend v0.1.185 focused tests 与本地 features 核心回归通过；`go build ./...`、`go build -tags=embed ./...`、`go mod tidy -diff` 均退出 0；`golangci-lint v2.13 --new-from-rev=HEAD` 为 `0 issues`。Frontend 首轮全量测试暴露上述两处旧 provider 断言，合同适配后 `UseKeyModal.spec.ts` 20/20 通过；最终 lint、typecheck、完整 Vitest 278/278 files、1999/1999 tests、production build 1072 modules 均通过。索引无 unmerged 文件或冲突标记，`git diff --cached --check` 与工作树 diff check 通过。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，source hash 与当前 Wiki 一致；`tools\check-understand-status.cmd -AllowDirtyWiki` 返回 READY。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-09-02 main sync (v0.2.0; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10200_merge_sub2api_200` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `ba4fdebb4b01c0088d387f2b649c46c38ef7b707`（任务开始时最新本地 `main`，与 `github/main` 一致） |
+| Merge base | `a2fb09260a955676f99cdc92f05469febee82a08`（上游 v0.1.185） |
+| Upstream head / second parent | `5097b31457e6dc9f49e5f5c9c72b925ce79543b3` |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=5097b31457e6dc9f49e5f5c9c72b925ce79543b3`** |
+| Upstream version / delta | 固定 SHA 的 `backend/cmd/server/VERSION` 为 `0.2.0`。从 merge base 到固定上游共 60 commits、148 files、`+4926/-543`；不以标签、版本口述或更晚 upstream HEAD 替代该精确边界。 |
+| Conflict files | 无文本冲突。`git merge --no-commit --no-ff` 自动合并完成，`git ls-files -u` 为空。 |
+| Conflict handling | 26 个双方修改路径完成三方语义审查；功能真正重叠处采用上游实现，本地独有能力继续保留。仅有两项必要合同同步：按上游扩展后的 reasoning effort mapping schema 连续生成 Ent，最终只留下生成注释同步；本地 large-request 测试按 0.2.0 API Key Chat 租户隔离 cache identity 合同，把 `prompt_cache_key` 旧“不存在”断言改为“存在”。未修改额外生产逻辑，未修复上游自身问题。 |
+| Semantic overlap review | 上游增量 148 files 中 26 个 both-modified 路径按 Ent/schema、分组策略、API Key cache、网关转发、计费、前端分组/渠道/模型广场分组审查；新增 OpenAI Fast、reasoning effort 映射和渠道 cache-write 定价均与本地横切能力并存。Ent 连续生成两次稳定，未发现本地独有调用链或上游增量丢失。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件在当前工作树中 24/24 保留、零删除；除本 ledger 追加外其余 feature 文档不改。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、large-request compaction、quota flusher 和 reasoning-only failover 均保留；功能真正重叠处采用上游实现。 |
+| Upstream behavior | 合入 OpenAI/Composite 分组强制 Fast 与 Fast 免费计费、按模型精确名/前缀/后缀限定的 reasoning effort 映射及超限降档/拒绝、渠道 1 小时 cache-write 价格、Kimi 原生 Responses、OpenAI API Key Chat 兼容路径的租户隔离 cache identity，并补充 Claude Fable 5.1 与多项网关边界修正；新增 migrations `232_channel_cache_write_1h_pricing.sql`、`232_group_force_openai_fast.sql`、`232_group_reasoning_effort_over_limit.sql`、`233_group_free_openai_fast.sql`。 |
+| Upstream / baseline issue boundary | Windows backend default、unit、integration 全量均稳定复现 4 个 `TestPluginPackageInstaller*` 在保存插件包时 `rename ... The process cannot access the file because it is being used by another process`；相关实现和测试在第一父、固定上游及当前结果中的 blob 完全一致，按要求不修改。default 另有 `TestRecordCyberPolicyEvent_RuntimeSnapshotRefreshFailureKeepsStaleScope` 的 1 秒条件偶发未满足，fresh `GOTMPDIR` 精确重跑及随后 unit 全量均通过。unit 仍有第一父既有 `/api/v1/auth/me` golden 少 `admin_permissions:null` 的差异。integration 另有 17 个按既有前置条件 skip：Docker 未启用、Windows 无 symlink 权限，以及未提供 Prompt Audit Redis/PostgreSQL、TLS capture、OpenAI API Key、本地插件包等显式环境。以上只记录，不修上游或基线问题。 |
+| Verification | Backend focused 回归通过；default 全量除上述 4 个 Plugin 文件锁和一次 cyber 时序波动外完成，cyber 精确复跑通过；unit 除 4 个 Plugin 文件锁及 `auth/me` 既有 golden 外完成；integration 除 4 个 Plugin 文件锁与 17 个前置条件 skip 外完成。`go build ./...`、`go build -tags=embed ./...`、`go mod tidy -diff` 均退出 0；CI 同版 `golangci-lint v2.13.0`（Go 1.27.0）执行 `--new-from-rev=HEAD` 为 `0 issues`。Frontend focused 9 files / 116 tests、lint、typecheck、完整 Vitest 280/280 files、2020/2020 tests、production build 1074 modules 均退出 0。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，同步 5 个受影响组件 README 并追加本条。Wiki 图谱刷新为 33 nodes / 67 edges、8 layers、7 tour steps、49 wikilinks、0 unresolved，source hash `1576bbab0226` 与当前 Wiki 一致；`tools\check-understand-status.cmd -AllowDirtyWiki` 返回 READY。 |
+| Approval / delivery | 最终 staged snapshot 为 162 files / `+5038 -562`，0 unstaged、0 untracked、0 unmerged；`git diff --cached --check` 通过，`MERGE_HEAD` 精确等于固定目标。保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |

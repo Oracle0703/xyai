@@ -1,5 +1,13 @@
 # 数据与领域基线
 
+## 0.2.0 合并增量
+
+- 本轮新增三个独立 `232_*` migration 与一个 `233_*` migration：`232_channel_cache_write_1h_pricing.sql`、`232_group_force_openai_fast.sql`、`232_group_reasoning_effort_over_limit.sql`、`233_group_free_openai_fast.sql`。migration runner 仍按完整文件名排序/去重和记录 checksum；重复数字前缀的已发布文件不得合并、重命名或改写。
+- `groups.force_openai_fast BOOLEAN NOT NULL DEFAULT FALSE` 会强制 OpenAI/Composite 分组的 OpenAI 请求先进入 priority 档；`groups.free_openai_fast BOOLEAN NOT NULL DEFAULT FALSE` 只把 Fast/priority 的用户收费按 Standard 价格重算。两字段必须经 Ent、group repository、API Key auth snapshot 和 scheduler cache 保真，但普通用户 Group DTO 不暴露。
+- `groups.max_reasoning_effort_over_limit VARCHAR(20) NOT NULL DEFAULT 'downgrade'` 保持存量自动降档行为，可显式设为 `deny`。`reasoning_effort_mappings` 中的每项新增可选 `match_type` 与 `model`，与旧 `{from,to}` JSON 兼容；同一 source 只在相同模型范围内禁止重复，总项数仍最多 64。
+- `cache_write_1h_price NUMERIC(20,12)` 同时加入 `channel_model_pricing`、`channel_pricing_intervals`、`channel_account_stats_model_pricing` 和 `channel_account_stats_pricing_intervals`。NULL 保持旧行为：`cache_write_price` 同时作为 5m/1h 价；显式 1h 值单独覆盖 1h 档，0 是合法免费价，不可用 falsy fallback 丢失。
+- Claude Fable 5/5.1 fallback 定价均为 input 10、output 50、5m cache-write 12.5、1h cache-write 20 USD/MTok；Fable 5 cache-read 为 1 USD/MTok，Fable 5.1 为 0.25 USD/MTok。模型别名匹配必须先判 Fable 5.1，避免被更宽的 Fable 5 分支截获。
+
 ## 0.1.185 合并增量
 
 - 本轮新增三个独立的 `231_*` migration：`231_add_usage_log_native_compaction_v2.sql`、`231_add_usage_log_requested_reasoning_effort.sql` 和 `231_user_restrict_public_groups.sql`。migration runner 按完整文件名排序与记录 checksum；同序号文件不得合并、重命名或修改已应用内容。

@@ -11,6 +11,13 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.2.0 合并增量
+
+- `GroupsView.vue` 仅在 OpenAI/Composite 分组展示“强制 Fast（priority）”和“Fast 免费计费”开关；创建、编辑、复制和 API 类型要同时保真，切换到其他 platform 时必须清空。两个字段是管理策略，不应从普通分组 DTO 推断或展示。
+- `ReasoningEffortPolicyFields.vue` 将映射按 `exact|prefix|suffix + model` 范围分组，同一范围可配置多个 from/to pair；全局范围的类型和模型都留空。表单要拒绝重复范围和同范围重复 source，并在设置上限时保真 `downgrade|deny` 超限动作；仅 OpenAI/Composite 可编辑。
+- 渠道与 Model Plaza 价格类型新增可空 `cache_write_1h_price`。`PricingEntryCard.vue` / `IntervalRow.vue` 分开编辑 5 分钟和 1 小时 cache-write 价；`SupportedModelChip.vue` 与 `PlazaModelPricingTable.vue` 只在 1h 值存在时增显该档，不得把缺失值当成免费。
+- Kimi PayG/Coding 账号现在可在创建、编辑和 adaptive protocol 配置中选择原生 Responses；`credentialsBuilder.ts#cnSupportsNativeResponses` 是 DeepSeek/Kimi 共用的能力判定，Zhipu 仍不显示该选项。Claude Fable 5.1 同步加入模型白名单/preset、Antigravity 状态与用量展示、OpenCode 模型配置。
+
 ## 0.1.185 合并增量
 
 - `UseKeyModal.vue` 通过当前 API Key 请求 Codex routed catalog，可下载 `codex-models.json` 并在 `config.toml` 写入 `model_catalog_json`。Unix 默认使用 `~/.codex/codex-models.json`，Windows 使用 `%userprofile%\.codex\codex-models.json`；界面不能从未鉴权的公共模型列表猜测 catalog。

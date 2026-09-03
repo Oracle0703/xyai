@@ -12,6 +12,15 @@
   - 构建: `cd backend && make build`
 - 生成: `cd backend && make generate`
 
+## 0.2.0 合并增量
+
+- Group 新增 `force_openai_fast` 和 `free_openai_fast`，仅 OpenAI/Composite 分组有效且只通过管理 DTO 暴露。强制 Fast 会在 HTTP Responses/Chat/Messages/passthrough 与 WS `response.create` 上先写入 `service_tier=priority`，然后仍由全局 OpenAI Fast Policy 决定 pass/filter/block/force_priority；免费 Fast 只把用户 `actual_cost` 按 Standard 重算，上游 `total_cost`、`service_tier` 和账号成本审计仍保留 priority 口径。
+- OpenAI/Composite 分组的 reasoning effort 映射可用 `exact|prefix|suffix + model` 限定模型范围；匹配优先级为精确名 > 前/后缀 > 全局，同级选更长 pattern，再按配置顺序。映射后再应用 `max_reasoning_effort`；`max_reasoning_effort_over_limit=downgrade` 保持旧的自动降档，`deny` 则在 HTTP/WS 各路径拒绝超限请求并标记 local-policy business limited。未显式携带 effort 的请求仍不会被主动开启推理。
+- Kimi PayG 和 Coding Plan 现在与 DeepSeek 一样支持显式 `responses` 及 adaptive 的原生 Responses 路径；Kimi 目标为 `/v1/responses`，DeepSeek 仍为 `/responses`。这些 CN Responses 上游按无状态处理：强制 `store=false`、删除 `previous_response_id`，adaptive 账号连通性测试同时验证 Chat Completions、Anthropic 和 Responses 端点。
+- OpenAI API Key 账号的 Chat Completions -> Responses 兼容路径会对 GPT-5/Codex 族、未显式给定 cache key 的 Chat 形状自动派生稳定 `prompt_cache_key`，并先混入 API Key ID 再生成上游 `session_id`；Responses 形状不自动派生，显式 key 仍走原有账号/租户隔离链。Agent Identity task recovery 必须保留已派生的 identity，不得在递归重试时二次隔离。
+- Anthropic Messages 出站 body 的 `fallbacks` 只在最终 `anthropic-beta` 含 `server-side-fallback-2026-07-01` 时保留，`fallback_credit_token` 需 server-side-fallback 或 fallback-credit beta 之一；否则在 CCH 签名前删除。Responses WS 上游在 active turn 未收到终态协议事件就 close/EOF 时必须按 relay failure 处理，不得仅因 WebSocket 正常 close handshake 报成功。
+- 渠道 token 价格新增可选 `cache_write_1h_price`，在模型平价、分时价、账号统计平价和统计分时价中保持同一合同。未配置 1h 价时，旧 `cache_write_price` 仍同时覆盖 5m/1h；显式 1h 价（包括 0）单独覆盖 1h 档。Claude Fable 5.1 加入默认模型与 fallback 价格，cache read 为 Fable 5 的四分之一，其他 token/cache-write 口径与 Fable 5 一致。
+
 ## 0.1.185 合并增量
 
 - Codex model catalog 由 API Key 绑定分组决定。`GET /models?client_version=...` 与 `GET /backend-api/codex/models` 共用分派入口：OpenAI 分组可在上游 manifest 上合并账号模型映射，Composite/CN 等路由分组从有效模型列表生成完整 catalog。分组 custom model list 继续过滤最终 picker，ETag 必须基于分组特定的最终 body，不能跨分组复用过滤结果。

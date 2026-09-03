@@ -11,6 +11,11 @@
 
 `SupportedModelChip.vue` 和 `PricingRow.vue` 负责模型能力与价格明细；`AvailableChannelsTable.vue` 只组织分组和响应式呈现, 不重新计算后端定价。
 
+## Cache write 价格
+
+- `cache_write_price` 在界面标记为 5m cache-write 价；可选 `cache_write_1h_price` 存在时再单独展示 1h 价。
+- 1h 缺失是后端“沿用 5m 价”的兼容语义，不是 0 价；显式 0 必须显示为免费档。分时价格的 5m/1h 也遵守同一规则。
+
 ## 验证
 
 ```powershell

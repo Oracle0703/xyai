@@ -10,7 +10,7 @@
 | `EditAccountModal.vue` | 编辑凭据、模型映射、endpoint capability、pool mode、订阅档位和平台扩展 |
 | `credentialsBuilder.ts` | 纯函数形式构建、清理和规范化账号 credentials |
 | `AccountUsageCell.vue` / `UsageProgressBar.vue` | 账号额度、剩余额度和未知状态展示 |
-| `AccountStatusIndicator.vue` | 账号状态、模型 scope 和短标签展示；Claude Opus 5 / Sonnet 5 分别使用 `COpus5` / `CSonnet5` |
+| `AccountStatusIndicator.vue` | 账号状态、模型 scope 和短标签展示；Claude Fable 5.1 / Opus 5 / Sonnet 5 分别使用 `CFable51` / `COpus5` / `CSonnet5` |
 | `ModelWhitelistSelector.vue` | 账号模型白名单选择、搜索和模型 ID 复制；复制动作不改变当前选中状态 |
 | `OAuthAuthorizationFlow.vue` | OAuth 授权输入和状态复用 |
 | `UpstreamBillingRateCell.vue` | 全部 API Key 平台账号的自动探测状态、倍率快照、下次 probe、stale 状态和手动 probe |
@@ -28,6 +28,13 @@
 | Anthropic | `https://api.anthropic.com` | `sk-ant-...` | 可配置 header override 等既有扩展 |
 
 OpenAI-compatible provider preset 是本地功能，不能在上游合并时被整块替换。Grok API Key 是 0.1.153 新增路径，两者必须同时保留；对应回归位于 `__tests__/credentialsBuilder.spec.ts` 和 `__tests__/CreateAccountModal.grok.spec.ts`。
+
+## CN provider 原生 Responses
+
+- `credentialsBuilder.ts#cnSupportsNativeResponses` 是创建/编辑表单的统一能力判定：DeepSeek 和 Kimi 可选 `responses`，Zhipu 不可选。
+- Kimi PayG 默认 Responses base 为 `https://api.moonshot.cn/v1`，Coding Plan 为 `https://api.kimi.com/coding/v1`；端点路径由后端追加 `/responses`。
+- adaptive 模式下 DeepSeek/Kimi 会按 Responses 入站使用原生端点，Zhipu 仍回落 Chat Completions 转换链。修改协议选项、base URL 或 reset 逻辑时同步 `credentialsBuilder.cnAdaptive.spec.ts`、`CreateAccountModal.spec.ts` 和 `EditAccountModal.spec.ts`。
+- `AccountUsageCell.vue` 与 `AccountStatusIndicator.vue` 已将 `claude-fable-5-1` 纳入 Antigravity Claude 用量和状态展示，不应回退到 Fable 5 的模糊标签。
 
 ## 编辑与凭据规则
 

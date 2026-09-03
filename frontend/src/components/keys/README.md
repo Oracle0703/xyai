@@ -27,6 +27,11 @@
 - Legacy Login 输出 `requires_openai_auth = true`。API Key Mode 输出 `requires_openai_auth = false` 和 `x-openai-actor-authorization = "local-image-extension"`; 两种模式都生成 `auth.json`。
 - provider 选择器测试必须分别按普通模板的 `xunyou` 和 WebSocket 模板的 `supports_websockets = true` 定位，不能假设两个模板使用同一 provider 名。
 
+## Claude/OpenCode 模型清单
+
+- `generateOpenCodeConfig` 的 Claude 清单包含 `claude-fable-5-1` / `Claude Fable 5.1`，context 为 1,048,576，output 为 128,000，支持 text/image/pdf 输入和 adaptive thinking。
+- 新增或重命名 Claude 模型时，要同步后端 `pkg/claude.DefaultModels`、白名单/preset、账号状态短标签与 `UseKeyModal.spec.ts`，避免配置生成器与模型列表分叉。
+
 ## 验证
 
 ```powershell

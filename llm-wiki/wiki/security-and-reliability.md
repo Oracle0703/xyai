@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.2.0 合并增量
+
+- 分组 `force_openai_fast` 不能绕过全局 OpenAI Fast Policy：网关先把信任的 group context 写为 `priority`，然后仍执行 user/account/model/tier 规则的 pass/filter/block/force_priority。`free_openai_fast` 只改用户 `actual_cost`，必须保留 priority 上游成本和 `service_tier` 审计；两者都只向管理 DTO 暴露，避免向用户泄露内部策略。
+- reasoning effort 策略只使用已解析为 OpenAI 的分组上下文，模型范围匹配不做模糊 contains；超限 `deny` 是本地准入拒绝，HTTP/Anthropic 兼容出口返回 403 并标记 `local_policy_denied`，WS 终止当前 turn。默认 `downgrade` 保持存量行为，未识别或缺省 effort 不应因此被拒绝。
+- OpenAI API Key Chat 兼容路径自动派生的 prompt-cache identity 会混入 API Key ID，使不同租户使用相同 model/system/first-user 前缀时也不共享上游 session。自动派生仅针对 GPT-5/Codex 族的 Chat 形状；Responses 形状不派生，并且不得在 Agent Identity recovery 重试中二次 hash 同一 identity。
+- Anthropic body 中的 `fallbacks`、`fallback_credit_token` 与 `context_management` 必须按最终出站 `anthropic-beta` 能力对称保留，缺少对应 token 就在签名前删除，不依赖模型名或客户端类型猜测。Bedrock Claude Code 兼容链也使用等价过滤，不可让 body 字段与 beta header 失配。
+- Codex scheduled automation 只对结构和内容都严格符合 automation bootstrap envelope、且缺少 `call_id` 的 `codex_app.automation_update` call output 改写为 user message；其他 function call output 仍执行通用 call-id/item-reference 校验。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
+
 ## 0.1.185 合并增量
 
 - `restrict_public_groups` 默认 false 以保持存量权限；开启后，用户只能把 API Key 绑定到 `user_allowed_groups` 中的公开分组，专属分组仍沿用同一白名单。开关或关系变更后必须失效 API Key auth cache，避免 L1/L2 快照在 TTL 内继续放行旧权限。

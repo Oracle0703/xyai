@@ -2,6 +2,7 @@
 
 ## 当前版本基线
 
+- 当前在 `feature/hy/10200_merge_sub2api_200` 以最新 `main@ba4fdebb4b01c0088d387f2b649c46c38ef7b707`（与 `github/main` 一致）为第一父，固定合并上游 `Wei-Shaw/sub2api main@5097b31457e6dc9f49e5f5c9c72b925ce79543b3`；merge base 为 `a2fb09260a955676f99cdc92f05469febee82a08`，`backend/cmd/server/VERSION` 为 `0.2.0`。上游增量共 60 commits、148 files、`+4926/-543`，当前保留 `MERGE_HEAD=5097b31457e6dc9f49e5f5c9c72b925ce79543b3` 等待用户审核；不要用标签、版本口述或更晚 upstream HEAD 替代该精确边界。
 - 当前在 `feature/hy/10185_merge_sub2api_185` 以最新 `main@48b74c5d55ac4544cfef47411ac0cf1194c33859` 为第一父，固定合并上游 `Wei-Shaw/sub2api main@a2fb09260a955676f99cdc92f05469febee82a08`；merge base 为 `7634e3c23b5b9afc588c37b170820f63f1d41bbb`，`backend/cmd/server/VERSION` 为 `0.1.185`。相对 merge base 共 196 commits、370 files、`+22665/-1995`，当前保留 `MERGE_HEAD=a2fb09260a955676f99cdc92f05469febee82a08` 等待用户审核；不要用标签、版本口述或更晚 upstream HEAD 替代该精确边界。
 - `feature/hy/10183_merge_sub2api_183` 已以 merge commit `48b74c5d55ac4544cfef47411ac0cf1194c33859` 合并上游 `Wei-Shaw/sub2api main@7634e3c23b5b9afc588c37b170820f63f1d41bbb`；第一父为 `0747c896abf8202dff9935a30f020317ebdc91fc`，merge base 为 `baeac1f3de21d37b129405f092ef86c24b3f203d`，当时 `backend/cmd/server/VERSION` 为 `0.1.183`。该 exact SHA 依次包含 VERSION 同步边界 `0.1.179@2bc139ab`、`0.1.180@03e8ab41`、`0.1.181@e2d9b823`、`0.1.182@aa2c4e8d`、`0.1.183@7634e3c2`，并包含 `0.1.178@49504adc`。
 - `feature/hy/10177_merge_sub2api_177` 已以 merge commit `a5ad8dfb3ec40b820d9b13f1e1257264f06618b2` 合并上游 `Wei-Shaw/sub2api main@baeac1f3de21d37b129405f092ef86c24b3f203d`: 本地第一父/合并前 HEAD 为 `main@65bd97fe3b8e78888f544f26027081bec97f7177`, 与上游的 merge base 为 `0e82efe48951cb7da1f8554639afdeab05bf16b8`, `backend/cmd/server/VERSION` 为 `0.1.177`。不要用标签、远程最新 HEAD 或其他中间提交替代这些精确边界。
@@ -285,6 +286,15 @@ if ($LASTEXITCODE -ne 0) {
 | 价格 override、目录长上下文阶梯与 DB 启动重试 | `go test -p 1 -count=1 ./internal/service ./internal/repository -run 'Pricing|LongContext|DeepSeek|TransientDatabase|InitializeDatabase'` |
 | native compaction、reasoning 双口径与公开分组限制 | `go test -p 1 -count=1 ./internal/handler ./internal/handler/admin ./internal/repository ./internal/service -run 'NativeCompaction|RequestedReasoningEffort|ReasoningEffort|UserCanBindGroup|RestrictPublicGroups'` |
 | 前端 Codex config、用量和本地时间口径 | `pnpm --dir frontend exec vitest run src/__tests__/integration/usage-reasoning-effort.spec.ts src/api/__tests__/codex.spec.ts src/utils/__tests__/codexCatalogConfig.spec.ts src/utils/__tests__/formatDateTimeLocalInput.spec.ts src/utils/__tests__/formatReasoningEffort.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts src/components/admin/usage/__tests__/UsageFilters.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/UsageView.spec.ts src/views/user/__tests__/UsageView.spec.ts`（仓库根目录运行） |
+
+0.2.0 专项回归入口（后端命令在 `backend/` 目录运行）:
+
+| 风险面 | 命令 |
+| --- | --- |
+| 分组 Fast/Free Fast、reasoning 模型范围与超限动作 | `go test -p 1 -count=1 ./internal/handler/admin ./internal/handler/dto ./internal/repository ./internal/service -run 'OpenAIFast|ForceOpenAIFast|FreeOpenAIFast|ReasoningEffort'` |
+| Kimi 原生 Responses、API Key cache identity 与网关边界 | `go test -p 1 -count=1 ./internal/handler ./internal/pkg/claude ./internal/service ./internal/service/openai_ws_v2 -run 'Kimi|CNProvider|PromptCache|AutomationBootstrap|Fallback|TerminalEvent|ModelNotFound'` |
+| migration 232/233、渠道 1h cache-write 和 Fable 5.1 价格 | `go test -p 1 -count=1 ./internal/pkg/claude ./internal/repository ./internal/service ./migrations -run 'Migration|CacheWrite|ChannelPricing|Fable|OpenAIFast'` |
+| 前端分组策略、账号、渠道/Model Plaza 和 Key 模型 | `pnpm --dir frontend exec vitest run src/components/account/__tests__/CreateAccountModal.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/credentialsBuilder.cnAdaptive.spec.ts src/components/admin/group/__tests__/ReasoningEffortPolicyFields.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts src/components/modelPlaza/__tests__/PlazaModelPricingTable.spec.ts src/composables/__tests__/useModelWhitelist.spec.ts src/views/admin/__tests__/groupsOpenAIFast.spec.ts src/views/admin/__tests__/groupsReasoningEffort.spec.ts`（仓库根目录运行） |
 
 如果出现 `fork/exec ... *.test.exe: The process cannot access the file because it is being used by another process.`, 不要改业务代码, 也不要切回默认 Go cache。确认没有残留 `go.exe` / `*.test.exe` 进程后, 用上面的固定入口重跑; 它会换新的 `GOTMPDIR`。只有怀疑缓存损坏时才删除 `backend/.gocache/review-cache` 或 `backend/.gocache/review-gopath`, 删除后首次运行会重新下载 Go toolchain 和模块。
 

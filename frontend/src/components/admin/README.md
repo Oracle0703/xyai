@@ -14,6 +14,13 @@
 
 订阅分配/延期/撤销/恢复、使用记录清理、Token 立即索引只对完整管理员显示。隐藏按钮只是体验控制, 后端白名单必须独立拒绝。
 
+## 分组 OpenAI 策略
+
+- `group/ReasoningEffortPolicyFields.vue` 仅服务 OpenAI/Composite 分组，映射按 `exact|prefix|suffix + model` 范围分组，同一范围可增加多个 from/to pair。类型和模型均空表示全局；相同范围不可重复，同范围的 source 也不可重复。
+- 推理上限启用时可选 `downgrade` 或 `deny`；没有上限时 over-limit 控件禁用，payload 仍保留规范化的默认 `downgrade`。
+- `GroupsView.vue` 仅在 OpenAI/Composite 分组提交 `force_openai_fast` / `free_openai_fast`，切换其他 platform 时两字段必须归零。全局 OpenAI Fast Policy 仍可以对强制后的 priority 做 filter/block，前端不得把分组开关描述为绕过全局策略。
+- `channel/PricingEntryCard.vue` 和 `channel/IntervalRow.vue` 把 cache-write 拆为 5m 与可选 1h 价；1h 空值表示后端沿用 5m，显式 0 表示免费，不可在表单归一化中混淆。
+
 ## 依赖接口
 
 - 使用记录账号/分组筛选走 `/admin/usage/search-accounts` 和 `/admin/usage/search-groups`。
