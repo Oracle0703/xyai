@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.2.3 合并增量
+
+- 新增 `235_group_model_allowlist.sql`、`236_group_model_allowlist_repair.sql` 和 `237_add_minimax_platform.sql`。`groups.model_allowlist` 取代旧 `models_list_config` 字段；迁移 236 负责已有数据库列重命名/缺失重建，必须保留 checksum 与幂等边界，不能改写已应用迁移。
+- MiniMax 纳入平台注册表、Composite route、配额/计费和账号能力矩阵；新增模型白名单 repair/minimax migration 测试覆盖重复执行与旧列形态。代理备份引用、重复过期回退、部分更新和 channel cache invalidation 的数据契约沿上游实现。
+- Channel Monitor V2 的 `channel_monitor_hide_user_ranking` 作为 settings/public settings 字段保存；其余本地 Prompt Metrics、Token Analysis、组织用量、RequestArchive/RequestIntercept 和用户并发预设表/迁移继续保留，未与上游重叠替换。
+
 ## 0.2.0 合并增量
 
 - 本轮新增三个独立 `232_*` migration 与一个 `233_*` migration：`232_channel_cache_write_1h_pricing.sql`、`232_group_force_openai_fast.sql`、`232_group_reasoning_effort_over_limit.sql`、`233_group_free_openai_fast.sql`。migration runner 仍按完整文件名排序/去重和记录 checksum；重复数字前缀的已发布文件不得合并、重命名或改写。

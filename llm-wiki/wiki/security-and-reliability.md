@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.2.3 合并增量
+
+- `GroupModelAllowlist` 必须在 API Key 鉴权之后、Composite model rewrite 之前执行，并覆盖 `/v1`、根级 alias、Codex、Gemini、Antigravity 和 WS upgrade；模型白名单只决定客户端模型准入，不把未知模型改写成可用模型。旧 models-list 配置与此能力重叠处使用上游实现。
+- MiniMax 仅通过显式平台/Composite allowlist 进入 OpenAI-compatible 调度；Grok media eligibility、Ollama Cloud 输出上限、OpenAI mixed catalog/Astra Ultra 和模型不可用 failover 使用上游边界。Channel cache 失效经 Redis pub/sub 跨实例传播，HTTP/2 长流 keepalive 与 client disconnect 取消避免连接/槽位泄漏。
+- 本地 RequestArchive/RequestIntercept 继续位于网关热路径；Responses subpath guard（含 `/input_tokens` 分流）必须先于 RequestIntercept，非法 path fail-closed。Prompt Risk/LLM judge、Token Analysis、组织用量、子管理员权限、并发预设和 quota flusher 的安全边界保持不变。本轮不修复上游新增测试/locale 或备份 `sh.exe` 环境问题。
+- PR #6869 的 heartbeat bootstrap 规范化只接受严格闭集 XML envelope：根元素无属性、无 namespace，子字段仅允许唯一 `automation_id`、`current_time_iso`、`instructions`，时间必须 RFC3339 且 instructions 非空；带 `call_id`、`previous_response_id` 或错误 namespace 的请求保持原样。该校验仍是现有 Codex automation trust boundary 的一部分，当前已叠加但未提交。
+
 ## 0.2.0 合并增量
 
 - 分组 `force_openai_fast` 不能绕过全局 OpenAI Fast Policy：网关先把信任的 group context 写为 `priority`，然后仍执行 user/account/model/tier 规则的 pass/filter/block/force_priority。`free_openai_fast` 只改用户 `actual_cost`，必须保留 priority 上游成本和 `service_tier` 审计；两者都只向管理 DTO 暴露，避免向用户泄露内部策略。

@@ -12,6 +12,13 @@
   - 构建: `cd backend && make build`
 - 生成: `cd backend && make generate`
 
+## 0.2.3 合并增量
+
+- 分组模型白名单从旧 `models_list_config` 收敛为 `model_allowlist`，由 Ent/schema、repository、admin DTO、模型列表/网关 middleware 和前端 GroupsView 共同维护；准入发生在 API Key 鉴权后、Composite 路由改写前，模型列表与所有 gateway/root alias/WS 入口保持同一策略。旧配置文件与该能力重叠处采用上游实现。
+- 新增 MiniMax 平台及配额、计费、Composite 路由和账号测试接线；上游补齐 Grok media eligibility、Ollama Cloud/DeepSeek 输出上限、模型测试显示名、OpenAI mixed catalog、Astra Ultra、Grok external web access 与多项代理/备份边界修正。
+- Channel Monitor V2 增加用户排行隐藏开关；Channel cache 使用 Redis pub/sub 做跨实例失效；长流 HTTP/2 PING keepalive、客户端断开取消、OpenAI WS pending turn/模型不可用 failover 和流式失败 ops 记录沿上游合入。Wire 冲突解决后重新生成 `backend/cmd/server/wire_gen.go`，并继续保留本地 Prompt Metrics、RequestArchive/RequestIntercept、Token Analysis、组织用量、用户并发预设及 quota flusher 生命周期。
+- PR #6869（`a0babc93dd17becdb66507e92ede18f5bde38d9c`）补充 Codex automation heartbeat bootstrap envelope：允许严格闭集的 `automation_id`、RFC3339 时间和非空 `instructions` 三字段，拒绝重复/属性/嵌套/缺字段形态，并保持归一化幂等。该提交基于 `0.2.3`，当前已叠加到待审核索引但尚未创建独立 merge commit。
+
 ## 0.2.0 合并增量
 
 - Group 新增 `force_openai_fast` 和 `free_openai_fast`，仅 OpenAI/Composite 分组有效且只通过管理 DTO 暴露。强制 Fast 会在 HTTP Responses/Chat/Messages/passthrough 与 WS `response.create` 上先写入 `service_tier=priority`，然后仍由全局 OpenAI Fast Policy 决定 pass/filter/block/force_priority；免费 Fast 只把用户 `actual_cost` 按 Standard 重算，上游 `total_cost`、`service_tier` 和账号成本审计仍保留 priority 口径。

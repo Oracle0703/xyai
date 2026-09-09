@@ -11,6 +11,12 @@
 - `frontend/src/i18n/locales/en.ts` / `zh.ts` 已拆分为 `locales/{en,zh}/index.ts` + `common/dashboard/landing/misc` + `admin/*` 域模块; 新增文案应放入对应域模块, 并保留 `localesNoKeyCollision.spec.ts` 的 spread 键冲突守卫。
 - 包管理器: pnpm, 不使用 npm/yarn。
 
+## 0.2.3 合并增量
+
+- `GroupsView.vue` 与 `groupModelAllowlist.ts` 采用上游 `model_allowlist` 状态/候选接口，覆盖创建、编辑、模型列表和 gateway 入口；旧 `models-list` helper/测试重叠处按上游实现迁移。MiniMax 平台、Grok media eligibility、账号到期预设、OpenAI mixed catalog/Astra Ultra 与 proxy/backup 管理 UI 同步接入。
+- Channel Monitor V2 新增用户排行隐藏设置；`ChannelMonitorView.vue`、设置表单及中英文 locale 保持服务端字段一致。订阅管理页链接到用户用量筛选，账户编辑保留本地 OpenAI-compatible preset、Prompt Metrics/RequestIntercept/Organization Usage/Token Analysis 和并发预设页面。
+- 上游新增的 draggable custom-page、支付 Markdown、i18n key 完整性守卫和账号/代理部分更新已合入；本轮未修改上游测试缺失 locale、MiniMax 计数或 Pinia 装配问题。
+
 ## 0.2.0 合并增量
 
 - `GroupsView.vue` 仅在 OpenAI/Composite 分组展示“强制 Fast（priority）”和“Fast 免费计费”开关；创建、编辑、复制和 API 类型要同时保真，切换到其他 platform 时必须清空。两个字段是管理策略，不应从普通分组 DTO 推断或展示。

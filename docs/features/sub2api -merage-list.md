@@ -1841,3 +1841,38 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Documentation | 已更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；Wiki 图谱已刷新并通过结构校验。 |
 | Post-review semantic correction | 复核确认 `HelpTooltip.vue` 的失败不是上游 bug，而是自动合并将上游 `useTemplateRef('trigger'/'tooltip')` 与本地旧 `ref(null)` 错配造成的回归。已恢复固定上游的模板 ref 绑定；窄测 `3/3`、完整 Vitest `283/283 files` / `2052/2052 tests`、typecheck 和 production build（1078 modules）均通过。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；当前未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-09-09 PR #6869 supplement (awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10203_merge_sub2api_203` |
+| Pull request | `Wei-Shaw/sub2api#6869`（open，base `main`，head `codex/fix-heartbeat-envelope-fields`） |
+| PR head | `a0babc93dd17becdb66507e92ede18f5bde38d9c`（`fix(openai): accept full heartbeat bootstrap envelopes`） |
+| PR base | `270eac6973049fe1b50eb75560a74a029e82884c`，已存在于当前 `MERGE_HEAD` 的上游 0.2.3 合并边界 |
+| Application | 当前分支已有未提交 `MERGE_HEAD=270eac...`，因此对 PR head 相对 base 的 2 文件精确补丁执行三方预检并叠加到现有索引；未覆盖本地冲突解决，也未使用 GitHub 临时 merge ref `8fc9624383d10e459bef057751936fe15c36f521` 作为第二父。 |
+| Changed paths | `backend/internal/handler/openai_gateway_handler.go`; `backend/internal/handler/openai_automation_bootstrap_test.go` |
+| Behavior | heartbeat envelope 允许严格闭集的 `automation_id`、RFC3339 `current_time_iso` 和非空 `instructions` 字段，拒绝重复/属性/namespace/嵌套/缺字段形态；保留 call_id、previous_response_id、namespace guard，归一化保持幂等。 |
+| Verification | PR 补丁三方预检干净；`go test ./internal/handler -run TestNormalizeCodexAutomationBootstrap -count=1 -p 1` 通过。当前仍无 unmerged 文件、无 unstaged/untracked PR 文件。 |
+| Approval / delivery | PR 内容已暂存到现有 0.2.3 review snapshot；未 commit、未 push、未创建 PR、未部署，等待用户审核后统一创建 merge commit。 |
+
+## 2026-09-09 main sync (v0.2.3; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10203_merge_sub2api_203` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `f759315a8738c747f4e92970ed08698ead51be12`（任务开始时本地 `main`，版本 `0.2.1`） |
+| Merge base | `ab99d56e9626e6cd731592dae8553c9758a0efa2`（上游 v0.2.1） |
+| Upstream head / second parent | `270eac6973049fe1b50eb75560a74a029e82884c` |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=270eac6973049fe1b50eb75560a74a029e82884c`** |
+| Upstream version / delta | 固定 SHA 的 `backend/cmd/server/VERSION` 为 `0.2.3`。从 merge base 到固定上游共 178 commits、491 paths、`+20305/-2743`；不以标签、版本口述或更晚 upstream HEAD 替代该精确边界。 |
+| Conflict files | `backend/internal/handler/wire.go`; `backend/internal/server/routes/gateway.go`; `frontend/src/views/admin/__tests__/GroupsView.columnSettings.spec.ts` |
+| Conflict handling | Wire 同时保留本地 `UserConcurrencyPreset`/组织用量/Token Analysis/RequestIntercept/Prompt Metrics provider，并采用上游 `NewGroupHandlerWithConfig`；gateway routes 采用上游 `GroupModelAllowlist`、root alias helper 与 `/responses/input_tokens` 分流，保留本地 RequestArchive/RequestIntercept，确保 Responses subpath guard 先于拦截；GroupsView 测试同时保留 `getModelAllowlistCandidates` 与 live capability mock。未修改冲突外上游业务逻辑，未修复上游自身问题。 |
+| Semantic overlap review | 三方路径集合为 local 513、upstream 491、both 64、only-local 449、only-upstream 427。64 个双方修改路径按 Ent/Wire、网关/Responses、计费、配置、管理 API、前端账号/设置/分组逐项抽查；生成物从源文件连续生成两次无漂移。旧 `models_list_config.go`、`group_models_list.go` 与上游 `model_allowlist` 功能真正重叠，采用上游实现；其余本地独有路径保持第一父内容。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件在当前索引中 24/24 保留、零删除；RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、large-request compaction、用户并发 preset、quota flusher 和 reasoning-only failover 均保留。 |
+| Upstream behavior | 合入 `model_allowlist` 迁移/修复（235/236）、MiniMax 平台（237）、simple-mode group boundary、Grok media eligibility、Ollama Cloud/DeepSeek 输出上限、OpenAI mixed/Astra Ultra catalog、Channel Monitor 用户排行隐藏、Redis channel cache invalidation、HTTP/2 长流 keepalive、client disconnect/WS pending-turn 处理、proxy fallback/backup 与支付/i18n/拖拽页面更新。 |
+| Upstream / baseline issue boundary | Go `internal/repository` 的 `TestPgDumperHoldsMigrationLockThroughReaderClose`、`TestPgDumperReleasesMigrationLockWhenProcessFails`、`TestPgDumperReportsUnlockFailureAndDiscardsConnection` 因 Windows 环境缺少 `sh.exe`（并触发 mock unlock 预期差异）失败；前端 `localeKeyCompleteness` 缺 `common.startDate/endDate/testing`、`ChannelMonitorView.grok` 仍期望 8 个 provider、`GroupsView.codexManifest` 与 `SubscriptionsView.userUsageLink` 未安装 Pinia，共 6 个测试失败。上述均与固定上游/测试装配或环境有关，按“仅解决冲突”要求不修改。 |
+| Verification | `git ls-files -u` 为空；Ent/Wire 连续生成两次退出 0 且哈希无漂移；gateway routes 聚焦测试通过；`go build ./...` 与 `go build -tags=embed ./...` 通过。完整 Go 测试除上述 3 个 `backup_pg_dumper` 环境失败外通过；前端 lint、typecheck、`cmd.exe /c node_modules\\.bin\\vite.cmd build`（1079 modules）通过；完整 Vitest 292/296 files、2159/2165 tests 通过。`pnpm run build` 被同一上游 locale completeness 前置测试阻断；`go mod tidy -diff` 仅显示固定上游 `go.sum` 中若干未使用旧校验和/新增 `xxh3` 的整理差异，本轮不改依赖元数据。`git diff --cached --check` 仅报告上游新增 `instructions_gpt6_astra.txt` 的尾随空格，未改动该上游文件。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；Wiki 图谱未在本轮刷新，待用户审核/提交后按仓库规则刷新。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；当前未 commit、未 push、未创建 PR、未部署。 |
