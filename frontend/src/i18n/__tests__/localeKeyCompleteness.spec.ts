@@ -5,15 +5,19 @@ import zh from '../locales/zh'
 
 type LocaleValue = Record<string, unknown>
 
-function flattenLeafKeys(value: unknown, prefix = ''): string[] {
+function flattenLeafEntries(value: unknown, prefix = ''): Array<[string, unknown]> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return prefix ? [prefix] : []
+    return prefix ? [[prefix, value]] : []
   }
 
   return Object.entries(value as LocaleValue).flatMap(([key, child]) => {
     const path = prefix ? `${prefix}.${key}` : key
-    return flattenLeafKeys(child, path)
+    return flattenLeafEntries(child, path)
   })
+}
+
+function flattenLeafKeys(value: unknown): string[] {
+  return flattenLeafEntries(value).map(([key]) => key)
 }
 
 function collectStaticSourceKeys(source: string): string[] {
@@ -72,13 +76,9 @@ describe('locale key completeness', () => {
 
   it('contains a non-empty message for every locale leaf', () => {
     for (const [locale, messages] of Object.entries({ en, zh })) {
-      const emptyKeys = flattenLeafKeys(messages).filter((key) => {
-        let current: unknown = messages
-        for (const segment of key.split('.')) {
-          current = (current as LocaleValue)[segment]
-        }
-        return typeof current !== 'string' || current.trim() === ''
-      })
+      const emptyKeys = flattenLeafEntries(messages)
+        .filter(([, value]) => typeof value !== 'string' || value.trim() === '')
+        .map(([key]) => key)
       expect(emptyKeys, `${locale} has empty or non-string messages`).toEqual([])
     }
   })
