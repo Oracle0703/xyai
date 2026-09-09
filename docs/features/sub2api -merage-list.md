@@ -1876,3 +1876,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | `git ls-files -u` 为空；Ent/Wire 连续生成两次退出 0 且哈希无漂移；gateway routes 聚焦测试通过；`go build ./...` 与 `go build -tags=embed ./...` 通过。完整 Go 测试除上述 3 个 `backup_pg_dumper` 环境失败外通过；前端 lint、typecheck、`cmd.exe /c node_modules\\.bin\\vite.cmd build`（1079 modules）通过；完整 Vitest 292/296 files、2159/2165 tests 通过。`pnpm run build` 被同一上游 locale completeness 前置测试阻断；`go mod tidy -diff` 仅显示固定上游 `go.sum` 中若干未使用旧校验和/新增 `xxh3` 的整理差异，本轮不改依赖元数据。`git diff --cached --check` 仅报告上游新增 `instructions_gpt6_astra.txt` 的尾随空格，未改动该上游文件。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；Wiki 图谱未在本轮刷新，待用户审核/提交后按仓库规则刷新。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；当前未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-09-09 main sync (v0.2.4; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10204_merge_sub2api_204` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `f6bce5db1cda145f838bc8fa67b7c8dd90f6b0bd`（任务开始时本地 `main`，与 `github/main` 一致） |
+| Merge base | `270eac6973049fe1b50eb75560a74a029e82884c` |
+| Upstream head / second parent | `98d86915becae9fe9491a91ffc6defd5235c8d2b` |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=98d86915becae9fe9491a91ffc6defd5235c8d2b`** |
+| Upstream version / delta | 固定 SHA 的 `backend/cmd/server/VERSION` 为 `0.2.4`。从 merge base 到固定上游共 3 commits、19 paths、`+336/-10`；不以标签、版本口述或更晚 upstream HEAD 替代该精确边界。 |
+| Conflict files | **无文本冲突**；三方预演和实际 `git merge --no-commit --no-ff` 均自动完成。双方修改路径为 `README_CN.md`、`backend/internal/service/openai_codex_transform.go`。 |
+| Conflict handling | `README_CN.md` 保留本地部署/赞助文档并纳入上游 GPT Image 2.5 说明；`openai_codex_transform.go` 保留本地 `SupportsOpenAIReasoningEffort` 与上游 `openAIImagesResponsesMainModelValue()` 主控模型选择。17 个仅上游路径与 exact target blob 一致，未为通过测试改写上游业务逻辑。 |
+| Semantic overlap review | 上游增加 GPT Image 2.5 Flare/Sunburst、日期快照、OAuth/Setup Token 生图 Responses 主控和 `SUB2API_IMAGES_MAIN_MODEL`、图片输入 token usage、2.5 fallback pricing、Compose 透传及前端白名单；真正重叠的图片模型/主控行为采用上游实现。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件在当前索引中 24/24 保留、零删除；RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、compatible cache usage、默认 reasoning effort、quota flusher 和 reasoning-only failover 均保留。 |
+| Upstream / baseline issue boundary | default/unit 全量均复现 3 个 `backup_pg_dumper` 用例因 Windows PATH 缺少 `sh.exe` 的环境失败；unit 另复现第一父已有 `GET /api/v1/auth/me` golden 未包含 `admin_permissions:null` 的差异。完整 Vitest 复现第一父已有 4 个失败：Channel Monitor provider 数量旧断言 1 个，Groups/Subscriptions 未装 Pinia 3 个。以上文件均未被本轮上游增量修改，按用户要求只记录、不修复。 |
+| Verification | GPT Image 2.5 / 生图 / 定价专项 Go 测试通过；default/unit 除上述边界外其余包通过，排除已知失败的 repository/server 包重跑通过；integration 全量通过；Go normal/embed build、`golangci-lint v2.13.0 --new-from-rev=HEAD`（0 issues）通过。前端 lint/typecheck、模型白名单 `16/16`、production build（1079 modules）通过；完整 Vitest `293/296 files`、`2161/2165 tests`。`go mod tidy -diff` 仅报告固定基线 `go.sum` 的旧校验和清理与 `xxh3` 补齐差异，本轮不改依赖元数据。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；当前交付记录位于 `docs/delivery/2026-09-09-sub2api-v0.2.4-sync/`。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，状态 READY。 |
+| Approval / delivery | 最终 staged snapshot 为 34 files / `+755/-27`，0 unstaged、0 untracked、0 unmerged；24/24 features 保留，`git diff --cached --check` 通过。保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |

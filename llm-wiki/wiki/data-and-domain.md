@@ -1,5 +1,10 @@
 # 数据与领域基线
 
+## 0.2.4 合并增量
+
+- GPT Image 2.5 Flare/Sunburst 及 `-2026-09-08` 日期快照使用独立的文本输入、图片输入、图片输出 token 价格；缺少远程价格条目时由 `PricingService` 使用内置 fallback，显式模型价格优先，不能回退到 GPT Image 2 的旧费率。
+- `UsageTokens.ImageInputTokens` 从 OpenAI Responses 图片工具 usage 的 `input_tokens_details.image_tokens` 读取并受总输入 token 有界约束；`CostBreakdown.ImageInputCost` 单独记录图片输入费用，`TotalCost` 保持各输入/输出/缓存分项合计。
+
 ## 0.2.3 合并增量
 
 - 新增 `235_group_model_allowlist.sql`、`236_group_model_allowlist_repair.sql` 和 `237_add_minimax_platform.sql`。`groups.model_allowlist` 取代旧 `models_list_config` 字段；迁移 236 负责已有数据库列重命名/缺失重建，必须保留 checksum 与幂等边界，不能改写已应用迁移。

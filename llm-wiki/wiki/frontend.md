@@ -1,5 +1,10 @@
 # 前端知识基线
 
+## 0.2.4 合并增量
+
+- `frontend/src/composables/useModelWhitelist.ts` 增加 `gpt-image-2.5-flare` 与 `gpt-image-2.5-sunburst`；日期快照仍由后端账号映射/分组白名单合同控制，前端候选扩展不能替代服务端准入。
+- 图片模型与 OAuth Responses 文本主控模型是两套状态：`SUB2API_IMAGES_MAIN_MODEL` 只在后端运行时选择主控，前端图片模型选择和 `/v1/images/*` payload 不应把主控模型当作图片模型提交。
+
 ## 技术栈与入口
 
 - Vue 3 + Composition API + TypeScript。

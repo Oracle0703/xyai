@@ -1,5 +1,10 @@
 # 安全与可靠性基线
 
+## 0.2.4 合并增量
+
+- `SUB2API_IMAGES_MAIN_MODEL` 只改变 OAuth/Setup Token 生图的 Responses 文本主控，不改变图片模型准入；空值/空白回落 `gpt-5.6-luna`，已有合法文本主控的 `/v1/responses` 请求不应被图片桥接逻辑覆盖。
+- GPT Image 2.5 的显式账号 mapping、分组模型白名单和服务端 `IsGPTImageGenerationModel` 仍是独立边界；前端候选列表扩展不得绕过服务端权限。本轮不修复上游其它图片/网络风险。
+
 ## 0.2.3 合并增量
 
 - `GroupModelAllowlist` 必须在 API Key 鉴权之后、Composite model rewrite 之前执行，并覆盖 `/v1`、根级 alias、Codex、Gemini、Antigravity 和 WS upgrade；模型白名单只决定客户端模型准入，不把未知模型改写成可用模型。旧 models-list 配置与此能力重叠处使用上游实现。

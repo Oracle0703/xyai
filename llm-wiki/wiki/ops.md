@@ -2,6 +2,10 @@
 
 ## 当前版本基线
 
+- 当前在 `feature/hy/10204_merge_sub2api_204` 以本地 `main@f6bce5db1cda145f838bc8fa67b7c8dd90f6b0bd` 为第一父，固定合并上游 `Wei-Shaw/sub2api main@98d86915becae9fe9491a91ffc6defd5235c8d2b`；merge base 为 `270eac6973049fe1b50eb75560a74a029e82884c`，`backend/cmd/server/VERSION` 为 `0.2.4`。相对 merge base 为 3 commits、19 paths、`+336/-10`；自动合并无文本冲突，当前保留 `MERGE_HEAD=98d86915becae9fe9491a91ffc6defd5235c8d2b` 等待用户审核，未创建 merge commit。
+- 生图 OAuth/Setup Token 的 Responses 主控模型可通过 `SUB2API_IMAGES_MAIN_MODEL` 覆盖；默认值为 `gpt-5.6-luna`。`deploy/.env.example` 与四个 Compose 文件均提供默认透传。修改 `.env` 后需按对应 Compose 流程重建/重启容器。
+- 验证结果：GPT Image 2.5 / 生图 / 定价专项 unit、integration 全量、Go normal/embed build、golangci-lint v2.13.0（0 issues）、前端 lint/typecheck、模型白名单 16/16 和 production build（1079 modules）通过。default/unit 全量除 3 个 `backup_pg_dumper` 因 Windows 缺 `sh.exe` 失败、unit 另有第一父 `/api/v1/auth/me` golden 未包含 `admin_permissions:null` 外，其余包通过；完整 Vitest 为 293/296 files、2161/2165 tests，4 个失败来自第一父旧断言/Pinia 测试装配。`go mod tidy -diff` 仅报告第一父已有 `go.sum` 整理差异。按“仅解决冲突”要求未修复这些基线/环境问题。
+
 - 当前在 `feature/hy/10203_merge_sub2api_203` 以本地 `main@f759315a8738c747f4e92970ed08698ead51be12` 为第一父，固定合并上游 `Wei-Shaw/sub2api main@270eac6973049fe1b50eb75560a74a029e82884c`；merge base 为 `ab99d56e9626e6cd731592dae8553c9758a0efa2`，`backend/cmd/server/VERSION` 为 `0.2.3`。相对 merge base 共 178 commits、491 paths、`+20305/-2743`；当前保留 `MERGE_HEAD=270eac6973049fe1b50eb75560a74a029e82884c` 等待用户审核，未创建 merge commit。
 - 本轮 3 个文本冲突已解决：`backend/internal/handler/wire.go` 同时保留本地并发预设 provider 与上游带 config 的 Group handler；`backend/internal/server/routes/gateway.go` 保留上游模型白名单/rootRoute，同时把本地 RequestArchive、RequestIntercept 和 Responses subpath/input_tokens guard 按顺序接入；`frontend/src/views/admin/__tests__/GroupsView.columnSettings.spec.ts` 同时保留双方 API mock。Ent/Wire 连续生成两次无漂移。
 - 验证结果：Go normal/embed build 通过；完整套件除 3 个 `backup_pg_dumper` 用例因 Windows 环境无 `sh.exe` 失败外全部通过；前端 lint/typecheck、绕过上游 locale completeness 前置检查的 Vite production build（1079 modules）通过，Vitest 292/296 files、2159/2165 tests，6 个失败均为上游新增 locale/MiniMax/Pinia 测试边界。`go mod tidy -diff` 仅显示固定上游 `go.sum` 的旧未使用校验和与 `xxh3` 整理差异，本轮不改依赖元数据。按“仅解决冲突”要求未修复上述上游/环境问题。

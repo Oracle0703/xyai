@@ -1,5 +1,11 @@
 # 后端知识基线
 
+## 0.2.4 合并增量
+
+- GPT Image 2.5 Flare/Sunburst 及 `-2026-09-08` 日期快照纳入 OpenAI 图片模型识别、账号模型候选、图片 endpoint 和内置价格；显式账号映射/分组白名单仍是最终准入边界。
+- OAuth/Setup Token 图片请求使用独立 Responses 文本主控模型，默认 `gpt-5.6-luna`；`SUB2API_IMAGES_MAIN_MODEL` trim 后非空时覆盖主控模型，但不替换 `image_generation` 工具中的图片模型。Compose 变体在 `deploy/docker-compose*.yml` 透传该变量。
+- Responses 图片工具 usage 解析 `input_tokens_details.image_tokens` 并写入 `UsageTokens.ImageInputTokens`；计费保持文本输入、图片输入、图片输出分离，远程价格缺失时 GPT Image 2.5 使用服务端 fallback。
+
 ## 技术栈与入口
 
 - Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.27.0`。
