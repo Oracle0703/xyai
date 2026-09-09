@@ -8,6 +8,12 @@
 - `cache_write_1h_price NUMERIC(20,12)` 同时加入 `channel_model_pricing`、`channel_pricing_intervals`、`channel_account_stats_model_pricing` 和 `channel_account_stats_pricing_intervals`。NULL 保持旧行为：`cache_write_price` 同时作为 5m/1h 价；显式 1h 值单独覆盖 1h 档，0 是合法免费价，不可用 falsy fallback 丢失。
 - Claude Fable 5/5.1 fallback 定价均为 input 10、output 50、5m cache-write 12.5、1h cache-write 20 USD/MTok；Fable 5 cache-read 为 1 USD/MTok，Fable 5.1 为 0.25 USD/MTok。模型别名匹配必须先判 Fable 5.1，避免被更宽的 Fable 5 分支截获。
 
+## 0.2.1 合并增量
+
+- 新增 `232_add_usage_log_upstream_request_id.sql`、`233_add_usage_log_upstream_request_id_index_notx.sql`、`234_channel_max_reasoning_effort_multiplier.sql` 和 `234_group_codex_models_manifest_config.sql`。迁移 runner 按完整文件名和 checksum 处理，已发布的重复数字前缀文件不得重命名、合并或改写。
+- `usage_logs.upstream_request_id` 只保存上游响应头声明的标识；账号级 header 配置为空或上游未返回时保持 NULL。索引迁移是 `_notx.sql`，必须沿用事务外执行约定。
+- `groups.codex_models_manifest_config` 保存 manifest 账号投影配置，Codex catalog 由 API Key 绑定分组生成；`channels.max_reasoning_effort_multiplier` 参与 reasoning effort 能力/价格合同，不能在 DTO 层静默丢失。
+
 ## 0.1.185 合并增量
 
 - 本轮新增三个独立的 `231_*` migration：`231_add_usage_log_native_compaction_v2.sql`、`231_add_usage_log_requested_reasoning_effort.sql` 和 `231_user_restrict_public_groups.sql`。migration runner 按完整文件名排序与记录 checksum；同序号文件不得合并、重命名或修改已应用内容。

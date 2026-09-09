@@ -21,6 +21,13 @@
 - Anthropic Messages 出站 body 的 `fallbacks` 只在最终 `anthropic-beta` 含 `server-side-fallback-2026-07-01` 时保留，`fallback_credit_token` 需 server-side-fallback 或 fallback-credit beta 之一；否则在 CCH 签名前删除。Responses WS 上游在 active turn 未收到终态协议事件就 close/EOF 时必须按 relay failure 处理，不得仅因 WebSocket 正常 close handshake 报成功。
 - 渠道 token 价格新增可选 `cache_write_1h_price`，在模型平价、分时价、账号统计平价和统计分时价中保持同一合同。未配置 1h 价时，旧 `cache_write_price` 仍同时覆盖 5m/1h；显式 1h 价（包括 0）单独覆盖 1h 档。Claude Fable 5.1 加入默认模型与 fallback 价格，cache read 为 Fable 5 的四分之一，其他 token/cache-write 口径与 Fable 5 一致。
 
+## 0.2.1 合并增量
+
+- Codex 模型目录新增按分组配置的 pinned accounts/manifest 投影，OpenAI GPT-6 Astra 与 ultrafast 能力同步到模型元数据；`group_codex_models_manifest_config` 由 Ent/schema、repository、service 和管理 DTO 一起维护，不能只改前端展示。
+- 用量链支持从账号配置的响应头读取 `upstream_request_id`，写入 usage log 并提供管理端筛选；请求标识缺失时保持空值，不用网关 request ID 冒充上游标识。对应迁移为 `232_add_usage_log_upstream_request_id.sql` 与事务外索引迁移 `233_add_usage_log_upstream_request_id_index_notx.sql`。
+- OpenAI API Key 生图可选把上游 `data[].url` 下载回填为 `b64_json`；下载链保留上游 URL 安全校验和字节嗅探边界。自定义定价文件按内容哈希热重载，Anthropic reasoning effort pricing 与渠道 `max_reasoning_effort_multiplier` 由服务端统一解析。
+- 网关并发错误响应现在携带 `gateway_queue_full` / `gateway_concurrency_limit` code；本地 `ConcurrencyCacheError` 仍单独返回 `server_error`，并使用空 code 适配上游四元组响应合同。会话槽释放、mapped-model 调度、Astra capability 同步和 OpenCode session 转发随上游实现合入。
+
 ## 0.1.185 合并增量
 
 - Codex model catalog 由 API Key 绑定分组决定。`GET /models?client_version=...` 与 `GET /backend-api/codex/models` 共用分派入口：OpenAI 分组可在上游 manifest 上合并账号模型映射，Composite/CN 等路由分组从有效模型列表生成完整 catalog。分组 custom model list 继续过滤最终 picker，ETag 必须基于分组特定的最终 body，不能跨分组复用过滤结果。

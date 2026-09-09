@@ -18,6 +18,12 @@
 - 渠道与 Model Plaza 价格类型新增可空 `cache_write_1h_price`。`PricingEntryCard.vue` / `IntervalRow.vue` 分开编辑 5 分钟和 1 小时 cache-write 价；`SupportedModelChip.vue` 与 `PlazaModelPricingTable.vue` 只在 1h 值存在时增显该档，不得把缺失值当成免费。
 - Kimi PayG/Coding 账号现在可在创建、编辑和 adaptive protocol 配置中选择原生 Responses；`credentialsBuilder.ts#cnSupportsNativeResponses` 是 DeepSeek/Kimi 共用的能力判定，Zhipu 仍不显示该选项。Claude Fable 5.1 同步加入模型白名单/preset、Antigravity 状态与用量展示、OpenCode 模型配置。
 
+## 0.2.1 合并增量
+
+- `CreateAccountModal.vue` / `EditAccountModal.vue` 新增可选的上游 request-id 响应头字段，并保留本地 OpenAI-compatible provider preset；OpenAI API Key 账号可切换 URL 生图结果回填 `b64_json`。reset、平台切换和提交 payload 必须分别清理这些状态。
+- 分组管理页新增 Codex manifest accounts 配置、pinned account 选择和 GPT-6 Astra/ultrafast 能力展示；账号列表使用 compact DTO 时仍需保留批量选择、凭据脱敏和本地 `sub_admin` 权限边界。
+- 用量表格支持上游 request ID 展示/筛选，渠道价格与 reasoning effort 表单继续复用既有 1h cache-write、模型范围和本地并发 preset 合同；重叠模型 catalog 行为采用上游实现。
+
 ## 0.1.185 合并增量
 
 - `UseKeyModal.vue` 通过当前 API Key 请求 Codex routed catalog，可下载 `codex-models.json` 并在 `config.toml` 写入 `model_catalog_json`。Unix 默认使用 `~/.codex/codex-models.json`，Windows 使用 `%userprofile%\.codex\codex-models.json`；界面不能从未鉴权的公共模型列表猜测 catalog。

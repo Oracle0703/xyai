@@ -8,6 +8,12 @@
 - Anthropic body 中的 `fallbacks`、`fallback_credit_token` 与 `context_management` 必须按最终出站 `anthropic-beta` 能力对称保留，缺少对应 token 就在签名前删除，不依赖模型名或客户端类型猜测。Bedrock Claude Code 兼容链也使用等价过滤，不可让 body 字段与 beta header 失配。
 - Codex scheduled automation 只对结构和内容都严格符合 automation bootstrap envelope、且缺少 `call_id` 的 `codex_app.automation_update` call output 改写为 user message；其他 function call output 仍执行通用 call-id/item-reference 校验。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
 
+## 0.2.1 合并增量
+
+- 生图 URL 回填只对显式启用的 OpenAI API Key 账号生效；下载器拒绝私网/保留地址和不可信 redirect，并以受限字节嗅探确认图片内容后才写入 `b64_json`。该边界是上游实现，本轮不扩展为通用 URL 下载器。
+- 上游 request ID 是不可信响应头元数据：只按账号配置的 header 名读取、截断/规范化后落库，不把客户端可控的 request ID 当成上游凭据或鉴权依据。管理端展示必须遵守现有权限与脱敏合同。
+- OpenAI encrypted content lineage、WS replay body 共享和 proxy attribution 随上游合入；跨账号回放、上游错误归因和请求槽释放仍必须在当前 attempt/session 作用域内完成。本轮仅处理冲突，不修复目标提交中的其它行为问题。
+
 ## 0.1.185 合并增量
 
 - `restrict_public_groups` 默认 false 以保持存量权限；开启后，用户只能把 API Key 绑定到 `user_allowed_groups` 中的公开分组，专属分组仍沿用同一白名单。开关或关系变更后必须失效 API Key auth cache，避免 L1/L2 快照在 TTL 内继续放行旧权限。

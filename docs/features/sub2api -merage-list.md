@@ -1819,3 +1819,25 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | Backend focused 回归通过；default 全量除上述 4 个 Plugin 文件锁和一次 cyber 时序波动外完成，cyber 精确复跑通过；unit 除 4 个 Plugin 文件锁及 `auth/me` 既有 golden 外完成；integration 除 4 个 Plugin 文件锁与 17 个前置条件 skip 外完成。`go build ./...`、`go build -tags=embed ./...`、`go mod tidy -diff` 均退出 0；CI 同版 `golangci-lint v2.13.0`（Go 1.27.0）执行 `--new-from-rev=HEAD` 为 `0 issues`。Frontend focused 9 files / 116 tests、lint、typecheck、完整 Vitest 280/280 files、2020/2020 tests、production build 1074 modules 均退出 0。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`，同步 5 个受影响组件 README 并追加本条。Wiki 图谱刷新为 33 nodes / 67 edges、8 layers、7 tour steps、49 wikilinks、0 unresolved，source hash `1576bbab0226` 与当前 Wiki 一致；`tools\check-understand-status.cmd -AllowDirtyWiki` 返回 READY。 |
 | Approval / delivery | 最终 staged snapshot 为 162 files / `+5038 -562`，0 unstaged、0 untracked、0 unmerged；`git diff --cached --check` 通过，`MERGE_HEAD` 精确等于固定目标。保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-09-07 main sync (v0.2.1; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10201_merge_sub2api_201` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `cee4a36304180a41d2749bbfafb60b01ca9242e0`（任务开始时本地 `main`） |
+| Merge base | `5097b31457e6dc9f49e5f5c9c72b925ce79543b3`（上游 v0.2.0） |
+| Upstream head / second parent | `ab99d56e9626e6cd731592dae8553c9758a0efa2` |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=ab99d56e9626e6cd731592dae8553c9758a0efa2`** |
+| Upstream version / delta | 固定 SHA 的 `backend/cmd/server/VERSION` 为 `0.2.1`。从 merge base 到固定上游共 82 commits、297 paths、`+12622/-1033`；不以标签、版本口述或更晚 upstream HEAD 替代该精确边界。 |
+| Conflict files | `backend/internal/handler/concurrency_error_response.go`; `backend/internal/handler/gemini_v1beta_handler_test.go`; `frontend/src/components/account/CreateAccountModal.vue` |
+| Conflict handling | 并发错误响应采用上游四元组及 queue/concurrency code，同时保留本地 `ConcurrencyCacheError` 为 `server_error` 并补空 code；Gemini 测试合并上游自定义模型列表与本地路由/降级/缓存失败覆盖；账号弹窗 reset 同时保留本地 compatible provider 与上游 upstream request-id 状态。未修改其它生产逻辑，未修复上游自身问题。 |
+| Semantic overlap review | 三方路径集合为 local 515、upstream 297、both 50；3 个文本冲突已解决，自动合并的网关、计费、服务、Ent、前端和迁移路径按职责抽查。功能真正重叠处采用上游实现，本地独有调用链和权限边界继续保留。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件在当前索引中 24/24 保留、零删除；除本 ledger 追加外其余 feature 文档不改。RequestArchive/RequestIntercept、Prompt Metrics/Risk 与 LLM judge、Token Analysis、组织用量、子管理员、OpenAI-compatible cache usage、默认 reasoning effort、large-request compaction、quota flusher 和 reasoning-only failover 均保留。 |
+| Upstream behavior | 合入 Codex pinned-account/model manifest、GPT-6 Astra/ultrafast capability sync、usage log upstream request ID、OpenAI 生图 URL 到 `b64_json` 回填、定价文件热重载、Anthropic reasoning pricing、上游错误归因、WS replay/加密内容 lineage、会话槽释放和 Gemini custom model list；新增 migrations `232_add_usage_log_upstream_request_id.sql`、`233_add_usage_log_upstream_request_id_index_notx.sql`、`234_channel_max_reasoning_effort_multiplier.sql`、`234_group_codex_models_manifest_config.sql`。 |
+| Upstream / baseline issue boundary | 后端完整 `go test ./... -count=1 -p 1` 仅 `internal/service` 的 4 个插件安装器用例因 Windows 临时目录 rename 文件锁失败：`TestPluginPackageInstallerInstallUnsignedDevelopmentPackage`、`TestPluginPackageInstallerAllowsRepeatedIdenticalUpload`、`TestPluginPackageInstallerVerifiesTrustedSignature`、`TestPluginPackageInstallerKeepsHostVersionMismatchDisabled`；单独精确重跑复现同一 `The process cannot access the file because it is being used by another process`。前端完整 Vitest `282` 个文件 / `2052` 个测试仅 `HelpTooltip > keeps a hover tooltip open while the pointer moves between the trigger and the tooltip` 失败。两类问题均按“仅解决冲突、不修上游 bug”要求保留，不修改生产代码或测试。 |
+| Verification | `git ls-files -u` 为空、`git diff --cached --check` 通过、`MERGE_HEAD` 精确等于固定目标、24/24 `docs/features` 保留。Ent/Wire 连续生成成功且无漂移；`go build ./...`、`go build -tags=embed ./...` 通过；完整 Go 测试除上述 4 个插件安装器锁失败外其余包通过，排除该测试族的 `internal/service` 全包通过。Frontend lint、typecheck、production build（1078 modules）通过；完整 Vitest `281/282` files、`2051/2052` tests 通过。Wiki 图谱刷新为 33 nodes / 67 edges / 49 wikilinks / 0 unresolved；状态检查因本次 merge 尚未提交和 Wiki 改动为预期 `PARTIAL`。 |
+| Documentation | 已更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 并追加本条；Wiki 图谱已刷新并通过结构校验。 |
+| Post-review semantic correction | 复核确认 `HelpTooltip.vue` 的失败不是上游 bug，而是自动合并将上游 `useTemplateRef('trigger'/'tooltip')` 与本地旧 `ref(null)` 错配造成的回归。已恢复固定上游的模板 ref 绑定；窄测 `3/3`、完整 Vitest `283/283 files` / `2052/2052 tests`、typecheck 和 production build（1078 modules）均通过。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff`，等待用户审核；当前未 commit、未 push、未创建 PR、未部署。 |
