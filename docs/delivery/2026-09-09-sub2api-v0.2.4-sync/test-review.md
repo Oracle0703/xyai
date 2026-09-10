@@ -62,3 +62,15 @@
 | `/api/v1/auth/me` golden 差异 | 第一父实际响应包含 `admin_permissions:null`，golden 未同步。 | 记录；不改合同测试。 |
 | 前端完整 Vitest 4 个失败 | Channel Monitor 旧数量断言 1 个；Groups/Subscriptions 测试未安装 Pinia 3 个。 | 记录；相关文件未被 0.2.4 修改。 |
 | `go mod tidy -diff` | 第一父已有 go.sum 整理差异，本轮未改依赖。 | 保留固定基线元数据。 |
+
+## PR #6924 补充验证
+
+| 检查 | 结果 |
+|---|---|
+| GitHub metadata | PR OPEN、MERGEABLE；base `98d86915...`、head `4e5632c3...`；仅 CLA check SUCCESS，未提供完整后端 CI。 |
+| 三方与最终审查 | local 520 paths、PR 4 paths、both 0；实际 merge 无冲突，4/4 代码 blob 匹配 PR head；最终 17 files / `+176/-24`，0 unstaged/untracked/unmerged。 |
+| UA / identity 专项 | `internal/pkg/openai` 与 `internal/service` 精确过滤测试均通过。 |
+| default affected packages | `internal/pkg/openai` 通过；service 初次仅 cyber-policy 既有 1 秒时序用例失败，精确复跑通过，排除该用例后的完整 service 通过。 |
+| unit affected packages | 排除已单独通过的 cyber 时序用例后，`internal/pkg/openai` 与 `internal/service` 均通过。 |
+| build / lint | `go build ./...`、`go build -tags=embed ./...` 通过；golangci-lint v2.13.0 为 `0 issues`。 |
+| module metadata | PR 不改 go.mod/go.sum；`go mod tidy -diff` 仅复现 0.2.4 基线整理差异，未改文件。 |

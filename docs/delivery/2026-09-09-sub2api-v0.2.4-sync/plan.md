@@ -66,3 +66,13 @@ pnpm --dir frontend run build
 ## 回退
 
 当前计划停在未提交 merge；若用户审核拒绝，只在用户明确授权后执行 `git merge --abort`。未获授权前不做破坏性回退。
+
+## PR #6924 补充任务
+
+| 状态 | 任务 | 证据 |
+|---|---|---|
+| 已完成 | 核对 PR GitHub metadata、base/head、4 个路径与 CI 状态 | base `98d86915...`，head `4e5632c3...`，OPEN/MERGEABLE |
+| 已完成 | 三方预演并以未提交 merge 叠加 PR head | 0 文本冲突、0 双方修改路径、4/4 blob 匹配 |
+| 已完成 | 运行专项、受影响 package、build 与 lint | `test-review.md` |
+| 已完成 | 更新 wiki、图谱、ledger 并完成最终审计 | 文档 diff、Git 状态、`MERGE_HEAD` |
+| 待开始 | 用户审核 PR supplement merge commit | 未获批准前不 commit、不 push |

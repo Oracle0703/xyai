@@ -2,6 +2,7 @@
 
 ## 0.2.4 合并增量
 
+- Codex 出站身份必须在 trim/解析前校验原始 User-Agent header value。`PairCodexClientIdentity` 拒绝 HTTP header 非法字节及 CR/LF；canonical resolver 或请求 candidate 非法时统一回退内置官方 UA/版本，不得从非法值中保留 originator、版本或 suffix。HTTP 与 WebSocket 共享该 identity 边界。
 - `SUB2API_IMAGES_MAIN_MODEL` 只改变 OAuth/Setup Token 生图的 Responses 文本主控，不改变图片模型准入；空值/空白回落 `gpt-5.6-luna`，已有合法文本主控的 `/v1/responses` 请求不应被图片桥接逻辑覆盖。
 - GPT Image 2.5 的显式账号 mapping、分组模型白名单和服务端 `IsGPTImageGenerationModel` 仍是独立边界；前端候选列表扩展不得绕过服务端权限。本轮不修复上游其它图片/网络风险。
 

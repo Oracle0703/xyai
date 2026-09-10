@@ -66,3 +66,12 @@
 | SC-5 | 文档数据流 | wiki diff、ledger 尾部、图谱状态。 |
 | SC-6 | 失败处理 | 专项与完整测试矩阵。 |
 | SC-7 | 审核门禁 | `MERGE_HEAD` 保留且无 commit/push/PR。 |
+
+## PR #6924 补充规格
+
+| 项目 | 规格 |
+|---|---|
+| 输入 | PR base `98d86915...`、head `4e5632c3...`、当前分支基线 `2398cc00...`。 |
+| 行为 | 原始 Codex User-Agent 在 trim/identity 解析前验证；非法 header 字节或 CR/LF 触发官方默认身份回退。 |
+| 不变项 | transparent version policy、随机 UA、安装/session ID、配置、依赖及 HTTP/WS 共享 identity 结构不变。 |
+| 验证 | parser/canonical/candidate 专项、受影响 package default/unit、normal/embed build、lint、Git 静态审计。 |

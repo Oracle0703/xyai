@@ -1896,3 +1896,19 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | GPT Image 2.5 / 生图 / 定价专项 Go 测试通过；default/unit 除上述边界外其余包通过，排除已知失败的 repository/server 包重跑通过；integration 全量通过；Go normal/embed build、`golangci-lint v2.13.0 --new-from-rev=HEAD`（0 issues）通过。前端 lint/typecheck、模型白名单 `16/16`、production build（1079 modules）通过；完整 Vitest `293/296 files`、`2161/2165 tests`。`go mod tidy -diff` 仅报告固定基线 `go.sum` 的旧校验和清理与 `xxh3` 补齐差异，本轮不改依赖元数据。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md`；当前交付记录位于 `docs/delivery/2026-09-09-sub2api-v0.2.4-sync/`。Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，状态 READY。 |
 | Approval / delivery | 最终 staged snapshot 为 34 files / `+755/-27`，0 unstaged、0 untracked、0 unmerged；24/24 features 保留，`git diff --cached --check` 通过。保持 `git merge --no-commit --no-ff`，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+## 2026-09-10 PR #6924 supplement (awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch / baseline | `feature/hy/10204_merge_sub2api_204@2398cc00df1eb15876e05504131775af13ba374e`；该提交已包含上游 `0.2.4` merge，任务开始时与本地 `main`、`github/main` 及远端同名分支一致。 |
+| Pull request | `Wei-Shaw/sub2api#6924`，title `fix: validate Codex User-Agent before identity parsing`，状态 OPEN / MERGEABLE；GitHub `mergeStateStatus=UNSTABLE`，当前仅 CLA check SUCCESS，未提供完整后端 CI。 |
+| PR base / head | base `98d86915becae9fe9491a91ffc6defd5235c8d2b`；head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`。仅合入 PR head，不使用临时 merge ref `df3a1b1f7f49cf78cc769c58ce2cb53e0c317e63`。 |
+| Merge commit | **待用户审核，尚未创建；当前 `MERGE_HEAD=4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`**。 |
+| Changed paths | `backend/internal/pkg/openai/request.go`; `backend/internal/pkg/openai/request_ua_validation_test.go`; `backend/internal/service/openai_codex_identity.go`; `backend/internal/service/openai_ua_validation_test.go`。 |
+| Behavior | `PairCodexClientIdentity` 在 trim/identity 解析前使用 `httpguts.ValidHeaderFieldValue` 校验原始 User-Agent，并显式拒绝 CR/LF；NUL、DEL、控制字节或换行均不能贡献 originator/version/suffix。非法 canonical resolver 或 candidate 统一回退内置官方 UA/版本；transparent policy、随机 UA、安装/session ID、配置、依赖及 HTTP/WS 共用 identity 结构不变。 |
+| Conflict handling | 三方路径集合为 local 520、PR 4、both 0；预演与实际 `git merge --no-commit --no-ff upstream/pr-6924-head` 均无文本冲突。4/4 结果 blob 与 PR head 一致，未修改 PR 生产实现或测试。 |
+| Local features | 24 个 tracked `docs/features` 文件全部保留、零删除；PR 不触碰 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、compatible cache usage、默认 reasoning effort、quota flusher 或 reasoning-only failover。 |
+| Verification | UA/identity 精确过滤测试通过；`internal/pkg/openai` 与 `internal/service` default/unit 通过。一次未排除测试的 service 全包运行触发第一父已有 cyber-policy 1 秒时序波动，fresh `GOTMPDIR` 精确复跑通过，排除该用例后的完整 service 通过。Go normal/embed build、golangci-lint v2.13.0（0 issues）通过；`go mod tidy -diff` 仅复现 0.2.4 基线 `go.sum` 整理差异，未改文件。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `ops.md`, `security-and-reliability.md`，同步现有 0.2.4 delivery 文档并追加本条；Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，状态 READY。 |
+| Approval / delivery | 最终 staged snapshot 为 17 files / `+176/-24`，0 unstaged、0 untracked、0 unmerged；24/24 features 保留，`git diff --cached --check` 通过。保持 PR head 的未提交 merge，等待用户审核；未 commit、未 push、未创建本地 PR、未部署。 |

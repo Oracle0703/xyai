@@ -2,7 +2,7 @@
 
 ## 摘要
 
-已形成基于 `main@f6bce5db`、第二父固定为 `98d86915becae9fe9491a91ffc6defd5235c8d2b` 的未提交 Sub2API 0.2.4 merge 快照，等待用户审核 commit。
+Sub2API 0.2.4 merge 已提交为 `2398cc00df1eb15876e05504131775af13ba374e`；当前又以未提交 merge 叠加 PR #6924 head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`，等待用户审核 commit。
 
 ## 已交付变更
 
@@ -13,6 +13,7 @@
 | 冲突 | 无文本冲突；2 个双方修改路径完成三方语义审查，17 个仅上游路径保持 exact target blob。 |
 | 本地功能 | 24/24 `docs/features` 保留，独有业务能力未被 0.2.4 增量触碰。 |
 | 文档 | 六页 wiki、Wiki 图谱、append-only merge ledger 与本交付记录已更新。 |
+| PR #6924 | 为 Codex User-Agent identity 增加 trim 前的 header 字节校验与非法 canonical/candidate 回退；4 个代码路径与 PR head 一致。 |
 
 ## 验证证据
 
@@ -28,6 +29,7 @@
 | 完整套件 | Go default/unit 与 Vitest 仅保留已归因的第一父或环境失败 |
 | Wiki 图谱 | 33 nodes / 67 edges，状态 READY |
 | 最终 Git 快照 | 34 files / `+755/-27`；0 unstaged、0 untracked、0 unmerged，cached diff check 通过 |
+| PR #6924 验证 | 专项、受影响 package default/unit、normal/embed build、lint、Wiki READY；最终 17 files / `+176/-24`，0 unstaged/untracked/unmerged |
 
 ## 已知限制
 
@@ -35,4 +37,4 @@
 
 ## 后续动作
 
-用户审核当前 staged merge 快照；明确批准后才创建 merge commit。未授权 push、PR 或部署。
+用户审核当前 PR #6924 staged merge 快照；明确批准后才创建 merge commit。未授权 push、PR 或部署。

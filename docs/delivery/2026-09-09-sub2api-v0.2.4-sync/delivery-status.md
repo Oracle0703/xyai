@@ -5,16 +5,16 @@
 | 字段 | 内容 |
 |---|---|
 | 当前阶段 | 等待批准 |
-| 整体状态 | 34 文件 staged merge 快照已固化，等待用户审核 commit |
+| 整体状态 | PR #6924 staged merge 快照已固化，等待用户审核 commit |
 | 开始时间 | 2026-09-09 |
-| 最近更新 | 2026-09-09 |
-| 下一检查点 | 用户审核 staged merge，并明确是否授权创建 merge commit。 |
+| 最近更新 | 2026-09-10 |
+| 下一检查点 | 用户审核 PR #6924 staged merge，并明确是否授权创建 merge commit。 |
 
 ## 活跃角色
 
 | 角色 | 状态 | 当前任务 | 负责范围 | 最新说明 |
 |---|---|---|---|---|
-| Codex 控制器 | 已完成 | 合并、文档、审查、验证与最终审计 | 当前工作树 | 34 files staged；0 unstaged/untracked/unmerged，等待用户。 |
+| Codex 控制器 | 已完成 | PR #6924 合并、文档、验证与最终审计 | 当前工作树 | 17 files staged；0 unstaged/unmerged，等待用户。 |
 
 ## 执行模式
 
@@ -35,7 +35,7 @@
 | 实现 | 已完成 | 已创建规定分支并形成未提交 merge；源代码无需人工冲突编辑。 |
 | QA 审查 | 已完成 | 2 个双方修改路径与 17 个仅上游路径完成语义审查，无需业务代码编辑。 |
 | 验证 | 已完成 | 专项、integration、build、lint、前端门禁通过；完整套件失败均已归因。 |
-| 最终交付 | 等待确认 | 未提交 `MERGE_HEAD` 审核快照已固化。 |
+| 最终交付 | 等待确认 | `MERGE_HEAD=4e5632c3...` 的未提交审核快照已固化。 |
 
 ## 进度日志
 
@@ -54,6 +54,10 @@
 | 2026-09-09 | 后端质量门禁 | normal/embed build 通过；golangci-lint v2.13.0 为 0 issues；tidy 仅报告基线 go.sum 差异。 |
 | 2026-09-09 | Wiki 更新 | 六页知识正文已更新；图谱刷新为 33 nodes / 67 edges，状态 READY。 |
 | 2026-09-09 | 最终快照固化 | 34 files / `+755/-27`；0 unstaged、0 untracked、0 unmerged、0 conflict markers，cached whitespace 通过。 |
+| 2026-09-10 | 0.2.4 merge 已提交 | 任务恢复时分支、`main` 与 `github/main` 均为 `2398cc00...`，工作区干净。 |
+| 2026-09-10 | PR #6924 边界锁定 | PR base `98d86915...`，head `4e5632c3...`，4 paths / `+87/-3`；GitHub 仅 CLA 检查成功。 |
+| 2026-09-10 | PR #6924 合并 | 未提交 merge 自动完成；0 文本冲突、0 双方修改路径、4/4 blob 与 PR head 一致。 |
+| 2026-09-10 | PR #6924 验证 | 专项、受影响 package default/unit、normal/embed build、lint、Wiki READY；17 files / `+176/-24`，0 unstaged/unmerged。 |
 
 ## 阻塞项
 

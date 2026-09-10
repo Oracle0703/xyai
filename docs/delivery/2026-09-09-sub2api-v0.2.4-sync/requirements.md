@@ -46,3 +46,11 @@
 | ID | 问题 | 当前处理 |
 |---|---|---|
 | Q-1 | merge commit SHA 在待审核快照中尚不存在。 | append-only 记录标记为“待用户审核后创建”；实际 commit 后再按规则补录真实 SHA。 |
+
+## PR #6924 补充需求
+
+| 字段 | 内容 |
+|---|---|
+| 目标 | 将 `Wei-Shaw/sub2api#6924` 的精确 head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688` 合入同一功能分支。 |
+| 边界 | 只合入 PR head，不使用可能夹带更新主线的 GitHub 临时 merge ref；继续保留 commit 前审核门禁。 |
+| 成功标准 | PR base 与现有上游边界一致；冲突清零；本地功能零删除；相关测试、build、lint 通过或失败有明确归因。 |
