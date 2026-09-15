@@ -17,6 +17,7 @@
 ## 运维与配置
 
 - [[ops]]
+- 人类完整手册: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`
 
 ## 数据与领域
 

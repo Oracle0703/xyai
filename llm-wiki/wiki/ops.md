@@ -1,5 +1,16 @@
 # 运维, 配置与验证基线
 
+给人读的完整架构、配置、部署、值班与改代码手册见 `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`。本页保持 AI 可快速扫描的命令、配置组和约束；手册写操作步骤。
+
+手册 2026-09-11 已按源码重写: 进程配置逐项在第 20 章、热配置逐项在第 21 章、后台任务与锁键在第 11 章、排障树在第 25 章。本页不抄整章。
+
+源码核对得到、手册与本页共同遵守的几个事实:
+
+- 后台任务锁分两类: `LeaderLockCache` 的 Redis 键是 `leader:lock:` + 逻辑键（如 `dashboard:aggregation:leader`、`backup:scheduled:leader`、`payment:order:expiry:leader`、`jobs:openai-auto-reset-credit`）, 无续约、完成即释放, Redis 不可用回退 PG advisory; Ops 系列（`ops:metrics:collector:leader`、`ops:aggregation:hourly|daily:leader`、`ops:alert:evaluator:leader`、`ops:cleanup:leader`、`ops:scheduled_reports:leader`）是业务自行 `SETNX` 的裸键, 没有 `leader:lock:` 前缀; Channel Monitor V2 聚合只用 PG advisory。
+- 无跨实例锁、多副本会重复执行的任务: TokenRefreshService（靠 per-account 锁与 provider 并发/QPS 门减轻）、Channel Monitor V1 runner（每实例都探测）、TokenAnalysis 自动索引、CN provider 余额检查、UsageCleanup 任务执行器（任务表抢活）。
+- 启动迁移的 PostgreSQL advisory lock ID 为 `694208311321144027`, `pg_try_advisory_lock` 每 500ms 轮询, 迁移总超时 10 分钟; 瞬时错误重试实现在 `backend/internal/repository/ent.go`, 不在 `migrations_runner.go`。
+- settings 没有统一缓存也没有 settings 级 Redis pub/sub: Panel 限流与网关运行态各 60s（出错 5s）, 请求归档 5s（出错 1s）, OpenAI API Key 健康熔断 30s, Ops 运行态 30s; 只有 Prompt Audit 配置额外用 Redis 频道 `sub2api:prompt_guard:config:invalidate`。
+
 ## 当前版本基线
 
 - 2026-09-10 当前 `feature/hy/10204_merge_sub2api_204@2398cc00df1eb15876e05504131775af13ba374e` 已包含上游 `0.2.4` merge commit；现以 `git merge --no-commit --no-ff` 叠加 PR #6924 head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`，PR base 为 `98d86915becae9fe9491a91ffc6defd5235c8d2b`。4 个路径自动合并，无文本冲突或双方修改路径，当前 `MERGE_HEAD` 固定为 PR head 并等待审核。
@@ -356,7 +367,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端单元测试: `make test-unit`
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
-- golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.9`, working-directory `backend`
+- golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.13`, working-directory `backend`
 - Go 版本校验: `go1.27.0`
 
 `.github/workflows/security-scan.yml`:

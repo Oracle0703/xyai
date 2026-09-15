@@ -858,6 +858,10 @@ Antigravity accounts support optional **hybrid scheduling**. When enabled, the g
 
 ---
 
+## Architecture and Operations Handbook
+
+New developers and operators: start with [`docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`](docs/ARCHITECTURE_AND_OPS_HANDBOOK.md) (Chinese). It covers architecture, the three configuration layers, how to set each option, local startup, production deploy, on-call troubleshooting, and how to change the code. AI sessions should still read `llm-wiki/wiki/` first.
+
 ## Project Structure
 
 ```

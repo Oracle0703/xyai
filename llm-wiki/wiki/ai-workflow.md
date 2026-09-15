@@ -15,6 +15,7 @@
 2. 读取 `llm-wiki/wiki/README.md`。
 3. 按任务类型读取对应 wiki。
 4. 再读取相关源码, 不从全仓库盲扫开始。
+5. 给人的逐步操作（启动分支、设置页、后台任务、改一类需求动哪些文件）以 `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md` 第 23–30 章为准，不要把整章抄进 wiki。
 
 实现过程中:
 

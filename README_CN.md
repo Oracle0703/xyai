@@ -853,6 +853,10 @@ Antigravity 账户支持可选的**混合调度**功能。开启后，通用端�
 
 ---
 
+## 架构与运维手册
+
+未接触过本仓库的开发/运维请先读 [`docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`](docs/ARCHITECTURE_AND_OPS_HANDBOOK.md)：架构、三层配置、逐项怎么配、本地启动、生产部署、值班排障和改代码约定。AI 开发前仍读 `llm-wiki/wiki/`。
+
 ## 项目结构
 
 ```

@@ -57,6 +57,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 - `data-and-domain.md`: 核心领域对象, Ent schema, SQL migration, 支付/订阅/计费知识。
 - `security-and-reliability.md`: 认证, 权限, 限流, 幂等, CSP, URL allowlist, 网关可靠性。
 - `ai-workflow.md`: Codex/Copilot 日常如何读取和更新 llm-wiki。
+- 给人读的完整架构/运维手册（新同事与值班）: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`（2026-09-11 对照源码重写）。结构: 第 4–13 章运转过程（启动/配置/网关 13 步鉴权/调度并发/计费/管理面/settings/后台任务/数据层/关联图）, 第 14–17 章维护不变量与改动清单, 第 18–26 章运维逐项配置（默认/范围/影响/方向/生效）与排障树。wiki 仍是 AI 开发前入口；手册写流程、配置步骤、上线和排障，不替代本知识库。
 
 ## 知识图谱
 
@@ -77,6 +78,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 | 改数据库字段或索引 | `data-and-domain.md`, `backend/migrations/README.md` |
 | 改支付, 订阅, 余额, 兑换码 | `data-and-domain.md`, `security-and-reliability.md` |
 | 改启动, 配置, CI | `ops.md` |
+| 新人上手 / 运维值班 / 逐项配置 | `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`，细节仍以本 wiki 与源码为准 |
 | 还技术债 / 看已知基线红与上游只记不修项 | `docs/features/technical-debt-board-cn.md`（看板 TD-001+；细节仍以 wiki 与源码为准） |
 
 ## 高优先级维护约束

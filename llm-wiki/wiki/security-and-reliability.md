@@ -399,7 +399,8 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - 不把 token, OAuth refresh token, payment secret, API key 明文写入文档。
 - TOTP encryption key 生产必须固定, 空值会导致重启后 2FA 配置失效。
 - JWT secret 生产必须随机且稳定。
-- 支付 provider 凭证和 webhook secret 应加密存储并验签。
+- 支付 provider 凭证和 webhook secret 必须验签。当前实现（`backend/internal/service/payment_config_providers.go#encryptConfig`）把 `payment_provider_instances.config` **新写入为明文 JSON**, `decryptConfig` 只保留对历史 AES-256-GCM 密文的过渡读取; 读取 API 对 `providerSensitiveConfigFields` 掩码。数据库访问权限与备份必须按"含支付密钥明文"管理, 文档不得声称支付密钥在库中加密。
+- `admin_api_key` 以明文存于 `settings`, 校验使用 `subtle.ConstantTimeCompare`, 与完整管理员平权且不能取得 step-up grant。
 - 后台异步生图对象存储的 SecretAccessKey 使用现有固定 `SecretEncryptor` 加密；未配置持久加密 key 时拒绝保存新 secret, 防止自动生成临时 key 导致重启后无法解密。复用备份 S3 时不重复持久化凭据, 读取 API 只返回 `secret_configured` 状态而不回显明文。
 - Ollama Cloud web session 最多 16 KiB, 拒绝 CR/LF、重复 cookie、Set-Cookie attributes 和非 allowlist session cookie；规范化后使用固定 `TOTP_ENCRYPTION_KEY` 对应的 `SecretEncryptor` 加密写入 `account.extra`, 未配置固定 key 时拒绝保存。DTO、usage snapshot 和 audit log 均不回显 session 或原始 settings HTML；刷新只访问固定 `https://ollama.com/settings`, 响应上限 512 KiB, 并以账号/代理/session identity CAS 防止并发刷新覆盖新凭据。
 - API Key 删除只 tombstone 原 key 以释放唯一约束, 不再把明文 key 复制到 `deleted_api_key_audits`；Ops 入口拒绝只保留有界聚合维度。旧明文审计表/列的 finalizer 必须在滚动升级全部完成并确认恢复点后人工执行。
