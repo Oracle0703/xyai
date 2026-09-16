@@ -13,6 +13,15 @@ vi.mock('@/api/admin', () => ({
     users: { list: listUsers }
   }
 }))
+
+const authState = vi.hoisted(() => ({
+  isAdmin: true,
+  isSubAdmin: false,
+  hasAdminPermission: vi.fn(() => true)
+}))
+
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError, showSuccess: vi.fn() }) }))
 vi.mock('vue-i18n', async () => ({
   ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
