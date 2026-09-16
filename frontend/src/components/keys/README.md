@@ -32,6 +32,10 @@
 - `generateOpenCodeConfig` 的 Claude 清单包含 `claude-fable-5-1` / `Claude Fable 5.1`，context 为 1,048,576，output 为 128,000，支持 text/image/pdf 输入和 adaptive thinking。
 - 新增或重命名 Claude 模型时，要同步后端 `pkg/claude.DefaultModels`、白名单/preset、账号状态短标签与 `UseKeyModal.spec.ts`，避免配置生成器与模型列表分叉。
 
+## 批量 Key 管理
+
+- `BulkEditKeysModal.vue` 将所选 API Key 的更新字段按同一个确认批次发送；选择状态和服务端反馈需保留成功/失败项，不得把未确认的部分失败解释为全部成功。更改提交参数时同步 `BulkEditKeysModal.spec.ts` 与 `frontend/src/api/keys.ts`。
+
 ## 验证
 
 ```powershell

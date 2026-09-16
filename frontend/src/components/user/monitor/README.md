@@ -12,3 +12,7 @@
 cmd.exe /c pnpm --dir frontend exec vitest run src/components/user/monitor
 cmd.exe /c pnpm --dir frontend run typecheck
 ```
+
+# 0.2.5 渠道监控展示
+
+- `MonitorCard.vue` / `ProviderIcon.vue` 可展示 OpenCode Go 渠道；用户侧仍依赖后端脱敏 snapshot 和当前 provider 能力，前端标签不能恢复已隐藏的绝对指标。

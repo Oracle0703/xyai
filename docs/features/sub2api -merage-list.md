@@ -1912,3 +1912,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | UA/identity 精确过滤测试通过；`internal/pkg/openai` 与 `internal/service` default/unit 通过。一次未排除测试的 service 全包运行触发第一父已有 cyber-policy 1 秒时序波动，fresh `GOTMPDIR` 精确复跑通过，排除该用例后的完整 service 通过。Go normal/embed build、golangci-lint v2.13.0（0 issues）通过；`go mod tidy -diff` 仅复现 0.2.4 基线 `go.sum` 整理差异，未改文件。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `ops.md`, `security-and-reliability.md`，同步现有 0.2.4 delivery 文档并追加本条；Wiki 图谱刷新为 33 nodes / 67 edges、49 wikilinks、0 unresolved，状态 READY。 |
 | Approval / delivery | 最终 staged snapshot 为 17 files / `+176/-24`，0 unstaged、0 untracked、0 unmerged；24/24 features 保留，`git diff --cached --check` 通过。保持 PR head 的未提交 merge，等待用户审核；未 commit、未 push、未创建本地 PR、未部署。 |
+
+## 2026-09-16 main sync (v0.2.5; awaiting review)
+
+| Item | Value |
+|---|---|
+| Integration branch | `feature/hy/10205_merge_sub2api_205` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3`（任务开始时本地 `main`，刷新后与 `github/main` 一致） |
+| Merge base | `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688` |
+| Upstream head / second parent | `881f3202694c6bc932446931a30c27d9675178b9` |
+| Merge commit | **待用户审核，尚未创建；`MERGE_HEAD=881f3202694c6bc932446931a30c27d9675178b9`** |
+| Upstream version / delta | 固定目标的 `backend/cmd/server/VERSION=0.2.5`；相对 merge base 为 196 commits、443 paths，双方修改 66 paths；不以之后的上游 HEAD 替代该 SHA。 |
+| Conflict files | `backend/cmd/server/wire_gen.go`; `backend/internal/config/config.go`; `backend/internal/handler/admin/idempotency_helper.go`; `backend/internal/service/idempotency.go`; `deploy/config.example.yaml`; `frontend/src/App.vue`; `frontend/src/api/admin/subscriptions.ts`; `frontend/src/components/account/CreateAccountModal.vue`; `frontend/src/components/layout/__tests__/AppSidebar.spec.ts`; `frontend/src/views/admin/SubscriptionsView.vue`（三方预演与实际合并均为 10 个文件；其中 Wire 为生成物）。 |
+| Conflict handling | 配置保留本地默认 reasoning/archive/intercept，compact 默认与示例采用上游 `gpt-5.5`；幂等 helper/service 同时保留本地按筛选重置的 `AtomicSuccess` 事务和上游批量动作的 `ExecutionTimeout`/lease，失败标记继续使用本地有界独立 context；账号创建弹窗保留本地 OpenAI-compatible provider preset，adaptive base URL 条件采用上游多协议判定；`App.vue` 合并权限拒绝后的子管理员恢复与订阅 feature-flag 轮询；订阅 API/View 保留本地组织筛选/按筛选重置，同时纳入上游选中行批量动作；Sidebar 测试保留两侧断言。Wire 从 provider source 连续生成，不手改最终产物。 |
+| Semantic overlap review | 66 个双方修改路径按 Ent/Wire、网关/计费/认证、订阅幂等/管理、前端账号/路由/开关和 i18n 审查。自动合并发现本地 `subscriptionHandlerService` 窄接口缺上游 `BulkSubscriptionAction` 签名，以及上游批量订阅 UI 对本地子管理员可见；仅补接口签名并把批量选择/工具栏/弹窗/命令 guard 收口为完整管理员，保留后端未知写路由默认拒绝。其它独有本地行为不做大块 ours/theirs 覆盖。 |
+| Local features | 合并前 24 个 tracked `docs/features/` 文件全部保留，除追加本记录外其余 23 个未改。RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、默认 reasoning effort、compatible cache/参数过滤、large-request compaction、并发预设、quota flusher 和 reasoning-only failover 继续存在；真正重叠的 compact 默认模型采用上游版本。 |
+| Upstream behavior | 合入 OpenCode Go/Zen 平台与按模型原生协议、单模型查询、站点充值/订阅模式、按项事务的批量订阅动作、图片直转/图片缓存读取用量、Ollama 429 异步 probe、OpenAI WS 生命周期修正、无限额平台配额行清理；新增两个独立 `238_*` migration。 |
+| Upstream / baseline issue boundary | `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 三次精确复跑均失败：stale long reset 通过 CAS；`ratelimit_service.go`、`ratelimit_service_ollama_429.go` 与对应测试索引 blob 与固定上游完全一致，本轮只记录等待上游修复。Go default/unit 的 3 个 `backup_pg_dumper` 用例因 Windows 缺少 `sh.exe` 失败；unit 另有第一父 `/auth/me` `admin_permissions:null` golden 差异。前端完整 Vitest 的 12 个失败为 Channel Monitor 旧 provider 数量断言 1 个、Groups/Subscriptions Pinia 测试装配 11 个（其中新增的批量订阅测试 4 个属于目标上游）。本机 `golangci-lint v2.9.0` 由 Go 1.26 构建，拒绝加载 Go 1.27 配置；`go mod tidy -diff` 只提示既有/目标 `go.sum` 的旧传递校验和与 `xxh3`，未改依赖元数据。按用户限定不修上游或第一父问题。 |
+| Verification | 聚焦 Go handler/admin、routes、service 通过；Ent/Wire 两轮生成成功且关键产物 SHA256 一致；normal/embed `go build -p 1 ./...` 均退出 0。Go default 全量除 3 个 Windows backup 用例外其余包通过；unit 除这 3 个、第一父 `/auth/me` golden 和目标上游 Ollama CAS 用例外其余包通过，service 排除固定上游用例全包、repository/server 排除已知基线用例全包复跑通过；integration 全量退出 0。前端 lint/typecheck、24/24 权限/Sidebar 窄测、production Vite build（1089 modules）退出 0；完整 Vitest 309/313 files、2346/2358 tests。`git ls-files -u` 为空，24/24 features 索引保留；cached/worktree whitespace 检查通过。 |
+| Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 和受影响组件 README，追加本条。 |
+| Approval / delivery | 保持 `git merge --no-commit --no-ff` 等待审核；未 commit、未 push、未创建 PR、未部署。 |

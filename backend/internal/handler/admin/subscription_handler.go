@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"strconv"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -39,6 +40,7 @@ type subscriptionHandlerService interface {
 	GetSubscriptionProgress(ctx context.Context, subscriptionID int64) (*service.SubscriptionProgress, error)
 	AssignSubscription(ctx context.Context, input *service.AssignSubscriptionInput) (*service.UserSubscription, error)
 	BulkAssignSubscription(ctx context.Context, input *service.BulkAssignSubscriptionInput) (*service.BulkAssignResult, error)
+	BulkSubscriptionAction(ctx context.Context, input *service.BulkSubscriptionActionInput) (*service.BulkSubscriptionActionResult, error)
 	ExtendSubscription(ctx context.Context, subscriptionID int64, days int) (*service.UserSubscription, error)
 	AdminResetQuota(ctx context.Context, subscriptionID int64, resetDaily, resetWeekly, resetMonthly bool) (*service.UserSubscription, error)
 	AdminResetDailyFiltered(ctx context.Context, filter service.SubscriptionAdminFilter) (int, error)
@@ -69,7 +71,7 @@ type AssignSubscriptionRequest struct {
 
 // BulkAssignSubscriptionRequest represents bulk assign subscription request
 type BulkAssignSubscriptionRequest struct {
-	UserIDs      []int64 `json:"user_ids" binding:"required,min=1"`
+	UserIDs      []int64 `json:"user_ids" binding:"required,min=1,max=100,dive,gt=0"`
 	GroupID      int64   `json:"group_id" binding:"required"`
 	ValidityDays int     `json:"validity_days" binding:"omitempty,max=36500"` // max 100 years
 	Notes        string  `json:"notes"`
@@ -205,6 +207,23 @@ func (h *SubscriptionHandler) BulkAssign(c *gin.Context) {
 	}
 
 	response.Success(c, dto.BulkAssignResultFromService(result))
+}
+
+// BulkAction applies one operation to selected subscriptions, returning each outcome.
+// POST /api/v1/admin/subscriptions/bulk-action
+func (h *SubscriptionHandler) BulkAction(c *gin.Context) {
+	var req service.BulkSubscriptionActionInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := req.Validate(); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	executeAdminIdempotentJSONWithTimeout(c, "admin.subscriptions.bulk-action", req, service.DefaultWriteIdempotencyTTL(), 2*time.Minute, func(ctx context.Context) (any, error) {
+		return h.subscriptionService.BulkSubscriptionAction(ctx, &req)
+	})
 }
 
 // Extend handles adjusting a subscription (extend or shorten)

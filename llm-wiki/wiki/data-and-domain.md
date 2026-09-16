@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.2.5 合并增量
+
+- 新增同号但独立的 `238_opencode_go_platform.sql` 和 `238_purge_unlimited_user_platform_quotas.sql`：前者扩展平台/额度相关 CHECK，后者清理三档限额全空的 `user_platform_quotas` 行。三档均为 NULL 表示不限额、无需实体行；显式 0 是已配置限额，不能按 falsy 判断清理。Ent schema 的平台枚举、`AllowedQuotaPlatforms` 与前后端类型须同时包含 `opencode_go`；已应用迁移仍不可改写。
+- OpenAI 图片用量新增 `ImageCacheReadTokens`，普通图片输入应减去缓存读取值后再计费；既有 usage log 的图片尺寸 breakdown JSONB 可记录该分项，`cloneImageSizeBreakdown` 避免污染共享的响应 map。OpenCode Go/Zen 按账号模式和模型协议选择上游，使用现有分组/渠道与用户平台配额边界，不把平台名当成无条件放行。
+- 批量订阅管理返回每个订阅 ID 的成功/失败并维持输入顺序；每项的 extend/reset/revoke/restore 使用单项事务，失败不重放已提交成功项。按筛选一键重置日限的 UPDATE 与幂等结果仍必须原子提交，与新批量动作不是同一接口。
+
 ## 0.2.4 合并增量
 
 - GPT Image 2.5 Flare/Sunburst 及 `-2026-09-08` 日期快照使用独立的文本输入、图片输入、图片输出 token 价格；缺少远程价格条目时由 `PricingService` 使用内置 fallback，显式模型价格优先，不能回退到 GPT Image 2 的旧费率。

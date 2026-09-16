@@ -221,3 +221,8 @@ All components are fully responsive:
 - **AuthLayout**: Adapts padding and card size for mobile devices
 
 The sidebar uses Tailwind's responsive breakpoints (md:) to adjust behavior.
+
+## Subscription And Billing Navigation
+
+- `AppSidebar.vue` 从 `FeatureFlags.subscription` 隐藏关闭订阅的用户/管理侧入口，从 `resolveSiteBillingMode` 派生购买入口文案；路由和后端支付/权限仍分别执行最终校验。
+- 本地 `subAdminNavItems` 只显示已授权页面；更新管理员菜单时同步 `AppSidebar.spec.ts` 中的入口、权限和 feature-flag 断言。

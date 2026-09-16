@@ -27,5 +27,10 @@
 - `usage/UsageFilters.vue` 与 `usage/UsageTable.vue` 把 `live` 作为独立 request type 展示和筛选, 不映射为 legacy stream；可选 `session_id` 只用于客户端会话关联。
 - 订阅分组筛选走 `/admin/subscriptions/search-groups`; 不得调用 `/admin/groups/all`。
 - 订阅组织筛选使用内部值 `xunyou` / `wsdashi`, 页面显示“迅游”/“速宝”。管理列表始终按日剩余比例升序为主序, 表格选择的 `sort_by` / `sort_order` 仅作为同剩余比例时的次序。
-- 一键重置日限只使用最近一次成功列表请求对应的 `status,user_id,group_id,platform,organization`; 初次列表尚未成功时按钮禁用, 后续筛选加载失败时保留原成功快照。打开确认框后再改 UI 不能改变本次请求; 同一确认框失败重试复用幂等键, 重新打开确认框生成新键。成功后按 `reset_count` 区分正数和零匹配提示, 失败保留确认框与当前筛选。
+- 一键重置日限只使用最近一次成功列表请求对应的 `status,user_id,group_id,platform,organization`; 每次列表请求开始立即失效快照, 请求失败后按钮继续禁用。打开确认框后再改 UI 不能改变本次请求; 同一确认框失败重试复用幂等键, 重新打开确认框生成新键。成功后按 `reset_count` 区分正数和零匹配提示, 失败保留确认框与当前筛选。
 - 新增管理权限时同步后端 catalog/路由白名单、前端路由 `adminPermission`、侧边栏、i18n 和测试。
+
+## 0.2.5 订阅批量操作
+
+- `subscription/BulkSubscriptionActionDialog.vue` 只供完整管理员选中行操作；子管理员继续只显示单条重置与按筛选重置日限，批量选择、批量弹窗和命令入口均不得向子管理员开放。
+- 批量 extend/reset/revoke/restore 按可操作状态过滤选中订阅、调用 `/admin/subscriptions/bulk-action`，部分失败保留失败项；`reset-daily-filtered` 仍是独立的已应用筛选快照与幂等操作，不要把两者合并。

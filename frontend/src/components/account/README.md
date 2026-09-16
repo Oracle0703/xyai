@@ -82,6 +82,12 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 
 - 批量 refresh-token 导入必须把管理员原始输入继续传入 OAuth 组合逻辑；解析结果不能替代原始 refresh token，否则手工 token 会在授权流程中丢失。
 
+### OpenCode Go/Zen
+
+- `CreateAccountModal.vue` / `EditAccountModal.vue` 使用 `credentialsBuilder.ts` 的 `OpenCodeAccountMode`、`OpenCodeGoProtocolRule` 管理账号模式与按模型协议；规则未命中沿上游默认 Chat Completions。Zen 按量和 Go 订阅不能共用错误的 base URL。
+- OpenAI-compatible provider preset 仅在 `platform=openai` API Key 表单显示；OpenCode 的 adaptive base URL 条件使用 `isMultiProtocolPlatform`，但不能删除本地 preset 的 UI、reset 和最终提交状态。
+- `OpenCodeGoProtocolRulesEditor.vue` 的模型规则与账号 credentials 互为同一合同，改变一侧时运行 `CreateAccountModal.spec.ts`、`EditAccountModal.spec.ts` 与 `credentialsBuilder.spec.ts`。
+
 ## 验证
 
 ```powershell

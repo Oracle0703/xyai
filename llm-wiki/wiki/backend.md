@@ -1,5 +1,11 @@
 # 后端知识基线
 
+## 0.2.5 合并增量
+
+- `opencode_go` 平台区分 OpenCode Go 订阅与 Zen 按量账号；`backend/internal/service/opencode_go.go` 及 `backend/internal/service/openai_gateway_*` 按模型配置将 Chat/Responses/Messages 入站映射到 Chat Completions、Responses 或原生 Anthropic 上游。平台合同由 `backend/internal/domain/constants.go`、`backend/internal/service/domain_constants.go`、`backend/internal/service/composite_platform.go` 和网关路由共同维护，不能仅加一个平台名。`GET /v1/models/:model` 与根级 `/models/:model` 沿用 API Key/group gate，不进入 Codex manifest 分流。
+- `POST /api/v1/admin/subscriptions/bulk-action` 使用最多 2 分钟的独立有限执行与幂等租约续期，服务层逐订阅事务处理并返回部分成功结果；本地 `reset-daily-filtered` 仍用 `AtomicSuccess` 把批量 UPDATE 与幂等成功记录放进同一事务。`handler/admin/subscription_handler.go` 的窄服务接口必须同时声明两种能力；`idempotency_helper.go` 保留各自的入口。
+- OpenAI 生图增加直转路径和图片缓存读取 token 分项，`openai_gateway_usage.go` 在普通图片输入与缓存图片输入间互斥拆分；Responses->Chat 桥保留本地第三方参数过滤，同时接受上游 `agent_message` 与系统消息顺序处理。合并后的 Wire 从 `cmd/server/wire.go` 和 provider sets 生成，同时保留本地组织用量、Token Analysis、Prompt Metrics、并发预设及上游 Ollama Cloud 运行态。
+
 ## 0.2.4 合并增量
 
 - PR #6924 将 `PairCodexClientIdentity` 的输入校验前移到 trim 之前：使用 `httpguts.ValidHeaderFieldValue` 并显式拒绝 CR/LF，防止 NUL、DEL、控制字节或换行在 identity 解析后进入出站 User-Agent。`resolveCodexOutboundIdentity` 对非法 canonical resolver 值回退 `codexCLIUserAgent`，candidate 与 canonical 仍共用同一配对逻辑。
@@ -280,7 +286,7 @@ OpenAI/Codex 兼容桥:
 - `gateway.openai_ws.client_first_message_timeout_seconds` 默认 30 秒且必须为正数, 覆盖客户端首条 `response.create` 的完整读取与解压, 不是只限制首字节到达时间。
 - OpenAI WS ingress 长连接与单 turn 并发槽分离: `max_ingress_connections_per_api_key` 使用 Redis 短租约限制每个 API Key 在多实例上的存活连接数, 默认 64, 0 关闭; lease TTL 60 秒、每 20 秒刷新, 丢失租约时连接 fail-close。`ingress_inter_turn_idle_timeout_seconds` 默认 300 秒, 只限制已完成 turn 之间的客户端空闲, 0 关闭。
 - OpenAI WebSocket 传输层会把 Windows `WSAECONNRESET` / `WSAECONNABORTED` 等连接重置识别为可分类的网络错误; 不要把这类平台错误文本当作业务响应或未知失败。
-- `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.4`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
+- `/v1/responses/compact`、根级 `/responses/compact` 和 `/backend-api/codex/responses/compact` 会保留 compact 子路径; `gateway.openai_compact_model` 默认 `gpt-5.5`, 可在 compact endpoint 落后普通 Responses 时降级。账号级 compact model mapping 只影响 compact 请求, 不改普通 `/v1/responses`。body-signal 客户端请求 `stream=true` 时响应必须重新合成为 SSE; upstream SSE -> unary JSON 会保留 raw `output_item.done`, 等待期间可向下游发送不污染 failover/终态判定的 keepalive。
 - Grok 没有原生 `/responses/compact`; Grok 分组把 compact 请求转换为一次普通非流式 Responses 摘要 turn, 要求返回 `reasoning.encrypted_content`, 再映射成 OpenAI `compaction` item。后续 turn 会把该 item 还原为 Grok reasoning 与带 `<conversation_summary>` 的上下文；compact 路径不派生 prompt cache identity。
 - OpenAI 上游传输层错误(连接/代理等持久网络故障)由 `backend/internal/service/openai_upstream_transport_error.go` 的 `handleOpenAIUpstreamTransportError` 统一处理: 在 Responses fallback 与 raw/passthrough 路径触发 failover 换账号, 持久故障会临时摘除该账号(temp unscheduled), 不污染上游 SLA。native Responses、raw/compatible pipeline、passthrough 和 Grok producer 都要把上游 response headers 留在内部 failover error, 但账号耗尽时只允许向客户端恢复安全的 `Retry-After`: 数字必须为 1-604800 秒, HTTP 日期必须晚于当前且不超过 7 天; CR/LF、超长或超界值一律丢弃, 其他上游 header 不恢复。
 - OpenAI Responses SSE 经代理发生非 context-cancel/deadline 的中途断流时, `openai_proxy_stream_circuit.go` 按 proxy ID 在进程内计数；默认 60 秒内 2 次触发隔离 10 分钟, 成功流会清除该代理观察。被隔离代理在账号调度时跳过；状态有界为 4096 项、重启清空, 只隔离代理而不持久修改账号。

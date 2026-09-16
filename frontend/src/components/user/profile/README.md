@@ -14,3 +14,7 @@
 cmd.exe /c pnpm --dir frontend exec vitest run src/api/__tests__/passkey.spec.ts
 cmd.exe /c pnpm --dir frontend run typecheck
 ```
+
+# 0.2.5 资料表单
+
+- `ProfileEditForm.vue`、`ProfilePasswordForm.vue` 和余额提醒组件的表单值仍由用户资料 API 确认；更新编辑/密码/通知交互时同步同目录 `__tests__`，不让未保存的表单状态改写服务端用户资料。

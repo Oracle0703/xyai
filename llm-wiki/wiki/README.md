@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-09-10
+更新时间: 2026-09-16
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -10,6 +10,8 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 
 ## 最近同步
+
+- 2026-09-16 从本地 `main@4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3` 创建 `feature/hy/10205_merge_sub2api_205`，固定合入 `Wei-Shaw/sub2api main@881f3202694c6bc932446931a30c27d9675178b9`（版本 `0.2.5`，merge base `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`）。本轮上游引入 OpenCode Go/Zen、按模型原生协议、单模型查询、站点充值/订阅模式、批量订阅动作、图片直转与图片缓存用量分项、WS 生命周期和无限额平台配额行清理。10 个文本冲突和双方修改的 66 个路径按三方合同处理，24 个本地 `docs/features` 文件保留；本地归档/拦截、组织用量、Token Analysis、子管理员、Prompt Metrics/Risk、兼容参数及并发预设仍独立存在。合并候选保持 `MERGE_HEAD=881f3202694c6bc932446931a30c27d9675178b9`，等待审核后再创建 merge commit；上游/基线问题只记录不修复。
 
 - 2026-09-10 在已完成并推送的 `feature/hy/10204_merge_sub2api_204@2398cc00df1eb15876e05504131775af13ba374e` 上，以未提交 merge 叠加 `Wei-Shaw/sub2api#6924` head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`；PR base 精确为已合入的上游 `0.2.4@98d86915becae9fe9491a91ffc6defd5235c8d2b`。PR 仅修改 4 个后端路径，为 Codex User-Agent identity 配对增加 trim 前的 HTTP header 字节校验，并让非法 canonical/candidate UA 统一回退官方默认身份；HTTP 与 WebSocket 继续复用原 identity 链。三方审查为 0 文本冲突、0 双方修改路径，4/4 结果 blob 与 PR head 一致，24 个 `docs/features` 文件零删除。专项测试、受影响 package 的 default/unit、normal/embed build 和 golangci-lint 均通过；仅一次完整 service 运行触发第一父既有 cyber-policy 1 秒时序波动，精确复跑通过，排除该用例后的完整 service 通过。当前 `MERGE_HEAD=4e5632c3e...` 等待 commit 审核，未 commit、未 push。
 

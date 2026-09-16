@@ -1,5 +1,10 @@
 # Common Components
 
+## 0.2.5 Integration
+
+- `PlatformIcon.vue`、`PlatformTypeBadge.vue` 扩展 OpenCode Go 的平台展示和 OpenAI 账号 plan 状态；模型/账号准入仍由服务端负责，图标标签不是权限判断。
+- `SubscriptionProgressMini.vue` 只在订阅功能公开开关开启时展示进度；已存订阅计费不随该 UI 软开关停止。
+
 This directory contains reusable Vue 3 components built with Composition API, TypeScript, and TailwindCSS.
 
 ## Components

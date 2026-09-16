@@ -22,3 +22,7 @@
 cmd.exe /c pnpm --dir frontend exec vitest run src/components/admin/usage src/views/admin/__tests__/UsageView.spec.ts
 cmd.exe /c pnpm --dir frontend run typecheck
 ```
+
+# 0.2.5 用量表维护
+
+- `UsageTable.vue` 与用户侧用量视图复用；新增 OpenCode Go 平台/图片缓存读取字段时继续以服务端 usage log 的分项为准，不由 UI 把缓存图片 token 重新并入普通图片输入。列设置和筛选调整需同步 `UsageTable.spec.ts`。

@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.2.5 合并增量
+
+- `POST /admin/subscriptions/bulk-action` 仍经管理员认证；子管理员 `admin.subscriptions` 白名单不增加该写路由，未知路由默认拒绝。单项事务与有限执行的幂等 lease 减少客户端断开后重复写入；本地 `reset-daily-filtered` 的 `AtomicSuccess` fail-close、模糊提交只读恢复及 post-commit 缓存失效不因上游选中行批量能力改变。
+- 根级和 `/v1` 的单模型查询遵循当前 gateway API Key、分组模型白名单、Composite target、`RequestArchive -> guardResponsesSubpath(RequestIntercept)` 链，新增别名不能绕过本地归档/拦截。OpenCode Go 的 Chat/Responses/Anthropic 上游由显式账号模式/模型协议决定，账号及分组准入仍先于转发。
+- `subscription_enabled=false` 是用户端展示/轮询的软开关，不撤销既有订阅、服务端订阅计费或管理写路由；仅充值站点的余额充值与仅订阅站点的余额下单限制仍由支付服务的 `BALANCE_PAYMENT_DISABLED` 权威校验，不能把侧栏隐藏当作权限控制。
+- 上游 0.2.5 的 Ollama Cloud 429 异步 probe 测试 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 会观察到 stale 7d reset 通过 CAS (`casUpdated=1`)，与其“旧回调不得覆盖管理员新的短 cooldown”合同不符；三次精确重跑复现，相关实现/测试均为固定目标 blob。本分支只记录等待上游修复，生产对 Ollama 429 probe 写回的异步重排风险需单独关注。
+
 ## 0.2.4 合并增量
 
 - Codex 出站身份必须在 trim/解析前校验原始 User-Agent header value。`PairCodexClientIdentity` 拒绝 HTTP header 非法字节及 CR/LF；canonical resolver 或请求 candidate 非法时统一回退内置官方 UA/版本，不得从非法值中保留 originator、版本或 suffix。HTTP 与 WebSocket 共享该 identity 边界。

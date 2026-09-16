@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.5 合并增量
+
+- OpenCode Go/Zen 账号在 `components/account/credentialsBuilder.ts` 与创建/编辑弹窗维护按模型原生协议规则；本地 OpenAI-compatible provider preset 只在 OpenAI API Key 分支显示，不能被新的 `isMultiProtocolPlatform` base-URL 条件覆盖。对应平台类型、白名单和渠道选项要同时保真。
+- `SubscriptionsView.vue` 保留本地组织筛选和按已应用列表筛选范围重置日限，并接入上游选中行的 extend/reset/revoke/restore 批量动作。前者用独立 `resetDailyFiltered` 幂等键，后者用 `bulkAction` 幂等键；子管理员只可执行本地已授权的单条与筛选重置，不展示新增批量管理动作。`App.vue` 保留子管理员权限拒绝后的会话恢复，同时按公开 `subscription_enabled` 开关启停订阅轮询。
+- 站点购买模式从公开 `subscription_enabled` 与 `payment_balance_disabled` 派生；管理端设置页单选可写回两者。仅充值时用户订阅路由、侧栏、购买页订阅内容隐藏，但已存订阅计费及管理 API 不由前端开关取消。平台 quota 三档均空时前端不制造有限额假象。
+
 ## 0.2.4 合并增量
 
 - `frontend/src/composables/useModelWhitelist.ts` 增加 `gpt-image-2.5-flare` 与 `gpt-image-2.5-sunburst`；日期快照仍由后端账号映射/分组白名单合同控制，前端候选扩展不能替代服务端准入。

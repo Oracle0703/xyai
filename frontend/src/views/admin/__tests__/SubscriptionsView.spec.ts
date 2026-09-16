@@ -293,6 +293,18 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(getAllGroups).not.toHaveBeenCalled()
   })
 
+  it('does not expose selected-subscription management actions to sub admins', async () => {
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+
+    const wrapper = await mountView()
+    wrapper.getComponent(DataTableStub).vm.$emit('update:selectedKeys', [testSubscription.id])
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="subscription-bulk-actions"]').exists()).toBe(false)
+    expect(wrapper.getComponent(DataTableStub).attributes('selectable')).toBe('false')
+  })
+
   it('applies the organization filter while retaining secondary sort fields', async () => {
     const wrapper = await mountView()
     const organizationFilter = wrapper.get('[data-test="organization-filter"]')

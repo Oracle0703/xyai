@@ -13,6 +13,10 @@
 
 ## 当前版本基线
 
+- 2026-09-16 本地 `main@4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3` 与刷新后的 `github/main` 一致；新分支 `feature/hy/10205_merge_sub2api_205` 固定合并 `upstream/main@881f3202694c6bc932446931a30c27d9675178b9`，`backend/cmd/server/VERSION=0.2.5`，merge base `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`。上游相对 merge base 为 196 commits / 443 paths，10 个文本冲突、66 个双方修改路径；`MERGE_HEAD` 保留待审核，不以之后的远端 HEAD 替换。
+- 新版本 `gateway.openai_compact_model` 的代码默认值及 `deploy/config.example.yaml` 示例同步为 `gpt-5.5`，本地 `gateway.openai_default_reasoning_effort` 与 `request_archive`/`request_intercept` 配置仍保留。OpenCode Go 引入 SQL migration `238_opencode_go_platform.sql`，无限额 quota 清理为另一个独立的 `238_purge_unlimited_user_platform_quotas.sql`；runner 仍按完整文件名处理，不修改既有迁移。Wire 工具生成时可增加仅供工具运行的 `go.sum` 传递校验和，不把该副作用作为上游依赖提交。
+- Windows 验证边界：默认 Go 全量只有 3 个 `backup_pg_dumper` 用例因缺 `sh.exe` 失败；unit 还保留第一父 `/auth/me` golden 的 `admin_permissions:null` 差异。固定上游 0.2.5 的 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 三次精确重跑均失败：旧异步回调错误地通过 CAS；`ratelimit_service.go`、`ratelimit_service_ollama_429.go` 和对应测试的索引 blob 与目标提交一致，本轮不修上游实现。前端完整 Vitest 为 309/313 files、2346/2358 tests；12 个失败是旧 Channel Monitor 计数、第一父/上游 Pinia 测试装配，不修改测试。normal/embed Go 构建、前端 lint/typecheck/Vite build 与 Go integration 全量通过。`go mod tidy -diff` 只提示旧传递校验和与 `xxh3`，未改 `go.sum`；本机 golangci-lint v2.9.0 由 Go 1.26 构建，不能加载当前 Go 1.27 配置。
+
 - 2026-09-10 当前 `feature/hy/10204_merge_sub2api_204@2398cc00df1eb15876e05504131775af13ba374e` 已包含上游 `0.2.4` merge commit；现以 `git merge --no-commit --no-ff` 叠加 PR #6924 head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`，PR base 为 `98d86915becae9fe9491a91ffc6defd5235c8d2b`。4 个路径自动合并，无文本冲突或双方修改路径，当前 `MERGE_HEAD` 固定为 PR head 并等待审核。
 - PR #6924 本地验证：User-Agent/identity 专项通过；`internal/pkg/openai` 与 `internal/service` default/unit 通过；normal/embed build 和 golangci-lint v2.13.0（0 issues）通过。一次未排除测试的 service 全包运行触发第一父已有 `TestRecordCyberPolicyEvent_RuntimeSnapshotRefreshFailureKeepsStaleScope` 时序波动，fresh `GOTMPDIR` 精确复跑通过，排除该用例后的 service 全包通过；`go mod tidy -diff` 仍仅报告 0.2.4 基线 `go.sum` 整理差异。
 
@@ -399,7 +403,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `gateway.openai_ws.scheduler_score_weights.quota_headroom`: 默认 `0.0`, 用于按 OpenAI/Codex 7d 剩余额度健康度给账号加分; 关闭时不改变原调度行为, 小流量灰度可从 `0.3` 起。
 - `gateway.openai_scheduler`: OpenAI sticky session 逃逸配置; 默认开启, 可按 TTFT/error rate 跳过劣化 sticky 账号。
 - `gateway.openai_proxy_stream_circuit`: OpenAI Responses SSE 代理断流的进程内 proxy-ID 熔断；`disabled` 默认 `false`, 可由 `GATEWAY_OPENAI_PROXY_STREAM_CIRCUIT_DISABLED` 整体关闭。`failure_threshold` 默认 2、`window_seconds` 默认 60、`ttl_seconds` 默认 600, 配置值只能非负, 0 回落默认。该状态不跨实例、不持久化, 重启清空；成功流清除观察, context cancel/deadline 不计失败。
-- `gateway.openai_compact_model`: OpenAI `/responses/compact` 上游默认模型, 默认 `gpt-5.4`; 可在 compact endpoint 暂未支持新模型时临时降级, 不影响普通 `/v1/responses`。
+- `gateway.openai_compact_model`: OpenAI `/responses/compact` 上游默认模型, 默认 `gpt-5.5`; 可在 compact endpoint 暂未支持新模型时临时降级, 不影响普通 `/v1/responses`。
 - `gateway.openai_first_output_timeout_seconds`: 默认 `0` 关闭; 非零必须为 30-600 秒, 否则启动校验失败。只保护 native OpenAI HTTP streaming Responses, deadline 包含响应头等待, 不作用于 passthrough/WS; 首次语义输出前单次 attempt 暂存上限 8 MiB, 超时最多切号一次。原 attempt 可能已产生上游用量, 开启后必须接受重复上游计费风险。
 - `gateway.openai_high_effort_first_output_timeout_seconds`: 默认 `0`, 表示 high/xhigh/max 继承标准 first-output timeout; 非零必须为 30-1800 秒, 且只有标准 timeout 已启用时才生效。
 - `gateway.image_nonstream_keepalive_interval`: OpenAI 非流式图片 JSON 心跳秒数, 默认 `0` 关闭; 非零只允许 5-60 秒。首个心跳会提交 HTTP 200, 开启前必须确认调用方能接受已提交状态后的错误语义。
