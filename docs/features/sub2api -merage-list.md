@@ -1973,3 +1973,14 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Claude reported validation | 聚焦 Go 5/5 packages、普通 build、PgDumper 及前端 3 files / 92 tests 通过；auth/me golden、Ollama CAS count=3（3/3 失败）、订阅 Pinia 6 个失败仍为既有问题。未重跑的完整测试/lint/build/生成沿用 09-18，17 个显式 skip + repository 整包跳过保留。GPT 本轮未重跑业务验证；新测试结果来源为用户提供的 Claude 报告。 |
 | Ollama risk wording | 两轮精确三次复跑均无绿灯；flaky 标签仅以 0.2.5 台账的历史 1 通过 / 2 失败为依据，不据此降低风险，也不以一次转绿声称已修复。 |
 | Documentation / delivery | 新增 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/claude-review-result.md`，修订原审核报告和相关 wiki，图谱按暂存候选刷新。并行部门报表设计的 README 未暂存改动及两个未跟踪文档原样保留，不纳入本轮候选。未 commit、未 push、未部署，等待用户决定。 |
+
+## 2026-09-19 v0.2.6 merge completion and department design handoff
+
+| Item | Value |
+| --- | --- |
+| Integration branch | `feature/hy/10206_merge_sub2api_206` |
+| Upstream branch / commit | `Wei-Shaw/sub2api main` / `8b69738d782ccaa7fd26511e1cca26ba8d1b58db` |
+| Merge commit | `ee829b7773bb3148c915a98de5d951486f6ec41b`；现场确认第一父 `5ec57e4fc51a9052e8812f4cb925565c984856cc`，第二父为上述固定上游 SHA，MERGE_HEAD 已不存在 |
+| Conflict files / handling | 延续 2026-09-18 记录的四个冲突与语义并集合并；本次不重复合并或修改业务源码 |
+| Verification | 原合并与独立复审结果见前两条及 delivery 文档；本次现场确认 commit 拓扑、工作区仅部门设计文档未提交，并执行文档及 diff 校验；不将历史测试缺口写成通过 |
+| Handoff | 用户授权提交部门设计、将当前分支合入本地 main，并从 main 创建独立部门功能分支实施；设计与后续实现分开提交 |

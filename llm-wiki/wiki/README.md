@@ -61,6 +61,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 - `data-and-domain.md`: 核心领域对象, Ent schema, SQL migration, 支付/订阅/计费知识。
 - `security-and-reliability.md`: 认证, 权限, 限流, 幂等, CSP, URL allowlist, 网关可靠性。
 - `ai-workflow.md`: Codex/Copilot 日常如何读取和更新 llm-wiki。
+- [[department-report-design]]: 已授权实施的组织下部门管理、多平台报表及负责人授权方案（验收未完成），含完整设计入口与工作量估算。
 - 给人读的完整架构/运维手册（新同事与值班）: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`（2026-09-11 对照源码重写）。结构: 第 4–13 章运转过程（启动/配置/网关 13 步鉴权/调度并发/计费/管理面/settings/后台任务/数据层/关联图）, 第 14–17 章维护不变量与改动清单, 第 18–26 章运维逐项配置（默认/范围/影响/方向/生效）与排障树。wiki 仍是 AI 开发前入口；手册写流程、配置步骤、上线和排障，不替代本知识库。
 
 ## 知识图谱
