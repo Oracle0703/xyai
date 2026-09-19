@@ -1,5 +1,9 @@
 # 管理端支付组件
 
+## 0.2.6 合并增量
+
+- `AdminRefundDialog.vue` 的余额不足提示比较本次 `form.amount`，不按整笔订单金额判定；实际退款仍由后端权威校验。验证为 `__tests__/AdminRefundDialog.balance.spec.ts`。
+
 本目录承载管理端订单列表、详情、退款和支付统计看板。金额展示必须使用订单或统计响应携带的 ISO 4217 币种, 不能假设所有 provider 都使用同一币种。
 
 ## 主要文件

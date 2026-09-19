@@ -1,5 +1,9 @@
 # Common Components
 
+## 0.2.6 合并增量
+
+- `BaseDialog.vue` 将标题 ID 计数放到模块作用域，多个实例拥有不同 ID；`Pagination.vue` 将数字输入转为字符串后解析；`ProxySelector.vue` 批量测试复用单项 in-flight guard。对应验证为 `BaseDialog.ids.spec.ts`、`Pagination.jump.spec.ts`、`ProxySelector.testing.spec.ts`。
+
 ## 0.2.5 Integration
 
 - `PlatformIcon.vue`、`PlatformTypeBadge.vue` 扩展 OpenCode Go 的平台展示和 OpenAI 账号 plan 状态；模型/账号准入仍由服务端负责，图标标签不是权限判断。

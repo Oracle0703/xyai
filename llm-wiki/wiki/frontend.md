@@ -1,5 +1,12 @@
 # 前端知识基线
 
+## 0.2.6 合并增量
+
+- 管理设置增加 `openai_codex_ticket_enabled`、`openai_codex_ticket_harvest_proxy_url` 与只读 `openai_codex_ticket_harvest_proxy_configured`。读取时代理 URL 留空，仅展示已配置状态；空输入保存保持已有代理，替换时提交完整新 URL。本地请求归档设置、子管理员类型及 auth-source 默认值 fallback 仍保留。
+- `AccountUsageCell.vue` / `EditAccountModal.vue` 展示 `codex_turn_tickets` 的模型、ready/blocked、剩余时间；前端不接收票据 state blob，也不从空票据自行推断封禁。
+- 用户兑换历史改用分页 API，列表与分页器共用响应总数，旧的不带分页参数调用仍返回数组。订单状态筛选重置页码，payment store 等待既有配置请求，subscriptions store 清理时复位 loading，公告批量已读保留成功项。
+- 通用组件吸收上游的独立 dialog title ID、数字页码跳转、代理探测去重；支付输入恢复最后合法文本，退款余额提示比较本次退款金额，TOTP 输入和规范化错误同步。对应新增测试随上游原样合入。
+
 ## 0.2.5 合并增量
 
 - OpenCode Go/Zen 账号在 `components/account/credentialsBuilder.ts` 与创建/编辑弹窗维护按模型原生协议规则；本地 OpenAI-compatible provider preset 只在 OpenAI API Key 分支显示，不能被新的 `isMultiProtocolPlatform` base-URL 条件覆盖。对应平台类型、白名单和渠道选项要同时保真。

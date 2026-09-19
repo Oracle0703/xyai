@@ -1933,3 +1933,43 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Verification | 聚焦 Go handler/admin、routes、service 通过；Ent/Wire 两轮生成成功且关键产物 SHA256 一致；normal/embed `go build -p 1 ./...` 均退出 0。Go default 全量除 3 个 Windows backup 用例外其余包通过；unit 除这 3 个、第一父 `/auth/me` golden 和目标上游 Ollama CAS 用例外其余包通过，service 排除固定上游用例全包、repository/server 排除已知基线用例全包复跑通过；integration 全量退出 0。前端 lint/typecheck、24/24 权限/Sidebar 窄测、production Vite build（1089 modules）退出 0。补 auth mock 前完整 Vitest 为 309/313 files、2346/2358 tests；补后为 **310/313 files、2351/2359 tests**（`SubscriptionsView.bulkActions.spec.ts` 单跑 4/4 通过，`eslint` 与 `vue-tsc --noEmit` 均退出 0，无新增失败）。`git ls-files -u` 为空，24/24 features 索引保留；cached/worktree whitespace 检查通过。 |
 | Documentation | 更新 `llm-wiki/wiki/README.md`, `backend.md`, `frontend.md`, `ops.md`, `data-and-domain.md`, `security-and-reliability.md` 和受影响组件 README，追加本条。 |
 | Approval / delivery | 保持 `git merge --no-commit --no-ff` 等待审核；未 commit、未 push、未创建 PR、未部署。审核后新增两处工作区改动需一并 `git add` 后再提交，否则会漏出合并 commit：`frontend/src/views/admin/__tests__/SubscriptionsView.bulkActions.spec.ts`（+9 行 auth mock）与本文件。 |
+
+
+## 2026-09-18 main sync (v0.2.6; awaiting review)
+
+| Item | Value |
+| --- | --- |
+| Integration branch | `feature/hy/10206_merge_sub2api_206` |
+| Upstream remote / branch | `upstream` -> `https://github.com/Wei-Shaw/sub2api.git`; `main` |
+| Base before merge / first parent | `5ec57e4fc51a9052e8812f4cb925565c984856cc`（任务开始时本地 main，与 GitHub main 一致） |
+| Merge base | `881f3202694c6bc932446931a30c27d9675178b9` |
+| Upstream head / second parent | `8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；固定 VERSION 为 `0.2.6` |
+| Merge commit | **待用户审核，尚未创建；当前 MERGE_HEAD 为上述固定上游 SHA** |
+| Upstream delta | 60 commits、132 paths、`+4836/-304`；双方修改 31 paths，仅本地修改 495 paths，仅上游修改 101 paths。 |
+| Conflict files | `.gitignore`; `backend/go.mod`; `backend/cmd/server/wire_gen.go`; `backend/internal/service/setting_service.go`（预演与实际合并均为 4 个文本冲突）。 |
+| Conflict handling | gitignore 合并双方文档例外；go.mod 沿上游依赖新版本并保留本地 x/sys、x/text 直接依赖；SettingService 保留 onRiskControlUpdate 并添加上游 ticket caches；Wire 从合并后的 provider source 生成，保留本地 handlers/后台任务并注入 SettingService、加入 ticket harvester cleanup。未额外修复上游或第一父业务/测试问题。 |
+| Semantic overlap review | 31 个双方修改路径逐项记录在交付报告。代码处理结束时 495 个仅本地路径与第一父一致、101 个仅上游路径与固定上游一致，49 个仅上游测试原样保留；后续只补知识文档。真正重叠的 Gemini 模型发现、严格 Chat role 规范化等沿上游实现。 |
+| Local features | 原有 24 个 tracked docs/features 文件全保留，23 个内容未改，本文件仅追加；RequestArchive/RequestIntercept、Prompt Metrics/Risk/LLM judge、Token Analysis、组织用量、子管理员、并发预设、quota flusher、compatible usage/参数/schema 清洗、默认 reasoning、大请求保护与 reasoning-only failover 均保留。 |
+| Upstream behavior | 默认关闭的 Codex ticket 生命周期、热开关/代理及管理摘要；Gemini/Antigravity 混合模型；DeepSeek Responses tool output media；取消后 affinity 写入；暂停调度账号 token refresh；兑换历史分页、分组用量 SQL 优化及支付/通用组件交互修正。本轮无 SQL migration 或 Ent schema 变更。 |
+| Verification | Wire 两轮生成无漂移；聚焦 Go、normal/embed build、go mod tidy -diff、增量 golangci-lint v2.13.0（0 issues）通过。Go default/unit 完整执行；default 仅 3 个 sh.exe 环境失败，修正独立进程 PATH 后 repository default/unit 全包通过；unit 另有 auth/me golden 和 Ollama CAS 两类既有失败。integration 退出 0，但显式跳过 17 个测试，repository 因 Docker 缺失整包未执行，不等同于真实数据库集成全绿。前端 lint/typecheck/build（1089 modules）通过；Vitest 325/326 files、2422/2428 tests，6 个订阅 Pinia 装配失败。 |
+| Issue provenance | 订阅 6 个失败和 auth/me 的 admin_permissions:null golden 差异均在第一父独立源码快照中复现；Ollama CAS 当前精确复跑 3/3 失败，相关实现/测试 base/第一父/上游/index 四方一致，历史存在波动，继续按上游 flaky 跟踪；全部只记录不修复。 |
+| Documentation | 更新六个 wiki 页面、六个组件 README、Wiki 图谱，并追加本条；图谱 33 nodes / 67 edges、49 wikilinks、0 unresolved，允许待提交 wiki 的状态检查 READY。详情见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`。 |
+| Approval / delivery | 保持 git merge --no-commit --no-ff，等待用户审核；未 commit、未 push、未创建 PR、未部署。 |
+
+
+## 2026-09-19 Claude independent review supplement (v0.2.6; awaiting commit decision)
+
+| Item | Value |
+| --- | --- |
+| Review source / conclusion | 用户提供的 Claude 独立复审结论：GO，未发现本轮合并引入的 finding；仅指固定 SHA、保留本地能力、只解决冲突范围，不代表 commit 授权或生产验收。 |
+| Branch / fixed parents | `feature/hy/10206_merge_sub2api_206`；HEAD/main `5ec57e4fc51a9052e8812f4cb925565c984856cc`；MERGE_HEAD `8b69738d782ccaa7fd26511e1cca26ba8d1b58db`，均未变。 |
+| Source fingerprint | `.gitignore`、backend、frontend、deploy 的 index inventory SHA256 仍为 `a5306abf9ebbb14838b08102d59dc0d9fd18eafc8ca3c368f56fa76231811a34`；本轮不改源码、测试、运行配置或依赖。 |
+| Conflict review | Claude 确认四个文本冲突全部通过；31 个双方修改路径的 28 个行级并集零误差，3 个差异归于 Wire 参数串、go.mod direct 属性和 gofmt 对齐。此行级校验为 Claude 报告，GPT 本轮未重新执行。 |
+| Final-state count clarification | 上条“495 个仅本地路径与第一父一致”为文档更新前状态口径；复审最终态为 479 个存在且 blob 相同、1 个本地删除路径保持删除、15 个文档/图谱差异。101 个仅上游路径与目标一致；24 个原有 tracked feature 文档保持，台账只追加。 |
+| Review wording corrections | 上游确实修改两个 scheduler 文件（共 7 处 requireCompact 透传），候选 blob 与固定上游一致，不应写成上游零改动；关闭 harvester 时跳过账号查询，但 5 秒开关缓存过期后仍可能读 settings，不能称为无 DB。 |
+| F1 / P2 / upstream | ticket fail-closed 注入错误在普通 Responses 构造请求阶段直接返回，缺少该 sentinel 的专门 failover 分类；默认关闭不触发此错误分支，未来开启需另行评估，本轮不修。 |
+| F2 / P3 / upstream | harvester 无条件启动，周期完成后默认等待 6 秒；关闭时可能读 settings，开启时每周期全量 ListByPlatform 取 OpenAI 账号。生命周期正确、规模成本未实测，本轮不修。 |
+| F3 / unconfirmed | retained_from 从 SQL AT TIME ZONE 改为 Go GroupUsageDate 的真实数据库/时区等价性尚未验证；Docker 不可用，repository integration 整包跳过。保持未确认，不写成缺陷或通过。 |
+| Claude reported validation | 聚焦 Go 5/5 packages、普通 build、PgDumper 及前端 3 files / 92 tests 通过；auth/me golden、Ollama CAS count=3（3/3 失败）、订阅 Pinia 6 个失败仍为既有问题。未重跑的完整测试/lint/build/生成沿用 09-18，17 个显式 skip + repository 整包跳过保留。GPT 本轮未重跑业务验证；新测试结果来源为用户提供的 Claude 报告。 |
+| Ollama risk wording | 两轮精确三次复跑均无绿灯；flaky 标签仅以 0.2.5 台账的历史 1 通过 / 2 失败为依据，不据此降低风险，也不以一次转绿声称已修复。 |
+| Documentation / delivery | 新增 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/claude-review-result.md`，修订原审核报告和相关 wiki，图谱按暂存候选刷新。并行部门报表设计的 README 未暂存改动及两个未跟踪文档原样保留，不纳入本轮候选。未 commit、未 push、未部署，等待用户决定。 |

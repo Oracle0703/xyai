@@ -1,5 +1,9 @@
 # 管理端组件权限约定
 
+## 0.2.6 合并增量
+
+- `channel/ModelTagInput.vue` 的空输入允许 Tab 正常离开，有内容时才阻止默认行为并添加模型；`user/UserPlatformQuotaModal.vue` 保存前拒绝负额度。对应验证为 `ModelTagInput.keyboard.spec.ts` 与 `UserPlatformQuotaModal.spec.ts`，不扩大子管理员权限。
+
 ## 子管理员角色
 
 管理端用户弹窗支持 `admin`、`sub_admin`、`user`。`sub_admin` 的权限清单必须通过 `GET /api/v1/admin/permissions/catalog` 获取, 不在组件中维护第二份目录。

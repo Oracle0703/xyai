@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.2.6 合并增量
+
+- 本次没有新增 SQL migration 或 Ent schema。Codex 临时票据保存于 `accounts.extra` 的 `codex_turn_ticket:<model>`，包含账号、模型、state、长度、捕获/过期时间；有效期默认 3600 秒。`account_repo.go` 将这些键归为 scheduler-neutral 更新，仍刷新单账号快照；账号编辑加锁合并当前私有票据，禁止旧表单快照覆盖后台新票据。
+- `custom_group_usage_rollup_repo.go#readGroupUsageRollupSnapshot` 先读取日汇总水位，再以参数传入尾段 `created_at >= $7`；无效水位退回 epoch 并重新扫描。代码目标是维持水位与今日/昨日统计语义，但 retained_from 日期从 SQL `AT TIME ZONE` 改为 Go `GroupUsageDate()` 的等价性尚缺真实 PostgreSQL/时区边界验证：repository integration 因 Docker 不可用整包跳过，复审 F3 保持未确认，不写成缺陷或通过。本地组织用量仓储与筛选未被替代。
+- 用户兑换历史带 `page` 或 `page_size` 时返回分页信封，页码从 1 开始、默认 20 条、最多 100 条，并拒绝非法值与 offset 溢出；不带分页参数仍沿旧数组合同。仓储按 `used_at DESC, id DESC` 稳定排序，分页查询覆盖当前用户的全部兑换类型。
+
 ## 0.2.5 合并增量
 
 - 新增同号但独立的 `238_opencode_go_platform.sql` 和 `238_purge_unlimited_user_platform_quotas.sql`：前者扩展平台/额度相关 CHECK，后者清理三档限额全空的 `user_platform_quotas` 行。三档均为 NULL 表示不限额、无需实体行；显式 0 是已配置限额，不能按 falsy 判断清理。Ent schema 的平台枚举、`AllowedQuotaPlatforms` 与前后端类型须同时包含 `opencode_go`；已应用迁移仍不可改写。

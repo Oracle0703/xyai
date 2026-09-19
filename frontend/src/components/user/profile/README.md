@@ -1,5 +1,9 @@
 # User Profile Components
 
+## 0.2.6 合并增量
+
+- `TotpSetupModal.vue` 的六个输入显式绑定 `code[index]`，验证失败重置状态时同步清空 DOM；设置/禁用流程统一用 `extractApiErrorMessage` 展示规范化错误。验证为 `Totp.errors.spec.ts` 与 `TotpSetupModal.inputs.spec.ts`。
+
 本目录维护用户资料、头像、密码、身份绑定、TOTP、余额通知和 Passkey 管理卡片。页面级公开设置由 `ProfileView.vue` 获取后通过 props 传入；组件不应把设置加载失败误判为功能开启。
 
 ## Passkey

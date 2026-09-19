@@ -1,11 +1,19 @@
 # 安全与可靠性基线
 
+## 0.2.6 合并增量
+
+- Codex ticket 总开关默认关闭；开启且 `fail_closed=true` 时，仅对目标 OAuth/Setup Token 账号和配置中的实际出站模型要求有效票据，影子凭据账号豁免。票据按账号和模型隔离，长度/前缀/过期时间必须有效；compact 使用最终出站模型，不能按原始请求模型误拦截。
+- 打票使用单独的 HTTP(S)/SOCKS 出口及不复用连接的 transport，业务请求仍走账号代理；探测由后台任务执行，停止时取消并等待。账号展示/导出屏蔽票据 blob 和私有代理字段，settings 读取隐藏代理 URL、仅返回 configured，审计不记录完整代理凭据；管理导入/编辑不能注入或覆盖后台票据状态。
+- HTTP response affinity 的 Redis 写入使用一个脱离下游取消的有界时间预算，保留原 user/API Key/group 所有权，不允许跨租户回放。现有 RequestArchive、Responses path guard、RequestIntercept、Prompt Risk/LLM judge 和子管理员默认拒绝白名单继续保留。
+- 本轮只解决冲突并沿用目标上游实现；测试或审查识别出的上游/第一父问题记录在本轮交付报告，不在合并分支做额外业务或测试修复。
+- 复审 F1/P2（上游固有）：调度后票据失效等情况可能使 `applyOpenAICodexTicket` 在构造请求阶段返回 `ErrOpenAICodexTicketUnavailable`，普通 Responses Forward 直接返回该错误，未包装为 `UpstreamFailoverError` 或增加此错误的专门换号处理。默认关闭时不触发此分支；未来启用前单独评估，不能将调度门控视为构造阶段失票的 failover 保证。本轮不修复、不调整 enabled/fail_closed。
+
 ## 0.2.5 合并增量
 
 - `POST /admin/subscriptions/bulk-action` 仍经管理员认证；子管理员 `admin.subscriptions` 白名单不增加该写路由，未知路由默认拒绝。单项事务与有限执行的幂等 lease 减少客户端断开后重复写入；本地 `reset-daily-filtered` 的 `AtomicSuccess` fail-close、模糊提交只读恢复及 post-commit 缓存失效不因上游选中行批量能力改变。
 - 根级和 `/v1` 的单模型查询遵循当前 gateway API Key、分组模型白名单、Composite target、`RequestArchive -> guardResponsesSubpath(RequestIntercept)` 链，新增别名不能绕过本地归档/拦截。OpenCode Go 的 Chat/Responses/Anthropic 上游由显式账号模式/模型协议决定，账号及分组准入仍先于转发。
 - `subscription_enabled=false` 是用户端展示/轮询的软开关，不撤销既有订阅、服务端订阅计费或管理写路由；仅充值站点的余额充值与仅订阅站点的余额下单限制仍由支付服务的 `BALANCE_PAYMENT_DISABLED` 权威校验，不能把侧栏隐藏当作权限控制。
-- 上游 0.2.5 的 Ollama Cloud 429 异步 probe 测试 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 会观察到 stale 7d reset 通过 CAS (`casUpdated=1`)，与其“旧回调不得覆盖管理员新的短 cooldown”合同不符；三次精确重跑复现，相关实现/测试均为固定目标 blob。本分支只记录等待上游修复，生产对 Ollama 429 probe 写回的异步重排风险需单独关注。
+- 上游 0.2.5 的 Ollama Cloud 429 异步 probe 测试 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 存在时序波动：旧回调可能使 stale 7d reset 通过 CAS。0.2.5 合并记录修订后的三次复跑为 1 通过 / 2 失败，应按 flaky 跟踪；一次转绿不代表合同已修复。合并流程只记录，不改该上游实现。
 
 ## 0.2.4 合并增量
 

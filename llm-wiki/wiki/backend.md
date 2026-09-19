@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.2.6 合并增量
+
+- `backend/internal/service/openai_codex_ticket.go` 新增按账号/出站模型缓存的 Codex turn-state ticket 与后台 harvester。`OpenAIGatewayService` 负责启动，`backend/cmd/server/wire.go` 的 cleanup 负责停止；HTTP、passthrough、Anthropic bridge 与 WS 共用票据注入，调度和 `/responses/compact` 必须按实际出站模型判断。默认关闭，请求热路径只查票、不现场探测。
+- `handler.ProvideAdminHandlers` 新增 `SettingService`，通过 `SetCodexTicketSettings` 给管理端提供脱敏状态；合并后的 Wire 同时保留 Prompt Metrics、Token Analysis、RequestArchive/RequestIntercept、组织用量和用户并发预设。`SettingService.onRiskControlUpdate` 仍驱动本地风控热更新，不能被新增 ticket cache 字段替换。
+- Gemini 原生模型列表从 Antigravity 账号映射补充候选，保留原生 metadata、信封字段与分组白名单；本地 Gemini path parser 和并发依赖错误分类继续保留。DeepSeek 原生 Responses 将 tool output 媒体提取到可接受的输入项，保持并行工具结果连续；严格 Chat 上游的 developer role 规范化采用上游实现，本地 compatible usage、thinking 清理和 schema 清洗继续独立存在。
+- `bindHTTPResponseAccount` 使用保留值但脱离客户端取消的有界 context 写入 response affinity；暂停调度的 active OAuth 账号仍参与 token refresh 候选，暂停调度不等于暂停凭据续期。以上行为沿固定上游实现，本轮不额外修复上游问题。
+- ticket harvester 的上游启动是无条件的，周期完成后等待默认 6 秒；关闭时跳过账号全量查询和打票，但开关读取的 5 秒缓存过期后仍可能调用 settings repository。开启时每周期 `ListByPlatform(PlatformOpenAI)` 全量取号，规模成本未实测（复审 F2/P3）；不能将关闭状态描述为完全无 DB 访问。两个 scheduler 文件本轮确有上游 `requireCompact` 参数透传改动，候选均与固定上游一致。
+
 ## 0.2.5 合并增量
 
 - `opencode_go` 平台区分 OpenCode Go 订阅与 Zen 按量账号；`backend/internal/service/opencode_go.go` 及 `backend/internal/service/openai_gateway_*` 按模型配置将 Chat/Responses/Messages 入站映射到 Chat Completions、Responses 或原生 Anthropic 上游。平台合同由 `backend/internal/domain/constants.go`、`backend/internal/service/domain_constants.go`、`backend/internal/service/composite_platform.go` 和网关路由共同维护，不能仅加一个平台名。`GET /v1/models/:model` 与根级 `/models/:model` 沿用 API Key/group gate，不进入 Codex manifest 分流。

@@ -1,5 +1,9 @@
 # Account Components
 
+## 0.2.6 合并增量
+
+- 账号用量单元和编辑弹窗读取服务端 `codex_turn_tickets` 脱敏摘要，按模型展示 ready/blocked 与剩余时间；不得将票据 blob 放进编辑 payload。既有 OpenAI-compatible preset、指纹与 CN protocol 合同继续保留。验证覆盖 `AccountUsageCell.spec.ts`、`EditAccountModal.spec.ts`。
+
 本目录维护管理端账号创建、编辑、认证、配额展示和凭据构建组件。账号字段变更必须同时检查 UI 显隐、初始化、提交 payload 和后端账号语义。
 
 ## 主要文件

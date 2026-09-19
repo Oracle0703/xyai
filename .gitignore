@@ -163,6 +163,7 @@ docs/reviews/*
 !docs/superpowers/
 !docs/superpowers/**
 !docs/upstream-merge-playbook.md
+!docs/ANTIGRAVITY_ATTRIBUTION_429.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

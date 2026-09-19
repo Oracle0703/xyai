@@ -1,5 +1,14 @@
 # 运维, 配置与验证基线
 
+## 0.2.6 合并与验证基线
+
+- 基于本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；merge base 为 `881f3202694c6bc932446931a30c27d9675178b9`，`VERSION=0.2.6`。保持未提交 merge 等待用户审核，不自动推进到更新的上游提交。
+- 新增 `gateway.openai_codex_ticket` 配置：`enabled=false`、`target_length=292`、`ttl_seconds=3600`、`refresh_before_seconds=600`、`harvest_proxy_url=""`、`harvest_probe_interval_seconds=6`、`harvest_attempt_timeout_seconds=25`、`fail_closed=true`，models 默认 `gpt-6-astra` / `gpt-5.6-sol`。环境变量使用 `GATEWAY_OPENAI_CODEX_TICKET_*`；后台总开关与代理设置优先于 YAML/env，读取缓存 5 秒；后台代理输入留空保存表示保持已有值。
+- Go 保持 1.27.0，gRPC 升至 1.83.2，并沿上游同步 x/*、OpenTelemetry 等依赖；本地直接引用的 `golang.org/x/sys` / `golang.org/x/text` 继续列为直接依赖，但采用上游版本。Wire provider 变化已连续生成两次并核对一致；本轮无 Ent schema 变化，无需重建 Ent。生成工具临时增加的 checksum 不属于业务依赖，生成后恢复目标 `go.sum`。
+- Windows 验证可仅在测试进程 PATH 加入现有 Git for Windows 的 `usr/bin`，满足 `backup_pg_dumper` 测试硬编码的 `sh` 依赖；不用修改生产实现或测试。`golangci-lint` 使用仓库缓存中与 CI 相同的 v2.13.0/Go 1.27 二进制，避免默认旧 v2.9.0 拒绝加载。
+- 本轮测试结果与基线归属见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`；完整测试存在失败时不得将交付表述为全绿。
+- 2026-09-19 Claude 独立复审为 GO（仅冲突合并范围，非 commit/上线授权），结果及上游 F1/F2、未确认 F3 见同目录 `claude-review-result.md`。Claude 报告聚焦 Go、普通 build、前端 3 files / 92 tests 通过，其余完整验证沿用 09-18；GPT 本轮仅核对源码/索引并记录文档，没有重跑这些测试。Ollama CAS 在两轮精确三次复跑中均未转绿，flaky 标签仅有 0.2.5 台账历史支撑，不降低风险；17 个显式 skip 和 repository 整包 Docker 跳过仍未补齐。
+
 给人读的完整架构、配置、部署、值班与改代码手册见 `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`。本页保持 AI 可快速扫描的命令、配置组和约束；手册写操作步骤。
 
 手册 2026-09-11 已按源码重写: 进程配置逐项在第 20 章、热配置逐项在第 21 章、后台任务与锁键在第 11 章、排障树在第 25 章。本页不抄整章。
@@ -11,11 +20,11 @@
 - 启动迁移的 PostgreSQL advisory lock ID 为 `694208311321144027`, `pg_try_advisory_lock` 每 500ms 轮询, 迁移总超时 10 分钟; 瞬时错误重试实现在 `backend/internal/repository/ent.go`, 不在 `migrations_runner.go`。
 - settings 没有统一缓存也没有 settings 级 Redis pub/sub: Panel 限流与网关运行态各 60s（出错 5s）, 请求归档 5s（出错 1s）, OpenAI API Key 健康熔断 30s, Ops 运行态 30s; 只有 Prompt Audit 配置额外用 Redis 频道 `sub2api:prompt_guard:config:invalidate`。
 
-## 当前版本基线
+## 历史版本同步与约束
 
-- 2026-09-16 本地 `main@4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3` 与刷新后的 `github/main` 一致；新分支 `feature/hy/10205_merge_sub2api_205` 固定合并 `upstream/main@881f3202694c6bc932446931a30c27d9675178b9`，`backend/cmd/server/VERSION=0.2.5`，merge base `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`。上游相对 merge base 为 196 commits / 443 paths，10 个文本冲突、66 个双方修改路径；`MERGE_HEAD` 保留待审核，不以之后的远端 HEAD 替换。
+- 2026-09-16 本地 `main@4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3` 与刷新后的 `github/main` 一致；新分支 `feature/hy/10205_merge_sub2api_205` 固定合并 `upstream/main@881f3202694c6bc932446931a30c27d9675178b9`，`backend/cmd/server/VERSION=0.2.5`，merge base `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`。上游相对 merge base 为 196 commits / 443 paths，10 个文本冲突、66 个双方修改路径；该轮已创建 merge commit `1ac03ae45` 并合入当前本地 main；固定上游边界不变。
 - 新版本 `gateway.openai_compact_model` 的代码默认值及 `deploy/config.example.yaml` 示例同步为 `gpt-5.5`，本地 `gateway.openai_default_reasoning_effort` 与 `request_archive`/`request_intercept` 配置仍保留。OpenCode Go 引入 SQL migration `238_opencode_go_platform.sql`，无限额 quota 清理为另一个独立的 `238_purge_unlimited_user_platform_quotas.sql`；runner 仍按完整文件名处理，不修改既有迁移。Wire 工具生成时可增加仅供工具运行的 `go.sum` 传递校验和，不把该副作用作为上游依赖提交。
-- Windows 验证边界：默认 Go 全量只有 3 个 `backup_pg_dumper` 用例因缺 `sh.exe` 失败；unit 还保留第一父 `/auth/me` golden 的 `admin_permissions:null` 差异。固定上游 0.2.5 的 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 三次精确重跑均失败：旧异步回调错误地通过 CAS；`ratelimit_service.go`、`ratelimit_service_ollama_429.go` 和对应测试的索引 blob 与目标提交一致，本轮不修上游实现。前端完整 Vitest 为 309/313 files、2346/2358 tests；12 个失败是旧 Channel Monitor 计数、第一父/上游 Pinia 测试装配，不修改测试。normal/embed Go 构建、前端 lint/typecheck/Vite build 与 Go integration 全量通过。`go mod tidy -diff` 只提示旧传递校验和与 `xxh3`，未改 `go.sum`；本机 golangci-lint v2.9.0 由 Go 1.26 构建，不能加载当前 Go 1.27 配置。
+- 0.2.5 历史验证归属（以合并记录修订为准）：`backup_pg_dumper` 的 3 个失败来自测试进程 PATH 缺少 `sh.exe`；unit `/auth/me` 存在第一父 `admin_permissions:null` golden 差异。Ollama CAS 用例三次精确复跑为 1 通过 / 2 失败，按上游 flaky 跟踪。订阅批量动作测试缺少本地 auth mock 属于当轮合并引入的装配冲突，已修并提交；修正后完整 Vitest 为 310/313 files、2351/2359 tests，剩余 8 个是 Channel Monitor 旧计数、Groups/Subscriptions 既有 Pinia 装配问题。0.2.6 上游已修改其中 Channel Monitor/Groups 测试，当前结果见本轮交付报告。
 
 - 2026-09-10 当前 `feature/hy/10204_merge_sub2api_204@2398cc00df1eb15876e05504131775af13ba374e` 已包含上游 `0.2.4` merge commit；现以 `git merge --no-commit --no-ff` 叠加 PR #6924 head `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`，PR base 为 `98d86915becae9fe9491a91ffc6defd5235c8d2b`。4 个路径自动合并，无文本冲突或双方修改路径，当前 `MERGE_HEAD` 固定为 PR head 并等待审核。
 - PR #6924 本地验证：User-Agent/identity 专项通过；`internal/pkg/openai` 与 `internal/service` default/unit 通过；normal/embed build 和 golangci-lint v2.13.0（0 issues）通过。一次未排除测试的 service 全包运行触发第一父已有 `TestRecordCyberPolicyEvent_RuntimeSnapshotRefreshFailureKeepsStaleScope` 时序波动，fresh `GOTMPDIR` 精确复跑通过，排除该用例后的 service 全包通过；`go mod tidy -diff` 仍仅报告 0.2.4 基线 `go.sum` 整理差异。
