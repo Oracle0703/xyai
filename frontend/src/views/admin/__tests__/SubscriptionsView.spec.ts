@@ -209,7 +209,7 @@ const findButtonByText = (wrapper: Awaited<ReturnType<typeof mountView>>, text: 
 
 describe('admin SubscriptionsView quota reset actions', () => {
   beforeEach(() => {
-    vi.mocked(departmentsAPI.subscriptionScope).mockReset().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
+    vi.mocked(departmentsAPI.subscriptionScope).mockReset().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
     vi.mocked(departmentsAPI.subscriptionUsers).mockReset().mockResolvedValue([])
     localStorage.clear()
     listSubscriptions.mockReset()
@@ -468,7 +468,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
     unrestricted: false,
     organizations: ['xunyou'],
     departments: [{ id: 7, organization_key: 'xunyou', name: '研发部', status: 'active', sort_order: 0, version: 1, member_count: 1, active_member_count: 1, managers: [] }],
-    scope_version: 'scope-v1',
+    catalog_version: 'scope-v1',
     default_organization: 'xunyou',
     default_department_id: '7'
   }
@@ -483,8 +483,9 @@ describe('admin SubscriptionsView quota reset actions', () => {
     useDepartmentLeader()
     const wrapper = await mountView()
     expect(listSubscriptions).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({
-      organization: 'xunyou', department_id: '7', scope_version: 'scope-v1'
+      organization: 'xunyou', department_id: '7'
     }), expect.anything())
+    expect(listSubscriptions.mock.calls[0][2]).not.toHaveProperty('scope_version')
     expect(wrapper.get('[data-test="organization-filter"]').text()).not.toContain('速宝')
     expect(getAllGroups).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('admin.subscriptions.assignSubscription')

@@ -13,15 +13,20 @@ const (
 )
 
 type SubscriptionAdminFilter struct {
-	DepartmentID string
-	ScopeVersion string
-	UserID       *int64
-	GroupID      *int64
-	Status       string
-	Platform     string
-	Organization string
-	SortBy       string
-	SortOrder    string
+	ResolvedScopeVersion *string `json:"-"`
+	DepartmentID         string
+	ScopeVersion         string
+	UserID               *int64
+	GroupID              *int64
+	Status               string
+	Platform             string
+	Organization         string
+	SortBy               string
+	SortOrder            string
+}
+
+func (f SubscriptionAdminFilter) DepartmentQuery() DepartmentScopeQuery {
+	return DepartmentScopeQuery{Organization: f.Organization, DepartmentID: f.DepartmentID, Platform: f.Platform, UserID: f.UserID, GroupID: f.GroupID, Status: f.Status, Versioned: f.ScopeVersion != ""}
 }
 
 func NormalizeSubscriptionAdminFilter(filter SubscriptionAdminFilter) (SubscriptionAdminFilter, error) {

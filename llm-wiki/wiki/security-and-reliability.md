@@ -2,9 +2,9 @@
 
 ## 部门数据隔离
 
-- **本轮文档补强（代码未改）：** 锁序：需成员保护的重置为 `users` → `user_subscriptions`；计费仓储分支为 `user_subscriptions` → `users`。当前网关 command 二选一使一次计费只走一侧，该约束失效时可能形成 AB-BA 环；RV5 必须覆盖费用互斥和真实 PG 并发，未来混合扣费需先统一锁序。
+- **锁协议：** 锁序：需成员保护的重置为 `users` → `user_subscriptions`；计费仓储分支为 `user_subscriptions` → `users`。当前网关 command 二选一使一次计费只走一侧，该约束失效时可能形成 AB-BA 环；RV5 已覆盖费用互斥和真实 PG 并发，未来混合扣费需先统一锁序。
 
-**复核状态（2026-09-20）：待修复及补充验收，等待用户同意后开始代码实现。** 当前直接查询/重置范围校验已有验证，但通用用户修改缺少与部门授权共用的原子版本校验，旧窗口仍可能覆盖新权限；降级/软删除的 grant 清理也未实现。下述范围保证不能覆盖这两个未闭环写入口。 目标合同与执行顺序见 `docs/features/organization-department-usage-implementation-plan-cn.md`。
+状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
 - `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
 - 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。

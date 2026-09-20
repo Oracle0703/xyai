@@ -106,8 +106,10 @@ func lockDepartmentUsers(ctx context.Context, q sqlExecutor, userIDs []int64) er
 }
 
 func departmentAudit(ctx context.Context, q sqlExecutor, actor *service.User, action string, details map[string]any) error {
-	entry := &service.AuditLog{ActorUserID: &actor.ID, ActorEmail: actor.Email, ActorRole: actor.Role,
-		Action: action, Method: "INTERNAL", StatusCode: 200, Extra: details}
+	entry := &service.AuditLog{Action: action, Method: "INTERNAL", StatusCode: 200, Extra: details}
+	if actor != nil {
+		entry.ActorUserID, entry.ActorEmail, entry.ActorRole = &actor.ID, actor.Email, actor.Role
+	}
 	args := auditLogInsertValues(entry)
 	placeholders := make([]string, len(args))
 	for i := range args {
@@ -150,52 +152,63 @@ func (r *departmentRepository) List(ctx context.Context, f service.DepartmentLis
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	actor, err := loadDepartmentActor(ctx, tx, "")
+	if _, err = loadDepartmentActor(ctx, tx, ""); err != nil {
+		return nil, err
+	}
+	p := departmentPredicates{clauses: []string{"TRUE"}}
+	if f.Organization != "all" {
+		p.add("d.organization_key=$%d", f.Organization)
+	}
+	if f.Status != "" {
+		p.add("d.status=$%d", f.Status)
+	}
+	if f.Q != "" {
+		p.add("d.name ILIKE $%d ESCAPE E'\\\\'", organizationUsageSearchPattern(f.Q))
+	}
+	result := &service.DepartmentList{Items: []service.Department{}, Page: f.Page, PageSize: f.PageSize}
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM departments d WHERE `+p.where(), p.args...).Scan(&result.Total); err != nil {
+		return nil, err
+	}
+	p.args = append(p.args, f.PageSize, (f.Page-1)*f.PageSize)
+	statement := `WITH page AS MATERIALIZED (SELECT ` + departmentColumns + ` FROM departments d WHERE ` + p.where() + fmt.Sprintf(` ORDER BY d.organization_key,d.sort_order,d.id LIMIT $%d OFFSET $%d)`, len(p.args)-1, len(p.args)) + `
+ SELECT ` + departmentColumns + `,COUNT(u.id),COUNT(u.id) FILTER(WHERE u.status='active') FROM page d
+ LEFT JOIN users u ON u.department_id=d.id AND u.deleted_at IS NULL AND ` + organizationUsageOrganizationExpression("u") + `=d.organization_key
+ GROUP BY ` + departmentColumns + ` ORDER BY d.organization_key,d.sort_order,d.id`
+	rows, err := tx.QueryContext(ctx, statement, p.args...)
 	if err != nil {
 		return nil, err
 	}
-	all, err := queryDepartments(ctx, tx, actor)
-	if err != nil {
-		return nil, err
-	}
-	items := []service.Department{}
-	for _, d := range all {
-		if f.Organization != "all" && d.Organization != f.Organization {
-			continue
-		}
-		if f.Status != "" && d.Status != f.Status {
-			continue
-		}
-		if f.Q != "" && !strings.Contains(strings.ToLower(d.Name), strings.ToLower(f.Q)) {
-			continue
-		}
-		items = append(items, d)
-	}
-	result := &service.DepartmentList{Items: []service.Department{}, Total: int64(len(items)), Page: f.Page, PageSize: f.PageSize}
-	start := (f.Page - 1) * f.PageSize
-	if start < len(items) {
-		end := min(start+f.PageSize, len(items))
-		result.Items = items[start:end]
-	}
-	for i := range result.Items {
-		d := &result.Items[i]
-		err = tx.QueryRowContext(ctx, `SELECT COUNT(*),COUNT(*) FILTER (WHERE u.status='active') FROM users u
-WHERE u.department_id=$1 AND u.deleted_at IS NULL AND `+organizationUsageOrganizationExpression("u")+`=$2`, d.ID, d.Organization).Scan(&d.MemberCount, &d.ActiveMemberCount)
-		if err != nil {
+	ids := []int64{}
+	positions := map[int64]int{}
+	for rows.Next() {
+		d := service.Department{Managers: []service.DepartmentManager{}}
+		if err = rows.Scan(&d.ID, &d.Organization, &d.Name, &d.Status, &d.SortOrder, &d.Version, &d.CreatedAt, &d.UpdatedAt, &d.MemberCount, &d.ActiveMemberCount); err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT u.id,u.email FROM department_access_grants g JOIN users u ON u.id=g.user_id
-WHERE g.department_id=$1 AND u.deleted_at IS NULL AND u.role='sub_admin' ORDER BY u.id`, d.ID)
+		positions[d.ID] = len(result.Items)
+		ids = append(ids, d.ID)
+		result.Items = append(result.Items, d)
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) > 0 {
+		rows, err = tx.QueryContext(ctx, `SELECT g.department_id,u.id,u.email FROM department_access_grants g JOIN users u ON u.id=g.user_id WHERE g.department_id=ANY($1::bigint[]) AND u.deleted_at IS NULL AND u.role='sub_admin' ORDER BY g.department_id,u.id`, pq.Array(ids))
 		if err != nil {
 			return nil, err
 		}
 		for rows.Next() {
+			var id int64
 			var manager service.DepartmentManager
-			if err := rows.Scan(&manager.ID, &manager.Email); err != nil {
+			if err = rows.Scan(&id, &manager.ID, &manager.Email); err != nil {
 				_ = rows.Close()
 				return nil, err
 			}
-			d.Managers = append(d.Managers, manager)
+			i := positions[id]
+			result.Items[i].Managers = append(result.Items[i].Managers, manager)
 		}
 		err = rows.Err()
 		_ = rows.Close()
@@ -259,27 +272,6 @@ WHERE id=$4 AND organization_key=$5 AND version=$6`, in.Name, in.Status, in.Sort
 
 const departmentMemberColumns = `u.id,u.email,u.username,u.status,` + "" // organization expression is appended below.
 
-func queryDepartmentMembers(ctx context.Context, q sqlExecutor, actor *service.User, activeOnly bool) ([]service.DepartmentMember, error) {
-	orgExpr := organizationUsageOrganizationExpression("u")
-	rows, err := q.QueryContext(ctx, `SELECT `+departmentMemberColumns+orgExpr+`,d.id,COALESCE(d.name,''),u.department_version
-FROM users u LEFT JOIN departments d ON d.id=u.department_id AND d.organization_key=`+orgExpr+`
-WHERE u.deleted_at IS NULL AND (NOT $1 OR u.status='active')
-AND ($2 OR EXISTS(SELECT 1 FROM department_access_grants g WHERE g.user_id=$3 AND g.department_id=d.id)) ORDER BY u.id`, activeOnly, actor.Role == service.RoleAdmin, actor.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	result := []service.DepartmentMember{}
-	for rows.Next() {
-		var m service.DepartmentMember
-		if err := rows.Scan(&m.ID, &m.Email, &m.Username, &m.Status, &m.Organization, &m.DepartmentID, &m.DepartmentName, &m.DepartmentVersion); err != nil {
-			return nil, err
-		}
-		result = append(result, m)
-	}
-	return result, rows.Err()
-}
-
 func (r *departmentRepository) Members(ctx context.Context, f service.DepartmentListFilter) (*service.DepartmentMemberList, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	if err != nil {
@@ -290,28 +282,14 @@ func (r *departmentRepository) Members(ctx context.Context, f service.Department
 	if err != nil {
 		return nil, err
 	}
-	members, err := queryDepartmentMembers(ctx, tx, actor, false)
-	if err != nil {
+	p := departmentMemberPredicates(actor, false, f)
+	result := &service.DepartmentMemberList{Items: []service.DepartmentMember{}, Page: f.Page, PageSize: f.PageSize}
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*)`+departmentMemberFrom()+` WHERE `+p.where(), p.args...).Scan(&result.Total); err != nil {
 		return nil, err
 	}
-	selected := (&service.DepartmentScope{Members: members}).SelectedMembers(f.Organization, f.DepartmentID, f.Q)
-	requestedIDs := map[int64]bool{}
-	for _, id := range f.UserIDs {
-		requestedIDs[id] = true
-	}
-	items := []service.DepartmentMember{}
-	for _, m := range selected {
-		if len(f.UserIDs) > 0 && !requestedIDs[m.ID] {
-			continue
-		}
-		if f.Status == "" || m.Status == f.Status {
-			items = append(items, m)
-		}
-	}
-	result := &service.DepartmentMemberList{Items: []service.DepartmentMember{}, Total: int64(len(items)), Page: f.Page, PageSize: f.PageSize}
-	start := (f.Page - 1) * f.PageSize
-	if start < len(items) {
-		result.Items = items[start:min(start+f.PageSize, len(items))]
+	result.Items, err = querySelectedDepartmentMembers(ctx, tx, actor, false, f)
+	if err != nil {
+		return nil, err
 	}
 	return result, tx.Commit()
 }
@@ -356,13 +334,13 @@ func (r *departmentRepository) Assign(ctx context.Context, in service.Department
 			return 0, err
 		}
 		if in.DepartmentID != nil && service.OrganizationForEmail(email) != organization {
-			return 0, service.ErrDepartmentInvalid
+			return 0, service.ErrDepartmentMemberOrganization
 		}
 		if sameDepartment(current, in.DepartmentID) {
 			continue
 		}
 		if in.DepartmentID != nil && status != "active" {
-			return 0, service.ErrDepartmentInvalid
+			return 0, service.ErrDepartmentInactive
 		}
 		if !sameDepartment(current, m.ExpectedDepartmentID) || version != m.ExpectedVersion {
 			return 0, service.ErrDepartmentConflict
@@ -381,6 +359,14 @@ func (r *departmentRepository) Assign(ctx context.Context, in service.Department
 }
 
 func loadDepartmentAccess(ctx context.Context, q sqlExecutor, userID int64) (*service.DepartmentAccess, error) {
+	access, err := loadAdminAccess(ctx, q, userID)
+	if err == nil && access.Role != service.RoleSubAdmin {
+		return nil, service.ErrDepartmentInvalid
+	}
+	return access, err
+}
+
+func loadAdminAccess(ctx context.Context, q sqlExecutor, userID int64) (*service.DepartmentAccess, error) {
 	rows, err := q.QueryContext(ctx, `SELECT role,admin_permissions FROM users WHERE id=$1 AND deleted_at IS NULL`, userID)
 	if err != nil {
 		return nil, err
@@ -396,10 +382,7 @@ func loadDepartmentAccess(ctx context.Context, q sqlExecutor, userID int64) (*se
 	if err != nil {
 		return nil, err
 	}
-	if role != service.RoleSubAdmin {
-		return nil, service.ErrDepartmentInvalid
-	}
-	result := &service.DepartmentAccess{UserID: userID, DepartmentIDs: []int64{}, Permissions: []string{}}
+	result := &service.DepartmentAccess{Role: role, UserID: userID, DepartmentIDs: []int64{}, Permissions: []string{}}
 	if err = json.Unmarshal(raw, &result.Permissions); err != nil {
 		return nil, err
 	}
@@ -421,7 +404,7 @@ func loadDepartmentAccess(ctx context.Context, q sqlExecutor, userID int64) (*se
 	if err != nil {
 		return nil, err
 	}
-	result.Version = service.HashDepartmentScope([]any{result.UserID, result.DepartmentIDs, result.Permissions})
+	result.Version = service.HashDepartmentScope([]any{result.UserID, result.Role, result.DepartmentIDs, result.Permissions})
 	return result, nil
 }
 
@@ -454,12 +437,15 @@ func (r *departmentRepository) SetAccess(ctx context.Context, userID int64, in s
 	if err != nil {
 		return nil, err
 	}
-	previous, err := loadDepartmentAccess(ctx, tx, userID)
+	previous, err := loadAdminAccess(ctx, tx, userID)
 	if err != nil {
 		return nil, err
 	}
 	if previous.Version != in.ExpectedVersion {
-		return nil, service.ErrDepartmentConflict
+		return nil, service.ErrAdminAccessChanged
+	}
+	if previous.Role != service.RoleSubAdmin {
+		return nil, service.ErrDepartmentInvalid
 	}
 	oldIDs := map[int64]bool{}
 	for _, id := range previous.DepartmentIDs {
@@ -475,7 +461,7 @@ func (r *departmentRepository) SetAccess(ctx context.Context, userID int64, in s
 			return nil, err
 		}
 		if status != "active" && !oldIDs[id] {
-			return nil, service.ErrDepartmentInvalid
+			return nil, service.ErrDepartmentInactive
 		}
 	}
 	permissions := []string{}
@@ -485,7 +471,7 @@ func (r *departmentRepository) SetAccess(ctx context.Context, userID int64, in s
 		}
 		if p == service.AdminPermissionSubscriptions && in.ResetQuota {
 			if !in.ReplaceGlobalSubscriptions {
-				return nil, service.ErrDepartmentConflict
+				return nil, service.ErrDepartmentGlobalConfirmation
 			}
 			continue
 		}
@@ -536,6 +522,10 @@ func resolveDepartmentScope(ctx context.Context, q sqlExecutor, permission strin
 	if err != nil {
 		return nil, err
 	}
+	return departmentCatalogForActor(ctx, q, actor, permission)
+}
+
+func departmentCatalogForActor(ctx context.Context, q sqlExecutor, actor *service.User, permission string) (*service.DepartmentScope, error) {
 	queryActor := *actor
 	if permission == service.AdminPermissionDepartmentSubscriptions && service.HasAdminPermission(actor, service.AdminPermissionSubscriptions) {
 		queryActor.Role = service.RoleAdmin
@@ -544,11 +534,7 @@ func resolveDepartmentScope(ctx context.Context, q sqlExecutor, permission strin
 	if err != nil {
 		return nil, err
 	}
-	members, err := queryDepartmentMembers(ctx, q, &queryActor, true)
-	if err != nil {
-		return nil, err
-	}
-	result := &service.DepartmentScope{Unrestricted: queryActor.Role == service.RoleAdmin, Organizations: []string{}, Departments: departments, Members: members, DefaultOrganization: "all", DefaultDepartment: "all"}
+	result := &service.DepartmentScope{Unrestricted: queryActor.Role == service.RoleAdmin, Organizations: []string{}, Departments: departments, Actor: actor, DefaultOrganization: "all", DefaultDepartment: "all"}
 	for _, org := range []string{service.OrganizationXunyou, service.OrganizationWsdashi, service.OrganizationOther} {
 		found := result.Unrestricted
 		for _, d := range departments {
@@ -568,7 +554,7 @@ func resolveDepartmentScope(ctx context.Context, q sqlExecutor, permission strin
 			result.DefaultDepartment = strconv.FormatInt(departments[0].ID, 10)
 		}
 	}
-	result.Version = service.HashDepartmentScope([]any{actor.ID, actor.Role, actor.AdminPermissions, departments, members})
+	result.CatalogVersion = service.HashDepartmentScope([]any{actor.ID, actor.Role, actor.AdminPermissions, departments})
 	return result, nil
 }
 
@@ -598,13 +584,9 @@ func (r *departmentRepository) SubscriptionGroups(ctx context.Context, search st
 	if err = scope.ValidateSelection("all", "all", ""); err != nil {
 		return nil, err
 	}
-	ids := []int64{}
-	for _, m := range scope.Members {
-		ids = append(ids, m.ID)
-	}
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT g.id,g.name FROM groups g
-WHERE ($1 OR EXISTS(SELECT 1 FROM user_subscriptions s WHERE s.group_id=g.id AND s.user_id=ANY($2::bigint[])))
-AND ($3='' OR g.name ILIKE $3 ESCAPE E'\\') ORDER BY g.name,g.id LIMIT 1000`, scope.Unrestricted, pq.Array(ids), organizationUsageSearchPattern(search))
+WHERE ($1 OR EXISTS(SELECT 1 FROM user_subscriptions s JOIN users u ON u.id=s.user_id JOIN departments d ON d.id=u.department_id AND d.organization_key=`+organizationUsageOrganizationExpression("u")+` WHERE s.group_id=g.id AND u.deleted_at IS NULL AND u.status='active' AND EXISTS(SELECT 1 FROM department_access_grants dg WHERE dg.user_id=$2 AND dg.department_id=d.id)))
+AND ($3='' OR g.name ILIKE $3 ESCAPE E'\\') ORDER BY g.name,g.id LIMIT 1000`, scope.Unrestricted, service.DepartmentActorID(ctx), organizationUsageSearchPattern(search))
 	if err != nil {
 		return nil, err
 	}

@@ -236,19 +236,22 @@ async function loadSummaryOnly(asOf: string, cycleId: number) {
   reportController = controller
   loading.value = true
   errorMessage.value = ''
+  const requestedVersion = scopeVersion.value
   try {
     const response = await adminAPI.organizationUsage.getSummary(currentQuery(asOf), { signal: controller.signal })
     if (reportController !== controller || controller.signal.aborted || reportCycleId.value !== cycleId) return
-    if (response.scope_version !== scopeVersion.value) throw new Error('REPORT_SCOPE_CHANGED')
+    if (!response.scope_version || (requestedVersion && response.scope_version !== requestedVersion)) throw new Error('REPORT_SCOPE_CHANGED')
     if (!response.range.as_of) {
       errorMessage.value = t('admin.organizationUsage.feedback.loadFailed')
       report.value = null
       return
     }
     snapshotAsOf.value = response.range.as_of
+    scopeVersion.value = response.scope_version
     report.value = response
     Object.assign(pagination, response.pagination)
-    maybeReconcileTrend(cycleId)
+    if (!requestedVersion) void loadTrend(response.range.as_of, cycleId)
+    else maybeReconcileTrend(cycleId)
   } catch (cause) {
     if (controller.signal.aborted || reportController !== controller || reportCycleId.value !== cycleId) return
     if (handleScopeFailure(cause, cycleId)) return
@@ -278,10 +281,10 @@ function failTrendLocally(clearPoints: boolean) {
  * Acceptance rule once Summary canonical exists: displayability is decided only by
  * response.range.as_of strictly equaling that canonical — never by request params alone.
  *
- * Parallel fast path: if Summary has not returned yet, a non-empty response as_of may be
- * stored as provisional until Summary arrives.
+ * Summary establishes the query snapshot before the initial trend starts.
  */
 async function loadTrend(asOf: string, cycleId: number, options?: { clearOnError?: boolean }) {
+  if (!scopeVersion.value) return
   const clearOnError = options?.clearOnError !== false
   trendController?.abort()
   const controller = new AbortController()
@@ -421,6 +424,7 @@ function handleScopeFailure(cause: unknown, cycleId: number) {
 
 async function loadFullReport(allowScopeRetry = true) {
   reportController?.abort()
+  reportController = null
   trendController?.abort()
   scopeController?.abort()
   const controller = new AbortController()
@@ -431,13 +435,14 @@ async function loadFullReport(allowScopeRetry = true) {
   loading.value = true
   errorMessage.value = ''
   report.value = null
+  scopeVersion.value = ''
+  snapshotAsOf.value = ''
   clearTrendSuccessState()
   try {
     const currentScope = await departmentsAPI.reportScope(controller.signal)
     if (controller.signal.aborted || cycleId !== reportCycleId.value) return
-    if (!currentScope.scope_version) throw new Error('missing scope version')
+    if (!currentScope.catalog_version) throw new Error('missing catalog version')
     scope.value = currentScope
-    scopeVersion.value = currentScope.scope_version
     if (!scopeInitialized) {
       draft.value = initialDraft()
       const query = route?.query ?? {}
@@ -461,7 +466,6 @@ async function loadFullReport(allowScopeRetry = true) {
     trendError.value = ''
     resolveAutoGranularity()
     void loadSummaryOnly(candidateAsOf, cycleId)
-    void loadTrend(candidateAsOf, cycleId)
   } catch {
     if (!controller.signal.aborted && cycleId === reportCycleId.value) {
       scope.value = null

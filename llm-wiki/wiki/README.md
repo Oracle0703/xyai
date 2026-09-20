@@ -2,9 +2,10 @@
 
 ## 部门功能入口
 
-- `feature/hy/10207_department_usage` 从本地 `main@de5a3e383` 已有部门功能实现，但权限并发、授权生命周期、范围版本与查询开销等复核缺口未修；最终验收未完成。负责人仍不能分配订阅。
-- 2026-09-20 用户要求先修订文档，等待其明确同意再开始代码修复。执行方案：`docs/features/organization-department-usage-implementation-plan-cn.md`；不得因旧实现任务而自动继续改代码。
-- 设计与初始化/回退：`docs/features/organization-department-usage-design-cn.md`；逐项验收与性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。运行合同见 backend/frontend/data/security，复验入口见 ops。
+- `feature/hy/10207_department_usage` 已完成独立部门管理、多平台报表和受限额度重置；S1–S6 复核修正及 RV1–RV8 本机隔离验收完成。负责人仍不能分配订阅。
+- `catalog_version`（目录）、`admin_access_version`（角色/权限/grant）、`scope_version`（实际查询范围）明确分离；统一 CAS、降级/软删除清授权、SQL 分页/批量统计及候选成员锁已实现。
+- 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
+- 未推送、部署或合回 main；创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
 更新时间: 2026-09-20
 
@@ -67,7 +68,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 - `data-and-domain.md`: 核心领域对象, Ent schema, SQL migration, 支付/订阅/计费知识。
 - `security-and-reliability.md`: 认证, 权限, 限流, 幂等, CSP, URL allowlist, 网关可靠性。
 - `ai-workflow.md`: Codex/Copilot 日常如何读取和更新 llm-wiki。
-- [[department-report-design]]: 已有实现、复核修正待用户同意的部门管理、多平台报表及负责人授权方案（验收未完成），含完整设计入口与工作量估算。
+- [[department-report-design]]: 已实现并完成隔离验收的部门管理、多平台报表及负责人授权方案，含完整设计入口与工作量估算。
 - 给人读的完整架构/运维手册（新同事与值班）: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`（2026-09-11 对照源码重写）。结构: 第 4–13 章运转过程（启动/配置/网关 13 步鉴权/调度并发/计费/管理面/settings/后台任务/数据层/关联图）, 第 14–17 章维护不变量与改动清单, 第 18–26 章运维逐项配置（默认/范围/影响/方向/生效）与排障树。wiki 仍是 AI 开发前入口；手册写流程、配置步骤、上线和排障，不替代本知识库。
 
 ## 知识图谱

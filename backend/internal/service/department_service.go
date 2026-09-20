@@ -15,12 +15,17 @@ import (
 )
 
 var (
-	ErrDepartmentInvalid      = infraerrors.BadRequest("DEPARTMENT_INVALID", "invalid department request")
-	ErrDepartmentNotFound     = infraerrors.NotFound("DEPARTMENT_NOT_FOUND", "department not found")
-	ErrDepartmentConflict     = infraerrors.Conflict("DEPARTMENT_CONFLICT", "department or membership changed; refresh and retry")
-	ErrDepartmentDuplicate    = infraerrors.Conflict("DEPARTMENT_DUPLICATE", "department name already exists in this organization")
-	ErrDepartmentScopeDenied  = infraerrors.Forbidden("DEPARTMENT_SCOPE_DENIED", "department access denied")
-	ErrDepartmentScopeChanged = infraerrors.Conflict("REPORT_SCOPE_CHANGED", "department scope changed; refresh and retry")
+	ErrAdminAccessVersionRequired   = infraerrors.BadRequest("ADMIN_ACCESS_VERSION_REQUIRED", "refresh user details before changing role or permissions")
+	ErrAdminAccessChanged           = infraerrors.Conflict("ADMIN_ACCESS_CHANGED", "role, permissions or department access changed; refresh and confirm again")
+	ErrDepartmentInactive           = infraerrors.BadRequest("DEPARTMENT_INACTIVE", "target department is inactive")
+	ErrDepartmentMemberOrganization = infraerrors.BadRequest("DEPARTMENT_MEMBER_ORGANIZATION_MISMATCH", "member does not belong to the target organization")
+	ErrDepartmentGlobalConfirmation = infraerrors.BadRequest("DEPARTMENT_GLOBAL_SUBSCRIPTION_CONFIRMATION_REQUIRED", "confirm replacement of global subscription access")
+	ErrDepartmentInvalid            = infraerrors.BadRequest("DEPARTMENT_INVALID", "invalid department request")
+	ErrDepartmentNotFound           = infraerrors.NotFound("DEPARTMENT_NOT_FOUND", "department not found")
+	ErrDepartmentConflict           = infraerrors.Conflict("DEPARTMENT_CONFLICT", "department or membership changed; refresh and retry")
+	ErrDepartmentDuplicate          = infraerrors.Conflict("DEPARTMENT_DUPLICATE", "department name already exists in this organization")
+	ErrDepartmentScopeDenied        = infraerrors.Forbidden("DEPARTMENT_SCOPE_DENIED", "department access denied")
+	ErrDepartmentScopeChanged       = infraerrors.Conflict("REPORT_SCOPE_CHANGED", "department scope changed; refresh and retry")
 )
 
 type departmentActorKey struct{}
@@ -126,6 +131,7 @@ type DepartmentAssignInput struct {
 }
 
 type DepartmentAccess struct {
+	Role          string   `json:"-"`
 	UserID        int64    `json:"user_id"`
 	DepartmentIDs []int64  `json:"department_ids"`
 	Permissions   []string `json:"permissions"`
@@ -144,10 +150,24 @@ type DepartmentScope struct {
 	Unrestricted        bool               `json:"unrestricted"`
 	Organizations       []string           `json:"organizations"`
 	Departments         []Department       `json:"departments"`
-	Version             string             `json:"scope_version"`
+	CatalogVersion      string             `json:"catalog_version"`
+	Version             string             `json:"-"`
+	Actor               *User              `json:"-"`
 	DefaultOrganization string             `json:"default_organization"`
 	DefaultDepartment   string             `json:"default_department_id"`
 	Members             []DepartmentMember `json:"-"`
+}
+
+type DepartmentScopeQuery struct {
+	Organization string
+	DepartmentID string
+	Q            string
+	Platform     string
+	UserID       *int64
+	GroupID      *int64
+	Status       string
+	Versioned    bool // Explicitly requested snapshot for an otherwise global subscription query.
+	Limit        int  // Compact search only; never used to construct a query snapshot.
 }
 
 // HashDepartmentScope detects membership changes, not usage-log snapshots.
@@ -273,6 +293,7 @@ type DepartmentRepository interface {
 	GetAccess(context.Context, int64) (*DepartmentAccess, error)
 	SetAccess(context.Context, int64, DepartmentAccessInput) (*DepartmentAccess, error)
 	Scope(context.Context, string) (*DepartmentScope, error)
+	QueryScope(context.Context, string, DepartmentScopeQuery) (*DepartmentScope, error)
 	SubscriptionGroups(context.Context, string) ([]DepartmentGroupOption, error)
 }
 
@@ -282,7 +303,7 @@ func NewDepartmentService(repo DepartmentRepository) *DepartmentService {
 	return &DepartmentService{repo: repo}
 }
 
-func normalizeDepartmentList(f DepartmentListFilter) (DepartmentListFilter, error) {
+func normalizeDepartmentList(f DepartmentListFilter, resourceID ...bool) (DepartmentListFilter, error) {
 	if len(f.UserIDs) > 200 {
 		return f, ErrDepartmentInvalid
 	}
@@ -294,7 +315,15 @@ func normalizeDepartmentList(f DepartmentListFilter) (DepartmentListFilter, erro
 		seen[id] = true
 	}
 	var err error
-	f.Organization, f.DepartmentID, err = NormalizeDepartmentFilter(f.Organization, f.DepartmentID)
+	if len(resourceID) > 0 && resourceID[0] && f.Organization == "" && f.DepartmentID != "" && f.DepartmentID != "all" && f.DepartmentID != "unassigned" {
+		id, parseErr := strconv.ParseInt(f.DepartmentID, 10, 64)
+		if parseErr != nil || id <= 0 || strconv.FormatInt(id, 10) != f.DepartmentID {
+			return f, ErrDepartmentInvalid
+		}
+		f.Organization = OrganizationAll
+	} else {
+		f.Organization, f.DepartmentID, err = NormalizeDepartmentFilter(f.Organization, f.DepartmentID)
+	}
 	if err != nil {
 		return f, err
 	}
@@ -323,22 +352,9 @@ func (s *DepartmentService) List(ctx context.Context, f DepartmentListFilter) (*
 }
 
 func (s *DepartmentService) Members(ctx context.Context, f DepartmentListFilter) (*DepartmentMemberList, error) {
-	// The administrator's /departments/:id/members resource is unambiguous
-	// without an organization picker. Reporting filters remain stricter.
-	department := f.DepartmentID
-	if f.Organization == "" && department != "" && department != "all" && department != "unassigned" {
-		id, err := strconv.ParseInt(department, 10, 64)
-		if err != nil || id <= 0 || strconv.FormatInt(id, 10) != department {
-			return nil, ErrDepartmentInvalid
-		}
-		f.DepartmentID = "all"
-	}
-	f, err := normalizeDepartmentList(f)
+	f, err := normalizeDepartmentList(f, true)
 	if err != nil {
 		return nil, err
-	}
-	if department != "" {
-		f.DepartmentID = department
 	}
 	return s.repo.Members(ctx, f)
 }
@@ -378,7 +394,10 @@ func (s *DepartmentService) GetAccess(ctx context.Context, userID int64) (*Depar
 }
 
 func (s *DepartmentService) SetAccess(ctx context.Context, userID int64, in DepartmentAccessInput) (*DepartmentAccess, error) {
-	if userID <= 0 || len(in.DepartmentIDs) > 200 || in.ExpectedVersion == "" {
+	if in.ExpectedVersion == "" {
+		return nil, ErrAdminAccessVersionRequired
+	}
+	if userID <= 0 || len(in.DepartmentIDs) > 200 {
 		return nil, ErrDepartmentInvalid
 	}
 	seen := make(map[int64]bool)
@@ -401,4 +420,17 @@ func (s *DepartmentService) Scope(ctx context.Context, permission string) (*Depa
 
 func (s *DepartmentService) SubscriptionGroups(ctx context.Context, q string) ([]DepartmentGroupOption, error) {
 	return s.repo.SubscriptionGroups(ctx, strings.TrimSpace(q))
+}
+
+func (s *DepartmentService) QueryScope(ctx context.Context, permission string, query DepartmentScopeQuery) (*DepartmentScope, error) {
+	if s == nil || s.repo == nil {
+		return nil, ErrDepartmentScopeDenied
+	}
+	var err error
+	query.Organization, query.DepartmentID, err = NormalizeDepartmentFilter(query.Organization, query.DepartmentID)
+	if err != nil {
+		return nil, err
+	}
+	query.Q = strings.TrimSpace(query.Q)
+	return s.repo.QueryScope(ctx, permission, query)
 }

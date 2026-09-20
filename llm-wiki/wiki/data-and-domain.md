@@ -2,9 +2,9 @@
 
 ## 组织下的独立部门
 
-- **本轮文档补强（代码未改）：** 成员 `created_at <= canonical as_of` 仅作为报表 RV3-O 备选，当前未采用，不改变默认当前成员口径。若选用，全部报表面及版本/人数使用同一上界；旧成员状态/归属仍取当前值，不影响订阅重置，也不构成历史数据库快照。
+状态：2026-09-20 S1–S6/RV1–RV8 本机隔离验收完成。用户降级/软删除在同事务清其持有 grants 并审计，重新提权不复活；临时停用保留授权但拒绝访问，created_by 外键不变。报告 grant 可与显式全站订阅权限共存，部门/全站订阅权限仍互斥。
 
-**复核状态（2026-09-20）：待修复及补充验收，等待用户同意后开始代码实现。** 保留当前成员口径、成员版本和审计触发器。负责人降级/软删除清 grants 为待实现目标；不能将 grant 存在本身等同部门订阅权限。当前用户删除为软删除，不据此修改外键。 目标合同与执行顺序见 `docs/features/organization-department-usage-implementation-plan-cn.md`。
+成员创建时间上界备选未启用：全部报表面按当前 active/未删除成员集合统计；全站新增 active 成员可使旧查询失效。目录、用户授权、实际查询三个版本分别为 catalog_version、admin_access_version、scope_version，均非新增持久化字段。
 
 - migration `239_departments.sql` 新增 `departments`、`department_access_grants`、`users.department_id` (nullable FK) 和 `department_version`。部门固定属于 `xunyou / wsdashi / other` 之一；组织内名称 trim 后大小写不敏感唯一，跨组织可同名，组织不可变。
 - 首版一级部门、一人一个当前部门；未分配为 NULL。停用保留成员和已有授权，可查询、移出和重置，不能新增成员或新授权。成员批量操作最多 200 个显式 ID，以原部门及版本 CAS，整批成功或回滚；不修改订阅与 API Key。

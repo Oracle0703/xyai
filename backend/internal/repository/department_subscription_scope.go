@@ -3,47 +3,39 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
-// nil IDs mean an explicitly unrestricted actor; a non-nil empty slice means
-// an authorized but empty department and must never be treated as unrestricted.
+// nil means explicitly unrestricted; empty non-nil means an empty scoped result.
 func (r *userSubscriptionRepository) departmentSubscriptionIDs(ctx context.Context, filter service.SubscriptionAdminFilter) ([]int64, error) {
 	if service.DepartmentActorID(ctx) == 0 {
 		return nil, nil
 	}
-	client := clientFromContext(ctx, r.client)
-	scope, err := resolveDepartmentScope(ctx, client, service.AdminPermissionDepartmentSubscriptions)
+	scope, err := resolveDepartmentQueryScope(ctx, clientFromContext(ctx, r.client), service.AdminPermissionDepartmentSubscriptions, filter.DepartmentQuery())
 	if err != nil {
 		return nil, err
 	}
-	organization, department, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
+	org, dept, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
 	if err != nil {
 		return nil, err
 	}
-	if err = scope.ValidateSelection(organization, department, filter.ScopeVersion); err != nil {
+	if err = scope.ValidateSelection(org, dept, filter.ScopeVersion); err != nil {
 		return nil, err
 	}
-	if scope.Unrestricted && department == "all" {
+	if filter.ResolvedScopeVersion != nil {
+		*filter.ResolvedScopeVersion = scope.Version
+	}
+	if scope.Unrestricted && dept == "all" {
 		return nil, nil
 	}
-	ids := []int64{}
-	for _, m := range scope.SelectedMembers(organization, department, "") {
+	ids := make([]int64, 0, len(scope.Members))
+	for _, m := range scope.Members {
 		ids = append(ids, m.ID)
-	}
-	if filter.UserID != nil {
-		allowed := false
-		for _, id := range ids {
-			if id == *filter.UserID {
-				allowed = true
-			}
-		}
-		if !allowed {
-			return nil, service.ErrDepartmentScopeDenied
-		}
 	}
 	return ids, nil
 }
@@ -60,31 +52,74 @@ func (r *userSubscriptionRepository) applyDepartmentSubscriptionScope(ctx contex
 }
 
 func (r *userSubscriptionRepository) checkDepartmentSubscription(ctx context.Context, id int64) error {
-	ids, scopeErr := r.departmentSubscriptionIDs(ctx, service.SubscriptionAdminFilter{})
-	if scopeErr != nil {
-		return scopeErr
-	}
-	if ids == nil {
-		return nil
-	}
-	q, err := r.applyDepartmentSubscriptionScope(ctx, clientFromContext(ctx, r.client).UserSubscription.Query().Where(usersubscription.IDEQ(id)), service.SubscriptionAdminFilter{})
-	if err != nil {
-		return err
-	}
 	if service.DepartmentActorID(ctx) == 0 {
 		return nil
 	}
-	exists, err := q.Exist(ctx)
+	client := clientFromContext(ctx, r.client)
+	actor, err := loadDepartmentActor(ctx, client, service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
 	if err != nil {
 		return err
 	}
-	if !exists {
-		return service.ErrDepartmentScopeDenied
+	if departmentSubscriptionUnrestricted(actor) {
+		return nil
 	}
-	return nil
+	rows, err := client.QueryContext(ctx, `SELECT 1 FROM user_subscriptions s JOIN users u ON u.id=s.user_id
+ JOIN departments d ON d.id=u.department_id AND d.organization_key=`+organizationUsageOrganizationExpression("u")+`
+ WHERE s.id=$1 AND u.deleted_at IS NULL AND u.status='active'
+ AND EXISTS(SELECT 1 FROM department_access_grants dg WHERE dg.user_id=$2 AND dg.department_id=d.id)`, id, actor.ID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	if rows.Next() {
+		return nil
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	return service.ErrDepartmentScopeDenied
 }
 
-func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx context.Context, filter service.SubscriptionAdminFilter, subscriptionID int64) (context.Context, []int64, *dbent.Tx, error) {
+type departmentWriteActorKey struct{}
+
+func departmentResetActor(ctx context.Context, q sqlExecutor) (*service.User, error) {
+	if actor, ok := ctx.Value(departmentWriteActorKey{}).(*service.User); ok {
+		return actor, nil
+	}
+	return loadDepartmentActor(ctx, q, service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
+}
+
+// Use the same predicates for candidate discovery and the final atomic UPDATE.
+func dailyResetPredicates(filter service.SubscriptionAdminFilter, now time.Time, memberIDs []int64) departmentPredicates {
+	p := departmentPredicates{clauses: []string{"us.deleted_at IS NULL", "u.deleted_at IS NULL", "g.deleted_at IS NULL", "us.status='active'"}}
+	p.add("us.expires_at > $%d", now)
+	if memberIDs != nil {
+		p.add("us.user_id=ANY($%d::bigint[])", pq.Array(memberIDs))
+	}
+	if filter.UserID != nil {
+		p.add("us.user_id=$%d", *filter.UserID)
+	}
+	if filter.GroupID != nil {
+		p.add("us.group_id=$%d", *filter.GroupID)
+	}
+	if filter.Platform != "" {
+		p.add("g.platform=$%d", filter.Platform)
+	}
+	if filter.Organization != "" {
+		p.add(organizationUsageOrganizationExpression("u")+"=$%d", filter.Organization)
+	}
+	if filter.Status != "" {
+		p.add("us.status=$%d", filter.Status)
+	}
+	if filter.DepartmentID == "unassigned" {
+		p.clauses = append(p.clauses, "u.department_id IS NULL")
+	} else if filter.DepartmentID != "" && filter.DepartmentID != "all" {
+		p.add("u.department_id=$%d::bigint", filter.DepartmentID)
+	}
+	return p
+}
+
+func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx context.Context, filter service.SubscriptionAdminFilter, subscriptionID int64, at ...time.Time) (context.Context, []int64, *dbent.Tx, error) {
 	if service.DepartmentActorID(ctx) == 0 {
 		return ctx, nil, nil, nil
 	}
@@ -105,55 +140,108 @@ func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx contex
 		}
 		return ctx, nil, nil, err
 	}
-	ids, err := r.departmentSubscriptionIDs(ctx, filter)
+	client := clientFromContext(ctx, r.client)
+	actor, err := loadDepartmentActor(ctx, client, service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
 	if err != nil {
 		return fail(err)
 	}
-	if subscriptionID == 0 && filter.ScopeVersion == "" {
-		actor, err := loadDepartmentActor(ctx, clientFromContext(ctx, r.client), service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
-		if err != nil {
-			return fail(err)
-		}
-		if actor.Role != service.RoleAdmin && service.HasAdminPermission(actor, service.AdminPermissionDepartmentSubscriptions) {
-			return fail(service.ErrDepartmentScopeChanged)
-		}
+	org, dept, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
+	if err != nil {
+		return fail(err)
 	}
-	lockIDs := []int64{service.DepartmentActorID(ctx)}
-	client := clientFromContext(ctx, r.client)
+	constrained := !departmentSubscriptionUnrestricted(actor) || dept != "all"
+	if subscriptionID == 0 && constrained && filter.ScopeVersion == "" {
+		return fail(service.ErrDepartmentScopeChanged)
+	}
+	lockIDs := []int64{actor.ID}
+	candidates := []int64{}
+	var targetUser int64
 	if subscriptionID > 0 {
 		sub, err := client.UserSubscription.Get(ctx, subscriptionID)
 		if err != nil {
 			return fail(service.ErrDepartmentScopeDenied)
 		}
-		lockIDs = append(lockIDs, sub.UserID)
-	} else {
-		lockIDs = append(lockIDs, ids...)
+		targetUser = sub.UserID
+		if constrained {
+			lockIDs = append(lockIDs, targetUser)
+		}
+	} else if constrained {
+		now := time.Now()
+		if len(at) > 0 {
+			now = at[0]
+		}
+		p := dailyResetPredicates(filter, now, nil)
+		if !departmentSubscriptionUnrestricted(actor) {
+			p.add("u.status='active' AND EXISTS(SELECT 1 FROM department_access_grants dg JOIN departments d ON d.id=dg.department_id WHERE dg.user_id=$%d AND d.id=u.department_id AND d.organization_key="+organizationUsageOrganizationExpression("u")+")", actor.ID)
+		}
+		rows, err := client.QueryContext(ctx, `SELECT DISTINCT us.user_id FROM user_subscriptions us JOIN users u ON u.id=us.user_id JOIN groups g ON g.id=us.group_id WHERE `+p.where()+` ORDER BY us.user_id`, p.args...)
+		if err != nil {
+			return fail(err)
+		}
+		for rows.Next() {
+			var id int64
+			if err = rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return fail(err)
+			}
+			candidates = append(candidates, id)
+		}
+		err = rows.Err()
+		_ = rows.Close()
+		if err != nil {
+			return fail(err)
+		}
+		lockIDs = append(lockIDs, candidates...)
 	}
 	if err = lockDepartmentUsers(ctx, client, lockIDs); err != nil {
 		return fail(err)
 	}
-	current, err := r.departmentSubscriptionIDs(ctx, filter)
+	currentActor, err := loadDepartmentActor(ctx, client, service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
 	if err != nil {
 		return fail(err)
 	}
-	if ids != nil {
-		// A batch cannot silently include new members that were not locked.
-		locked := map[int64]bool{}
-		for _, id := range lockIDs {
-			locked[id] = true
+	if departmentSubscriptionUnrestricted(actor) != departmentSubscriptionUnrestricted(currentActor) {
+		return fail(service.ErrDepartmentScopeChanged)
+	}
+	var allowedIDs []int64
+	if constrained || filter.ScopeVersion != "" {
+		selection := filter.DepartmentQuery()
+		if subscriptionID > 0 {
+			selection.UserID = &targetUser
 		}
-		if subscriptionID == 0 {
-			for _, id := range current {
-				if !locked[id] {
-					return fail(service.ErrDepartmentScopeChanged)
+		scope, err := departmentQueryScopeForActor(ctx, client, currentActor, service.AdminPermissionDepartmentSubscriptions, selection)
+		if err != nil {
+			return fail(err)
+		}
+		if err = scope.ValidateSelection(org, dept, filter.ScopeVersion); err != nil {
+			return fail(err)
+		}
+		allowed := map[int64]bool{}
+		for _, m := range scope.Members {
+			allowed[m.ID] = true
+		}
+		if subscriptionID > 0 && !allowed[targetUser] {
+			return fail(service.ErrDepartmentScopeDenied)
+		}
+		if constrained && subscriptionID == 0 {
+			// Freeze the locked candidate population; later arrivals cannot expand the UPDATE.
+			allowedIDs = []int64{}
+			for _, id := range candidates {
+				if allowed[id] {
+					allowedIDs = append(allowedIDs, id)
 				}
 			}
 		}
 	}
 	if subscriptionID > 0 {
-		if err = r.checkDepartmentSubscription(ctx, subscriptionID); err != nil {
-			return fail(err)
+		sub, err := client.UserSubscription.Query().Where(usersubscription.IDEQ(subscriptionID)).ForUpdate().Only(ctx)
+		if err != nil {
+			return fail(service.ErrDepartmentScopeDenied)
+		}
+		if sub.UserID != targetUser {
+			return fail(service.ErrDepartmentScopeChanged)
 		}
 	}
-	return ctx, current, owned, nil
+	ctx = context.WithValue(ctx, departmentWriteActorKey{}, currentActor)
+	return ctx, allowedIDs, owned, nil
 }

@@ -15,9 +15,9 @@
 
 ## 页面请求与导出
 
-`views/admin/OrganizationUsageView.vue` 先请求 scope，再并行加载 Summary/Trend，共用 `scope_version` 和 candidate `as_of`。Summary 的 canonical `as_of` 为权威，必要时每周期单次对齐 Trend；人员翻页/排序只刷新 Summary。
+`views/admin/OrganizationUsageView.vue` 先请求 scope 目录，再由首个 Summary 确定查询 `scope_version` 和 canonical `as_of`，随后加载 Trend；目录 `catalog_version` 不作为查询版本。必要时每周期单次对齐 Trend；人员翻页/排序只刷新 Summary。
 
-完整查询递增 `reportCycleId`，取消旧控制器并清数据；403/范围冲突清除保护结果及导出任务。409 最多重新获取 scope 并重试一次，持续变化停止；空授权显示联系管理员，不回退全站。迟到响应不能覆盖新筛选。
+完整查询递增 `reportCycleId`，取消旧控制器并清数据；403/范围冲突清除保护结果及导出任务。仅业务码 `REPORT_SCOPE_CHANGED`（reason 或字符串 code）最多重新获取 scope 并重试一次，持续变化停止；空授权显示联系管理员，不回退全站。迟到响应不能覆盖新筛选。
 
 Excel 使用 `organizationUsageReport.ts` 与可终止 Worker，生成报表概览、组织、部门、平台、人员、月、周、日八个 Sheet。所有数据 Sheet 合计上限 100,000 行；元信息包含实际筛选、当前成员归属口径、生成时间、`as_of/scope_version`。各页及 Sheet 版本不一致立即中止，`fetchAll` 不请求 Trend。
 

@@ -38,7 +38,7 @@ export interface DepartmentScope {
   unrestricted: boolean
   organizations: OrganizationKey[]
   departments: Department[]
-  scope_version: string
+  catalog_version: string
   default_organization: DepartmentOrganizationFilter
   default_department_id: string
 }

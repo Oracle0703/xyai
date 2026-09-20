@@ -1,5 +1,14 @@
 export default {
   departments: {
+    accessChanged: '角色、权限或部门授权已变化，请重新确认后保存。',
+    accessVersionRequired: '请刷新用户详情后再修改角色或权限。',
+    duplicateName: '该组织已存在同名部门，请修改名称。',
+    inactiveTarget: '目标部门已停用，无法新增成员或授权。',
+    organizationMismatch: '成员不属于目标组织，本次调整未保存。',
+    globalConfirmationRequired: '请确认将全站订阅权限切换为部门订阅权限。',
+    scopeDenied: '无权访问当前部门范围，请联系管理员。',
+    userDetailsFailed: '用户详情加载失败，请重新打开后再保存。',
+
     title: '部门管理', description: '按组织维护部门、成员归属和负责人权限',
     organization: '组织', department: '部门', allDepartments: '全部授权部门', unassigned: '未分配',
     name: '部门名称', status: '状态', active: '启用', inactive: '停用', allStatuses: '全部状态',

@@ -1,17 +1,17 @@
 # 后端知识基线
 
+
 ## 部门管理与用量范围
 
-- **本轮文档补强（代码未改）：** 待实现的版本命名：目录为 `catalog_version`，目标用户角色/权限/grant 并发版本为 `admin_access_version`，实际查询范围为 `scope_version`。SQL 内有序聚合后计算摘要是 S3 备选，仍需同事务及数据库侧性能证据。
+状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。合同与证据见 `docs/features/organization-department-usage-implementation-plan-cn.md` 和 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
 
-**复核状态（2026-09-20）：待修复及补充验收，等待用户同意后开始代码实现。** 当前工作区仍有普通管理员订阅路径反复全量解析、部门/成员内存分页、查询版本范围过宽等缺口；下述链路描述现状，不代表已经修正。 目标合同与执行顺序见 `docs/features/organization-department-usage-implementation-plan-cn.md`。
-
-- `DepartmentHandler / DepartmentService / DepartmentRepository` 提供组织下一级部门、成员批量归属和子管理员授权；路由在 `backend/internal/server/routes/department.go`，Wire 已接入。部门不改变 API 分组、订阅与计费关系。
-- `AdminAuth` 向私有 context 注入操作者身份；部门仓储读取最新数据库角色、权限和 `department_access_grants`。Admin API Key 使用独立标记保留完整管理员语义，不能用审计账号的普通角色反推权限。
-- `organization_usage_department_repo.go` 在同一 repeatable-read 只读事务解析授权成员、筛选、版本并查询 Summary/Periods/Trend；所有汇总、人数、峰值与明细共享范围。部门/成员/授权元数据变化会改变 `scope_version`，后续版本不一致返回 `REPORT_SCOPE_CHANGED` (409)。
-- `department_subscription_read.go` 将订阅范围、分页和嵌套用户放在同一快照；`department_subscription_scope.go` 在重置事务中按 ID 顺序锁定操作者和目标成员、重新鉴权。成员调整与撤权复用用户行锁；筛选每日重置保留 `AtomicSuccess` 和提交后缓存失效，幂等重放前也鉴权。
-- 报表、订阅各有 `/admin/usage/organization-report/scope`、`/admin/subscriptions/scope`。负责人选人/分组选项使用订阅专用 compact 接口；无 grant 的 scope 返回空选项，数据读取和重置拒绝，不回退全站。
-- 授权报表 SQL 显式物化 `selected_users`、`period_aggregates` 和 peak CTE，从个人峰值同次聚合取全局 champion，避免重复全量扫描。验收与实测见 `docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
+- `DepartmentHandler / DepartmentService / DepartmentRepository` 提供组织下一级部门、成员和负责人管理；路由 `internal/server/routes/department.go`。部门独立于 API 分组、订阅和计费。
+- 管理用户详情经 `user_admin_access.go` 的 repeatable-read 事务返回角色/权限及 `admin_access_version`，不暴露在公开或嵌套浅层 DTO。通用权限修改与 department-scope 共用角色/权限/grant 摘要，在用户行锁下重读、校验并审计；降级/软删除原子清其持有 grants。
+- `/admin/usage/organization-report/scope`、`/admin/subscriptions/scope` 只返回目录 `catalog_version`，不装载成员。`department_query_scope.go` 按实际筛选构造授权 SQL 与 `scope_version`；包含选中 ID/邮箱/组织/部门/成员版本及部门标签，排除 username、排序和无关范围。
+- 部门列表在 SQL 过滤/count/分页，页内成员数与负责人批量查询，共 4 次 SQL；成员页 3 次。全站普通订阅 scope 仅读取 actor，管理员指定部门筛选仍有效。订阅列表版本直接取仓储结果，handler 不预先全量解析。
+- 报表在同一 repeatable-read 快照内解析实际范围并查询 Summary/Periods/Trend；物化 selected_users/period_aggregates/peak CTE，复用个人峰值提取 champion。零用量成员保留；SQL 内摘要备选未启用。
+- `department_subscription_read.go` 保证授权、分页与嵌套用户同快照；重置仅锁 actor 和实际候选成员，锁内重新鉴权，UPDATE 限定已锁集合，新候选触发范围变化。保留幂等 AtomicSuccess、重放鉴权和提交后缓存失效。
+- Admin API Key 保留独立标记的完整管理员语义。负责人 compact 选项走专用受限接口；无 grant 可读空目录，数据/重置拒绝，不能回退全站。
 
 ## 0.2.6 合并增量
 

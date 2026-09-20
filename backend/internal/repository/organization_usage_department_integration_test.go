@@ -75,6 +75,39 @@ func TestOrganizationUsageDepartmentIntegration_AllSurfacesUseTheSameScope(t *te
 	require.Len(t, summary.Platforms, 2)
 	require.Equal(t, member.ID, summary.Champions.Day.UserID)
 	require.NotEmpty(t, summary.ScopeVersion)
+	// Only the selected report projection belongs to the version, not the whole catalog.
+	adminSnapshot, err := repo.Summary(adminCtx, p)
+	require.NoError(t, err)
+	globalParams := p
+	globalParams.Organization = service.OrganizationAll
+	globalParams.Filters.DepartmentID = "all"
+	globalSnapshot, err := repo.Summary(adminCtx, globalParams)
+	require.NoError(t, err)
+	organizationUsageIntegrationUser(t, prefix+"new@wsdashi.com", service.StatusActive)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET username='unrelated profile edit' WHERE id=ANY($1)`, pq.Array([]int64{member.ID, outsider.ID}))
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE departments SET sort_order=10,version=version+1,updated_at=NOW() WHERE id=ANY($1)`, pq.Array([]int64{dept.ID, other.ID}))
+	require.NoError(t, err)
+	selectedParams := p
+	selectedParams.Filters.ScopeVersion = adminSnapshot.ScopeVersion
+	stable, err := repo.Summary(adminCtx, selectedParams)
+	require.NoError(t, err)
+	require.Equal(t, adminSnapshot.ScopeVersion, stable.ScopeVersion)
+	globalParams.Filters.ScopeVersion = globalSnapshot.ScopeVersion
+	_, err = repo.Summary(adminCtx, globalParams)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeChanged, "new members legitimately change a global report")
+	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET email=$1 WHERE id=$2`, prefix+"renamed@xunyou.com", member.ID)
+	require.NoError(t, err)
+	_, err = repo.Summary(adminCtx, selectedParams)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeChanged, "email is part of the exported projection")
+	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET email=$1 WHERE id=$2`, member.Email, member.ID)
+	require.NoError(t, err)
+	_, err = integrationDB.ExecContext(ctx, `UPDATE departments SET name=$1 WHERE id=$2`, prefix+" renamed", dept.ID)
+	require.NoError(t, err)
+	_, err = repo.Summary(adminCtx, selectedParams)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeChanged, "department labels must not mix across export pages")
+	_, err = integrationDB.ExecContext(ctx, `UPDATE departments SET name=$1 WHERE id=$2`, dept.Name, dept.ID)
+	require.NoError(t, err)
 	for _, item := range summary.Items {
 		require.NotEqual(t, outsider.ID, item.UserID)
 		require.Equal(t, &dept.ID, item.DepartmentID)

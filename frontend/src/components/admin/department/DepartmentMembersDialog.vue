@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { departmentErrorStatus } from '@/utils/departmentErrors'
+import { departmentErrorKey } from '@/utils/departmentErrors'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import type { Column } from '@/components/common/types'
@@ -106,7 +106,7 @@ async function save() {
   } catch (cause) {
     selected.value.clear()
     await load()
-    error.value = t(departmentErrorStatus(cause) === 409 ? 'admin.departments.conflict' : 'admin.departments.failed')
+    error.value = t(departmentErrorKey(cause))
   } finally { saving.value = false }
 }
 watch(() => [props.show, props.department?.id], () => {

@@ -106,6 +106,7 @@ export interface User {
 }
 
 export interface AdminUser extends User {
+	admin_access_version?: string
   department_id?: number | null
   department_version?: number
   // 管理员备注（普通用户接口不返回）
@@ -2038,6 +2039,7 @@ export interface ApiKeyUsageTrendPoint {
 // ==================== Admin User Management ====================
 
 export interface UpdateUserRequest {
+	expected_admin_access_version?: string
   email?: string
   password?: string
   username?: string

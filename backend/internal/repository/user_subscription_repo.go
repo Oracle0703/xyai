@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -16,7 +15,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/lib/pq"
 )
 
 type userSubscriptionRepository struct {
@@ -590,7 +588,7 @@ func (r *userSubscriptionRepository) ResetUsageWindows(ctx context.Context, id i
 		return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
 	}
 	if service.DepartmentActorID(ctx) > 0 {
-		actor, err := loadDepartmentActor(ctx, client, service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
+		actor, err := departmentResetActor(ctx, client)
 		if err != nil {
 			return err
 		}
@@ -655,7 +653,7 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 	now time.Time,
 	newWindowStart time.Time,
 ) ([]service.SubscriptionCacheKey, error) {
-	ctx, departmentIDs, owned, scopeErr := r.beginDepartmentSubscriptionWrite(ctx, filter, 0)
+	ctx, departmentIDs, owned, scopeErr := r.beginDepartmentSubscriptionWrite(ctx, filter, 0, now)
 	if scopeErr != nil {
 		return nil, scopeErr
 	}
@@ -663,39 +661,8 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 		defer func() { _ = owned.Rollback() }()
 	}
 
-	var predicates []string
-	args := make([]any, 0, 8)
-	addPredicate := func(format string, value any) {
-		args = append(args, value)
-		predicates = append(predicates, fmt.Sprintf(format, len(args)))
-	}
-
-	if departmentIDs != nil {
-		addPredicate("us.user_id = ANY($%d::bigint[])", pq.Array(departmentIDs))
-	}
-
-	predicates = append(predicates,
-		"us.deleted_at IS NULL",
-		"u.deleted_at IS NULL",
-		"g.deleted_at IS NULL",
-		"us.status = 'active'",
-	)
-	addPredicate("us.expires_at > $%d", now)
-	if filter.UserID != nil {
-		addPredicate("us.user_id = $%d", *filter.UserID)
-	}
-	if filter.GroupID != nil {
-		addPredicate("us.group_id = $%d", *filter.GroupID)
-	}
-	if filter.Platform != "" {
-		addPredicate("g.platform = $%d", filter.Platform)
-	}
-	if filter.Organization != "" {
-		addPredicate(organizationUsageOrganizationExpression("u")+" = $%d", filter.Organization)
-	}
-	if filter.Status != "" {
-		addPredicate("us.status = $%d", filter.Status)
-	}
+	predicates := dailyResetPredicates(filter, now, departmentIDs)
+	args := predicates.args
 
 	args = append(args, newWindowStart)
 	windowArg := len(args)
@@ -716,7 +683,7 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 		FROM candidates c
 		WHERE us.id = c.id
 		RETURNING us.user_id, us.group_id
-	`, strings.Join(predicates, " AND "), windowArg, updatedAtArg)
+	`, predicates.where(), windowArg, updatedAtArg)
 
 	client := clientFromContext(ctx, r.client)
 	rows, err := client.QueryContext(ctx, query, args...)
@@ -743,7 +710,7 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 	}
 	_ = rows.Close()
 	if service.DepartmentActorID(ctx) > 0 {
-		actor, err := loadDepartmentActor(ctx, client, service.AdminPermissionSubscriptions, service.AdminPermissionDepartmentSubscriptions)
+		actor, err := departmentResetActor(ctx, client)
 		if err != nil {
 			return nil, err
 		}

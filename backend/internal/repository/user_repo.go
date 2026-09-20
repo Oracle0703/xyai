@@ -288,6 +288,20 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		}
 	}
 
+	var accessBefore *service.DepartmentAccess
+	var accessActor *service.User
+	if fields.Role || fields.AdminPermissions || fields.ExpectedAdminAccessVersion != "" {
+		if fields.ExpectedAdminAccessVersion == "" {
+			return service.ErrAdminAccessVersionRequired
+		}
+		accessActor, accessBefore, err = prepareUserAdminAccessWrite(txCtx, txClient, userIn.ID)
+		if err != nil {
+			return err
+		}
+		if accessBefore.Version != fields.ExpectedAdminAccessVersion {
+			return service.ErrAdminAccessChanged
+		}
+	}
 	existing, err := clientFromContext(txCtx, txClient).User.Get(txCtx, userIn.ID)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
@@ -349,6 +363,23 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	updated, err := updateOp.Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
+	}
+	if accessBefore != nil {
+		if updated.Role != service.RoleSubAdmin {
+			if err := clearUserDepartmentGrants(txCtx, txClient, accessActor, accessBefore, "role_changed"); err != nil {
+				return err
+			}
+		}
+		after, err := loadAdminAccess(txCtx, txClient, userIn.ID)
+		if err != nil {
+			return err
+		}
+		userIn.AdminAccessVersion = after.Version
+		if accessBefore.Version != after.Version {
+			if err := departmentAudit(txCtx, txClient, accessActor, "department.user_access_changed", map[string]any{"before": accessBefore, "after": after, "before_role": accessBefore.Role, "after_role": after.Role}); err != nil {
+				return err
+			}
+		}
 	}
 
 	if fields.AllowedGroups {
@@ -489,6 +520,16 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 
 // deleteUser 在给定 client（可能是外部事务 client）上删除用户及其身份关联记录，自身不开启/提交事务。
 func (r *userRepository) deleteUser(ctx context.Context, exec *dbent.Client, id int64) error {
+	actor, access, err := prepareUserAdminAccessWrite(ctx, exec, id)
+	if err != nil {
+		return err
+	}
+	if actor != nil && access.Role == service.RoleAdmin {
+		return service.ErrInsufficientPerms
+	}
+	if err := clearUserDepartmentGrants(ctx, exec, actor, access, "user_deleted"); err != nil {
+		return err
+	}
 	identityIDs, err := exec.AuthIdentity.Query().
 		Where(authidentity.UserIDEQ(id)).
 		IDs(ctx)

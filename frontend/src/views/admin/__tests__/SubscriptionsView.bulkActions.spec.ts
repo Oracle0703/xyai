@@ -7,7 +7,7 @@ const { list, bulkAction, bulkAssign, listUsers, showError } = vi.hoisted(() => 
   list: vi.fn(), bulkAction: vi.fn(), bulkAssign: vi.fn(), listUsers: vi.fn(), showError: vi.fn()
 }))
 
-vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -55,7 +55,7 @@ function mountView() {
 let wrapper: ReturnType<typeof mountView>
 
 beforeEach(async () => {
-  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
+  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
   vi.clearAllMocks()
   localStorage.clear()
   sessionStorage.clear()

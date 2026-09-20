@@ -1,17 +1,17 @@
 # 前端知识基线
 
+
 ## 部门管理与负责人入口
 
-- **本轮文档补强（代码未改）：** S1 明确改造 `UserEditModal.vue`：当前从列表 `props.user` 初始化且总提交 role/完整权限；目标为每次打开/切换先 GET 用户详情和 `admin_access_version`，保存时仅角色/权限实际变化才附带两字段及版本。目录使用 `catalog_version`，不能混入编辑或数据快照。
+状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。完整合同与证据见部门设计、实施方案及验收表。
 
-**复核状态（2026-09-20）：待修复及补充验收，等待用户同意后开始代码实现。** 当前用户编辑仍可能提交旧权限数组，目录版本与查询版本尚未分开，错误提示仍有状态码混用；前后端需按计划同步修正，不能只隐藏按钮。 目标合同与执行顺序见 `docs/features/organization-department-usage-implementation-plan-cn.md`。
-
-- `views/admin/DepartmentsView.vue` 是完整管理员专用页面；`components/admin/department/` 三个弹窗分别维护成员、负责人授权、用户页单人/批量分配。成员选择携带旧部门和版本，409 必须刷新后重新确认；授权保存保留其他部门，显式切换全站订阅权限。
-- 用户页增加部门列、组织/部门筛选；完整管理员维护归属和订阅。负责人仅使用组织报表和既有订阅页的查询/导出/额度重置，不开放成员管理或订阅分配。
-- 报表先读 scope，再在同一版本下加载 Summary/Trend；一次 409 自动刷新范围并重试，再次冲突停止。范围切换/403 清数据与导出任务，过期响应不得覆盖；scope 空集合显示联系管理员，不能回退全站。
-- Excel 带组织/部门/平台筛选、当前归属口径、生成时间、`as_of`、`scope_version`，分页与各 Sheet 版本必须一致；变化中止导出，不混合两个范围的数据。
-- 部门订阅页只从最新成功列表保存重置快照；空授权/403 作废用户和分组的在途请求、清空结果并禁用重置。负责人姓名不链接全站 usage；错误适配集中在 `utils/departmentErrors.ts`，兼容 API client 的普通 `{status,code,message}` 对象。
-- 仅持有部门权限的账号，普通模式及 backend mode 登录默认进入报表（仅订阅权限则进入订阅页）；`departmentLoginDestination` 只改认证页跳默认 dashboard，保留显式 redirect 和正常个人 dashboard 访问。
+- `views/admin/DepartmentsView.vue` 仅完整管理员可用；`components/admin/department/` 管理成员、负责人授权和用户页分配。成员 CAS 冲突需刷新再确认；授权保留其他部门，切换全站订阅需显式确认。
+- `UserEditModal.vue` 每次打开/切换先 GET 用户详情和 `admin_access_version`，加载失败禁止保存，忽略迟到结果；仅提交改动字段，角色/权限集合变化时才同时发送两字段与 `expected_admin_access_version`。冲突刷新后手动确认，备注不能覆写旧权限。
+- 用户页展示部门列与筛选；完整管理员维护归属和分配订阅。负责人仅查询、导出与额度重置，不开放成员管理或订阅分配。
+- 报表先读 `catalog_version` 目录，再由 Summary 建立 canonical `as_of/scope_version` 后加载 Trend；仅 REPORT_SCOPE_CHANGED 最多重建一次，持续冲突停止。403/范围切换清数据、取消导出并作废迟到响应，空授权不回退全站。
+- 订阅重置绑定最新成功列表返回的筛选及 scope_version；加载/失败立即使旧快照失效，不能使用目录版本。负责人姓名不链接全站 usage。
+- `utils/departmentErrors.ts` 优先读取业务 `reason`，兼容中间件字符串 `code` 及 Axios/普通错误对象；数字 HTTP code 或普通 409 不能触发范围重载。部门停用、跨组织、版本和全站切换错误分别显示中英文提示。
+- Excel 的页面筛选、当前归属、as_of/scope_version 与各分页/Sheet 一致；变化中止。仅部门权限登录默认进入报表或订阅页，保留显式 redirect 与个人 dashboard。
 
 ## 0.2.6 合并增量
 
@@ -257,7 +257,7 @@ API 模块分布:
 
 - 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-trend-chart-design-cn.md`。
 - 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持授权组织/部门/平台/邮箱筛选、服务端排序分页、范围内组织/部门/平台汇总、用量趋势折线和个人/团队日周月峰值。
-- 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面完整加载并行 Summary+Trend 并共享 candidate `as_of`, 以 Summary canonical 为权威必要时单次对齐 Trend; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
+- 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面先读取 scope 目录，再由首个 Summary 确定查询 `scope_version` 与 canonical `as_of` 后加载 Trend，目录 `catalog_version` 不作为查询版本，必要时单次对齐 Trend; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
 - 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/总 Token 与请求数。`total_tokens` 包含缓存创建和缓存读取两类 Token，不能视为输入与输出两条可见曲线之和。
 - 人数只改前端展示名：`active_users` 显示为“成员人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
 - Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 生成“报表概览、组织汇总、部门汇总、平台汇总、人员汇总、月度明细、周度明细、日度明细”八个 Sheet。所有数据 Sheet（含新增汇总）合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。

@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { departmentErrorStatus } from '@/utils/departmentErrors'
+import { departmentErrorKey } from '@/utils/departmentErrors'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -93,7 +93,7 @@ const columns = computed<Column[]>(() => [
 ])
 
 function managerEmails(department: Department) { return department.managers?.map(manager => manager.email).join(', ') || t('admin.departments.noManagers') }
-const errorMessage = (cause: unknown) => t(departmentErrorStatus(cause) === 409 ? 'admin.departments.conflict' : 'admin.departments.failed')
+const errorMessage = (cause: unknown) => t(departmentErrorKey(cause))
 async function load() {
   controller?.abort()
   const request = ++sequence

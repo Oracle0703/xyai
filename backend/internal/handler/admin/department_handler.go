@@ -184,7 +184,7 @@ func (h *DepartmentHandler) SubscriptionScope(c *gin.Context) {
 }
 
 func (h *DepartmentHandler) SubscriptionUsers(c *gin.Context) {
-	scope, err := h.departments.Scope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions)
+	scope, err := h.departments.QueryScope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions, service.DepartmentScopeQuery{Organization: c.Query("organization"), DepartmentID: c.Query("department_id"), Q: c.Query("q"), Limit: 30})
 	if err != nil {
 		departmentReply(c, nil, err)
 		return
@@ -198,7 +198,7 @@ func (h *DepartmentHandler) SubscriptionUsers(c *gin.Context) {
 		return
 	}
 	result := []gin.H{}
-	for _, m := range scope.SelectedMembers(org, dept, c.Query("q")) {
+	for _, m := range scope.Members {
 		result = append(result, gin.H{"id": m.ID, "email": m.Email, "deleted": false})
 		if len(result) == 30 {
 			break

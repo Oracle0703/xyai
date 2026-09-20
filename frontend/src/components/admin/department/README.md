@@ -6,3 +6,5 @@
 - `DepartmentAccessDialog.vue`：只选择已有子管理员，维护当前部门授权并保留其他部门。报表与部门订阅权限分别配置，适用于全部授权部门；从全站订阅切换需显式勾选，其他全站权限会展示提示。
 - 页面入口为 `views/admin/DepartmentsView.vue`，仅完整管理员可见；负责人使用既有组织报表、订阅页面。
 - 列表请求有取消和序号保护；保存期间关闭按钮及重复提交禁用。服务端权限、事务、组织一致性与 CAS 校验仍是权威边界。
+
+- 授权的 `expected_version` 与用户编辑 `admin_access_version` 共用后端 CAS；缺失/冲突须刷新，不能旧窗口覆写。`departmentErrors.ts` 优先识别 reason 并兼容字符串 code，分别显示停用、跨组织、重名、版本与全站切换原因。普通 409 不作为报表范围变化。

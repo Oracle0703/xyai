@@ -103,7 +103,7 @@ func TestDepartmentSubscriptionsIntegration_ReadAndResetIsolation(t *testing.T) 
 	require.Zero(t, monthly)
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT daily_usage_usd FROM user_subscriptions WHERE id=$1`, second).Scan(&daily))
 	require.Equal(t, 3.0, daily)
-	scope, err := departments.Scope(leaderCtx, service.AdminPermissionDepartmentSubscriptions)
+	scope, err := departments.QueryScope(leaderCtx, service.AdminPermissionDepartmentSubscriptions, service.DepartmentScopeQuery{GroupID: &groups[1]})
 	require.NoError(t, err)
 	_, err = svc.AdminResetDailyFiltered(leaderCtx, service.SubscriptionAdminFilter{GroupID: &groups[1]})
 	require.ErrorIs(t, err, service.ErrDepartmentScopeChanged)
@@ -121,6 +121,87 @@ func TestDepartmentSubscriptionsIntegration_ReadAndResetIsolation(t *testing.T) 
 	require.NoError(t, err, "revoking report permission must not remove separately granted reset capability")
 	// Revocation must wait for an already authorized reset's user locks.
 	concrete := repo.(*userSubscriptionRepository)
+	// Exercise the shared row-lock protocol against real concurrent writers.
+	runDuringReset := func(action func() error, queryPattern string) {
+		t.Helper()
+		lockedCtx, _, lockedTx, lockErr := concrete.beginDepartmentSubscriptionWrite(leaderCtx, service.SubscriptionAdminFilter{}, mine)
+		require.NoError(t, lockErr)
+		defer func() { _ = lockedTx.Rollback() }()
+		done := make(chan error, 1)
+		go func() { done <- action() }()
+		require.Eventually(t, func() bool {
+			var blocked int
+			e := integrationDB.QueryRowContext(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE $1`, queryPattern).Scan(&blocked)
+			return e == nil && blocked > 0
+		}, 5*time.Second, 10*time.Millisecond)
+		require.NoError(t, repo.ResetUsageWindows(lockedCtx, mine, true, false, false, time.Now(), time.Now()))
+		require.NoError(t, lockedTx.Commit())
+		select {
+		case e := <-done:
+			require.NoError(t, e)
+		case <-time.After(5 * time.Second):
+			t.Fatal("concurrent writer did not finish after reset released locks")
+		}
+	}
+	var balanceBefore, balanceAfter float64
+	require.NoError(t, integrationDB.QueryRow(`SELECT balance FROM users WHERE id=$1`, member.ID).Scan(&balanceBefore))
+	runDuringReset(func() error {
+		tx, e := integrationDB.BeginTx(ctx, nil)
+		if e != nil {
+			return e
+		}
+		defer func() { _ = tx.Rollback() }()
+		_, _, e = deductUsageBillingBalance(ctx, tx, member.ID, 2)
+		if e != nil {
+			return e
+		}
+		return tx.Commit()
+	}, "%SET balance = balance -%")
+	require.NoError(t, integrationDB.QueryRow(`SELECT balance FROM users WHERE id=$1`, member.ID).Scan(&balanceAfter))
+	require.Equal(t, balanceBefore-2, balanceAfter, "quota reset must not lose concurrent balance billing")
+	runDuringReset(func() error {
+		_, e := departments.Assign(adminCtx, service.DepartmentAssignInput{Members: []service.DepartmentMemberChange{{UserID: member.ID, ExpectedDepartmentID: &dept.ID, ExpectedVersion: 1}}})
+		return e
+	}, "%FROM users WHERE id=ANY%")
+	_, err = svc.AdminResetQuota(leaderCtx, mine, true, false, false)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+	_, err = departments.Assign(adminCtx, service.DepartmentAssignInput{DepartmentID: &dept.ID, Members: []service.DepartmentMemberChange{{UserID: member.ID, ExpectedVersion: 2}}})
+	require.NoError(t, err)
+	runDuringReset(func() error {
+		_, e := integrationDB.Exec(`UPDATE users SET email=$1 WHERE id=$2`, prefix+"moved@wsdashi.com", member.ID)
+		return e
+	}, "%UPDATE users SET email=%")
+	_, err = svc.AdminResetQuota(leaderCtx, mine, true, false, false)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+	_, err = integrationDB.Exec(`UPDATE users SET email=$1 WHERE id=$2`, member.Email, member.ID)
+	require.NoError(t, err)
+	_, err = departments.Assign(adminCtx, service.DepartmentAssignInput{DepartmentID: &dept.ID, Members: []service.DepartmentMemberChange{{UserID: member.ID, ExpectedVersion: 4}}})
+	require.NoError(t, err)
+	runDuringReset(func() error {
+		_, e := integrationDB.Exec(`UPDATE users SET status='disabled' WHERE id=$1`, leader.ID)
+		return e
+	}, "%UPDATE users SET status=%")
+	_, err = svc.AdminResetQuota(leaderCtx, mine, true, false, false)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+	_, err = integrationDB.Exec(`UPDATE users SET status='active' WHERE id=$1`, leader.ID)
+	require.NoError(t, err)
+	users, ok := NewUserRepository(integrationEntClient, integrationDB).(*userRepository)
+	require.True(t, ok)
+	edit, err := users.GetByIDWithAdminAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	edit.Role, edit.AdminPermissions = service.RoleUser, []string{}
+	runDuringReset(func() error {
+		return users.Update(adminCtx, edit, service.UserUpdateFields{Role: true, AdminPermissions: true, ExpectedAdminAccessVersion: edit.AdminAccessVersion})
+	}, "%FROM users WHERE id=ANY%")
+	_, err = svc.AdminResetQuota(leaderCtx, mine, true, false, false)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+	edit.Role, edit.AdminPermissions = service.RoleSubAdmin, []string{service.AdminPermissionDepartmentSubscriptions}
+	require.NoError(t, users.Update(adminCtx, edit, service.UserUpdateFields{Role: true, AdminPermissions: true, ExpectedAdminAccessVersion: edit.AdminAccessVersion}))
+	access, err = departments.GetAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	require.Empty(t, access.DepartmentIDs)
+	access, err = departments.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: []int64{dept.ID}, ResetQuota: true, ExpectedVersion: access.Version})
+	require.NoError(t, err)
 	writeCtx, _, owned, err := concrete.beginDepartmentSubscriptionWrite(leaderCtx, service.SubscriptionAdminFilter{}, mine)
 	require.NoError(t, err)
 	require.NotNil(t, owned)

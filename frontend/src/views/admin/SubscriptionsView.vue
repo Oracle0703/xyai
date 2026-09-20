@@ -1282,12 +1282,11 @@ const loadSubscriptions = async () => {
   departmentScopeError.value = ''
   subscriptions.value = []
   try {
-    let scopeVersion: string | undefined
     if (needsDepartmentScope.value) {
       const currentScope = await departmentsAPI.subscriptionScope(signal)
       if (signal.aborted || abortController !== requestController) return
       departmentScope.value = currentScope
-      if (!currentScope.scope_version) throw new Error('REPORT_SCOPE_CHANGED')
+      if (!currentScope.catalog_version) throw new Error('REPORT_SCOPE_CHANGED')
       if (!departmentScopeInitialized) {
         if (isDepartmentScoped.value) {
           filters.organization = currentScope.default_organization === 'all' ? '' : currentScope.default_organization
@@ -1310,10 +1309,9 @@ const loadSubscriptions = async () => {
         pagination.pages = 0
         return
       }
-      scopeVersion = currentScope.scope_version
       if (isDepartmentScoped.value) void loadGroups()
     }
-    const requestFilters = { ...getAppliedResetFilters(), ...(scopeVersion ? { scope_version: scopeVersion } : {}) }
+    const requestFilters = getAppliedResetFilters()
     const response = await adminAPI.subscriptions.list(
       pagination.page,
       pagination.page_size,
@@ -1327,13 +1325,13 @@ const loadSubscriptions = async () => {
       }
     )
     if (signal.aborted || abortController !== requestController) return
-    if (needsDepartmentScope.value && response.scope_version !== requestFilters.scope_version) throw new Error('REPORT_SCOPE_CHANGED')
+    if ((isDepartmentScoped.value || filters.department_id) && !response.scope_version) throw new Error('REPORT_SCOPE_CHANGED')
     subscriptions.value = response.items
     const visibleIds = new Set(response.items.map((subscription) => subscription.id))
     setSelectedIds(selectedIds.value.filter((id) => visibleIds.has(id)))
     pagination.total = response.total
     pagination.pages = response.pages
-    appliedResetFilters.value = { ...requestFilters }
+    appliedResetFilters.value = { ...requestFilters, ...(response.scope_version ? { scope_version: response.scope_version } : {}) }
   } catch (error: any) {
     if (signal.aborted || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') {
       return

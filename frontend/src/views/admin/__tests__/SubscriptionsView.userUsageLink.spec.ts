@@ -15,7 +15,7 @@ const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchUs
   searchUsageUsers: vi.fn()
 }))
 
-vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -63,7 +63,7 @@ const RouterLinkStub = defineComponent({
 
 describe('admin subscription users', () => {
   beforeEach(() => {
-  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
+  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
     vi.clearAllMocks()
     localStorage.clear()
     listSubscriptions.mockResolvedValue({

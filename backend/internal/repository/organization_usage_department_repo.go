@@ -86,7 +86,7 @@ func (r *organizationUsageRepository) beginScoped(ctx context.Context, organizat
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	scope, err := resolveDepartmentScope(ctx, tx, service.AdminPermissionOrganizationUsage)
+	scope, err := resolveDepartmentQueryScope(ctx, tx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{Organization: organization, DepartmentID: filters.DepartmentID, Platform: filters.Platform, Q: q})
 	if err == nil {
 		err = scope.ValidateSelection(organization, filters.DepartmentID, filters.ScopeVersion)
 	}

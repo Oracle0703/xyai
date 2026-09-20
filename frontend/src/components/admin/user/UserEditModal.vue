@@ -5,7 +5,9 @@
     width="normal"
     @close="$emit('close')"
   >
-    <form v-if="user" id="edit-user-form" @submit.prevent="handleUpdateUser" class="space-y-5">
+    <p v-if="detailsLoading" class="text-sm text-gray-500">{{ t('common.loading') }}</p>
+    <p v-if="detailsError" role="alert" class="text-sm text-red-600">{{ detailsError }}</p>
+    <form v-if="details" id="edit-user-form" @submit.prevent="handleUpdateUser" class="space-y-5">
       <div>
         <label class="input-label">{{ t('admin.users.email') }}</label>
         <input v-model="form.email" type="email" class="input" />
@@ -100,7 +102,7 @@
     <template #footer>
       <div class="flex justify-end gap-3">
         <button @click="$emit('close')" type="button" class="btn btn-secondary">{{ t('common.cancel') }}</button>
-        <button type="submit" form="edit-user-form" :disabled="submitting" class="btn btn-primary">
+        <button type="submit" form="edit-user-form" :disabled="submitting || detailsLoading || !details" class="btn btn-primary">
           {{ submitting ? t('admin.users.updating') : t('common.update') }}
         </button>
       </div>
@@ -112,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, watch } from 'vue'
+import { computed, ref, reactive, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
@@ -124,12 +126,17 @@ import UserAttributeForm from '@/components/user/UserAttributeForm.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { departmentErrorCode, departmentErrorKey } from '@/utils/departmentErrors'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
 const { t } = useI18n(); const appStore = useAppStore(); const { copyToClipboard } = useClipboard()
 
 const submitting = ref(false); const passwordCopied = ref(false)
+const details = ref<AdminUser | null>(null)
+const detailsLoading = ref(false)
+const detailsError = ref('')
+let detailsSequence = 0
 const adminPermissionOptions = ref<Array<{
   code: AdminPermission
   labelKey: string
@@ -145,8 +152,8 @@ const loadPermissionCatalog = async () => {
     const catalog = await adminAPI.users.getPermissionCatalog()
     adminPermissionOptions.value = catalog.map((item) => ({
       code: item.code,
-      labelKey: `admin.users.permissions.${item.code}.label`,
-      descriptionKey: `admin.users.permissions.${item.code}.description`,
+      labelKey: `admin.users.permissions[${JSON.stringify(item.code)}].label`,
+      descriptionKey: `admin.users.permissions[${JSON.stringify(item.code)}].description`,
     }))
   } catch {
     adminPermissionOptions.value = []
@@ -179,12 +186,29 @@ const form = reactive({
   customAttributes: {} as UserAttributeValuesMap
 })
 
-watch(() => props.user, (u) => {
-  if (u) {
+async function loadDetails() {
+  const sequence = ++detailsSequence
+  details.value = null
+  detailsError.value = ''
+  detailsLoading.value = false
+  if (!props.show || !props.user) return
+  const id = props.user.id
+  detailsLoading.value = true
+  try {
+    const u = await adminAPI.users.getById(id)
+    if (sequence !== detailsSequence) return
+    if (!u.admin_access_version) throw new Error('missing admin access version')
+    details.value = { ...u, admin_permissions: [...(u.admin_permissions ?? [])] }
     Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', role: u.role || 'user', admin_permissions: [...(u.admin_permissions ?? [])], concurrency: u.concurrency, rpm_limit: u.rpm_limit ?? 0, customAttributes: {} })
     passwordCopied.value = false
+  } catch {
+    if (sequence === detailsSequence) detailsError.value = t('admin.departments.userDetailsFailed')
+  } finally {
+    if (sequence === detailsSequence) detailsLoading.value = false
   }
-}, { immediate: true })
+}
+watch(() => [props.show, props.user?.id], loadDetails, { immediate: true })
+onUnmounted(() => { ++detailsSequence })
 
 watch(
   () => [props.show, form.role] as const,
@@ -209,7 +233,7 @@ const copyPassword = async () => {
 const stepUp = useStepUp()
 
 const handleUpdateUser = async () => {
-  if (!props.user) return
+  if (submitting.value || detailsLoading.value || !details.value || details.value.id !== props.user?.id) return
   if (!form.email.trim()) {
     appStore.showError(t('admin.users.emailRequired'))
     return
@@ -222,7 +246,19 @@ const handleUpdateUser = async () => {
   const userId = props.user.id
   submitting.value = true
   try {
-    const data: UpdateUserRequest = { email: form.email, username: form.username, notes: form.notes, role: form.role, admin_permissions: form.role === 'sub_admin' ? [...form.admin_permissions] : [], concurrency: form.concurrency, rpm_limit: form.rpm_limit }
+    const baseline = details.value
+    const data: UpdateUserRequest = {}
+    if (form.email !== baseline.email) data.email = form.email
+    if (form.username !== (baseline.username || '')) data.username = form.username
+    if (form.notes !== (baseline.notes || '')) data.notes = form.notes
+    if (form.concurrency !== baseline.concurrency) data.concurrency = form.concurrency
+    if (form.rpm_limit !== (baseline.rpm_limit ?? 0)) data.rpm_limit = form.rpm_limit
+    const permissions = form.role === 'sub_admin' ? [...form.admin_permissions] : []
+    if (form.role !== baseline.role || [...permissions].sort().join(',') !== [...(baseline.admin_permissions ?? [])].sort().join(',')) {
+      data.role = form.role
+      data.admin_permissions = permissions
+      data.expected_admin_access_version = baseline.admin_access_version
+    }
     if (form.password.trim()) data.password = form.password.trim()
     // 提升为管理员属敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 验证并重试
     await stepUp.run(() => adminAPI.users.update(userId, data))
@@ -230,7 +266,10 @@ const handleUpdateUser = async () => {
     appStore.showSuccess(t('admin.users.userUpdated'))
     emit('success'); emit('close')
   } catch (e: any) {
-    if (isStepUpCancelled(e)) {
+    if (departmentErrorCode(e) === 'ADMIN_ACCESS_CHANGED' || departmentErrorCode(e) === 'ADMIN_ACCESS_VERSION_REQUIRED') {
+      await loadDetails()
+      detailsError.value = t(departmentErrorKey(e))
+    } else if (isStepUpCancelled(e)) {
       // 用户主动取消二次验证：静默返回，表单保持打开。
     } else if (isStepUpBlocked(e)) {
       appStore.showError(

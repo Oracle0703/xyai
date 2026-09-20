@@ -156,7 +156,7 @@ function mountView() {
 
 describe('OrganizationUsageView', () => {
   beforeEach(() => {
-    reportScope.mockReset().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
+    reportScope.mockReset().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'catalog-v1', default_organization: 'all', default_department_id: 'all' })
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-10T04:00:00.000Z'))
     getSummary.mockReset().mockResolvedValue(summary())
@@ -175,11 +175,11 @@ describe('OrganizationUsageView', () => {
   })
 
   it('defaults a department manager to their only authorized department', async () => {
-    reportScope.mockResolvedValue({ unrestricted: false, organizations: ['xunyou'], departments: [{ id: 7, organization_key: 'xunyou', name: '研发部' }], scope_version: 'scope-v1', default_organization: 'xunyou', default_department_id: '7' })
+    reportScope.mockResolvedValue({ unrestricted: false, organizations: ['xunyou'], departments: [{ id: 7, organization_key: 'xunyou', name: '研发部' }], catalog_version: 'catalog-v1', default_organization: 'xunyou', default_department_id: '7' })
     const result = summary(); result.organizations = result.organizations.slice(0, 1)
     getSummary.mockResolvedValue(result)
     const wrapper = mountView(); await flushPromises()
-    expect(getSummary).toHaveBeenCalledWith(expect.objectContaining({ organization: 'xunyou', department_id: '7', platform: 'all', scope_version: 'scope-v1' }), expect.anything())
+    expect(getSummary).toHaveBeenCalledWith(expect.objectContaining({ organization: 'xunyou', department_id: '7', platform: 'all' }), expect.anything())
     expect(wrapper.text()).toContain('研发部')
     expect(wrapper.find('[data-organization="wsdashi"]').exists()).toBe(false)
     wrapper.unmount()
@@ -196,13 +196,14 @@ describe('OrganizationUsageView', () => {
   })
 
   it('retries a changed membership scope once and uses the refreshed version', async () => {
-    reportScope.mockResolvedValueOnce({ unrestricted: true, organizations: ['xunyou'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
-      .mockResolvedValue({ unrestricted: true, organizations: ['xunyou'], departments: [], scope_version: 'scope-v2', default_organization: 'all', default_department_id: 'all' })
-    getSummary.mockRejectedValueOnce({ status: 409, code: 'REPORT_SCOPE_CHANGED' }).mockResolvedValue({ ...summary(), scope_version: 'scope-v2' })
+    reportScope.mockResolvedValueOnce({ unrestricted: true, organizations: ['xunyou'], departments: [], catalog_version: 'catalog-v1', default_organization: 'all', default_department_id: 'all' })
+      .mockResolvedValue({ unrestricted: true, organizations: ['xunyou'], departments: [], catalog_version: 'catalog-v2', default_organization: 'all', default_department_id: 'all' })
+    getSummary.mockRejectedValueOnce({ status: 409, code: 409, reason: 'REPORT_SCOPE_CHANGED' }).mockResolvedValue({ ...summary(), scope_version: 'scope-v2' })
     getTrend.mockImplementation(async query => ({ ...trendResponse(), scope_version: query.scope_version }))
     const wrapper = mountView(); await flushPromises()
     expect(reportScope).toHaveBeenCalledTimes(2)
-    expect(getSummary).toHaveBeenLastCalledWith(expect.objectContaining({ scope_version: 'scope-v2' }), expect.anything())
+    expect(getSummary.mock.calls.at(-1)![0]).not.toHaveProperty('scope_version')
+    expect(getTrend).toHaveBeenLastCalledWith(expect.objectContaining({ scope_version: 'scope-v2' }), expect.anything())
     expect(wrapper.text()).toContain('alice@xunyou.com')
     wrapper.unmount()
   })
@@ -215,7 +216,7 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
-      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
+      department_id: 'all', platform: 'all',
       page: 1,
       page_size: 20,
       sort_by: 'total_tokens',
@@ -298,7 +299,7 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
-      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
+      department_id: 'all', platform: 'all',
       page: 1,
       page_size: 20,
       sort_by: 'total_tokens',
@@ -446,12 +447,11 @@ describe('OrganizationUsageView', () => {
     const wrapper = mountView()
     await wrapper.vm.$nextTick()
     const signal = getSummary.mock.calls[0][1].signal as AbortSignal
-    const trendSignal = getTrend.mock.calls[0][1].signal as AbortSignal
+    expect(getTrend).not.toHaveBeenCalled()
 
     wrapper.unmount()
 
     expect(signal.aborted).toBe(true)
-    expect(trendSignal.aborted).toBe(true)
   })
 
   it('renders loading, retryable error and empty states', async () => {
@@ -511,10 +511,10 @@ describe('OrganizationUsageView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Both requests started with candidate C; nothing resolved yet.
+    // Trend waits for the initial Summary snapshot.
     expect(getSummary).toHaveBeenCalledTimes(1)
-    expect(getTrend).toHaveBeenCalledTimes(1)
-    expect(getTrend.mock.calls[0][0].as_of).toBe(candidateC)
+    expect(getTrend).not.toHaveBeenCalled()
+    expect(getSummary.mock.calls[0][0]).not.toHaveProperty('scope_version')
 
     // Summary completes first with the same canonical C as the in-flight request.
     resolveSummary({
@@ -646,51 +646,21 @@ describe('OrganizationUsageView', () => {
     expect(getTrend).toHaveBeenCalledTimes(2)
   })
 
-  it('trend-first provisional then summary mismatch reconciles exactly once', async () => {
-    const candidate = SNAPSHOT_AS_OF
-    const summaryCanonical = '2026-07-10T03:59:00.000Z'
-
+  it('waits for Summary and starts Trend with its canonical time and query version, never the catalog version', async () => {
+    const canonical = '2026-07-10T03:59:00.000Z'
     let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
-    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
-    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
-
-    getSummary.mockImplementationOnce(
-      () => new Promise<OrganizationUsageSummaryResponse>((resolve) => { resolveSummary = resolve })
-    )
-    getTrend
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend1 = resolve }))
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend2 = resolve }))
-
+    getSummary.mockImplementationOnce(() => new Promise(resolve => { resolveSummary = resolve }))
+    getTrend.mockResolvedValue({ ...trendResponse(), scope_version: 'query-v9', range: { ...summary().range, as_of: canonical } })
     const wrapper = mountView()
     await flushPromises()
-
-    // Trend completes first with provisional as_of = candidate (Summary not ready).
-    resolveTrend1({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: candidate }
-    })
+    expect(getTrend).not.toHaveBeenCalled()
+    expect(getSummary.mock.calls[0][0]).not.toHaveProperty('scope_version')
+    resolveSummary({ ...summary(), scope_version: 'query-v9', range: { ...summary().range, as_of: canonical } })
     await flushPromises()
-    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toHaveLength(1)
     expect(getTrend).toHaveBeenCalledTimes(1)
-
-    resolveSummary({
-      ...summary(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: summaryCanonical }
-    })
-    await flushPromises()
-    expect(getTrend).toHaveBeenCalledTimes(2)
-    expect(getTrend.mock.calls[1][0].as_of).toBe(summaryCanonical)
-
-    resolveTrend2({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: summaryCanonical }
-    })
-    await flushPromises()
-
-    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
-    expect(stub.props('error')).toBe('')
-    expect(stub.props('range')).toMatchObject({ as_of: summaryCanonical })
-    expect(getTrend).toHaveBeenCalledTimes(2)
+    expect(getTrend.mock.calls[0][0]).toMatchObject({ scope_version: 'query-v9', as_of: canonical })
+    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('changes granularity with trend-only requests and keeps summary call count', async () => {
@@ -711,7 +681,7 @@ describe('OrganizationUsageView', () => {
     })
   })
 
-  it('exports the current range through the six-sheet workbook path', async () => {
+  it('exports the current range through the eight-sheet workbook path', async () => {
     const wrapper = mountView()
     await flushPromises()
 

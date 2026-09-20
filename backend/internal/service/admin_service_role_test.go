@@ -58,7 +58,7 @@ func TestAdminService_UpdateUser_PromoteToAdmin(t *testing.T) {
 		authCacheInvalidator: invalidator,
 	}
 
-	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleAdmin})
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{ExpectedAdminAccessVersion: "test-version", Role: RoleAdmin})
 	require.NoError(t, err)
 	require.Equal(t, RoleAdmin, updated.Role)
 	require.Equal(t, []int64{42}, invalidator.userIDs, "角色变更应失效认证缓存")
@@ -80,7 +80,7 @@ func TestAdminService_UpdateUser_InvalidRoleRejected(t *testing.T) {
 	repo := &rpmUserRepoStub{userRepoStub: base}
 	svc := &adminServiceImpl{userRepo: repo, redeemCodeRepo: &redeemRepoStub{}}
 
-	_, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: "root"})
+	_, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{ExpectedAdminAccessVersion: "test-version", Role: "root"})
 	require.Error(t, err)
 	require.Nil(t, repo.lastUpdated, "非法角色不应触发持久化")
 }
@@ -103,7 +103,7 @@ func TestAdminService_UpdateUser_DemoteLastAdminRejected(t *testing.T) {
 	repo := &roleGuardUserRepoStub{rpmUserRepoStub: &rpmUserRepoStub{userRepoStub: base}, adminTotal: 1}
 	svc := &adminServiceImpl{userRepo: repo, redeemCodeRepo: &redeemRepoStub{}}
 
-	_, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleUser})
+	_, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{ExpectedAdminAccessVersion: "test-version", Role: RoleUser})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "last admin")
 	require.Nil(t, repo.lastUpdated, "最后一个管理员不应被降级持久化")
@@ -120,7 +120,7 @@ func TestAdminService_UpdateUser_DemoteAdminAllowedWhenOthersExist(t *testing.T)
 		authCacheInvalidator: invalidator,
 	}
 
-	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleUser})
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{ExpectedAdminAccessVersion: "test-version", Role: RoleUser})
 	require.NoError(t, err)
 	require.Equal(t, RoleUser, updated.Role)
 	require.NotNil(t, repo.lastUpdated)
@@ -136,7 +136,7 @@ func TestAdminService_UpdateUser_PromoteDoesNotCountAdmins(t *testing.T) {
 		authCacheInvalidator: &authCacheInvalidatorStub{},
 	}
 
-	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleAdmin})
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{ExpectedAdminAccessVersion: "test-version", Role: RoleAdmin})
 	require.NoError(t, err)
 	require.Equal(t, RoleAdmin, updated.Role)
 	require.Equal(t, 0, repo.listCalls, "升级路径不应触发管理员计数")
@@ -167,9 +167,18 @@ func TestAdminService_UpdateUser_ClearsPermissionsWhenLeavingSubAdmin(t *testing
 	repo := &rpmUserRepoStub{userRepoStub: base}
 	svc := &adminServiceImpl{userRepo: repo, redeemCodeRepo: &redeemRepoStub{}}
 
-	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{Role: RoleUser})
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{ExpectedAdminAccessVersion: "test-version", Role: RoleUser})
 	require.NoError(t, err)
 	require.Equal(t, RoleUser, updated.Role)
 	require.Empty(t, updated.AdminPermissions)
 	require.Empty(t, repo.lastUpdated.AdminPermissions)
+}
+
+func TestAdminService_UpdateUser_RequiresVersionForExplicitAccessFields(t *testing.T) {
+	svc := &adminServiceImpl{}
+	permissions := []string{AdminPermissionSubscriptions}
+	for _, input := range []*UpdateUserInput{{Role: RoleSubAdmin}, {AdminPermissions: &permissions}} {
+		_, err := svc.UpdateUser(context.Background(), 42, input)
+		require.ErrorIs(t, err, ErrAdminAccessVersionRequired)
+	}
 }

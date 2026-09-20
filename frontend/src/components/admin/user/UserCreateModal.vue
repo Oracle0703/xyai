@@ -127,8 +127,8 @@ const loadPermissionCatalog = async () => {
     const catalog = await adminAPI.users.getPermissionCatalog()
     adminPermissionOptions.value = catalog.map((item) => ({
       code: item.code,
-      labelKey: `admin.users.permissions.${item.code}.label`,
-      descriptionKey: `admin.users.permissions.${item.code}.description`,
+      labelKey: `admin.users.permissions[${JSON.stringify(item.code)}].label`,
+      descriptionKey: `admin.users.permissions[${JSON.stringify(item.code)}].description`,
     }))
   } catch {
     adminPermissionOptions.value = []

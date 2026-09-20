@@ -91,7 +91,7 @@ type AdjustSubscriptionRequest struct {
 // List handles listing all subscriptions with pagination and filters
 // GET /api/v1/admin/subscriptions
 func (h *SubscriptionHandler) List(c *gin.Context) {
-	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+	if (h.departments != nil) != (service.DepartmentActorID(c.Request.Context()) > 0) {
 		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
 		return
 	}
@@ -118,10 +118,9 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 		SortBy:       c.DefaultQuery("sort_by", "created_at"),
 		SortOrder:    c.DefaultQuery("sort_order", "desc"),
 	}
-	scope, err := h.prepareDepartmentScope(c, &filter, false)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+	var scopeVersion string
+	if h.departments != nil {
+		filter.ResolvedScopeVersion = &scopeVersion
 	}
 	subscriptions, pagination, err := h.subscriptionService.ListAdmin(c.Request.Context(), page, pageSize, filter)
 	if err != nil {
@@ -133,8 +132,8 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 	for i := range subscriptions {
 		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
 	}
-	if scope != nil && pagination != nil {
-		response.Success(c, gin.H{"items": out, "total": pagination.Total, "page": pagination.Page, "page_size": pagination.PageSize, "pages": pagination.Pages, "scope_version": scope.Version})
+	if h.departments != nil && pagination != nil {
+		response.Success(c, gin.H{"items": out, "total": pagination.Total, "page": pagination.Page, "page_size": pagination.PageSize, "pages": pagination.Pages, "scope_version": scopeVersion})
 		return
 	}
 	response.PaginatedWithResult(c, out, toResponsePagination(pagination))
@@ -524,7 +523,12 @@ func (h *SubscriptionHandler) prepareDepartmentScope(c *gin.Context, filter *ser
 	if h.departments == nil {
 		return nil, service.ErrDepartmentScopeDenied
 	}
-	scope, err := h.departments.Scope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions)
+	normalized, err := service.NormalizeSubscriptionAdminFilter(*filter)
+	if err != nil {
+		return nil, err
+	}
+	*filter = normalized
+	scope, err := h.departments.QueryScope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions, filter.DepartmentQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -532,7 +536,7 @@ func (h *SubscriptionHandler) prepareDepartmentScope(c *gin.Context, filter *ser
 	if err != nil {
 		return nil, err
 	}
-	if write && !scope.Unrestricted && filter.ScopeVersion == "" {
+	if write && (!scope.Unrestricted || dept != "all") && filter.ScopeVersion == "" {
 		return nil, service.ErrDepartmentScopeChanged
 	}
 	if err = scope.ValidateSelection(org, dept, filter.ScopeVersion); err != nil {

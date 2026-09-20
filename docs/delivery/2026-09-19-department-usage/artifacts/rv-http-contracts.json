@@ -1,0 +1,31 @@
+[
+  {
+    "check": "unconfirmed global permission replacement rejected",
+    "status": 400,
+    "code": "DEPARTMENT_GLOBAL_SUBSCRIPTION_CONFIRMATION_REQUIRED"
+  },
+  {
+    "check": "stale editor cannot restore global permission or write notes",
+    "status": 409,
+    "code": "ADMIN_ACCESS_CHANGED"
+  },
+  {
+    "check": "explicit permission write requires version",
+    "status": 400,
+    "code": "ADMIN_ACCESS_VERSION_REQUIRED"
+  },
+  {
+    "check": "notes-only request preserves latest department permission",
+    "status": 200
+  },
+  {
+    "check": "catalog and query versions separate; username stable; exported email change invalidates query",
+    "status": 409,
+    "code": "REPORT_SCOPE_CHANGED"
+  },
+  {
+    "check": "subscription query supplies its own reset snapshot",
+    "status": 200,
+    "items": 1
+  }
+]

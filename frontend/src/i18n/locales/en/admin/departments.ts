@@ -1,5 +1,14 @@
 export default {
   departments: {
+    accessChanged: 'Role, permissions or department access changed. Review the latest details before saving.',
+    accessVersionRequired: 'Refresh user details before changing role or permissions.',
+    duplicateName: 'A department with this name already exists in the organization.',
+    inactiveTarget: 'The target department is inactive and cannot accept members or new access.',
+    organizationMismatch: 'Members must belong to the target organization. No changes were saved.',
+    globalConfirmationRequired: 'Confirm replacement of global subscription access with department access.',
+    scopeDenied: 'You do not have access to this department scope. Contact an administrator.',
+    userDetailsFailed: 'User details could not be loaded. Reopen the dialog before saving.',
+
     title: 'Departments', description: 'Manage departments, members and department access by organization',
     organization: 'Organization', department: 'Department', allDepartments: 'All authorized departments', unassigned: 'Unassigned',
     name: 'Department name', status: 'Status', active: 'Active', inactive: 'Inactive', allStatuses: 'All statuses',

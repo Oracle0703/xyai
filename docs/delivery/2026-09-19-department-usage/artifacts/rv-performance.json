@@ -1,0 +1,240 @@
+{
+  "report": [
+    {
+      "days": "30",
+      "mode": "all",
+      "samples": "10",
+      "median_ms": "164",
+      "p95_ms": "180"
+    },
+    {
+      "days": "30",
+      "mode": "organization",
+      "samples": "10",
+      "median_ms": "83",
+      "p95_ms": "107"
+    },
+    {
+      "days": "30",
+      "mode": "department",
+      "samples": "10",
+      "median_ms": "82",
+      "p95_ms": "90"
+    },
+    {
+      "days": "30",
+      "mode": "platform",
+      "samples": "10",
+      "median_ms": "98",
+      "p95_ms": "201"
+    },
+    {
+      "days": "90",
+      "mode": "all",
+      "samples": "10",
+      "median_ms": "475",
+      "p95_ms": "544"
+    },
+    {
+      "days": "90",
+      "mode": "organization",
+      "samples": "10",
+      "median_ms": "218",
+      "p95_ms": "280"
+    },
+    {
+      "days": "90",
+      "mode": "department",
+      "samples": "10",
+      "median_ms": "175",
+      "p95_ms": "237"
+    },
+    {
+      "days": "90",
+      "mode": "platform",
+      "samples": "10",
+      "median_ms": "198",
+      "p95_ms": "288"
+    },
+    {
+      "days": "366",
+      "mode": "all",
+      "samples": "10",
+      "median_ms": "1551",
+      "p95_ms": "1627"
+    },
+    {
+      "days": "366",
+      "mode": "organization",
+      "samples": "10",
+      "median_ms": "644",
+      "p95_ms": "730"
+    },
+    {
+      "days": "366",
+      "mode": "department",
+      "samples": "10",
+      "median_ms": "651",
+      "p95_ms": "711"
+    },
+    {
+      "days": "366",
+      "mode": "platform",
+      "samples": "10",
+      "median_ms": "764",
+      "p95_ms": "951"
+    }
+  ],
+  "export_first_last_pages": [
+    {
+      "days": "30",
+      "granularity": "day",
+      "first_and_last_ms": "126",
+      "total_rows": "6000"
+    },
+    {
+      "days": "30",
+      "granularity": "week",
+      "first_and_last_ms": "103",
+      "total_rows": "1000"
+    },
+    {
+      "days": "30",
+      "granularity": "month",
+      "first_and_last_ms": "47",
+      "total_rows": "200"
+    },
+    {
+      "days": "90",
+      "granularity": "day",
+      "first_and_last_ms": "257",
+      "total_rows": "18000"
+    },
+    {
+      "days": "90",
+      "granularity": "week",
+      "first_and_last_ms": "164",
+      "total_rows": "2800"
+    },
+    {
+      "days": "90",
+      "granularity": "month",
+      "first_and_last_ms": "141",
+      "total_rows": "600"
+    },
+    {
+      "days": "366",
+      "granularity": "day",
+      "first_and_last_ms": "813",
+      "total_rows": "73000"
+    },
+    {
+      "days": "366",
+      "granularity": "week",
+      "first_and_last_ms": "550",
+      "total_rows": "10600"
+    },
+    {
+      "days": "366",
+      "granularity": "month",
+      "first_and_last_ms": "501",
+      "total_rows": "2400"
+    }
+  ],
+  "admin": {
+    "before": [
+      {
+        "name": "departments",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "57750",
+        "p95_us": "280440"
+      },
+      {
+        "name": "members",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "4500",
+        "p95_us": "8248"
+      },
+      {
+        "name": "subscription_list",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "10398",
+        "p95_us": "57364"
+      },
+      {
+        "name": "subscription_detail",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "8629",
+        "p95_us": "22483"
+      },
+      {
+        "name": "subscription_reset",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "19184",
+        "p95_us": "39413"
+      }
+    ],
+    "after": [
+      {
+        "name": "departments",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "6187",
+        "p95_us": "46467"
+      },
+      {
+        "name": "members",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "4345",
+        "p95_us": "21862"
+      },
+      {
+        "name": "subscription_list",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "9555",
+        "p95_us": "69283"
+      },
+      {
+        "name": "subscription_detail",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "5070",
+        "p95_us": "9536"
+      },
+      {
+        "name": "subscription_reset",
+        "members": "600",
+        "departments": "40",
+        "subscriptions": "600",
+        "samples": "50",
+        "median_us": "8565",
+        "p95_us": "29590"
+      }
+    ]
+  }
+}
