@@ -1,3 +1,4 @@
+import { departmentsAPI, type DepartmentScope } from '@/api/admin/departments'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -21,6 +22,8 @@ const authState = vi.hoisted(() => ({
   isSubAdmin: false,
   hasAdminPermission: vi.fn()
 }))
+
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn(), subscriptionUsers: vi.fn() } }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -206,6 +209,8 @@ const findButtonByText = (wrapper: Awaited<ReturnType<typeof mountView>>, text: 
 
 describe('admin SubscriptionsView quota reset actions', () => {
   beforeEach(() => {
+    vi.mocked(departmentsAPI.subscriptionScope).mockReset().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
+    vi.mocked(departmentsAPI.subscriptionUsers).mockReset().mockResolvedValue([])
     localStorage.clear()
     listSubscriptions.mockReset()
     resetQuota.mockReset()
@@ -218,9 +223,10 @@ describe('admin SubscriptionsView quota reset actions', () => {
     authState.isAdmin = true
     authState.isSubAdmin = false
     authState.hasAdminPermission.mockReset()
-    authState.hasAdminPermission.mockImplementation(() => authState.isAdmin || authState.isSubAdmin)
+    authState.hasAdminPermission.mockImplementation((permission: string) => authState.isAdmin || (authState.isSubAdmin && permission === 'admin.subscriptions'))
 
     listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1',
       items: [testSubscription],
       total: 1,
       page: 1,
@@ -240,6 +246,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -370,7 +377,8 @@ describe('admin SubscriptionsView quota reset actions', () => {
         user_id: undefined,
         group_id: undefined,
         platform: undefined,
-        organization: 'xunyou'
+        organization: 'xunyou',
+        department_id: undefined, scope_version: 'scope-v1'
       },
       'subscription-reset-11111111-1111-4111-8111-111111111111'
     )
@@ -402,6 +410,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
 
   it('disables bulk reset until the first list request succeeds', async () => {
     let resolveList: ((value: {
+      scope_version: string
       items: UserSubscription[]
       total: number
       page: number
@@ -411,11 +420,13 @@ describe('admin SubscriptionsView quota reset actions', () => {
     listSubscriptions.mockImplementationOnce(() => new Promise((resolve) => {
       resolveList = resolve
     }))
-    const wrapper = await mountView(false)
+    const wrapper = await mountView()
 
     expect(findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').attributes('disabled')).toBeDefined()
 
+    await flushPromises() // scope preflight completes before the list starts
     resolveList?.({
+      scope_version: 'scope-v1',
       items: [testSubscription],
       total: 1,
       page: 1,
@@ -451,5 +462,89 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(resetDailyFiltered.mock.calls[1][1]).toBe(resetDailyFiltered.mock.calls[0][1])
     expect(showSuccess).toHaveBeenCalledWith('admin.subscriptions.bulkResetDailyNoMatches')
     expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+  })
+
+  const departmentScope: DepartmentScope = {
+    unrestricted: false,
+    organizations: ['xunyou'],
+    departments: [{ id: 7, organization_key: 'xunyou', name: '研发部', status: 'active', sort_order: 0, version: 1, member_count: 1, active_member_count: 1, managers: [] }],
+    scope_version: 'scope-v1',
+    default_organization: 'xunyou',
+    default_department_id: '7'
+  }
+  const useDepartmentLeader = () => {
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+    authState.hasAdminPermission.mockImplementation((permission: string) => permission === 'admin.department_subscriptions')
+    vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue(departmentScope)
+  }
+
+  it('uses the granted department by default and keeps that scope in the reset snapshot', async () => {
+    useDepartmentLeader()
+    const wrapper = await mountView()
+    expect(listSubscriptions).toHaveBeenLastCalledWith(1, 20, expect.objectContaining({
+      organization: 'xunyou', department_id: '7', scope_version: 'scope-v1'
+    }), expect.anything())
+    expect(wrapper.get('[data-test="organization-filter"]').text()).not.toContain('速宝')
+    expect(getAllGroups).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('admin.subscriptions.assignSubscription')
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(resetDailyFiltered).toHaveBeenCalledWith(expect.objectContaining({
+      organization: 'xunyou', department_id: '7', scope_version: 'scope-v1'
+    }), expect.any(String))
+    wrapper.unmount()
+  })
+
+  it('uses compact department search and discards a result arriving after scope selection changes', async () => {
+    vi.useFakeTimers()
+    useDepartmentLeader()
+    let resolveSearch!: (value: { id: number; email: string; deleted: boolean }[]) => void
+    vi.mocked(departmentsAPI.subscriptionUsers).mockImplementationOnce(() => new Promise(resolve => { resolveSearch = resolve }))
+    const wrapper = await mountView()
+    const search = wrapper.get('[data-filter-user-search] input')
+    await search.trigger('focus')
+    await search.setValue('old-member')
+    await vi.advanceTimersByTimeAsync(300)
+    expect(departmentsAPI.subscriptionUsers).toHaveBeenCalledWith('old-member', 'xunyou', '7')
+    expect(searchUsers).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="subscription-department-filter"] [data-option-value=""]').trigger('click')
+    await flushPromises()
+    resolveSearch([{ id: 999, email: 'old-member@xunyou.com', deleted: false }])
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('old-member@xunyou.com')
+    wrapper.unmount()
+  })
+
+  it('clears subscriptions and disables reset when the server returns a normalized 403', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    useDepartmentLeader()
+    const wrapper = await mountView()
+    expect(wrapper.getComponent(DataTableStub).props('data')).toHaveLength(1)
+    listSubscriptions.mockRejectedValueOnce({ status: 403, code: 'DEPARTMENT_SCOPE_DENIED' })
+    await wrapper.get('button[title="common.refresh"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.getComponent(DataTableStub).props('data')).toEqual([])
+    expect(wrapper.get('[role="alert"]').text()).toBe('admin.departments.scopeChanged')
+    expect(findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('invalidates pending option requests when all grants are removed', async () => {
+    useDepartmentLeader()
+    let resolveGroups!: (value: { id: number; name: string }[]) => void
+    searchSubscriptionGroups.mockImplementation(() => new Promise(resolve => { resolveGroups = resolve }))
+    const wrapper = await mountView()
+    vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ ...departmentScope, departments: [], organizations: [], scope_version: 'revoked' })
+    await wrapper.get('button[title="common.refresh"]').trigger('click')
+    await flushPromises()
+    resolveGroups([{ id: 888, name: 'revoked-secret-group' }])
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('revoked-secret-group')
+    expect(wrapper.getComponent(DataTableStub).props('data')).toEqual([])
+    expect(listSubscriptions).toHaveBeenCalledTimes(1)
+    expect(findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
   })
 })

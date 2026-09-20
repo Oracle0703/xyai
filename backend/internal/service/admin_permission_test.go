@@ -74,7 +74,7 @@ func TestCanAccessAdminRoute(t *testing.T) {
 
 func TestAdminPermissionCatalogReturnsDefensiveCopy(t *testing.T) {
 	first := AdminPermissionCatalog()
-	require.Len(t, first, 3)
+	require.Len(t, first, 5)
 	require.Equal(t, AdminPermissionSubscriptions, first[0].Code)
 	first[0].Code = "changed"
 	second := AdminPermissionCatalog()
@@ -90,6 +90,11 @@ func TestCanAccessAdmin(t *testing.T) {
 
 func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 	allowedWrites := map[string]map[adminRouteRule]struct{}{
+		AdminPermissionOrganizationUsage: {},
+		AdminPermissionDepartmentSubscriptions: {
+			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/reset-quota"}:      {},
+			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/reset-daily-filtered"}: {},
+		},
 		AdminPermissionSubscriptions: {
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/reset-quota"}:      {},
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/reset-daily-filtered"}: {},

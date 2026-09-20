@@ -1,3 +1,5 @@
+import { departmentsAPI } from '@/api/admin/departments'
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: true, isSubAdmin: false, hasAdminPermission: () => true }) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
@@ -12,6 +14,8 @@ const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchUs
   listUsers: vi.fn(),
   searchUsageUsers: vi.fn()
 }))
+
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -59,9 +63,11 @@ const RouterLinkStub = defineComponent({
 
 describe('admin subscription users', () => {
   beforeEach(() => {
+  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
     vi.clearAllMocks()
     localStorage.clear()
     listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1',
       items: [{
         id: 9,
         user_id: 42,
@@ -228,6 +234,7 @@ describe('admin subscription users', () => {
   it('uses the user ID label for the usage link when username mode has no username', async () => {
     localStorage.setItem('subscription-user-column-mode', 'username')
     listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1',
       items: [{
         id: 9,
         user_id: 42,

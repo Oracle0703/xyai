@@ -73,4 +73,11 @@ describe('admin subscriptions API', () => {
     )
     expect(result).toEqual({ reset_count: 4 })
   })
+  it('preserves the department and successful query scope version for a filtered reset', async () => {
+    post.mockResolvedValue({ data: { reset_count: 1 } })
+    await resetDailyFiltered({ organization: 'xunyou', department_id: '7', scope_version: 'scope-v1', sort_by: 'status' }, 'scoped-reset')
+    expect(post).toHaveBeenCalledWith('/admin/subscriptions/reset-daily-filtered', expect.objectContaining({ organization: 'xunyou', department_id: '7', scope_version: 'scope-v1' }), { headers: { 'Idempotency-Key': 'scoped-reset' } })
+    expect(post.mock.calls[0][1]).not.toHaveProperty('sort_by')
+  })
+
 })

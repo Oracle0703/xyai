@@ -1,32 +1,24 @@
 # Organization Usage Components
 
-该目录承载管理端组织用量报表的页面子组件。
+该目录承载组织/部门用量报表；完整管理员可选全部范围，负责人只查询和导出获授权部门。
 
-- `OrganizationUsageFilters.vue`: 报表周期、组织、邮箱筛选与导出入口；日期范围计算复用 `utils/organizationUsageReport.ts`。组织选项把内部键 `xunyou` / `wsdashi` 显示为“迅游”/“速宝”，但提交给 API 的筛选值不变。筛选草稿尚未查询时，导出保持禁用并显示提示。
-- `OrganizationUsageOverview.vue`: 当前筛选范围的概览指标与日/周/月 Champion；显示注册人数、活跃人数、活跃率、请求数、总 Token 和实际成本六项 KPI。`active_users` 显示为“注册人数”，`used_users` 显示为“活跃人数”，仅为前端展示别名；活跃率在注册人数为零时显示 `0.0%`。范围含 `as_of` 时显示数据截止时间，Champion 组织沿用“迅游”/“速宝”/“其他”映射。
-- `OrganizationUsageTrendChart.vue`: 用量趋势折线图（Chart.js 双轴）；粒度切换与局部 loading/error/retry；默认系列为输入 Token、输出 Token、总 Token 与请求数。总 Token 包含缓存创建和缓存读取两类 Token，不能视为另外两条可见 Token 曲线之和。
-- `OrganizationUsageSummary.vue`: 固定三组组织汇总；将 `xunyou` / `wsdashi` / `other` 显示为“迅游”/“速宝”/“其他”，首列使用原生按钮按原内部筛选键切换组织筛选，表格行保留标准 `tr` 语义；人数列沿用“注册人数”=`active_users`、“活跃人数”=`used_users` 的展示别名。
-- `OrganizationUsagePeopleTable.vue`: 服务端排序、分页的人员汇总表；组织列沿用“迅游”/“速宝”/“其他”展示映射而不改内部键，移动端保持横向滚动表格。
-
-## 页面编排（View）
-
-页面级请求由 `views/admin/OrganizationUsageView.vue` 统一编排：
-
-| 控制器 | 用途 |
+| 组件 | 职责 |
 | --- | --- |
-| `reportController` + `loading` | Summary；控制 Overview / 组织汇总隐藏与人员 skeleton |
-| `trendController` + `trendLoading` | Trend；**仅**图表区 skeleton，翻页/排序不 abort |
+| `OrganizationUsageFilters.vue` | 北京时间周期、授权组织/部门、平台及邮箱筛选；组织变化清部门，未应用草稿时禁用导出 |
+| `OrganizationUsageOverview.vue` | 成员人数、活跃人数/率、请求、Token、费用和日周月 champion；`active_users` 为成员人数，`used_users` 为有记录人数 |
+| `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；总 Token 包含缓存创建/读取 |
+| `OrganizationUsageSummary.vue` | 仅渲染服务端返回的组织，不补范围外组织行；按钮提交原内部键 |
+| `OrganizationUsageBreakdowns.vue` | 同范围部门/平台汇总，平台活跃人数不能相加作为总人数 |
+| `OrganizationUsagePeopleTable.vue` | 带组织和部门的人员表，服务端排序分页，保留宽表横向滚动 |
 
-完整加载（mount / apply / reset / 组织行 / 页面 Retry）会：
+组织内部键 `xunyou / wsdashi / other` 显示为迅游/速宝/其他，部门名称动态配置。平台筛选只过滤用量，零用量成员仍保留。
 
-1. 递增 `reportCycleId`，生成同一 candidate `as_of`
-2. 并行请求 Summary 与 Trend
-3. 以 Summary 返回的 canonical `as_of` 为权威；若 Trend 不一致则**每周期最多重拉一次** Trend
+## 页面请求与导出
 
-人员 sort/page/page_size 只打 Summary 并复用 `snapshotAsOf`，保持已成功的趋势曲线。
+`views/admin/OrganizationUsageView.vue` 先请求 scope，再并行加载 Summary/Trend，共用 `scope_version` 和 candidate `as_of`。Summary 的 canonical `as_of` 为权威，必要时每周期单次对齐 Trend；人员翻页/排序只刷新 Summary。
 
-粒度：默认按日期跨度自动推断（≤31 day / ≤120 week / 否则 month，见 `inferOrganizationUsageTrendGranularity`）；手动切换只打 Trend。
+完整查询递增 `reportCycleId`，取消旧控制器并清数据；403/范围冲突清除保护结果及导出任务。409 最多重新获取 scope 并重试一次，持续变化停止；空授权显示联系管理员，不回退全站。迟到响应不能覆盖新筛选。
 
-导出数据拉取完成后，通过 `utils/organizationUsageExportWorker.ts` 协调 Worker 构建工作簿。`fetchAll` **不**调用 trend。
+Excel 使用 `organizationUsageReport.ts` 与可终止 Worker，生成报表概览、组织、部门、平台、人员、月、周、日八个 Sheet。所有数据 Sheet 合计上限 100,000 行；元信息包含实际筛选、当前成员归属口径、生成时间、`as_of/scope_version`。各页及 Sheet 版本不一致立即中止，`fetchAll` 不请求 Trend。
 
-设计文档：`docs/features/organization-usage-trend-chart-design-cn.md`。
+设计：`docs/features/organization-department-usage-design-cn.md`。专项覆盖 View 403/409/迟到响应、scope 汇总、分页导出/取消/超限及工作簿字符串安全；真实浏览器与 Excel 对账见 `docs/delivery/2026-09-19-department-usage/acceptance.md`。

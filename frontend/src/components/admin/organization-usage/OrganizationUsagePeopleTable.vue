@@ -57,6 +57,7 @@
           <template v-else>
             <tr v-for="item in items" :key="item.user_id" class="hover:bg-gray-50 dark:hover:bg-dark-800/70">
               <td class="whitespace-nowrap px-3 py-3">{{ organizationLabel(item.organization) }}</td>
+              <td class="whitespace-nowrap px-3 py-3">{{ item.department_name || t('admin.departments.unassigned') }}</td>
               <td class="max-w-[240px] truncate px-3 py-3 font-medium text-gray-900 dark:text-white" :title="item.email">{{ item.email }}</td>
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.requests) }}</td>
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.input_tokens) }}</td>
@@ -137,6 +138,7 @@ const PeakCell = defineComponent({
 
 const columns = computed(() => [
   { key: 'organization', label: t('admin.organizationUsage.columns.organization') },
+  { key: 'department', label: t('admin.departments.department') },
   { key: 'email', label: t('admin.organizationUsage.columns.email'), sortable: true, sortKey: 'email' as const },
   { key: 'requests', label: t('admin.organizationUsage.metrics.requests'), sortable: true, sortKey: 'requests' as const },
   { key: 'input_tokens', label: t('admin.organizationUsage.metrics.inputTokens'), sortable: true, sortKey: 'input_tokens' as const },

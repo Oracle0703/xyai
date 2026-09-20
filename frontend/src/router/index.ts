@@ -13,7 +13,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
-import { getAdminLandingPath } from '@/utils/adminPermissions'
+import { departmentLoginDestination, getAdminLandingPath } from '@/utils/adminPermissions'
 
 /**
  * Route definitions with lazy loading
@@ -519,6 +519,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: true,
       adminPermission: 'admin.subscriptions',
+      adminPermissionsAny: ['admin.subscriptions', 'admin.department_subscriptions'],
       title: 'Subscription Management',
       titleKey: 'admin.subscriptions.title',
       descriptionKey: 'admin.subscriptions.description'
@@ -660,12 +661,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/departments',
+    name: 'AdminDepartments',
+    component: () => import('@/views/admin/DepartmentsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: 'Departments', titleKey: 'admin.departments.title', descriptionKey: 'admin.departments.description' }
+  },
+  {
     path: '/admin/organization-usage',
     name: 'AdminOrganizationUsage',
     component: () => import('@/views/admin/OrganizationUsageView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'admin.organization_usage',
       title: 'Organization Usage Report',
       titleKey: 'admin.organizationUsage.title',
       descriptionKey: 'admin.organizationUsage.description'
@@ -840,7 +848,7 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   return false
 }
 
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to, from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
 
@@ -861,10 +869,16 @@ router.beforeEach(async (to, _from, next) => {
   ]
   document.title = resolveRouteDocumentTitle(to, appStore.siteName, customMenuItems)
 
+  if (authStore.isAuthenticated && authStore.isSubAdmin) {
+    const destination = departmentLoginDestination(to.path, from.path, from.query.redirect, authStore.user?.admin_permissions, appStore.backendModeEnabled)
+    if (destination !== to.path) { next(destination); return }
+  }
+
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
 	const adminPermission = to.meta.adminPermission
+  const requiredAdminPermissions = to.meta.adminPermissionsAny ?? (adminPermission ? [adminPermission] : [])
 
   if (to.path === '/setup') {
     try {
@@ -960,7 +974,7 @@ router.beforeEach(async (to, _from, next) => {
 	if (
 		requiresAdmin &&
 		authStore.isSubAdmin &&
-		(!adminPermission || !authStore.hasAdminPermission(adminPermission))
+		(!requiredAdminPermissions.length || !requiredAdminPermissions.some(permission => authStore.hasAdminPermission(permission)))
 	) {
 		next(getAdminLandingPath(authStore.user?.admin_permissions, appStore.backendModeEnabled))
 		return

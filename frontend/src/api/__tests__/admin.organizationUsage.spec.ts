@@ -96,6 +96,22 @@ describe('organization usage API', () => {
     vi.useRealTimers()
   })
 
+  it.each(['scope-v2', undefined])('stops export when a later sheet changes or omits its scope version (%s)', async (nextVersion) => {
+    get.mockResolvedValueOnce({ data: { ...summaryResponse(1, 1, 1, [summaryItem(1)]), scope_version: 'scope-v1' } })
+    get.mockResolvedValueOnce({ data: { ...periodsResponse('day', 1, 1, 1, [periodItem(1, '2026-07-01')]), scope_version: nextVersion } })
+    await expect(fetchAllOrganizationUsageData({ ...range, organization: 'xunyou', department_id: '7' })).rejects.toThrow('REPORT_SCOPE_CHANGED')
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(get.mock.calls[1][1].params).toMatchObject({ organization: 'xunyou', department_id: '7', scope_version: 'scope-v1' })
+  })
+
+  it('propagates a scope conflict during export without starting the remaining sheets', async () => {
+    const conflict = { status: 409, code: 'REPORT_SCOPE_CHANGED' }
+    get.mockResolvedValueOnce({ data: { ...summaryResponse(1, 1, 1, [summaryItem(1)]), scope_version: 'scope-v1' } })
+    get.mockRejectedValueOnce(conflict)
+    await expect(fetchAllOrganizationUsageData({ ...range })).rejects.toBe(conflict)
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
   it('restricts summary sort_by to the backend-supported field union', () => {
     expect(MAX_XLSX_DATA_ROWS).toBe(EXPECTED_MAX_XLSX_DATA_ROWS)
     expect(MAX_CLIENT_EXPORT_ROWS).toBe(EXPECTED_MAX_CLIENT_EXPORT_ROWS)
@@ -331,7 +347,8 @@ describe('organization usage API', () => {
     })
 
     await expect(fetchAllOrganizationUsageData(range)).rejects.toThrow(/client export row limit/)
-    expect(get).toHaveBeenCalledTimes(202)
+    // Aggregate-sheet rows consume budget too; reject one data page earlier.
+    expect(get).toHaveBeenCalledTimes(201)
   })
 
   it('rejects a pre-aborted export before issuing any request', async () => {

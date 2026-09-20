@@ -56,7 +56,7 @@ function period(overrides: Partial<OrganizationUsagePeriod> = {}): OrganizationU
 }
 
 describe('organization usage workbook', () => {
-  it('creates six legal sheets in the required order and keeps table headers when data is empty', () => {
+  it('creates eight legal sheets in the required order and keeps table headers when data is empty', () => {
     const workbook = roundTrip(
       buildOrganizationUsageWorkbook({
         summary: emptySummary,
@@ -67,6 +67,8 @@ describe('organization usage workbook', () => {
     expect(workbook.SheetNames).toEqual([
       '报表概览',
       '组织汇总',
+      '部门汇总',
+      '平台汇总',
       '人员汇总',
       '月度明细',
       '周度明细',
@@ -182,13 +184,13 @@ describe('organization usage workbook', () => {
     }))
 
     const overviewRows = rows(workbook, '报表概览')
-    expect(overviewRows.find((row) => row[0] === '注册人数')?.slice(0, 2)).toEqual(['注册人数', 2])
+    expect(overviewRows.find((row) => row[0] === '成员人数')?.slice(0, 2)).toEqual(['成员人数', 2])
     expect(overviewRows.find((row) => row[0] === '活跃人数')?.slice(0, 2)).toEqual(['活跃人数', 1])
     expect(overviewRows.some((row) => row[0] === '总活跃人数' || row[0] === '有用量人数')).toBe(false)
     expect(overviewRows.find((row) => row[0] === '日度 Champion')?.[6]).toBe('速宝')
 
     const organizationRows = rows(workbook, '组织汇总')
-    expect(organizationRows[0]?.slice(0, 3)).toEqual(['组织', '注册人数', '活跃人数'])
+    expect(organizationRows[0]?.slice(0, 3)).toEqual(['组织', '成员人数', '活跃人数'])
     expect(organizationRows.slice(1).map((row) => row[0])).toEqual(['迅游', '速宝'])
     expect(rows(workbook, '人员汇总')[1]?.[2]).toBe('迅游')
 
@@ -256,4 +258,15 @@ describe('organization usage workbook', () => {
       })
     ).toThrow(/client export row limit/)
   })
+  it('exports department metadata as text and preserves scoped numeric totals', () => {
+    const name = '=1+1'
+    const scoped = { ...emptySummary, scope_version: 'version-1', applied_filters: { organization: 'xunyou' as const, department_id: '7', platform: 'grok', q: '', attribution: 'current_membership' as const }, departments: [{ ...zeroMetrics, department_id: 7, department_name: name, organization: 'xunyou', active_users: 2, used_users: 0 }], platforms: [{ ...zeroMetrics, platform: 'grok', used_users: 0 }] }
+    const workbook = roundTrip(buildOrganizationUsageWorkbook({ summary: scoped, periods: { day: [], week: [], month: [] } }))
+    expect(workbook.Sheets['部门汇总']?.C2?.v).toBe(name)
+    expect(workbook.Sheets['部门汇总']?.C2?.t).toBe('s')
+    expect(workbook.Sheets['部门汇总']?.C2?.f).toBeUndefined()
+    expect(rows(workbook, '报表概览').find(row => row[0] === '范围版本')?.[1]).toBe('version-1')
+    expect(rows(workbook, '部门汇总')[1]?.[3]).toBe(2)
+  })
+
 })

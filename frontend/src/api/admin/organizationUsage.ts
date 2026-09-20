@@ -27,6 +27,8 @@ export interface OrganizationUsagePagination {
 }
 
 export interface OrganizationUsagePeriod extends OrganizationUsageMetrics {
+  department_id?: number | null
+  department_name?: string
   period_start: string
   period_end: string
   partial: boolean
@@ -36,6 +38,8 @@ export interface OrganizationUsagePeriod extends OrganizationUsageMetrics {
 }
 
 export interface OrganizationUsageSummaryItem extends OrganizationUsageMetrics {
+  department_id?: number | null
+  department_name?: string
   user_id: number
   email: string
   organization: string
@@ -61,7 +65,30 @@ export interface OrganizationUsageChampions {
   month: OrganizationUsagePeriod | null
 }
 
+export interface OrganizationUsageAppliedFilters {
+  organization: OrganizationUsageOrganizationFilter
+  department_id: string
+  platform: string
+  q: string
+  attribution: 'current_membership'
+}
+
+export interface OrganizationUsageDepartment extends OrganizationUsageOverview {
+  department_id: number | null
+  department_name: string
+  organization: string
+}
+
+export interface OrganizationUsagePlatform extends OrganizationUsageMetrics {
+  platform: string
+  used_users: number
+}
+
 export interface OrganizationUsageSummaryResponse {
+  departments?: OrganizationUsageDepartment[]
+  platforms?: OrganizationUsagePlatform[]
+  scope_version?: string
+  applied_filters?: OrganizationUsageAppliedFilters
   range: OrganizationUsageRange
   overview: OrganizationUsageOverview
   organizations: OrganizationUsageOrganization[]
@@ -71,6 +98,8 @@ export interface OrganizationUsageSummaryResponse {
 }
 
 export interface OrganizationUsagePeriodsResponse {
+  scope_version?: string
+  applied_filters?: OrganizationUsageAppliedFilters
   range: OrganizationUsageRange
   granularity: OrganizationUsageGranularity
   items: OrganizationUsagePeriod[]
@@ -84,6 +113,8 @@ export interface OrganizationUsageTrendPoint extends OrganizationUsageMetrics {
 }
 
 export interface OrganizationUsageTrendResponse {
+  scope_version?: string
+  applied_filters?: OrganizationUsageAppliedFilters
   range: OrganizationUsageRange
   data_through?: string
   granularity: OrganizationUsageGranularity
@@ -91,6 +122,9 @@ export interface OrganizationUsageTrendResponse {
 }
 
 export interface OrganizationUsageTrendQuery {
+  department_id?: string
+  platform?: string
+  scope_version?: string
   start_date: string
   end_date: string
   as_of?: string
@@ -117,6 +151,9 @@ export const ORGANIZATION_USAGE_SORT_FIELDS = [
 ] as const
 export type OrganizationUsageSortBy = (typeof ORGANIZATION_USAGE_SORT_FIELDS)[number]
 export interface OrganizationUsageQuery extends OrganizationUsageRange {
+  department_id?: string
+  platform?: string
+  scope_version?: string
   organization?: OrganizationUsageOrganizationFilter
   q?: string
   page?: number
@@ -223,6 +260,7 @@ export async function fetchAllOrganizationUsageData(
 ): Promise<OrganizationUsageReportData> {
   const { signal, onProgress } = options
   let snapshotAsOf = query.as_of ?? new Date().toISOString()
+  let scopeVersion = query.scope_version
   const { page: _page, page_size: _pageSize, ...queryWithoutPagination } = {
     ...query,
     as_of: snapshotAsOf
@@ -251,6 +289,9 @@ export async function fetchAllOrganizationUsageData(
         throw error
       }
       throwIfAborted(signal)
+      if (scopeVersion && (response as T & { scope_version?: string }).scope_version !== scopeVersion) {
+        throw new Error("REPORT_SCOPE_CHANGED")
+      }
       if (!first && collectedRows + response.pagination.total > MAX_CLIENT_EXPORT_ROWS) {
         throw new Error(`Organization usage export exceeds the client export row limit of ${MAX_CLIENT_EXPORT_ROWS}`)
       }
@@ -297,11 +338,16 @@ export async function fetchAllOrganizationUsageData(
   const summaryPages = await requestPages(
     (page) =>
       getOrganizationUsageSummary(
-        { ...queryWithoutPagination, as_of: snapshotAsOf, page, page_size: EXPORT_PAGE_SIZE },
+        { ...queryWithoutPagination, as_of: snapshotAsOf, ...(scopeVersion ? { scope_version: scopeVersion } : {}), page, page_size: EXPORT_PAGE_SIZE },
         { signal }
       ),
     (response) => {
       if (response.range.as_of) snapshotAsOf = response.range.as_of
+      if (response.scope_version) scopeVersion = response.scope_version
+      const summaryRows = (response.organizations?.length ?? 0) + (response.departments?.length ?? 0) + (response.platforms?.length ?? 0)
+      if (collectedRows + summaryRows + response.pagination.total > MAX_CLIENT_EXPORT_ROWS) throw new Error('Organization usage export exceeds the client export row limit')
+      collectedRows += summaryRows
+      if (collectedRows > MAX_CLIENT_EXPORT_ROWS) throw new Error("Organization usage export exceeds the client export row limit")
     }
   )
 
@@ -310,7 +356,7 @@ export async function fetchAllOrganizationUsageData(
   for (const granularity of ['day', 'week', 'month'] as const) {
     const periodPages = await requestPages((page) =>
       getOrganizationUsagePeriods(
-        { ...periodQuery, as_of: snapshotAsOf, granularity, page, page_size: EXPORT_PAGE_SIZE },
+        { ...periodQuery, as_of: snapshotAsOf, ...(scopeVersion ? { scope_version: scopeVersion } : {}), granularity, page, page_size: EXPORT_PAGE_SIZE },
         { signal }
       )
     )

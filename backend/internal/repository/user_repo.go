@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -528,6 +529,10 @@ func (r *userRepository) List(ctx context.Context, params pagination.PaginationP
 }
 
 func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters service.UserListFilters) ([]service.User, *pagination.PaginationResult, error) {
+	organization, department, scopeErr := service.NormalizeDepartmentFilter(filters.Organization, filters.DepartmentID)
+	if scopeErr != nil {
+		return nil, nil, scopeErr
+	}
 	// SkipSoftDelete 仅作用于 User 身份解析（下方 Count/All）；订阅、分组等关联实体沿用原始 ctx，避免穿透到这些同样带软删除的实体而带出已删除行。
 	userCtx := ctx
 	if filters.IncludeDeleted {
@@ -535,6 +540,19 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	}
 
 	q := r.client.User.Query()
+	if organization != service.OrganizationAll {
+		q = q.Where(predicate.User(func(selector *entsql.Selector) {
+			selector.Where(entsql.P(func(builder *entsql.Builder) {
+				builder.WriteString(organizationUsageOrganizationExpression(selector.TableName())).WriteString(" = ").Arg(organization)
+			}))
+		}))
+	}
+	if department == "unassigned" {
+		q = q.Where(dbuser.DepartmentIDIsNil())
+	} else if department != "all" {
+		id, _ := strconv.ParseInt(department, 10, 64)
+		q = q.Where(dbuser.DepartmentIDEQ(id))
+	}
 
 	if filters.Status != "" {
 		q = q.Where(dbuser.StatusEQ(filters.Status))
@@ -1537,6 +1555,8 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	}
 	dst.ID = src.ID
 	dst.AdminPermissions = append([]string(nil), src.AdminPermissions...)
+	dst.DepartmentID = src.DepartmentID
+	dst.DepartmentVersion = src.DepartmentVersion
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt

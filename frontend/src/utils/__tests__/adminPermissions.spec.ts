@@ -6,9 +6,18 @@ import {
   ADMIN_PERMISSION_USAGE,
   getAdminLandingPath,
   resolveAdminPermissionDeniedRecovery,
+  departmentLoginDestination,
 } from '@/utils/adminPermissions'
 
 describe('sub-admin landing path', () => {
+  it('lands department managers on reports in standard mode and preserves explicit destinations', () => {
+    const permissions = ['admin.organization_usage', 'admin.department_subscriptions']
+    expect(departmentLoginDestination('/dashboard', '/login', undefined, permissions, false)).toBe('/admin/organization-usage')
+    expect(departmentLoginDestination('/dashboard', '/auth/oidc/callback', undefined, permissions, false)).toBe('/admin/organization-usage')
+    expect(departmentLoginDestination('/dashboard', '/login', '/dashboard', permissions, false)).toBe('/dashboard')
+    expect(departmentLoginDestination('/dashboard', '/admin/subscriptions', undefined, permissions, false)).toBe('/dashboard')
+    expect(getAdminLandingPath(['admin.department_subscriptions'], false)).toBe('/admin/subscriptions')
+  })
   it('uses the user dashboard in standard mode', () => {
     expect(getAdminLandingPath([ADMIN_PERMISSION_USAGE], false)).toBe('/dashboard')
   })

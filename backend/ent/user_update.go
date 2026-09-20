@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
+	"github.com/Wei-Shaw/sub2api/ent/department"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
@@ -118,6 +119,47 @@ func (_u *UserUpdate) SetAdminPermissions(v []string) *UserUpdate {
 // AppendAdminPermissions appends value to the "admin_permissions" field.
 func (_u *UserUpdate) AppendAdminPermissions(v []string) *UserUpdate {
 	_u.mutation.AppendAdminPermissions(v)
+	return _u
+}
+
+// SetDepartmentID sets the "department_id" field.
+func (_u *UserUpdate) SetDepartmentID(v int64) *UserUpdate {
+	_u.mutation.SetDepartmentID(v)
+	return _u
+}
+
+// SetNillableDepartmentID sets the "department_id" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDepartmentID(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetDepartmentID(*v)
+	}
+	return _u
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (_u *UserUpdate) ClearDepartmentID() *UserUpdate {
+	_u.mutation.ClearDepartmentID()
+	return _u
+}
+
+// SetDepartmentVersion sets the "department_version" field.
+func (_u *UserUpdate) SetDepartmentVersion(v int64) *UserUpdate {
+	_u.mutation.ResetDepartmentVersion()
+	_u.mutation.SetDepartmentVersion(v)
+	return _u
+}
+
+// SetNillableDepartmentVersion sets the "department_version" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDepartmentVersion(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetDepartmentVersion(*v)
+	}
+	return _u
+}
+
+// AddDepartmentVersion adds value to the "department_version" field.
+func (_u *UserUpdate) AddDepartmentVersion(v int64) *UserUpdate {
+	_u.mutation.AddDepartmentVersion(v)
 	return _u
 }
 
@@ -459,6 +501,26 @@ func (_u *UserUpdate) AddRpmLimit(v int) *UserUpdate {
 	return _u
 }
 
+// SetDepartment sets the "department" edge to the Department entity.
+func (_u *UserUpdate) SetDepartment(v *Department) *UserUpdate {
+	return _u.SetDepartmentID(v.ID)
+}
+
+// AddAuthorizedDepartmentIDs adds the "authorized_departments" edge to the Department entity by IDs.
+func (_u *UserUpdate) AddAuthorizedDepartmentIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddAuthorizedDepartmentIDs(ids...)
+	return _u
+}
+
+// AddAuthorizedDepartments adds the "authorized_departments" edges to the Department entity.
+func (_u *UserUpdate) AddAuthorizedDepartments(v ...*Department) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAuthorizedDepartmentIDs(ids...)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdate) AddAPIKeyIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -657,6 +719,33 @@ func (_u *UserUpdate) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdate {
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
+}
+
+// ClearDepartment clears the "department" edge to the Department entity.
+func (_u *UserUpdate) ClearDepartment() *UserUpdate {
+	_u.mutation.ClearDepartment()
+	return _u
+}
+
+// ClearAuthorizedDepartments clears all "authorized_departments" edges to the Department entity.
+func (_u *UserUpdate) ClearAuthorizedDepartments() *UserUpdate {
+	_u.mutation.ClearAuthorizedDepartments()
+	return _u
+}
+
+// RemoveAuthorizedDepartmentIDs removes the "authorized_departments" edge to Department entities by IDs.
+func (_u *UserUpdate) RemoveAuthorizedDepartmentIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveAuthorizedDepartmentIDs(ids...)
+	return _u
+}
+
+// RemoveAuthorizedDepartments removes "authorized_departments" edges to Department entities.
+func (_u *UserUpdate) RemoveAuthorizedDepartments(v ...*Department) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAuthorizedDepartmentIDs(ids...)
 }
 
 // ClearAPIKeys clears all "api_keys" edges to the APIKey entity.
@@ -1047,6 +1136,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			sqljson.Append(u, user.FieldAdminPermissions, value)
 		})
 	}
+	if value, ok := _u.mutation.DepartmentVersion(); ok {
+		_spec.SetField(user.FieldDepartmentVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDepartmentVersion(); ok {
+		_spec.AddField(user.FieldDepartmentVersion, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 	}
@@ -1136,6 +1231,92 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedRpmLimit(); ok {
 		_spec.AddField(user.FieldRpmLimit, field.TypeInt, value)
+	}
+	if _u.mutation.DepartmentCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.DepartmentTable,
+			Columns: []string{user.DepartmentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DepartmentIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.DepartmentTable,
+			Columns: []string{user.DepartmentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AuthorizedDepartmentsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &DepartmentAccessGrantCreate{config: _u.config, mutation: newDepartmentAccessGrantMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAuthorizedDepartmentsIDs(); len(nodes) > 0 && !_u.mutation.AuthorizedDepartmentsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &DepartmentAccessGrantCreate{config: _u.config, mutation: newDepartmentAccessGrantMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AuthorizedDepartmentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &DepartmentAccessGrantCreate{config: _u.config, mutation: newDepartmentAccessGrantMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1834,6 +2015,47 @@ func (_u *UserUpdateOne) AppendAdminPermissions(v []string) *UserUpdateOne {
 	return _u
 }
 
+// SetDepartmentID sets the "department_id" field.
+func (_u *UserUpdateOne) SetDepartmentID(v int64) *UserUpdateOne {
+	_u.mutation.SetDepartmentID(v)
+	return _u
+}
+
+// SetNillableDepartmentID sets the "department_id" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDepartmentID(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetDepartmentID(*v)
+	}
+	return _u
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (_u *UserUpdateOne) ClearDepartmentID() *UserUpdateOne {
+	_u.mutation.ClearDepartmentID()
+	return _u
+}
+
+// SetDepartmentVersion sets the "department_version" field.
+func (_u *UserUpdateOne) SetDepartmentVersion(v int64) *UserUpdateOne {
+	_u.mutation.ResetDepartmentVersion()
+	_u.mutation.SetDepartmentVersion(v)
+	return _u
+}
+
+// SetNillableDepartmentVersion sets the "department_version" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDepartmentVersion(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetDepartmentVersion(*v)
+	}
+	return _u
+}
+
+// AddDepartmentVersion adds value to the "department_version" field.
+func (_u *UserUpdateOne) AddDepartmentVersion(v int64) *UserUpdateOne {
+	_u.mutation.AddDepartmentVersion(v)
+	return _u
+}
+
 // SetBalance sets the "balance" field.
 func (_u *UserUpdateOne) SetBalance(v float64) *UserUpdateOne {
 	_u.mutation.ResetBalance()
@@ -2172,6 +2394,26 @@ func (_u *UserUpdateOne) AddRpmLimit(v int) *UserUpdateOne {
 	return _u
 }
 
+// SetDepartment sets the "department" edge to the Department entity.
+func (_u *UserUpdateOne) SetDepartment(v *Department) *UserUpdateOne {
+	return _u.SetDepartmentID(v.ID)
+}
+
+// AddAuthorizedDepartmentIDs adds the "authorized_departments" edge to the Department entity by IDs.
+func (_u *UserUpdateOne) AddAuthorizedDepartmentIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddAuthorizedDepartmentIDs(ids...)
+	return _u
+}
+
+// AddAuthorizedDepartments adds the "authorized_departments" edges to the Department entity.
+func (_u *UserUpdateOne) AddAuthorizedDepartments(v ...*Department) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAuthorizedDepartmentIDs(ids...)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdateOne) AddAPIKeyIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2370,6 +2612,33 @@ func (_u *UserUpdateOne) AddPlatformQuotas(v ...*UserPlatformQuota) *UserUpdateO
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
+}
+
+// ClearDepartment clears the "department" edge to the Department entity.
+func (_u *UserUpdateOne) ClearDepartment() *UserUpdateOne {
+	_u.mutation.ClearDepartment()
+	return _u
+}
+
+// ClearAuthorizedDepartments clears all "authorized_departments" edges to the Department entity.
+func (_u *UserUpdateOne) ClearAuthorizedDepartments() *UserUpdateOne {
+	_u.mutation.ClearAuthorizedDepartments()
+	return _u
+}
+
+// RemoveAuthorizedDepartmentIDs removes the "authorized_departments" edge to Department entities by IDs.
+func (_u *UserUpdateOne) RemoveAuthorizedDepartmentIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveAuthorizedDepartmentIDs(ids...)
+	return _u
+}
+
+// RemoveAuthorizedDepartments removes "authorized_departments" edges to Department entities.
+func (_u *UserUpdateOne) RemoveAuthorizedDepartments(v ...*Department) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAuthorizedDepartmentIDs(ids...)
 }
 
 // ClearAPIKeys clears all "api_keys" edges to the APIKey entity.
@@ -2790,6 +3059,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			sqljson.Append(u, user.FieldAdminPermissions, value)
 		})
 	}
+	if value, ok := _u.mutation.DepartmentVersion(); ok {
+		_spec.SetField(user.FieldDepartmentVersion, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedDepartmentVersion(); ok {
+		_spec.AddField(user.FieldDepartmentVersion, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 	}
@@ -2879,6 +3154,92 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedRpmLimit(); ok {
 		_spec.AddField(user.FieldRpmLimit, field.TypeInt, value)
+	}
+	if _u.mutation.DepartmentCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.DepartmentTable,
+			Columns: []string{user.DepartmentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DepartmentIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.DepartmentTable,
+			Columns: []string{user.DepartmentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.AuthorizedDepartmentsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &DepartmentAccessGrantCreate{config: _u.config, mutation: newDepartmentAccessGrantMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAuthorizedDepartmentsIDs(); len(nodes) > 0 && !_u.mutation.AuthorizedDepartmentsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &DepartmentAccessGrantCreate{config: _u.config, mutation: newDepartmentAccessGrantMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.AuthorizedDepartmentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &DepartmentAccessGrantCreate{config: _u.config, mutation: newDepartmentAccessGrantMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

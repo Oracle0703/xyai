@@ -1,6 +1,12 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-09-18
+## 部门功能入口
+
+- `feature/hy/10207_department_usage` 从本地 `main@de5a3e383` 已有部门功能实现，但权限并发、授权生命周期、范围版本与查询开销等复核缺口未修；最终验收未完成。负责人仍不能分配订阅。
+- 2026-09-20 用户要求先修订文档，等待其明确同意再开始代码修复。执行方案：`docs/features/organization-department-usage-implementation-plan-cn.md`；不得因旧实现任务而自动继续改代码。
+- 设计与初始化/回退：`docs/features/organization-department-usage-design-cn.md`；逐项验收与性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。运行合同见 backend/frontend/data/security，复验入口见 ops。
+
+更新时间: 2026-09-20
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,7 +17,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
-- 2026-09-18 从本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`（`0.2.6`，merge base `881f3202694c6bc932446931a30c27d9675178b9`）。60 commits / 132 paths，4 个文本冲突、31 个双方修改路径已按三方合同处理；保留 24 个 feature 文档及本地独有能力。新增默认关闭的 Codex ticket 后台生命周期/脱敏状态、Gemini 混合模型、兑换历史分页及分组用量 SQL 优化。当前 `MERGE_HEAD` 固定为目标 SHA，等待用户审核后创建 merge commit；详见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`。
+- 2026-09-18 从本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`（`0.2.6`，merge base `881f3202694c6bc932446931a30c27d9675178b9`）。60 commits / 132 paths，4 个文本冲突、31 个双方修改路径已按三方合同处理；保留 24 个 feature 文档及本地独有能力。新增默认关闭的 Codex ticket 后台生命周期/脱敏状态、Gemini 混合模型、兑换历史分页及分组用量 SQL 优化。已提交为 merge commit `ee829b777`，设计提交 `de5a3e383` 随后合入本地 main；详见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`。
 
 - 2026-09-16 从本地 `main@4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3` 创建 `feature/hy/10205_merge_sub2api_205`，固定合入 `Wei-Shaw/sub2api main@881f3202694c6bc932446931a30c27d9675178b9`（版本 `0.2.5`，merge base `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`）。本轮上游引入 OpenCode Go/Zen、按模型原生协议、单模型查询、站点充值/订阅模式、批量订阅动作、图片直转与图片缓存用量分项、WS 生命周期和无限额平台配额行清理。10 个文本冲突和双方修改的 66 个路径按三方合同处理，24 个本地 `docs/features` 文件保留；本地归档/拦截、组织用量、Token Analysis、子管理员、Prompt Metrics/Risk、兼容参数及并发预设仍独立存在。该轮已创建 merge commit `1ac03ae45` 并合入当前 main；上游/基线问题只记录不修复。
 
@@ -61,7 +67,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 - `data-and-domain.md`: 核心领域对象, Ent schema, SQL migration, 支付/订阅/计费知识。
 - `security-and-reliability.md`: 认证, 权限, 限流, 幂等, CSP, URL allowlist, 网关可靠性。
 - `ai-workflow.md`: Codex/Copilot 日常如何读取和更新 llm-wiki。
-- [[department-report-design]]: 已授权实施的组织下部门管理、多平台报表及负责人授权方案（验收未完成），含完整设计入口与工作量估算。
+- [[department-report-design]]: 已有实现、复核修正待用户同意的部门管理、多平台报表及负责人授权方案（验收未完成），含完整设计入口与工作量估算。
 - 给人读的完整架构/运维手册（新同事与值班）: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`（2026-09-11 对照源码重写）。结构: 第 4–13 章运转过程（启动/配置/网关 13 步鉴权/调度并发/计费/管理面/settings/后台任务/数据层/关联图）, 第 14–17 章维护不变量与改动清单, 第 18–26 章运维逐项配置（默认/范围/影响/方向/生效）与排障树。wiki 仍是 AI 开发前入口；手册写流程、配置步骤、上线和排障，不替代本知识库。
 
 ## 知识图谱

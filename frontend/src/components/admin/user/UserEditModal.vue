@@ -57,6 +57,7 @@
             type="checkbox"
             :value="permission.code"
             :data-admin-permission="permission.code"
+            @change="enforceSubscriptionPermissionChoice(permission.code)"
             class="mt-1"
           />
           <span>
@@ -160,6 +161,12 @@ const roleOptions = computed(() => [
   { value: 'sub_admin', label: t('admin.users.roles.sub_admin') },
   { value: 'admin', label: t('admin.users.roles.admin') }
 ])
+function enforceSubscriptionPermissionChoice(permission: AdminPermission) {
+  if (!form.admin_permissions.includes(permission)) return
+  const opposite = permission === 'admin.subscriptions' ? 'admin.department_subscriptions' : permission === 'admin.department_subscriptions' ? 'admin.subscriptions' : null
+  if (opposite) form.admin_permissions = form.admin_permissions.filter(value => value !== opposite)
+}
+
 const form = reactive({
   email: '',
   password: '',

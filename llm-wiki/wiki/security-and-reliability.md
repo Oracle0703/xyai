@@ -1,5 +1,16 @@
 # 安全与可靠性基线
 
+## 部门数据隔离
+
+- **本轮文档补强（代码未改）：** 锁序：需成员保护的重置为 `users` → `user_subscriptions`；计费仓储分支为 `user_subscriptions` → `users`。当前网关 command 二选一使一次计费只走一侧，该约束失效时可能形成 AB-BA 环；RV5 必须覆盖费用互斥和真实 PG 并发，未来混合扣费需先统一锁序。
+
+**复核状态（2026-09-20）：待修复及补充验收，等待用户同意后开始代码实现。** 当前直接查询/重置范围校验已有验证，但通用用户修改缺少与部门授权共用的原子版本校验，旧窗口仍可能覆盖新权限；降级/软删除的 grant 清理也未实现。下述范围保证不能覆盖这两个未闭环写入口。 目标合同与执行顺序见 `docs/features/organization-department-usage-implementation-plan-cn.md`。
+
+- `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
+- 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。
+- 部门、成员、授权变更与审计原子提交。跨组织邮箱更新由 migration 239 清归属，migration 240 以 `database_guard` 审计；任意数据库写入者无法识别时不伪造操作者。
+- 负责人 compact 用户、分组选项和所有 Summary/Periods/Trend、详情、进度、用户/分组订阅入口都按范围收口；不能仅隐藏菜单。前端 403/范围变化清空受保护数据并作废迟到请求；已返回/下载的内容不承诺追回。
+
 ## 0.2.6 合并增量
 
 - Codex ticket 总开关默认关闭；开启且 `fail_closed=true` 时，仅对目标 OAuth/Setup Token 账号和配置中的实际出站模型要求有效票据，影子凭据账号豁免。票据按账号和模型隔离，长度/前缀/过期时间必须有效；compact 使用最终出站模型，不能按原始请求模型误拦截。
@@ -108,8 +119,8 @@ Passkey / WebAuthn:
 
 - `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。
 - 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。
-- 权限目录和白名单在 `backend/internal/service/admin_permission.go`; 当前仅有订阅管理、使用记录和 Token 分析。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
-- 订阅权限是唯一含业务写操作的子管理员权限, 只允许 `POST /api/v1/admin/subscriptions/:id/reset-quota` 和 `POST /api/v1/admin/subscriptions/reset-daily-filtered`; 使用记录清理、Token 立即索引、订阅分配/延期/撤销/恢复/删除始终拒绝。
+- 权限目录和白名单在 `backend/internal/service/admin_permission.go`；包含原订阅管理、使用记录、Token 分析，以及 `admin.organization_usage`、`admin.department_subscriptions`。后两项共用部门授权集合；部门订阅权限与全站 `admin.subscriptions` 互斥，切换须显式确认，其他管理权限不自动追加。
+- 子管理员业务写操作仍只允许 `POST /api/v1/admin/subscriptions/:id/reset-quota` 和 `POST /api/v1/admin/subscriptions/reset-daily-filtered`。部门负责人还须通过仓储范围检查；使用记录清理、Token 立即索引、订阅分配/延期/撤销/恢复/删除/通用批量动作与部门成员管理始终拒绝。
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。

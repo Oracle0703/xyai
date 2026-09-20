@@ -43,6 +43,8 @@ type User struct {
 // 注意：普通用户接口不得返回 notes 等管理员备注信息。
 type AdminUser struct {
 	User
+	DepartmentID      *int64 `json:"department_id"`
+	DepartmentVersion int64  `json:"department_version"`
 
 	Notes      string     `json:"notes"`
 	LastUsedAt *time.Time `json:"last_used_at"`

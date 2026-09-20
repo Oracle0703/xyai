@@ -64,32 +64,19 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [organization: Exclude<OrganizationUsageOrganizationFilter, 'all'>] }>()
 const { t } = useI18n()
 
-const zero = (organization: string): OrganizationUsageOrganization => ({
-  organization,
-  active_users: 0,
-  used_users: 0,
-  requests: 0,
-  input_tokens: 0,
-  output_tokens: 0,
-  cache_creation_tokens: 0,
-  cache_read_tokens: 0,
-  total_tokens: 0,
-  actual_cost: 0
-})
-
-function findOrganization(key: 'xunyou' | 'wsdashi' | 'other') {
-  return props.organizations.find((item) => item.organization === key || item.organization === `${key}.com`) ?? zero(key)
-}
-
 const rows = computed(() => {
-  const values = (['xunyou', 'wsdashi', 'other'] as const).map((filter) => ({
-    ...findOrganization(filter),
+  const values = (['xunyou', 'wsdashi', 'other'] as const).flatMap((filter) => {
+    const item = props.organizations.find(item => item.organization === filter || item.organization === `${filter}.com`)
+    if (!item) return []
+    return [{
+    ...item,
     filter,
     label: formatOrganizationUsageOrganization(
       filter,
       t('admin.organizationUsage.organizations.other')
     )
-  }))
+  }]
+  })
   const totalTokens = values.reduce((sum, row) => sum + row.total_tokens, 0)
   return values.map((row) => ({ ...row, share: totalTokens ? row.total_tokens / totalTokens * 100 : 0 }))
 })

@@ -30,6 +30,7 @@ type AdminHandlers struct {
 	Subscription           *admin.SubscriptionHandler
 	Usage                  *admin.UsageHandler
 	OrganizationUsage      *admin.OrganizationUsageHandler
+	Department             *admin.DepartmentHandler
 	TokenAnalysis          *admin.TokenAnalysisHandler
 	UserAttribute          *admin.UserAttributeHandler
 	ErrorPassthrough       *admin.ErrorPassthroughHandler

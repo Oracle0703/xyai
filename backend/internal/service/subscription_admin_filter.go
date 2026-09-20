@@ -13,6 +13,8 @@ const (
 )
 
 type SubscriptionAdminFilter struct {
+	DepartmentID string
+	ScopeVersion string
 	UserID       *int64
 	GroupID      *int64
 	Status       string
@@ -26,6 +28,9 @@ func NormalizeSubscriptionAdminFilter(filter SubscriptionAdminFilter) (Subscript
 	filter.Status = strings.ToLower(strings.TrimSpace(filter.Status))
 	filter.Platform = strings.ToLower(strings.TrimSpace(filter.Platform))
 	filter.Organization = strings.ToLower(strings.TrimSpace(filter.Organization))
+	if filter.Organization == "all" {
+		filter.Organization = ""
+	}
 	filter.SortBy = strings.ToLower(strings.TrimSpace(filter.SortBy))
 	filter.SortOrder = strings.ToLower(strings.TrimSpace(filter.SortOrder))
 
@@ -38,12 +43,22 @@ func NormalizeSubscriptionAdminFilter(filter SubscriptionAdminFilter) (Subscript
 	if !subscriptionAdminFilterValueAllowed(filter.Status, "", SubscriptionStatusActive, SubscriptionStatusExpired, SubscriptionStatusRevoked, SubscriptionStatusSuspended) {
 		return SubscriptionAdminFilter{}, invalidSubscriptionAdminFilter("status", "invalid status")
 	}
-	if !subscriptionAdminFilterValueAllowed(filter.Platform, "", PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformComposite) {
+	if !subscriptionAdminFilterValueAllowed(filter.Platform, "", PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformComposite, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax, PlatformOpenCodeGo) {
 		return SubscriptionAdminFilter{}, invalidSubscriptionAdminFilter("platform", "invalid platform")
 	}
-	if !subscriptionAdminFilterValueAllowed(filter.Organization, "", SubscriptionOrganizationXunyou, SubscriptionOrganizationWsdashi) {
+	if !subscriptionAdminFilterValueAllowed(filter.Organization, "", SubscriptionOrganizationXunyou, SubscriptionOrganizationWsdashi, OrganizationOther) {
 		return SubscriptionAdminFilter{}, invalidSubscriptionAdminFilter("organization", "invalid organization")
 	}
+	_, department, err := NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
+	if err != nil {
+		return SubscriptionAdminFilter{}, err
+	}
+	if department != "all" {
+		filter.DepartmentID = department
+	} else {
+		filter.DepartmentID = ""
+	}
+
 	if filter.SortBy == "" {
 		filter.SortBy = "created_at"
 	}

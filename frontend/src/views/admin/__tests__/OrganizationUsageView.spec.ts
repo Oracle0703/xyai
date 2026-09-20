@@ -8,7 +8,8 @@ import OrganizationUsageSummary from '@/components/admin/organization-usage/Orga
 import type { OrganizationUsageSummaryResponse } from '@/api/admin/organizationUsage'
 import OrganizationUsageView from '../OrganizationUsageView.vue'
 
-const { fetchAll, generateWorkbook, getSummary, getTrend, saveAs, showError, showInfo, showSuccess, write } = vi.hoisted(() => ({
+const { reportScope, fetchAll, generateWorkbook, getSummary, getTrend, saveAs, showError, showInfo, showSuccess, write } = vi.hoisted(() => ({
+  reportScope: vi.fn(),
   fetchAll: vi.fn(),
   generateWorkbook: vi.fn(() => Promise.resolve(new ArrayBuffer(8))),
   getSummary: vi.fn(),
@@ -19,6 +20,9 @@ const { fetchAll, generateWorkbook, getSummary, getTrend, saveAs, showError, sho
   showSuccess: vi.fn(),
   write: vi.fn(() => new ArrayBuffer(8))
 }))
+
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { reportScope } }))
+vi.mock('vue-router', async () => ({ ...await vi.importActual<typeof import('vue-router')>('vue-router'), useRoute: () => ({ query: {} }) }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -90,6 +94,7 @@ function summary(items = [{
   peak_month: peak
 }]): OrganizationUsageSummaryResponse {
   return {
+    scope_version: 'scope-v1',
     range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: SNAPSHOT_AS_OF },
     overview: { ...metrics, active_users: 4, used_users: 3 },
     organizations: [
@@ -104,6 +109,7 @@ function summary(items = [{
 }
 
 const emptySummary = (): OrganizationUsageSummaryResponse => ({
+  scope_version: 'scope-v1',
   range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: SNAPSHOT_AS_OF },
   overview: {
     active_users: 0,
@@ -123,6 +129,7 @@ const emptySummary = (): OrganizationUsageSummaryResponse => ({
 })
 
 const trendResponse = () => ({
+  scope_version: 'scope-v1',
   range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: SNAPSHOT_AS_OF },
   data_through: '2026-07-10',
   granularity: 'day' as const,
@@ -149,6 +156,7 @@ function mountView() {
 
 describe('OrganizationUsageView', () => {
   beforeEach(() => {
+    reportScope.mockReset().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-10T04:00:00.000Z'))
     getSummary.mockReset().mockResolvedValue(summary())
@@ -166,6 +174,39 @@ describe('OrganizationUsageView', () => {
     vi.useRealTimers()
   })
 
+  it('defaults a department manager to their only authorized department', async () => {
+    reportScope.mockResolvedValue({ unrestricted: false, organizations: ['xunyou'], departments: [{ id: 7, organization_key: 'xunyou', name: '研发部' }], scope_version: 'scope-v1', default_organization: 'xunyou', default_department_id: '7' })
+    const result = summary(); result.organizations = result.organizations.slice(0, 1)
+    getSummary.mockResolvedValue(result)
+    const wrapper = mountView(); await flushPromises()
+    expect(getSummary).toHaveBeenCalledWith(expect.objectContaining({ organization: 'xunyou', department_id: '7', platform: 'all', scope_version: 'scope-v1' }), expect.anything())
+    expect(wrapper.text()).toContain('研发部')
+    expect(wrapper.find('[data-organization="wsdashi"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('clears all protected data after a normalized permission rejection', async () => {
+    const wrapper = mountView(); await flushPromises()
+    expect(wrapper.text()).toContain('alice@xunyou.com')
+    getSummary.mockRejectedValueOnce({ status: 403, code: 'DEPARTMENT_SCOPE_DENIED' })
+    await wrapper.get('[data-sort-key="requests"]').trigger('click'); await flushPromises()
+    expect(wrapper.text()).not.toContain('alice@xunyou.com')
+    expect(wrapper.find('[data-testid="load-error"]').text()).toContain('admin.departments.scopeChanged')
+    wrapper.unmount()
+  })
+
+  it('retries a changed membership scope once and uses the refreshed version', async () => {
+    reportScope.mockResolvedValueOnce({ unrestricted: true, organizations: ['xunyou'], departments: [], scope_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
+      .mockResolvedValue({ unrestricted: true, organizations: ['xunyou'], departments: [], scope_version: 'scope-v2', default_organization: 'all', default_department_id: 'all' })
+    getSummary.mockRejectedValueOnce({ status: 409, code: 'REPORT_SCOPE_CHANGED' }).mockResolvedValue({ ...summary(), scope_version: 'scope-v2' })
+    getTrend.mockImplementation(async query => ({ ...trendResponse(), scope_version: query.scope_version }))
+    const wrapper = mountView(); await flushPromises()
+    expect(reportScope).toHaveBeenCalledTimes(2)
+    expect(getSummary).toHaveBeenLastCalledWith(expect.objectContaining({ scope_version: 'scope-v2' }), expect.anything())
+    expect(wrapper.text()).toContain('alice@xunyou.com')
+    wrapper.unmount()
+  })
+
   it('loads the current Beijing natural month on first mount', async () => {
     mountView()
     await flushPromises()
@@ -174,6 +215,7 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
+      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
       page: 1,
       page_size: 20,
       sort_by: 'total_tokens',
@@ -184,6 +226,7 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
+      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
       granularity: 'day',
       as_of: SNAPSHOT_AS_OF
     }, { signal: expect.any(AbortSignal) })
@@ -255,6 +298,7 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
+      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
       page: 1,
       page_size: 20,
       sort_by: 'total_tokens',
@@ -356,7 +400,7 @@ describe('OrganizationUsageView', () => {
     getTrend.mockReset().mockResolvedValue(trendResponse())
 
     const wrapper = mountView()
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     const staleSignal = getSummary.mock.calls[0][1].signal as AbortSignal
 
     await wrapper.get('[data-sort-key="requests"]').trigger('click')
@@ -416,7 +460,7 @@ describe('OrganizationUsageView', () => {
     getTrend.mockResolvedValueOnce(trendResponse())
     const wrapper = mountView()
 
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     expect(wrapper.find('[data-testid="people-loading"]').exists()).toBe(true)
     rejectRequest(new Error('network'))
     await flushPromises()
@@ -678,6 +722,7 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
+      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
       sort_by: 'total_tokens',
       sort_order: 'desc'
     }), expect.objectContaining({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) }))

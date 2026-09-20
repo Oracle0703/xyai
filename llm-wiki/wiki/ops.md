@@ -1,5 +1,17 @@
 # 运维, 配置与验证基线
 
+## 部门功能验证与上线
+
+- **本轮文档补强（代码未改）：** 补验区分必需与可选：RV1 覆盖用户编辑详情预取及差量权限 payload，RV5 覆盖两条锁序和 command 二选一；RV3-O 创建时间上界、RV4-O SQL 内摘要仅在选择采用后验证。默认成员口径及原固定性能门槛不变。
+
+**复核状态（2026-09-20）：待修复及补充验收，等待用户同意后开始代码实现。** 既有测试与性能记录属于 2026-09-19 基线，RV1–RV8 尚待补证；本轮仅文档校验，不启动服务、构建或数据库迁移。下面命令留作用户同意实现后的复验入口。 目标合同与执行顺序见 `docs/features/organization-department-usage-implementation-plan-cn.md`。
+
+- 上线按 `docs/features/organization-department-usage-design-cn.md` 第 10 节：备份，应用 migration 239/240，发布应用，由完整管理员建立各组织部门并核对成员，再授予试点负责人权限。不按订阅组自动回填；回退先撤销新增权限，保留部门数据，不改写已应用 migration。
+- 真实 PostgreSQL 专项从 `backend/` 运行：`go test -tags=integration -p 1 -count=1 ./internal/repository -run 'TestDepartmentRepositoryIntegration|TestDepartmentSubscriptionsIntegration|TestOrganizationUsageDepartmentIntegration|TestOrganizationUsageRepositoryIntegration' -v`；`SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 必须指向隔离测试库。
+- 性能在同一库用 `DEPARTMENT_USAGE_RUN_PERFORMANCE=1` 和 `-run '^TestDepartmentUsagePerformanceIntegration$'` 启动；600 用户、219,600 日志，30/90/366 天 × 全部/组织/部门/平台各 10 次，p95 3 秒门槛，记录 EXPLAIN 和导出首末页。结果只描述测试机仓储调用，不承诺生产 HTTP SLA。
+- Windows 继续使用下文 repo-local cache/fresh GOTMPDIR 和 `-p 1 -count=1`。涉及 PgDumper 时先确认 `sh.exe` 可用，本机 Git shell 在 `F:\an\Git\usr\bin`；增量 lint 使用匹配 Go 1.27 的 golangci-lint 2.13，旧全局 2.9 不适用。
+- 最终门禁：Go default/unit、PG 专项、`go generate ./ent` / `./cmd/server` 无漂移、`go mod tidy -diff`、增量 lint、normal/embed build；前端 `pnpm.cmd typecheck`、`lint:check`、`test:run`、`build`。完整证据见部门验收表，不把跳过 integration 当通过。
+
 ## 0.2.6 合并与验证基线
 
 - 基于本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；merge base 为 `881f3202694c6bc932446931a30c27d9675178b9`，`VERSION=0.2.6`。保持未提交 merge 等待用户审核，不自动推进到更新的上游提交。

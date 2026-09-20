@@ -21,6 +21,7 @@ declare module 'vue-router' {
 
     /** Permission required when the current user is a sub-admin. */
     adminPermission?: import('@/types').AdminPermission
+	adminPermissionsAny?: import('@/types').AdminPermission[]
 
     /**
      * Page title for this route

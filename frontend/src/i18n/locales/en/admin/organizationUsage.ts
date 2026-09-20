@@ -46,11 +46,11 @@ export default {
       other: 'Other'
     },
     metrics: {
-      activeUsers: 'Registered users',
+      activeUsers: 'Members',
       usedUsers: 'Active users',
       activeRate: 'Active rate',
-      registeredUsersHelp: 'Registered users in the selected report scope.',
-      activeUsersHelp: 'Registered users with at least one request in the selected report period.',
+      registeredUsersHelp: 'Currently enabled, non-deleted members in the selected scope, including members with no usage.',
+      activeUsersHelp: 'Members with at least one usage record in the selected period and platform.',
       requests: 'Requests',
       inputTokens: 'Input tokens',
       outputTokens: 'Output tokens',

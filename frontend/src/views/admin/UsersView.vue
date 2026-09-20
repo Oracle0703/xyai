@@ -22,6 +22,9 @@
               />
             </div>
 
+            <div class="w-full sm:w-40"><Select v-model="filters.organization" :options="departmentOrganizationOptions" :searchable="false" @change="changeDepartmentOrganization" /></div>
+            <div class="w-full sm:w-44"><Select v-model="filters.department_id" :options="departmentFilterOptions" :disabled="filters.organization === 'all' || departmentDirectoryLoading" @change="applyDepartmentFilter" /></div>
+
             <!-- Role Filter (visible when enabled) -->
             <div v-if="visibleFilters.has('role')" class="w-full sm:w-32">
               <Select
@@ -272,6 +275,8 @@
               {{ t('admin.users.bulkDelete.action', { count: selectedCount }) }}
             </button>
 
+            <button v-if="selectedCount > 0" class="btn btn-secondary" :disabled="selectedCount > 200" :title="t('admin.departments.maxSelection')" data-testid="assign-selected-department" @click="departmentAssignmentIds = [...selectedIds]">{{ t('admin.departments.assignDepartment') }}</button>
+
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
             <button @click="showCreateModal = true" class="btn btn-primary flex-1 md:flex-initial">
               <Icon name="plus" size="md" class="mr-2" />
@@ -299,6 +304,7 @@
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
+          <template #cell-department="{ row }"><button class="text-primary-600 hover:underline" :title="t('admin.departments.assignDepartment')" @click.stop="departmentAssignmentIds = [row.id]">{{ departmentLabel(row) }}</button></template>
           <template #cell-email="{ value }">
             <div class="flex items-center gap-2">
               <div
@@ -777,6 +783,7 @@
       @confirm="confirmBulkDelete"
       @cancel="bulkDeleteIds = []"
     />
+    <DepartmentAssignmentDialog :show="departmentAssignmentIds.length > 0" :user-ids="departmentAssignmentIds" @close="departmentAssignmentIds = []" @saved="handleDepartmentAssignment" />
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
     <BulkEditUserModal
@@ -805,6 +812,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import DepartmentAssignmentDialog from '@/components/admin/department/DepartmentAssignmentDialog.vue'
+import { departmentsAPI, type Department } from '@/api/admin/departments'
+import { formatOrganizationUsageOrganization } from '@/utils/organizations'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { formatDateTime } from '@/utils/format'
@@ -893,6 +903,7 @@ const getAttributeValue = (userId: number, attrId: number): string => {
 // All possible columns (for column settings)
 const allColumns = computed<Column[]>(() => [
   { key: 'email', label: t('admin.users.columns.user'), sortable: true },
+  { key: 'department', label: t('admin.departments.department'), sortable: false },
   { key: 'id', label: t('admin.users.columns.id'), sortable: true },
   { key: 'username', label: t('admin.users.columns.username'), sortable: true },
   { key: 'notes', label: t('admin.users.columns.notes'), sortable: false },
@@ -1137,7 +1148,53 @@ const apiKeyGroupFilterOptions = computed(() =>
 )
 
 // Filter values (role, status, and custom attributes)
+const departmentAssignmentIds = ref<number[]>([])
+const departmentDirectory = ref<Department[]>([])
+const departmentDirectoryLoading = ref(false)
+let departmentDirectoryController: AbortController | null = null
+const departmentOrganizationOptions = computed(() => [
+  { value: 'all', label: t('admin.organizationUsage.organizations.all') },
+  ...(['xunyou', 'wsdashi', 'other'] as const).map(value => ({ value, label: formatOrganizationUsageOrganization(value, t('admin.organizationUsage.organizations.other')) }))
+])
+const departmentFilterOptions = computed(() => [
+  { value: 'all', label: t('admin.departments.allDepartments') },
+  ...departmentDirectory.value.filter(department => department.organization_key === filters.organization).map(department => ({ value: String(department.id), label: department.name })),
+  { value: 'unassigned', label: t('admin.departments.unassigned') }
+])
+function departmentLabel(user: AdminUser) {
+  return user.department_id == null ? t('admin.departments.unassigned') : departmentDirectory.value.find(department => department.id === user.department_id)?.name ?? `#${user.department_id}`
+}
+async function loadDepartmentDirectory() {
+  if (departmentDirectoryLoading.value) return
+  const controller = new AbortController()
+  departmentDirectoryController = controller
+  departmentDirectoryLoading.value = true
+  try {
+    const directory: Department[] = []
+    let page = 1
+    while (true) {
+      const result = await departmentsAPI.list({ page, page_size: 200 }, controller.signal)
+      if (controller.signal.aborted) return
+      directory.push(...result.items)
+      if (directory.length >= result.total || !result.items.length) break
+      if (++page > 100) throw new Error('department directory too large')
+    }
+    departmentDirectory.value = directory
+  } catch {
+    if (!controller.signal.aborted) appStore.showError(t('admin.departments.failed'))
+  } finally { if (departmentDirectoryController === controller) departmentDirectoryLoading.value = false }
+}
+function changeDepartmentOrganization() {
+  filters.department_id = 'all'
+  if (filters.organization !== 'all') void loadDepartmentDirectory()
+  applyDepartmentFilter()
+}
+function applyDepartmentFilter() { pagination.page = 1; clearSelection(); applyFilter() }
+function handleDepartmentAssignment() { clearSelection(); void loadUsers(); void loadDepartmentDirectory() }
+
 const filters = reactive({
+  organization: 'all',
+  department_id: 'all',
   role: '',
   status: '',
   group: '',  // group name for fuzzy match, '' = all
@@ -1600,6 +1657,7 @@ const loadUsers = async () => {
   abortController = currentAbortController
   const { signal } = currentAbortController
   loading.value = true
+  users.value = []
   try {
     // Build attribute filters from active filters
     const attrFilters: Record<number, string> = {}
@@ -1613,6 +1671,8 @@ const loadUsers = async () => {
       pagination.page,
       pagination.page_size,
       {
+        organization: filters.organization === 'all' ? undefined : filters.organization,
+        department_id: filters.department_id === 'all' ? undefined : filters.department_id,
         role: filters.role as any,
         status: filters.status as any,
         search: searchQuery.value || undefined,
@@ -1630,6 +1690,7 @@ const loadUsers = async () => {
       return
     }
     users.value = response.items
+    if (response.items.some(user => user.department_id != null)) void loadDepartmentDirectory()
     pagination.total = response.total
     pagination.pages = response.pages
     usageStats.value = {}
@@ -1906,6 +1967,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  departmentDirectoryController?.abort()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
   clearTimeout(searchTimeout)

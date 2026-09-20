@@ -78,6 +78,8 @@ export async function list(
   page: number = 1,
   pageSize: number = 20,
   filters?: {
+    organization?: string
+    department_id?: string
     status?: 'active' | 'disabled'
     role?: UserRole
     search?: string
@@ -97,6 +99,8 @@ export async function list(
     page,
     page_size: pageSize,
     status: filters?.status,
+    organization: filters?.organization,
+    department_id: filters?.department_id,
     role: filters?.role,
     search: filters?.search,
     group_name: filters?.group_name,
