@@ -1,5 +1,12 @@
 # 前端知识基线
 
+## 0.2.7 合并增量
+
+- 跟随固定上游移除 Codex ticket 设置字段、账号状态展示与类型；原有归档设置、本地 OpenAI-compatible preset 和子管理员权限保留。
+- 账号创建、编辑与批量编辑支持显式 `seedance` 能力；默认仍为 chat/embeddings，空选项不隐式启用 Seedance。相关合同集中在 `components/account/README.md`。
+- `RiskControlView.vue` 增加 OpenAI / TypeSafe 引擎选择，分别维护 URL/model/keys/proxy/thresholds，测试 key 使用当前草稿引擎；本地 `PromptRiskPanel`、独立保存与风险结果筛选继续保留。
+- `PluginsView.vue` 和 API client 增加只读状态通道；竖屏移动端顶栏保留模型广场图标入口。完整 Vitest 的第一父失败与本轮验证见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。
+
 ## 0.2.6 合并增量
 
 - 管理设置增加 `openai_codex_ticket_enabled`、`openai_codex_ticket_harvest_proxy_url` 与只读 `openai_codex_ticket_harvest_proxy_configured`。读取时代理 URL 留空，仅展示已配置状态；空输入保存保持已有代理，替换时提交完整新 URL。本地请求归档设置、子管理员类型及 auth-source 默认值 fallback 仍保留。

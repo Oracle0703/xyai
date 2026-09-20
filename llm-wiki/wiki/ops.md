@@ -1,8 +1,17 @@
 # 运维, 配置与验证基线
 
+## 0.2.7 合并与验证基线
+
+- 本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 为第一父，分支 `feature/hy/10207_merge_sub2api_207`，固定上游 `main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`，`VERSION=0.2.7`；共同祖先为 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`。上游曾强制更新历史，普通 merge 会保留已撤下的 0.2.6 ticket；本轮按用户明确选择同步移除。
+- `gateway.openai_codex_ticket` / `GATEWAY_OPENAI_CODEX_TICKET_*`、后台票据开关/代理和 harvester 已移除；普通 Codex turn-state 机制仍在。旧配置/数据库值不由本轮主动清理，下方 0.2.6 ticket 配置仅供历史追溯。
+- Go 1.27.0 和前端 package/lockfile 不变；采用已有 pnpm 9 依赖。Wire 重生成后必须核对目标上游已有 `pluginManager.SetAccountDirectory(openAIGatewayService)`：上游源图缺少这条接线，生成器会删除它。本轮保留目标行为并登记问题，不修复源图。
+- 验证使用仓库 `.gocache`、每命令独立 GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git `usr/bin`；完整 default/unit/integration、前端 Vitest、lint/typecheck/build 与已知失败归属见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。退出 0 但因 Docker/凭据缺失而 skip 的测试不算完整执行覆盖。
+
+- 本轮 default、专项、normal/embed build、tidy、增量 lint、前端 lint/typecheck/build 通过；unit 留有第一父 auth/me golden 与 Ollama CAS，Vitest 留有第一父 Pinia 6 失败。integration 在 `CI=true` 下因 Docker 不可用使 repository 包失败，另有 18 个显式 skip；未把退出码或跳过视为全量覆盖。
+
 ## 0.2.6 合并与验证基线
 
-- 基于本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；merge base 为 `881f3202694c6bc932446931a30c27d9675178b9`，`VERSION=0.2.6`。保持未提交 merge 等待用户审核，不自动推进到更新的上游提交。
+- 基于本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；merge base 为 `881f3202694c6bc932446931a30c27d9675178b9`，`VERSION=0.2.6`。该轮已由 `ee829b777` 创建 merge commit 并合入 main；ticket 后续在 0.2.7 按目标上游移除。
 - 新增 `gateway.openai_codex_ticket` 配置：`enabled=false`、`target_length=292`、`ttl_seconds=3600`、`refresh_before_seconds=600`、`harvest_proxy_url=""`、`harvest_probe_interval_seconds=6`、`harvest_attempt_timeout_seconds=25`、`fail_closed=true`，models 默认 `gpt-6-astra` / `gpt-5.6-sol`。环境变量使用 `GATEWAY_OPENAI_CODEX_TICKET_*`；后台总开关与代理设置优先于 YAML/env，读取缓存 5 秒；后台代理输入留空保存表示保持已有值。
 - Go 保持 1.27.0，gRPC 升至 1.83.2，并沿上游同步 x/*、OpenTelemetry 等依赖；本地直接引用的 `golang.org/x/sys` / `golang.org/x/text` 继续列为直接依赖，但采用上游版本。Wire provider 变化已连续生成两次并核对一致；本轮无 Ent schema 变化，无需重建 Ent。生成工具临时增加的 checksum 不属于业务依赖，生成后恢复目标 `go.sum`。
 - Windows 验证可仅在测试进程 PATH 加入现有 Git for Windows 的 `usr/bin`，满足 `backup_pg_dumper` 测试硬编码的 `sh` 依赖；不用修改生产实现或测试。`golangci-lint` 使用仓库缓存中与 CI 相同的 v2.13.0/Go 1.27 二进制，避免默认旧 v2.9.0 拒绝加载。

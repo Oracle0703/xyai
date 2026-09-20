@@ -1,5 +1,13 @@
 # 数据与领域基线
 
+## 0.2.7 合并增量
+
+- 新增 `backend/migrations/238b_content_moderation_engine_meta.sql`，为 `content_moderation_logs` 追加可空 `engine_meta JSONB`，保存 engine/model/rules_version/skipped_images；旧行与旧应用写入仍可为空。无 Ent schema 改动，既有迁移不改写。
+- 内容审计引擎配置保存在既有 settings 合同中；OpenAI 保持旧配置兼容，TypeSafe 独立 profile，日志仍保留本地 Prompt Risk action 与筛选口径。
+- Seedance 复用共享媒体任务绑定：同一用户/API Key/分组访问，固定原提交账号，Redis 绑定默认 24h；首次查询成功后按 `usage.completion_tokens` 计费并去重，不按视频秒数计价，无后台自动轮询。
+- 插件 KV 使用 `plugin:kv:v1:<pluginKey>:<namespace>:`，运行时由宿主绑定 pluginKey；单值最大 256 KiB，TTL 最大 90 天。账号目录不序列化原始 `Credentials`，但 `Extra`/`Proxy` 按上游合同可见；出站身份是单独的敏感接口。
+- Codex ticket 代码移除不执行数据库清理；旧 settings/extra 数据未做删除或迁移，本轮只对齐指定源码版本。0.2.6 下列 ticket 描述仅是历史记录，当前不再生效。
+
 ## 0.2.6 合并增量
 
 - 本次没有新增 SQL migration 或 Ent schema。Codex 临时票据保存于 `accounts.extra` 的 `codex_turn_ticket:<model>`，包含账号、模型、state、长度、捕获/过期时间；有效期默认 3600 秒。`account_repo.go` 将这些键归为 scheduler-neutral 更新，仍刷新单账号快照；账号编辑加锁合并当前私有票据，禁止旧表单快照覆盖后台新票据。

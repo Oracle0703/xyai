@@ -2,6 +2,10 @@
 
 Vue 3 layout components for the Sub2API frontend, built with Composition API, TypeScript, and TailwindCSS.
 
+## 0.2.7 合并增量
+
+`AppHeader.vue` 在移动端竖屏保留模型广场图标入口；沿用现有导航和权限合同。
+
 ## Components
 
 ### 1. AppLayout.vue

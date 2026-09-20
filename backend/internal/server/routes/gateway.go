@@ -402,6 +402,11 @@ func RegisterGatewayRoutes(
 	rootRouteWithResponsesGuard := func(method, path string, limit gin.HandlerFunc, routeHandler gin.HandlerFunc) {
 		r.Handle(method, path, limit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic, requestArchive, guardResponsesSubpath(requestIntercept), routeHandler)
 	}
+	for _, prefix := range []string{"/api/v3", "/v3", "/v1", ""} {
+		rootRoute(http.MethodPost, prefix+"/contents/generations/tasks", bodyLimit, h.OpenAIGateway.SeedanceTasks)
+		rootRoute(http.MethodGet, prefix+"/contents/generations/tasks/:task_id", bodyLimit, h.OpenAIGateway.SeedanceTasks)
+		rootRoute(http.MethodDelete, prefix+"/contents/generations/tasks/:task_id", bodyLimit, h.OpenAIGateway.SeedanceTasks)
+	}
 	rootRoute(http.MethodPost, "/responses", bodyLimit, responsesHandler)
 	rootRouteWithResponsesGuard(http.MethodPost, "/responses/*subpath", bodyLimit, responsesHandler)
 	rootRoute(http.MethodPost, "/alpha/search", textBodyLimit, h.OpenAIGateway.AlphaSearch)

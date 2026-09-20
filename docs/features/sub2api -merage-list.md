@@ -1984,3 +1984,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Conflict files / handling | 延续 2026-09-18 记录的四个冲突与语义并集合并；本次不重复合并或修改业务源码 |
 | Verification | 原合并与独立复审结果见前两条及 delivery 文档；本次现场确认 commit 拓扑、工作区仅部门设计文档未提交，并执行文档及 diff 校验；不将历史测试缺口写成通过 |
 | Handoff | 用户授权提交部门设计、将当前分支合入本地 main，并从 main 创建独立部门功能分支实施；设计与后续实现分开提交 |
+
+
+## 2026-09-20 v0.2.7 exact-SHA merge awaiting review
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 / 工作分支 | 2026-09-20 / `feature/hy/10207_merge_sub2api_207` |
+| 本地 main / 第一父 | `de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` |
+| 上游分支 / 提交 | `Wei-Shaw/sub2api main` / `fbb9006adef852c46f0c7f18b0a8a740722cfac7`，VERSION `0.2.7` |
+| 共同祖先 / 增量 | `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`；34 commits、96 paths、+7652/-615；30 双方修改路径 |
+| 合并提交 | 尚未创建，`MERGE_HEAD` 固定为上述 SHA，等待用户 commit 前审核 |
+| 冲突文件 | 普通 merge：`backend/cmd/server/VERSION`；ticket 移除三方补丁：`backend/internal/service/setting_service.go`；语义冲突：`backend/internal/service/prompt_risk_input.go` 对上游新 collector 接口的调用适配 |
+| 处理方式 | VERSION 取上游；SettingService 保留本地 onRiskControlUpdate；Prompt Risk 用 filterReminders=true 的薄转接维持第一父行为。上游强制改写历史并撤下 ticket，经用户明确选择同步移除后台打票/注入/设置/展示；正常 turn-state 与本地独有功能保留 |
+| 本地 features | 25 个原有文件零删除，24 个内容不变、本台账仅追加；保留最新部门设计、归档/拦截、Prompt Metrics/Risk/judge、Token Analysis、组织用量、子管理员、并发预设、compatible cache、默认 reasoning、大请求保护、quota flusher 和空响应 failover |
+| 上游功能 | Seedance Ark 原生任务、TypeSafe 独立内容审计引擎、插件 HostService/KV/账号目录/status、公开 model 还原、DeepSeek reasoning 兼容、CN quota 403 暂停和 HTTP/2 keepalive 容错 |
+| 后端验证 | 专项和 default 全量通过；unit 两项实际失败（auth/me golden、Ollama CAS）均在第一父复现。integration 53 个测试包通过，repository 在 CI=true 下因无 Docker 失败，18 个显式 skip；不标记全绿。normal/embed build、tidy diff、golangci-lint v2.13.0 增量 0 issues |
+| 前端验证 | lint/typecheck/build（1089 modules）通过；Vitest 325/326 files、2427/2433 tests。剩余 6 个订阅 Pinia 失败在第一父快照同样复现，未修 |
+| 生成与已知问题 | Wire 重生成移除 ticket 参数/cleanup，保留上游生成物已有 SetAccountDirectory 行；其源图缺失接线为目标上游固有问题，未修。无 Ent schema 变化，仅新增原始 238b migration；未改历史 SQL |
+| 文档 / 图谱 | 六个 wiki 页、账号/布局 README、审核报告已更新；wiki graph 为 34 nodes / 72 edges / 54 wikilinks / 0 unresolved，状态 READY（允许待审核 wiki dirty） |
+| 审核材料 | `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`；本机原始日志在忽略目录 `backend/.gocache/merge-207/` |
+| 交付状态 | 仅解决冲突与经确认的 ticket 对齐，不修复上游/第一父既有问题；未 commit、未 push、未创建 PR、未部署 |

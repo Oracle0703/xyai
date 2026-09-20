@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.2.7 合并增量
+
+- 固定合入 `fbb9006adef852c46f0c7f18b0a8a740722cfac7`。上游重写历史后不再包含 0.2.6 的 Codex ticket；经用户确认移除 harvester、票据注入/调度门控、相关设置/DTO/账号状态，保留原有 `x-codex-turn-state` affinity 与跨账号 echo guard。
+- Seedance Ark 原生视频任务入口位于 `internal/handler/seedance.go` 和 `internal/service/seedance.go`；POST 创建、GET 查询、DELETE 删除支持 `/api/v3`、`/v3`、`/v1` 和根级别名。复用媒体任务所有权/计费链及本地归档、拦截中间件，账号需显式开启 `seedance` endpoint capability。
+- 内容审计支持 OpenAI / TypeSafe 独立 engine profile，`content_moderation_engines.go` 统一处理选择、配置与阈值；本地 Prompt Risk / LLM judge 仍为独立前置阶段。上游将抽取 helpers 改为 `moderationTextCollector` 方法，本地 `prompt_risk_input.go` 以 `filterReminders=true` 适配旧合同；上游关键词检查使用不过滤 reminder 的独立路径。
+- 插件 HostService 通过 broker 提供按插件隔离的 Redis KV、账号目录和出站身份解析；`NewPluginManager` 新增 KVStore，目录由 `OpenAIGatewayService` 提供；管理端新增 `GET /admin/plugins/:id/status`。目标上游仅在 `cmd/server/wire_gen.go` 调用 `SetAccountDirectory`，Wire 源图无等价注入，重生成会丢该行；本轮保留目标生成物的该接线，不修复上游源图问题。
+- Responses/Chat 的响应 `model` 按公开模型名还原；DeepSeek thinking Chat 回退为空缺的 assistant `reasoning_content` 补空格；Gemini 裸模型名按 thinkingConfig 选择变体。用量查询不再清除 OpenAI refresh error；CN coding-plan quota 403 暂停和 HTTP/2 keepalive 容错均沿上游实现。
+
 ## 0.2.6 合并增量
 
 - `backend/internal/service/openai_codex_ticket.go` 新增按账号/出站模型缓存的 Codex turn-state ticket 与后台 harvester。`OpenAIGatewayService` 负责启动，`backend/cmd/server/wire.go` 的 cleanup 负责停止；HTTP、passthrough、Anthropic bridge 与 WS 共用票据注入，调度和 `/responses/compact` 必须按实际出站模型判断。默认关闭，请求热路径只查票、不现场探测。

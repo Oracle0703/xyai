@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.2.7 合并增量
+
+- Codex ticket 功能随用户确认对齐目标上游移除；0.2.6 的 ticket fail-closed/harvester 风险为历史描述。普通 turn-state echo guard、租户 affinity、本地 RequestArchive/RequestIntercept 和子管理员默认拒绝边界继续保留。
+- 上游关键词检测将客户端 reminder 块当作普通用户文本，语义内容审计保持原过滤规则。本地 Prompt Risk 的 newest/full 输入范围与 reminder 过滤保持第一父合同，通过适配上游 collector 完成合并。
+- Seedance 别名共用 API Key/group/model allowlist 与归档/拦截链；查询/删除校验任务所有权并固定提交账号，创建失败不自动重试，首次成功查询触发实际 token 结算。
+- 插件账号访问范围由宿主根据 manifest capability 推导，插件不得扩大范围；KV 按运行时 pluginKey 隔离。目录 metadata 按上游保留 Extra 和 Proxy，不能描述为完全脱敏的管理员 DTO；出站身份接口可以交付 token/headers/proxy，仅授予相应 capability。
+- 内容审计 TypeSafe 作为独立引擎 profile 接入，日志注明 engine 来源和跳过图片计数；本地 Prompt Risk/LLM judge 的配置、密钥掩码、回环控制和本地 action 统计不被替换。
+
 ## 0.2.6 合并增量
 
 - Codex ticket 总开关默认关闭；开启且 `fail_closed=true` 时，仅对目标 OAuth/Setup Token 账号和配置中的实际出站模型要求有效票据，影子凭据账号豁免。票据按账号和模型隔离，长度/前缀/过期时间必须有效；compact 使用最终出站模型，不能按原始请求模型误拦截。

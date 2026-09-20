@@ -1,6 +1,6 @@
 # Sub2API llm-wiki 基线
 
-更新时间: 2026-09-18
+更新时间: 2026-09-20
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -11,7 +11,9 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
-- 2026-09-18 从本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`（`0.2.6`，merge base `881f3202694c6bc932446931a30c27d9675178b9`）。60 commits / 132 paths，4 个文本冲突、31 个双方修改路径已按三方合同处理；保留 24 个 feature 文档及本地独有能力。新增默认关闭的 Codex ticket 后台生命周期/脱敏状态、Gemini 混合模型、兑换历史分页及分组用量 SQL 优化。当前 `MERGE_HEAD` 固定为目标 SHA，等待用户审核后创建 merge commit；详见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`。
+- 2026-09-20 从本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 创建 `feature/hy/10207_merge_sub2api_207`，固定合入 `Wei-Shaw/sub2api main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`（`0.2.7`）。上游重写历史，共同祖先退至 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`；按用户确认移除已撤下的 Codex ticket，保留 25 个 feature 文档和本地独有能力。合入 Seedance、TypeSafe 独立引擎、插件 HostService/KV/账号目录及网关兼容更新；解决 VERSION、ticket 移除和 Prompt Risk 抽取接口冲突，不修复上游自身问题。当前 `MERGE_HEAD` 固定为目标，等待提交前审核；详见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。
+
+- 2026-09-18 从本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`（`0.2.6`，merge base `881f3202694c6bc932446931a30c27d9675178b9`）。60 commits / 132 paths，4 个文本冲突、31 个双方修改路径已按三方合同处理；保留 24 个 feature 文档及本地独有能力。新增默认关闭的 Codex ticket 后台生命周期/脱敏状态、Gemini 混合模型、兑换历史分页及分组用量 SQL 优化。该轮已由 `ee829b777` 创建 merge commit 并合入本地 main；ticket 能力在 0.2.7 同步时随目标上游移除。历史验收见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`。
 
 - 2026-09-16 从本地 `main@4c3362577a3fb76f0b0f02ea9e62c53dfb8d69d3` 创建 `feature/hy/10205_merge_sub2api_205`，固定合入 `Wei-Shaw/sub2api main@881f3202694c6bc932446931a30c27d9675178b9`（版本 `0.2.5`，merge base `4e5632c3e32f9a8a5150c44e8a7f46efe7fc2688`）。本轮上游引入 OpenCode Go/Zen、按模型原生协议、单模型查询、站点充值/订阅模式、批量订阅动作、图片直转与图片缓存用量分项、WS 生命周期和无限额平台配额行清理。10 个文本冲突和双方修改的 66 个路径按三方合同处理，24 个本地 `docs/features` 文件保留；本地归档/拦截、组织用量、Token Analysis、子管理员、Prompt Metrics/Risk、兼容参数及并发预设仍独立存在。该轮已创建 merge commit `1ac03ae45` 并合入当前 main；上游/基线问题只记录不修复。
 
