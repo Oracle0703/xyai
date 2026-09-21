@@ -13,23 +13,20 @@ const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
   { code: ADMIN_PERMISSION_SUBSCRIPTIONS, path: '/admin/subscriptions' },
   { code: ADMIN_PERMISSION_USAGE, path: '/admin/usage' },
   { code: ADMIN_PERMISSION_TOKEN_ANALYSIS, path: '/admin/token-analysis' },
+  { code: ADMIN_PERMISSION_ORGANIZATION_USAGE, path: '/admin/organization-usage' },
+  { code: ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS, path: '/admin/subscriptions' },
 ]
 
 export function getAdminLandingPath(
   permissions: readonly string[] | null | undefined,
   backendMode: boolean,
 ): string {
-	const departmentPermissions = new Set(permissions ?? [])
-	const onlyDepartmentManagement = departmentPermissions.size > 0 && [...departmentPermissions].every(
+	const allowed = new Set(permissions ?? [])
+	const onlyDepartmentManagement = allowed.size > 0 && [...allowed].every(
 		code => code === ADMIN_PERMISSION_ORGANIZATION_USAGE || code === ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS,
 	)
-	if (onlyDepartmentManagement) {
-		return departmentPermissions.has(ADMIN_PERMISSION_ORGANIZATION_USAGE) ? '/admin/organization-usage' : '/admin/subscriptions'
-	}
-  if (!backendMode) return '/dashboard'
-  const allowed = new Set(permissions ?? [])
-  return ADMIN_PERMISSION_LANDING_ROUTES.find((item) => allowed.has(item.code))?.path
-    ?? (allowed.has(ADMIN_PERMISSION_ORGANIZATION_USAGE) ? '/admin/organization-usage' : allowed.has(ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS) ? '/admin/subscriptions' : '/login')
+  if (!backendMode && !onlyDepartmentManagement) return '/dashboard'
+  return ADMIN_PERMISSION_LANDING_ROUTES.find((item) => allowed.has(item.code))?.path ?? '/login'
 }
 
 export function departmentLoginDestination(

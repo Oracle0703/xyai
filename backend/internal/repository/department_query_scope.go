@@ -100,16 +100,17 @@ func departmentQueryScopeForActor(ctx context.Context, q sqlExecutor, actor *ser
 		return nil, err
 	}
 	selection.Organization, selection.DepartmentID = org, dept
+	selection.Q = strings.TrimSpace(selection.Q)
 	unrestricted := actor.Role == service.RoleAdmin || (permission == service.AdminPermissionDepartmentSubscriptions && departmentSubscriptionUnrestricted(actor))
 	// Global subscription operations require identity checks, not a user directory scan.
-	if unrestricted && permission == service.AdminPermissionDepartmentSubscriptions && dept == "all" && !selection.Versioned && selection.Limit == 0 {
+	if unrestricted && permission == service.AdminPermissionDepartmentSubscriptions && dept == "all" && selection.ExpectedVersion == "" && selection.Limit == 0 {
 		return &service.DepartmentScope{Unrestricted: true, Actor: actor}, nil
 	}
 	scope, err := departmentCatalogForActor(ctx, q, actor, permission)
 	if err != nil {
 		return nil, err
 	}
-	if err = scope.ValidateSelection(org, dept, ""); err != nil {
+	if err = scope.ValidateSelection(org, dept); err != nil {
 		return nil, err
 	}
 	queryActor := *actor
@@ -160,6 +161,9 @@ func departmentQueryScopeForActor(ctx context.Context, q sqlExecutor, actor *ser
 		platform = "all"
 	}
 	scope.Version = service.HashDepartmentScope([]any{actor.ID, actor.Role, permission, unrestricted, org, dept, strings.ToLower(strings.TrimSpace(selection.Q)), platform, selection.UserID, selection.GroupID, selection.Status, departments, members})
+	if selection.ExpectedVersion != "" && scope.Version != selection.ExpectedVersion {
+		return nil, service.ErrDepartmentScopeChanged
+	}
 	return scope, nil
 }
 

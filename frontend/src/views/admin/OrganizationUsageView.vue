@@ -57,6 +57,7 @@
         <OrganizationUsageBreakdowns v-if="report && !loading" :departments="report.departments ?? []" :platforms="report.platforms ?? []" @department="selectDepartment" @platform="selectPlatform" />
         <OrganizationUsagePeopleTable
           :items="report?.items ?? []"
+          :range="report?.range"
           :pagination="pagination"
           :loading="loading"
           :sort-by="sortBy"
@@ -183,11 +184,10 @@ const report = ref<OrganizationUsageSummaryResponse | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
 
-// Shared snapshot + dual-controller state (see organization-usage-trend-chart-design-cn.md K6/K7)
+// Summary establishes the snapshot; paging and Trend reuse it.
 const reportCycleId = ref(0)
 const snapshotAsOf = ref('')
 const reconciledCycleId = ref<number | null>(null)
-const trendRequestedAsOf = ref('')
 const trendLoading = ref(false)
 const trendError = ref('')
 const trendPoints = ref<OrganizationUsageTrendPoint[]>([])
@@ -241,7 +241,7 @@ async function loadSummaryOnly(asOf: string, cycleId: number) {
     const response = await adminAPI.organizationUsage.getSummary(currentQuery(asOf), { signal: controller.signal })
     if (reportController !== controller || controller.signal.aborted || reportCycleId.value !== cycleId) return
     if (!response.scope_version || (requestedVersion && response.scope_version !== requestedVersion)) throw new Error('REPORT_SCOPE_CHANGED')
-    if (!response.range.as_of) {
+    if (!response.range.as_of || (requestedVersion && response.range.as_of !== asOf)) {
       errorMessage.value = t('admin.organizationUsage.feedback.loadFailed')
       report.value = null
       return
@@ -251,7 +251,6 @@ async function loadSummaryOnly(asOf: string, cycleId: number) {
     report.value = response
     Object.assign(pagination, response.pagination)
     if (!requestedVersion) void loadTrend(response.range.as_of, cycleId)
-    else maybeReconcileTrend(cycleId)
   } catch (cause) {
     if (controller.signal.aborted || reportController !== controller || reportCycleId.value !== cycleId) return
     if (handleScopeFailure(cause, cycleId)) return
@@ -270,27 +269,12 @@ function clearTrendSuccessState() {
   trendMeta.value = null
 }
 
-function failTrendLocally(clearPoints: boolean) {
-  if (clearPoints) clearTrendSuccessState()
-  trendError.value = t('admin.organizationUsage.trend.loadFailed')
-}
-
-/**
- * Load trend series.
- *
- * Acceptance rule once Summary canonical exists: displayability is decided only by
- * response.range.as_of strictly equaling that canonical — never by request params alone.
- *
- * Summary establishes the query snapshot before the initial trend starts.
- */
-async function loadTrend(asOf: string, cycleId: number, options?: { clearOnError?: boolean }) {
+// One automatic retry per report cycle; an invalid trend never replaces valid Summary data.
+async function loadTrend(asOf: string, cycleId: number) {
   if (!scopeVersion.value) return
-  const clearOnError = options?.clearOnError !== false
   trendController?.abort()
   const controller = new AbortController()
   trendController = controller
-  // Requested as_of is only for in-flight abort decisions, not final equality checks.
-  trendRequestedAsOf.value = asOf
   trendLoading.value = true
   trendError.value = ''
   try {
@@ -312,27 +296,8 @@ async function loadTrend(asOf: string, cycleId: number, options?: { clearOnError
     if (trendController !== controller || controller.signal.aborted || reportCycleId.value !== cycleId) return
 
     if (response.scope_version !== scopeVersion.value) throw new Error('REPORT_SCOPE_CHANGED')
-    const responseAsOf = response.range?.as_of?.trim() ?? ''
-    if (!responseAsOf) {
-      // Missing response canonical is never displayable.
-      failTrendLocally(true)
-      scheduleTrendReconcileIfNeeded(cycleId)
-      return
-    }
+    if (response.range?.as_of?.trim() !== asOf) throw new Error('Invalid trend snapshot')
 
-    const summaryCanonical = report.value?.range.as_of?.trim() ?? ''
-    if (summaryCanonical && responseAsOf !== summaryCanonical) {
-      // Do not write or keep a mismatched response once Summary canonical exists.
-      if (reconciledCycleId.value === cycleId) {
-        failTrendLocally(true)
-        return
-      }
-      reconciledCycleId.value = cycleId
-      void loadTrend(summaryCanonical, cycleId, { clearOnError: true })
-      return
-    }
-
-    // Provisional (no Summary yet) or strictly aligned with Summary canonical.
     trendPoints.value = response.points
     trendMeta.value = {
       range: response.range,
@@ -344,50 +309,18 @@ async function loadTrend(asOf: string, cycleId: number, options?: { clearOnError
   } catch (cause) {
     if (controller.signal.aborted || trendController !== controller || reportCycleId.value !== cycleId) return
     if (handleScopeFailure(cause, cycleId)) return
-    failTrendLocally(clearOnError)
-    scheduleTrendReconcileIfNeeded(cycleId)
+    clearTrendSuccessState()
+    trendError.value = t('admin.organizationUsage.trend.loadFailed')
+    if (reconciledCycleId.value !== cycleId) {
+      reconciledCycleId.value = cycleId
+      void loadTrend(asOf, cycleId)
+    }
   } finally {
     if (trendController === controller) {
       trendLoading.value = false
       trendController = null
     }
   }
-}
-
-/**
- * When Summary arrives after/with Trend: align stored or in-flight work to canonical.
- * trendRequestedAsOf only decides whether to abort an in-flight request early.
- */
-function maybeReconcileTrend(cycleId: number) {
-  if (reportCycleId.value !== cycleId || reconciledCycleId.value === cycleId) return
-  const summaryCanonical = report.value?.range.as_of?.trim() ?? ''
-  if (!summaryCanonical) return
-
-  if (trendLoading.value) {
-    // In-flight request param differs from canonical → abort and reload once.
-    // If param already equals canonical, wait for the response; loadTrend compares response as_of.
-    if (trendRequestedAsOf.value !== summaryCanonical) {
-      reconciledCycleId.value = cycleId
-      void loadTrend(summaryCanonical, cycleId, { clearOnError: true })
-    }
-    return
-  }
-
-  const storedAsOf = trendMeta.value?.range.as_of?.trim() ?? ''
-  if (storedAsOf === summaryCanonical) return
-
-  // No aligned success yet (empty, error, or provisional mismatch).
-  reconciledCycleId.value = cycleId
-  void loadTrend(summaryCanonical, cycleId, { clearOnError: true })
-}
-
-/** After a failed/missing response, one reconcile is still allowed if Summary is already canonical. */
-function scheduleTrendReconcileIfNeeded(cycleId: number) {
-  if (reportCycleId.value !== cycleId || reconciledCycleId.value === cycleId) return
-  const summaryCanonical = report.value?.range.as_of?.trim() ?? ''
-  if (!summaryCanonical) return
-  reconciledCycleId.value = cycleId
-  void loadTrend(summaryCanonical, cycleId, { clearOnError: true })
 }
 
 function selectionAllowed(current: DepartmentScope, organization: string, department: string) {
@@ -462,7 +395,6 @@ async function loadFullReport(allowScopeRetry = true) {
     const candidateAsOf = new Date().toISOString()
     snapshotAsOf.value = candidateAsOf
     reconciledCycleId.value = null
-    trendRequestedAsOf.value = candidateAsOf
     trendError.value = ''
     resolveAutoGranularity()
     void loadSummaryOnly(candidateAsOf, cycleId)

@@ -565,7 +565,7 @@ func (r *userSubscriptionRepository) ActivateWindows(ctx context.Context, id int
 }
 
 func (r *userSubscriptionRepository) ResetUsageWindows(ctx context.Context, id int64, resetDaily, resetWeekly, resetMonthly bool, dailyStart, periodicStart time.Time) error {
-	ctx, _, owned, scopeErr := r.beginDepartmentSubscriptionWrite(ctx, service.SubscriptionAdminFilter{}, id)
+	ctx, _, owned, scopeErr := r.beginDepartmentSubscriptionWrite(ctx, service.SubscriptionAdminFilter{}, id, dailyStart)
 	if scopeErr != nil {
 		return scopeErr
 	}

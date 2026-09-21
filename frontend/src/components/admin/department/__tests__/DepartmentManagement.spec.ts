@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import DepartmentsView from '@/views/admin/DepartmentsView.vue'
 import DepartmentMembersDialog from '../DepartmentMembersDialog.vue'
 import DepartmentAccessDialog from '../DepartmentAccessDialog.vue'
+import DepartmentAssignmentDialog from '../DepartmentAssignmentDialog.vue'
 import type { Department, DepartmentMember } from '@/api/admin/departments'
 
 const { api, listUsers, showSuccess, showError } = vi.hoisted(() => ({
@@ -51,6 +52,75 @@ beforeEach(() => {
 })
 
 describe('department administration', () => {
+  it('ignores an old department list failure after changing organization', async () => {
+    let rejectOld!: (error: Error) => void
+    api.list.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject }))
+    const wrapper = mount(DepartmentsView, { global: { stubs } })
+    await flushPromises()
+    const oldSignal = api.list.mock.calls[0][1] as AbortSignal
+    api.list.mockResolvedValue(page([{ ...department, name: 'new department', organization_key: 'wsdashi' }]))
+    await wrapper.findAll('select')[0]!.setValue('wsdashi')
+    await flushPromises()
+    rejectOld(new Error('request failed after cancellation'))
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(wrapper.text()).toContain('new department')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('ignores a late member list after closing and reopening the dialog', async () => {
+    let resolveOld!: (value: ReturnType<typeof page<DepartmentMember>>) => void
+    api.members.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
+    const wrapper = mount(DepartmentMembersDialog, { props: { show: true, department }, global: { stubs } })
+    await flushPromises()
+    const oldSignal = api.members.mock.calls[0][1] as AbortSignal
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true, department: { ...department, id: 8 } })
+    await flushPromises()
+    resolveOld(page([current]))
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(wrapper.text()).toContain(candidate.email)
+    expect(wrapper.text()).not.toContain(current.email)
+    wrapper.unmount()
+  })
+
+  it('keeps the new assignment snapshot when an aborted request resolves late', async () => {
+    let resolveOld!: (value: ReturnType<typeof page<DepartmentMember>>) => void
+    api.members.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
+    const wrapper = mount(DepartmentAssignmentDialog, { props: { show: true, userIds: [10] }, global: { stubs } })
+    await flushPromises()
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true, userIds: [11] })
+    await flushPromises()
+    resolveOld(page([current]))
+    await flushPromises()
+    await wrapper.get('select').setValue('7')
+    await wrapper.findAll('button').find(b => b.text() === 'admin.departments.confirmMembers')!.trigger('click')
+    await flushPromises()
+    expect(api.assign).toHaveBeenCalledWith(7, [{ user_id: 11, expected_department_id: 8, expected_department_version: 5 }])
+    wrapper.unmount()
+  })
+
+  it('does not restore an old manager permission snapshot after switching users', async () => {
+    listUsers.mockResolvedValue(page([{ id: 99, email: 'old@example.com' }, { id: 100, email: 'new@example.com' }]))
+    let resolveOld!: (value: unknown) => void
+    api.getAccess.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
+      .mockResolvedValue({ user_id: 100, department_ids: [7], permissions: ['admin.organization_usage'], version: 'new-version' })
+    const wrapper = mount(DepartmentAccessDialog, { props: { show: true, department }, global: { stubs } })
+    await flushPromises()
+    await wrapper.get('select').setValue('99')
+    await wrapper.get('select').setValue('100')
+    await flushPromises()
+    resolveOld({ user_id: 99, department_ids: [8], permissions: ['admin.subscriptions'], version: 'old-version' })
+    await flushPromises()
+    await wrapper.get('[data-testid="save-department-access"]').trigger('click')
+    await flushPromises()
+    expect(api.setAccess).toHaveBeenCalledWith(100, { department_ids: [7], report: true, reset_quota: false, replace_global_subscriptions: false, expected_version: 'new-version' })
+    wrapper.unmount()
+  })
+
   it('creates a department under the selected organization and submits its actual name', async () => {
     const wrapper = mount(DepartmentsView, { global: { stubs } })
     await flushPromises()

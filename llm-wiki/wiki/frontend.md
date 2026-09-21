@@ -5,6 +5,8 @@
 
 状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。完整合同与证据见部门设计、实施方案及验收表。
 
+- 2026-09-21 复审精简：删除 Summary/Trend 旧并行对齐状态；人员翻页必须保持已建立的 as_of，趋势只对同一快照最多重试一次。导出首响应必须有 as_of/scope_version，后续页及 Sheet 严格一致，不回退无版本/客户端时间。部门弹窗用每次请求的 AbortSignal 作废迟到响应，取消/切换/卸载均中止旧请求。
+
 - `views/admin/DepartmentsView.vue` 仅完整管理员可用；`components/admin/department/` 管理成员、负责人授权和用户页分配。成员 CAS 冲突需刷新再确认；授权保留其他部门，切换全站订阅需显式确认。
 - `UserEditModal.vue` 每次打开/切换先 GET 用户详情和 `admin_access_version`，加载失败禁止保存，忽略迟到结果；仅提交改动字段，角色/权限集合变化时才同时发送两字段与 `expected_admin_access_version`。冲突刷新后手动确认，备注不能覆写旧权限。
 - 用户页展示部门列与筛选；完整管理员维护归属和分配订阅。负责人仅查询、导出与额度重置，不开放成员管理或订阅分配。
@@ -123,6 +125,7 @@
 - dev server 默认端口来自 `VITE_DEV_PORT` 或 `3000`。
 - dev proxy 转发 `/api`, `/v1`, `/setup` 到 `VITE_DEV_PROXY_TARGET` 或 `http://localhost:8080`。
 - build 输出到 `../backend/internal/web/dist`, 供后端嵌入。
+- `html2canvas` 单独输出 `vendor-screenshot` chunk，由表格截图工具动态加载；不得并入首屏共享的 `vendor-misc`。
 - dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 并在 HTML 返回前注入安全转义的站点标题/favicon, 模拟生产 embedded HTML 注入行为。默认 favicon 与静态品牌资源已统一为 `/logo.svg`, README 使用 `assets/logo.svg`; 自定义 favicon 只接受相对路径、HTTP(S) 或 `data:image/*`, runtime 统一复用 `frontend/src/utils/branding.ts`。
 
 ## 路由与守卫
@@ -260,7 +263,8 @@ API 模块分布:
 - 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面先读取 scope 目录，再由首个 Summary 确定查询 `scope_version` 与 canonical `as_of` 后加载 Trend，目录 `catalog_version` 不作为查询版本，必要时单次对齐 Trend; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
 - 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/总 Token 与请求数。`total_tokens` 包含缓存创建和缓存读取两类 Token，不能视为输入与输出两条可见曲线之和。
 - 人数只改前端展示名：`active_users` 显示为“成员人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
-- Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 生成“报表概览、组织汇总、部门汇总、平台汇总、人员汇总、月度明细、周度明细、日度明细”八个 Sheet。所有数据 Sheet（含新增汇总）合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
+- Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 生成“报表概览、人员汇总、组织汇总、部门汇总、平台汇总、月度明细、周度明细、日度明细”八个 Sheet。人员汇总为筛选范围内全部人员（含零用量成员、组织/部门、费用和日周月峰值），设置列宽与自动筛选，不受页面分页限制。所有数据 Sheet（含新增汇总）合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
+- 人员表“每页”前的截图按钮通过 `utils/tableScreenshot.ts` 按需加载 `html2canvas`，下载当前页所有实际人员行及完整宽表列的 PNG，文件名包含日期范围和页码；截图不请求其它分页。空数据/加载中禁用，重复点击防重，分页、查询数据变化或卸载时作废在途截图。
 - 页面组件位于 `frontend/src/components/admin/organization-usage/`; 人员表始终保持宽表横向滚动, 不使用移动端卡片化 DataTable。修改筛选、组织汇总、峰值、趋势或导出交互时同步该目录 README、View/Worker 测试与中英文 `admin/organizationUsage.ts` locale。
 
 管理端 Token Analysis 计费用量趋势:

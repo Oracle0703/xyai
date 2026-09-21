@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>共享算力池保障方案 · 交互汇报</title>
+  <style>
+    :root{--ink:#172b3a;--muted:#596a76;--navy:#183e59;--blue:#285b7b;--green:#21735c;--green-soft:#e9f4ee;--amber:#9a5713;--amber-soft:#fff2de;--paper:#f6f7f4;--line:#dbe2e2;--white:#fff;--radius:18px}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:88px}body{margin:0;background:var(--paper);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;line-height:1.7}a{color:inherit}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #71a6c1;outline-offset:4px}button{border:1px solid var(--line);background:var(--white);color:var(--ink);border-radius:9px;padding:9px 15px;line-height:1.5;transition:background .2s,transform .2s}button:hover{background:#eef3f4}button:active{transform:translateY(1px)}.primary{background:var(--navy);border-color:var(--navy);color:white}.primary:hover{background:#285875}.subtle{font-size:13px;color:var(--muted)}
+    .topbar{position:sticky;top:0;z-index:20;background:rgba(246,247,244,.95);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.top-inner{max-width:1200px;margin:auto;padding:14px 28px;display:flex;align-items:center;gap:28px}.brand{font-size:14px;font-weight:700;letter-spacing:.06em;white-space:nowrap}.brand i{display:inline-block;width:9px;height:9px;background:var(--green);border-radius:50%;margin-right:9px}.nav{display:flex;gap:22px;margin-left:auto;font-size:13px}.nav a{text-decoration:none;color:var(--muted)}.nav a:hover{color:var(--ink)}.topbar button{padding:6px 12px;font-size:12px}
+    main{max-width:1160px;margin:auto;padding:0 28px 56px}.hero{padding:22px 0 14px;display:block}.eyebrow{font-size:12px;letter-spacing:.14em;color:var(--muted);font-weight:600}.hero h1{font-size:clamp(27px,3vw,36px);line-height:1.3;letter-spacing:-.035em;margin:8px 0 10px}.hero h1 span{color:var(--green);display:inline-block;margin-left:.3em}.lede{font-size:14px;color:var(--muted);max-width:760px;margin:0}.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px}.pill{padding:3px 9px;border:1px solid var(--line);border-radius:30px;background:#fff}.pill.plan{border-color:#dcc69e;background:var(--amber-soft);color:var(--amber)}
+    section{margin-top:32px;scroll-margin-top:88px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:20px}.section-head h2{font-size:25px;line-height:1.4;margin:3px 0 7px;font-weight:700;letter-spacing:-.02em}.section-head p{margin:0;color:var(--muted);font-size:14px;max-width:740px}.num{font-size:12px;letter-spacing:.13em;color:var(--green);font-weight:700}.panel{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:25px}.section-gap{margin-top:58px}.compare{display:grid;grid-template-columns:1fr 1fr;gap:18px}.compare article{padding:23px 27px}.compare h3{font-size:17px;margin:0 0 8px}.compare p{font-size:14px;color:var(--muted);margin:0}.compare .recommended{background:var(--green-soft);border-color:#c7ded2}.small-tag{display:inline-block;font-size:11px;letter-spacing:.04em;margin-bottom:10px;color:var(--muted)}.causal{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;margin-top:20px}.causal span{border-radius:6px;background:#f0f3f4;padding:6px 9px}.recommended .causal span{background:#fff}.causal b{font-weight:400;color:#87959e}
+    .demo{padding:0;overflow:hidden;box-shadow:0 12px 35px rgba(26,53,69,.045)}.demo-header{padding:13px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px}.switch{display:flex;gap:3px;padding:4px;background:#edf1f2;border-radius:10px}.switch button{font-size:13px;border:0;background:transparent;padding:8px 15px}.switch button[aria-pressed="true"]{background:#fff;color:var(--navy);box-shadow:0 2px 5px #172b3a12;font-weight:700}.demo-body{padding:25px 30px 21px;display:grid;grid-template-columns:1fr 300px;gap:35px}.pool-title{display:flex;align-items:center;justify-content:space-between;gap:14px}.pool-title h3{margin:0;font-size:16px}.live-state{font-size:12px;color:var(--green);background:var(--green-soft);padding:5px 11px;border-radius:30px;font-weight:600}.live-state[data-state="paused"]{color:var(--amber);background:var(--amber-soft)}.live-state[data-state="observing"]{color:var(--blue);background:#eaf2fa}.live-state[data-state="current"]{color:var(--muted);background:#edf0f1}.big-number{font-variant-numeric:tabular-nums;font-size:48px;line-height:1.2;letter-spacing:-.04em;font-weight:650;margin:22px 0 8px}.big-number small{font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0;margin-left:10px}.pool-wrap{position:relative;padding-top:25px;padding-bottom:49px}.pool{height:52px;border-radius:8px;background:#eef1f2;display:flex;overflow:hidden}.reserve-fill{width:20%;background:var(--green);transition:width .55s ease}.shared-fill{width:80%;background:var(--blue);transition:width .55s ease}.marker{position:absolute;top:17px;height:70px;border-left:2px dashed var(--green);left:20%;transition:opacity .2s}.marker.recovery{left:30%;border-color:var(--amber);top:21px;height:61px}.marker span{position:absolute;top:-19px;font-size:11px;white-space:nowrap;transform:translateX(-50%);color:var(--green)}.marker.recovery span{top:65px;color:var(--amber)}.pool-wrap[data-mode="current"] .marker{opacity:.18}.axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:7px}.legend{display:flex;gap:19px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:-10px}.legend span:before{content:"";width:8px;height:8px;display:inline-block;border-radius:2px;margin-right:7px;background:var(--green)}.legend span:nth-child(2):before{background:var(--blue)}.legend span:nth-child(3):before{background:#e6ebed}.range-block{margin-top:22px}.range-block label{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--muted)}input[type="range"]{width:100%;accent-color:var(--blue);cursor:pointer;min-height:30px;margin:4px 0}.group-card{padding:17px 18px;border-radius:12px;border:1px solid var(--line);margin-bottom:11px}.group-card .group-line{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}.group-card strong{font-weight:650}.group-card .group-status{font-size:12px;color:var(--green);font-weight:600}.group-card p{font-size:12px;color:var(--muted);margin:7px 0 10px;min-height:38px}.group-card button{width:100%;font-size:12px;padding:7px}.group-card[data-paused="true"]{background:var(--amber-soft);border-color:#edd7b5}.group-card[data-paused="true"] .group-status{color:var(--amber)}.state-caption{font-size:13px;line-height:1.7;color:var(--muted);min-height:45px;margin:17px 0 0}.observation{display:flex;gap:10px;align-items:center;margin:13px 0 0;font-size:12px;color:var(--muted)}.observation button{font-size:12px;padding:6px 10px}.dots{display:flex;gap:5px}.dots i{width:8px;height:8px;border-radius:50%;background:#dbe3e7}.dots i.on{background:var(--green)}.actions{display:flex;flex-wrap:wrap;gap:9px}.actions button{font-size:12px;padding:8px 12px}.demo-bottom{border-top:1px solid var(--line);padding:16px 26px;display:flex;gap:16px;align-items:center;justify-content:space-between;background:#fbfcfa}.demo-bottom p{font-size:11px;color:var(--muted);margin:0;max-width:510px}.step-line{display:grid;grid-template-columns:repeat(4,1fr);gap:0;padding:16px 26px 22px}.step{position:relative;font-size:12px;color:#82909b;padding-top:10px;border-top:3px solid #e5eaec}.step.active{border-color:var(--green);color:var(--green);font-weight:600}.step small{display:block;font-size:11px;font-weight:400;margin-top:2px}.event-log{margin:0;padding:14px 26px;background:#f4f7f8;font-size:12px;color:var(--muted);list-style:none;display:grid;gap:4px}.event-log li{display:flex;gap:12px}.event-log b{font-variant-numeric:tabular-nums;color:var(--blue);font-weight:500}.demo-stage{font-size:12px;color:var(--muted);text-align:right}.state-caption strong{color:var(--ink)}
+    .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding-bottom:13px;margin-bottom:16px;flex-wrap:wrap}.tabs button{border:0;background:transparent;font-size:13px}.tabs button[aria-selected="true"]{background:var(--navy);color:white}.diagram-panel{max-width:800px;margin:0 auto}.diagram-panel svg{display:block;margin:auto;width:100%;height:auto;max-height:535px}.diagram-panel h3{font-size:16px;margin:4px 0 2px;text-align:center}.diagram-panel .subtle{text-align:center;margin:0 0 16px}.diagram-panel[hidden]{display:none}.diagram-explain{margin:16px auto 0;font-size:13px;color:var(--muted);max-width:820px}.rule-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.rule{border-top:2px solid var(--line);padding:19px 4px}.rule .code{font-size:11px;color:var(--green);letter-spacing:.08em}.rule h3{font-size:16px;margin:6px 0 9px}.rule p{font-size:13px;color:var(--muted);margin:0}.formula{margin-top:14px;padding:15px 20px;background:#edf3f1;border-radius:10px;font-size:13px}.formula b{color:var(--green)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;background:#edf2f4;color:var(--navy);font-weight:600}th,td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:top}tbody tr:last-child td{border-bottom:0}td:first-child{font-weight:600;min-width:140px}.badge{font-size:11px;white-space:nowrap;color:var(--green)}.badge.todo{color:var(--amber)}.roadmap{display:grid;grid-template-columns:1fr 1fr;gap:20px}.phase{padding:26px}.phase h3{font-size:20px;margin:10px 0 13px}.phase p{font-size:14px;color:var(--muted)}.phase ul{font-size:13px;margin:15px 0 0;padding-left:19px}.phase li{margin:9px 0}.phase footer{font-size:12px;color:var(--green);border-top:1px solid var(--line);margin-top:20px;padding-top:15px}.criteria{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px}.criteria div{font-size:13px;color:var(--muted);padding:0 6px}.criteria strong{display:block;color:var(--ink);font-size:14px;margin-bottom:6px}.decision{display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:start;background:var(--navy);color:#fff;padding:32px;border-radius:var(--radius)}.decision h2{font-size:25px;margin:0 0 13px;line-height:1.4}.decision p{font-size:14px;color:#d4e1e8;margin:0}.decision ol{margin:0;padding-left:22px;font-size:14px}.decision li{margin:0 0 12px}.decision small{display:block;margin-top:6px;color:#bdcfdc;font-size:12px}.sources{margin-top:25px;font-size:12px;color:var(--muted)}.sources summary{cursor:pointer}.sources ul{overflow-wrap:anywhere}.page-footer{display:flex;justify-content:space-between;gap:15px;margin-top:30px;padding-top:17px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}.print-status{display:none}
+    .meta{align-items:center}#introPlayBtn{font-size:12px;padding:6px 12px;line-height:1.5}@media print{#introPlayBtn{display:none}}
+    /* Keep the introduction compact and playback controls above the simulation. */
+    #context{margin-top:8px}#context .section-head,#simulation>.section-head{margin-bottom:10px}#context .num,#simulation>.section-head .num{display:inline-block;margin-right:10px}#context .section-head h2,#simulation>.section-head h2{display:inline-block;font-size:20px;margin:0 0 4px}#context .section-head p,#simulation>.section-head p{font-size:13px}#context .compare{gap:12px}#context .compare article{padding:13px 17px}#context .small-tag{margin-bottom:4px}#context .compare h3{font-size:15px;margin-bottom:5px}#context .compare p{font-size:13px}#context .causal{margin-top:9px;font-size:12px;gap:6px}#context .causal span{padding:3px 7px}#simulation{margin-top:22px}.demo-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:14px}.demo-toolbar .actions{flex-wrap:nowrap}.demo-toolbar button{white-space:nowrap}.demo-toolbar .demo-stage{font-size:11px;max-width:160px}.demo-bottom p{max-width:none}
+    @media(max-width:900px){.demo-body{grid-template-columns:1fr 265px;gap:23px}.nav{gap:13px}.demo-body{padding:22px}.top-inner{gap:14px}.rule-grid{gap:12px}}
+    @media(max-width:700px){main{padding:0 17px 35px}.top-inner{padding:12px 17px}.brand{font-size:12px}.nav{display:none}.topbar button{margin-left:auto}.hero{padding:18px 0 10px}.hero h1{font-size:27px}.compare,.roadmap,.decision{grid-template-columns:1fr}.section-head h2{font-size:23px}.demo-header{align-items:flex-start;padding:17px;flex-direction:column}.demo-stage{text-align:left}.demo-body{grid-template-columns:1fr;gap:23px;padding:19px 17px}.groups{display:grid;grid-template-columns:1fr 1fr;gap:10px}.group-card{padding:12px;margin-bottom:0}.group-card .group-line{font-size:13px;align-items:flex-start;flex-direction:column;gap:4px}.group-card p{min-height:62px}.demo-bottom{align-items:flex-start;flex-direction:column;padding:16px 17px}.step-line{padding:16px 17px;gap:5px}.step{font-size:11px}.step small{font-size:10px}.event-log{padding:12px 17px}.rule-grid{grid-template-columns:1fr;gap:1px}.rule{padding:15px 0}.criteria{grid-template-columns:1fr;gap:15px}.panel{padding:19px}.demo.panel{padding:0}.tabs{gap:3px}.tabs button{font-size:12px;padding:8px 9px}.decision{padding:24px;gap:23px}.big-number{font-size:42px}.page-footer{flex-direction:column;gap:5px}.diagram-panel svg{min-width:440px}.diagram-panel{overflow-x:auto}.legend{font-size:11px;gap:10px}.switch button{font-size:12px;padding:8px 11px}}
+    @media(max-width:700px){.hero h1 span{margin-left:0}#context .compare{gap:8px}#context .compare article{padding:10px 13px}#context .causal{display:none}#context .section-head h2,#simulation>.section-head h2{font-size:18px}#context .section-head p{display:none}#simulation{margin-top:16px}.demo-header{padding:12px 15px;gap:9px}.demo-toolbar{width:100%;justify-content:space-between;gap:10px}.demo-toolbar .demo-stage{max-width:135px}.demo-toolbar .actions{gap:6px}.demo-toolbar button{padding:7px 10px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{transition:none!important;animation:none!important}}
+    @media print{@page{size:A4;margin:16mm}body{background:white;color:#172b3a;font-size:10pt}.topbar,.demo,.sources{display:none!important}main{max-width:none;padding:0}.hero{padding:0 0 18px}.hero h1{font-size:28px}.meta{font-size:10px}section,.section-gap{margin-top:25px;break-inside:avoid}.section-head h2{font-size:20px}.panel{border-color:#ccc;padding:15px}.diagram-panel[hidden]{display:block!important}.diagram-panel{break-inside:avoid;page-break-inside:avoid;margin-bottom:24px;overflow:visible}.diagram-panel svg{max-height:340px;min-width:0}.tabs{display:none}.diagram-explain{font-size:11px}.rule-grid{grid-template-columns:repeat(3,1fr)}.decision{background:white;color:#172b3a;border:1px solid #bbb;padding:18px;gap:20px}.decision p,.decision small{color:#526170}.decision h2{font-size:20px}.compare,.roadmap{grid-template-columns:1fr 1fr}.criteria{grid-template-columns:repeat(3,1fr)}.phase h3{font-size:17px}th,td{padding:9px;font-size:10px}.print-status{display:block;font-size:12px;margin:15px 0}.page-footer{font-size:9px}.pill{background:white!important;color:#333!important}a{text-decoration:none}}
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="top-inner"><div class="brand"><i aria-hidden="true"></i>共享算力池保障方案</div><nav class="nav" aria-label="文档导航"><a href="#context">问题</a><a href="#simulation">机制演示</a><a href="#flows">流程图</a><a href="#rollout">实施计划</a><a href="#decision">决策事项</a></nav><button id="printBtn" type="button">打印 / 保存 PDF</button></div></header>
+  <main>
+    <div class="hero"><div><div class="eyebrow">资源保障机制 / 管理汇报</div><h1>普通用户有保障 <span>高用量按余量放行</span></h1><p class="lede">先为普通组保留必要资源，再让高用量组充分使用共享余量。资源紧张时整组暂停，额度恢复后重新放行。</p><div class="meta"><span class="pill plan">建议方案 · 自动机制尚未实施</span><span class="pill">2026年9月21日</span><span class="pill">基于当前项目能力</span><button class="primary" type="button" id="introPlayBtn">播放完整演示</button></div></div></div>
+
+    <section id="context"><div class="section-head"><div><div class="num">01 / 业务问题</div><h2>分组已分开，资源仍在竞争</h2><p>同一批上游账号的真实额度不会因为分组而增加。只限制个人频率，无法为普通组留下确定的可用资源。</p></div></div><div class="compare"><article class="panel"><span class="small-tag">当前模式</span><h3>先消耗的人占用了后续使用空间</h3><p>高用量请求持续进入同一个池子，普通任务可能在额度恢复前无法执行。</p><div class="causal"><span>两个分组</span><b>→</b><span>同一个共享池</span><b>→</b><span>可能共同耗尽</span></div></article><article class="panel recommended"><span class="small-tag">推荐方向</span><h3>先保障普通需求，再开放共享余量</h3><p>高用量组仅在保护条件触发时等待，资源充足时继续正常使用。</p><div class="causal"><span>明确保底</span><b>→</b><span>余量共享</span><b>→</b><span>暂停与恢复</span></div></article></div></section>
+
+    <section id="simulation" class="section-gap"><div class="section-head"><div><div class="num">02 / 交互演示</div><h2>一次演示，看清保护如何发生</h2><p>切换模式、拖动余量，或播放完整流程。数字只用于说明一个可比较的额度窗口，不代表生产配置。</p></div></div><p class="print-status">演示规则：共享池总量 1000 单位，暂停线 200 单位，恢复线 300 单位；超过恢复线后连续两次有效观测才恢复。均为示例值。</p>
+      <div class="panel demo"><div class="demo-header"><div class="switch" aria-label="演示模式"><button type="button" id="currentMode" aria-pressed="false">当前共享模式</button><button type="button" id="protectedMode" aria-pressed="true">拟建保护模式</button></div><div class="demo-toolbar"><div class="actions"><button class="primary" type="button" id="playBtn">播放完整演示</button><button type="button" id="resetBtn">重置</button></div><div class="demo-stage" id="demoStage">可手动操作，也可自动演示</div></div></div>
+        <div class="demo-body"><div><div class="pool-title"><h3>共享池剩余资源</h3><span class="live-state" id="stateBadge" data-state="normal">正常共享</span></div><div class="big-number"><span id="remainingValue">1000</span><small>/ 1000 演示单位</small></div><div class="pool-wrap" id="poolWrap" data-mode="protected"><div class="pool" role="meter" id="poolMeter" aria-label="共享池剩余资源" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="1000"><div class="reserve-fill" id="reserveFill"></div><div class="shared-fill" id="sharedFill"></div></div><div class="marker"><span>暂停线 200</span></div><div class="marker recovery"><span>恢复线 300</span></div><div class="axis"><span>0</span><span>1000</span></div></div><div class="legend"><span>保底线内余量</span><span>保底线外余量</span><span>已消耗</span></div><div class="range-block"><label for="remainingSlider"><span>拖动调整剩余资源</span><span id="rangeHint">当前高用量组可继续使用</span></label><input id="remainingSlider" type="range" min="0" max="1000" step="10" value="1000" aria-describedby="demoNote"></div><div class="actions"><button type="button" id="replenishBtn">模拟额度恢复 +100</button><button type="button" id="observeBtn">记录一次有效观测</button></div><div class="observation"><span>恢复观测</span><span class="dots" aria-hidden="true"><i id="dot1"></i><i id="dot2"></i></span><span id="observeCount">无需等待恢复</span></div><p class="state-caption" id="stateCaption" role="status" aria-live="polite">共享池余量充足，两个分组均按既有规则使用。</p></div>
+        <div class="groups"><div class="group-card" id="normalCard"><div class="group-line"><strong>普通组</strong><span class="group-status" id="normalStatus">可使用</span></div><p id="normalDetail">继续按个人额度、并发和账号健康规则使用。</p><button type="button" id="normalUseBtn">模拟普通请求 −40</button></div><div class="group-card" id="highCard" data-paused="false"><div class="group-line"><strong>高用量组</strong><span class="group-status" id="highStatus">可使用</span></div><p id="highDetail">保底线以外的余量可供使用，单次演示消耗 100 单位。</p><button type="button" id="highUseBtn">模拟高用量请求 −100</button></div></div></div>
+        <div class="step-line" aria-label="演示流程"><div class="step active" data-step="0">正常共享<small>余量充足</small></div><div class="step" data-step="1">保护暂停<small>高用量组等待</small></div><div class="step" data-step="2">恢复观察<small>确认持续可用</small></div><div class="step" data-step="3">重新放行<small>恢复共享使用</small></div></div>
+        <div class="demo-bottom"><p id="demoNote">仅演示共享池，独立保底账号不计入本图。示例暂停线已含在途消耗及安全余量；实际阈值需按平台和恢复周期确定。</p></div><ol class="event-log" id="eventLog" aria-label="最近演示事件"><li><b>01</b><span>演示已就绪，当前没有真实请求或生产配置变更。</span></li></ol>
+      </div>
+    </section>
+
+    <section id="flows" class="section-gap"><div class="section-head"><div><div class="num">03 / 实施机制</div><h2>从资源分配到自动恢复</h2><p>第一阶段使用已有分组绑定能力，第二阶段增加按分组执行的自动控制。</p></div></div><div class="panel"><div class="tabs" role="tablist" aria-label="机制流程图"><button id="flowTab0" type="button" role="tab" aria-selected="true" aria-controls="flow0">① 资源分配</button><button id="flowTab1" type="button" role="tab" aria-selected="false" aria-controls="flow1" tabindex="-1">② 请求处理</button><button id="flowTab2" type="button" role="tab" aria-selected="false" aria-controls="flow2" tabindex="-1">③ 暂停与恢复</button></div>
+      <div id="flow0" class="diagram-panel" role="tabpanel" aria-labelledby="flowTab0"><h3>共享账号与普通组保底账号</h3><p class="subtle">现有能力可配置</p><svg role="img" aria-label="普通组使用保底与共享账号 高用量组仅使用共享账号" width="492" height="258" preserveAspectRatio="xMidYMid meet" viewBox="0 0 492 258" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>算力保障机制流程图</title>
+	<desc>用于说明分组资源隔离及自动保护机制的示意图</desc>
+	<clipPath id="resource-clip">
+		<rect x="0" y="0" width="492" height="258"/>
+	</clipPath>
+	<g id="resource-group" transform="scale(1,-1) translate(0,-258)" style="clip-path: url(#resource-clip)">
+		<g transform="">
+			<rect x="17" y="202" width="178" height="44" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="76.0" y="219.92000000000002" style="font-family: Microsoft YaHei; font-size: 12px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,439) scale(1,-1)">普通使用组</text>
+			<rect x="297" y="202" width="178" height="44" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="362.0" y="219.92000000000002" style="font-family: Microsoft YaHei; font-size: 12px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,439) scale(1,-1)">高用量组</text>
+			<rect x="17" y="54" width="178" height="62" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="67.5" y="89.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,178) scale(1,-1)">普通组保底账号</text>
+			<text x="73.0" y="73.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,146) scale(1,-1)">仅普通组可用</text>
+			<rect x="297" y="54" width="178" height="62" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="364.0" y="89.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,178) scale(1,-1)">共享账号</text>
+			<text x="342.0" y="73.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,146) scale(1,-1)">两个分组均可使用</text>
+			<path d="M 72,202 L 72,116 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="72 116, 69 123, 75 123" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 142,202 L 142,164 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 142,164 L 331,164 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 331,164 L 331,116 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="331 116, 328 123, 334 123" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 417,202 L 417,116 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="417 116, 414 123, 420 123" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1; fill: rgb(12%,30%,47%); fill-rule: evenodd;"/>
+			<text x="82" y="153" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,306) scale(1,-1)">保底</text>
+			<text x="215.0" y="173" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,346) scale(1,-1)">共享使用</text>
+			<text x="427" y="153" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(12%,30%,47%); stroke:none;" transform="translate(0,306) scale(1,-1)">使用</text>
+			<text x="98.041015625" y="22" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(32%,38%,43%); stroke:none;" transform="translate(0,44) scale(1,-1)">保底账号必须具有独立上游额度  高用量组不得获得普通组访问权限</text>
+		</g>
+	</g>
+</svg>
+<p class="diagram-explain">保底账号必须具有独立的上游额度，并覆盖普通组实际使用的模型。高用量用户不能同时获得普通组权限或有效订阅，避免通过切组绕过。</p></div>
+      <div id="flow1" class="diagram-panel" role="tabpanel" aria-labelledby="flowTab1" hidden><h3>每次新请求都经过分组保护判断</h3><p class="subtle">第二阶段拟建设</p><svg role="img" aria-label="按分组检查请求并保护普通组资源" width="492" height="430" preserveAspectRatio="xMidYMid meet" viewBox="0 0 492 430" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>算力保障机制流程图</title>
+	<desc>用于说明分组资源隔离及自动保护机制的示意图</desc>
+	<clipPath id="admission-clip">
+		<rect x="0" y="0" width="492" height="430"/>
+	</clipPath>
+	<g id="admission-group" transform="scale(1,-1) translate(0,-430)" style="clip-path: url(#admission-clip)">
+		<g transform="">
+			<rect x="156" y="391" width="180" height="34" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="202.0" y="404.26" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,808) scale(1,-1)">用户发起算力请求</text>
+			<path d="M 246,391 L 246,373 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="246 373, 243 380, 249 380" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<rect x="123" y="333" width="246" height="40" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="163.5" y="349.26" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,698) scale(1,-1)">执行既有身份权限与个人额度检查</text>
+			<path d="M 246,333 L 246,313 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="246 313, 243 320, 249 320" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<polygon points="246 313, 321 282.5, 246 252, 171 282.5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.2; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="216.0" y="279.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,558) scale(1,-1)">识别所属分组</text>
+			<path d="M 171,283 L 87,283 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 87,283 L 87,171 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="87 171, 84 178, 90 178" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<text x="104.0" y="294" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,588) scale(1,-1)">普通组</text>
+			<path d="M 321,283 L 386,283 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 386,283 L 386,243 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="386 243, 383 250, 389 250" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1; fill: rgb(12%,30%,47%); fill-rule: evenodd;"/>
+			<text x="349.0" y="294" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(12%,30%,47%); stroke:none;" transform="translate(0,588) scale(1,-1)">高用量组</text>
+			<polygon points="386 243, 481 207, 386 171, 291 207" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.2; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="356.0" y="211.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,422) scale(1,-1)">保护状态允许</text>
+			<text x="346.0" y="196.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,392) scale(1,-1)">且余量高于暂停线</text>
+			<path d="M 338,188 L 267,188 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 267,188 L 267,149 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="267 149, 264 156, 270 156" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1; fill: rgb(12%,30%,47%); fill-rule: evenodd;"/>
+			<text x="285.0" y="198" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(12%,30%,47%); stroke:none;" transform="translate(0,396) scale(1,-1)">是</text>
+			<path d="M 434,188 L 451,188 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 451,188 L 451,139 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="451 139, 448 146, 454 146" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="460.0" y="161" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(61%,36%,8%); stroke:none;" transform="translate(0,322) scale(1,-1)">否</text>
+			<rect x="9" y="116" width="156" height="55" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="66.0" y="147.93" style="font-family: Microsoft YaHei; font-size: 10.5px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,295) scale(1,-1)">正常调度</text>
+			<text x="34.5" y="131.93" style="font-family: Microsoft YaHei; font-size: 10.5px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,263) scale(1,-1)">可使用共享及保底账号</text>
+			<rect x="189" y="103" width="156" height="46" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="219.75" y="122.43" style="font-family: Microsoft YaHei; font-size: 10.5px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,244) scale(1,-1)">允许本次共享池请求</text>
+			<rect x="368" y="77" width="120" height="62" rx="5" ry="5" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(100%,95%,88%); fill-rule: evenodd;"/>
+			<text x="393.0" y="112.60000000000002" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,225) scale(1,-1)">整组暂停新请求</text>
+			<text x="388.0" y="96.60000000000002" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,193) scale(1,-1)">返回等待恢复提示</text>
+			<path d="M 87,116 L 87,65 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 87,65 L 173,65 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="173 65, 166 62, 166 68" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 267,103 L 267,87 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="267 87, 264 94, 270 94" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1; fill: rgb(12%,30%,47%); fill-rule: evenodd;"/>
+			<rect x="173" y="42" width="174" height="45" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="205.0" y="61.10000000000002" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,122) scale(1,-1)">执行请求并更新实际用量</text>
+			<text x="107.32978515624998" y="15" style="font-family: Microsoft YaHei; font-size: 9.7px;fill: rgb(32%,38%,43%); stroke:none;" transform="translate(0,30) scale(1,-1)">两组均保留既有权限与额度约束  暂停不取消已经发往上游的请求</text>
+		</g>
+	</g>
+</svg>
+<p class="diagram-explain">保护暂停作用于高用量组全部新算力请求，包含长连接后续轮次和重试。已经发往上游的请求允许结束，其消耗纳入安全余量。</p></div>
+      <div id="flow2" class="diagram-panel" role="tabpanel" aria-labelledby="flowTab2" hidden><h3>持续监测与有条件恢复</h3><p class="subtle">第二阶段拟建设</p><svg role="img" aria-label="采集余量 触发保护 观察稳定后恢复" width="492" height="320" preserveAspectRatio="xMidYMid meet" viewBox="0 0 492 320" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>算力保障机制流程图</title>
+	<desc>用于说明分组资源隔离及自动保护机制的示意图</desc>
+	<clipPath id="recovery-clip">
+		<rect x="0" y="0" width="492" height="320"/>
+	</clipPath>
+	<g id="recovery-group" transform="scale(1,-1) translate(0,-320)" style="clip-path: url(#recovery-clip)">
+		<g transform="">
+			<rect x="130" y="277" width="232" height="38" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="174.5" y="292.26" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,584) scale(1,-1)">持续采集剩余额度与恢复时间</text>
+			<path d="M 246,277 L 246,255 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="246 255, 243 262, 249 262" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<polygon points="246 255, 331 225, 246 195, 161 225" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.2; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="206.0" y="221.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,443) scale(1,-1)">额度数据是否可信</text>
+			<path d="M 161,225 L 82,225 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 82,225 L 82,162 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="82 162, 79 169, 85 169" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="115.0" y="234" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(61%,36%,8%); stroke:none;" transform="translate(0,468) scale(1,-1)">否</text>
+			<rect x="8" y="102" width="148" height="60" rx="5" ry="5" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(100%,95%,88%); fill-rule: evenodd;"/>
+			<text x="37.0" y="136.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,273) scale(1,-1)">进入或保持保护暂停</text>
+			<text x="32.0" y="120.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,241) scale(1,-1)">普通组按既有规则使用</text>
+			<path d="M 246,195 L 246,171 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="246 171, 243 178, 249 178" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<text x="254.0" y="180" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(12%,30%,47%); stroke:none;" transform="translate(0,360) scale(1,-1)">是</text>
+			<rect x="184" y="123" width="176" height="48" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="217.0" y="151.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,303) scale(1,-1)">计算共享池应保留的余量</text>
+			<text x="217.0" y="135.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,271) scale(1,-1)">包含在途消耗与安全余量</text>
+			<path d="M 272,123 L 272,96 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="272 96, 269 103, 275 103" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<polygon points="272 96, 364 65, 272 34, 180 65" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.2; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="237.0" y="69.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,138) scale(1,-1)">满足对应状态的</text>
+			<text x="237.0" y="54.099999999999994" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,108) scale(1,-1)">放行或恢复条件</text>
+			<path d="M 180,65 L 82,65 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 82,65 L 82,102 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="82 102, 85 95, 79 95" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="127.0" y="74" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(61%,36%,8%); stroke:none;" transform="translate(0,148) scale(1,-1)">否</text>
+			<path d="M 364,65 L 432,65 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 432,65 L 432,183 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="432 183, 435 176, 429 176" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<text x="380.0" y="74" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,148) scale(1,-1)">是</text>
+			<rect x="376" y="183" width="110" height="55" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="401.0" y="215.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,430) scale(1,-1)">维持正常共享</text>
+			<text x="406.0" y="199.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,398) scale(1,-1)">或分步恢复</text>
+			<path d="M 432,238 L 432,296 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<path d="M 432,296 L 362,296 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<polygon points="362 296, 369 299, 369 293" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 8,132 L 1,132 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<path d="M 1,132 L 1,296 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<path d="M 1,296 L 130,296 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<polygon points="130 296, 123 293, 123 299" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="106.9185546875" y="7" style="font-family: Microsoft YaHei; font-size: 9.4px;fill: rgb(32%,38%,43%); stroke:none;" transform="translate(0,14) scale(1,-1)">暂停后须高于恢复线并通过连续有效观测  人工停用不会被自动恢复</text>
+		</g>
+	</g>
+</svg>
+<p class="diagram-explain">额度数据不可信时，高用量组进入保护。普通组继续执行已有额度和账号健康检查。人工停用的分组不会被自动恢复。</p></div>
+    </div></section>
+
+    <section id="rules" class="section-gap"><div class="section-head"><div><div class="num">04 / 关键规则</div><h2>保障足够，限制适度</h2></div></div><div class="rule-grid"><article class="rule"><span class="code">保底计算</span><h3>按照后续真实需求预留</h3><p>以普通组在额度恢复前的需求为依据，扣除独立保底账号已覆盖的部分，避免重复预留。</p></article><article class="rule"><span class="code">暂停与恢复</span><h3>达到保护条件整组暂停</h3><p>余量充足时正常使用。暂停后须超过更高的恢复线并持续稳定，才恢复高用量组。</p></article><article class="rule"><span class="code">计量范围</span><h3>按真实资源分别判断</h3><p>不同平台、模型及5小时或7天等额度窗口分别判断。费用金额和剩余百分比不能直接视为可互换算力。</p></article></div><div class="formula"><b>共享池应预留的需求</b> = 普通组后续需求 − 独立保底已覆盖部分（最低为 0），再加入在途消耗与安全余量。</div></section>
+
+    <section id="capabilities" class="section-gap"><div class="section-head"><div><div class="num">05 / 能力边界</div><h2>现有配置能做什么，还需建设什么</h2></div></div><div class="panel table-wrap"><table><thead><tr><th>能力</th><th>实际作用</th><th>本方案定位</th></tr></thead><tbody><tr><td>账号绑定不同分组</td><td>确定每组可以使用哪些上游账号</td><td><span class="badge">现有可配 · 实现独立保底</span></td></tr><tr><td>分组日周月额度与 RPM</td><td>分别约束用户订阅额度或用户在该组内的请求频率</td><td>辅助限制，不是全组共享预算</td></tr><tr><td>账号用量阈值</td><td>达到阈值后跳过该账号，关联的普通组也受影响</td><td>不能直接用于只保护普通组</td></tr><tr><td>手动停用分组</td><td>阻止该组后续鉴权请求</td><td>人工处置能力，无自动阈值联动</td></tr><tr><td>按池余量自动保护</td><td>仅暂停高用量组，并按条件自动恢复</td><td><span class="badge todo">需要开发 · 第二阶段目标</span></td></tr></tbody></table></div></section>
+
+    <section id="rollout" class="section-gap"><div class="section-head"><div><div class="num">06 / 实施计划</div><h2>先配置保底，再小范围启用自动机制</h2><p>以阶段验收推进。工期和人力投入在平台范围、计量口径及入口清单确认后评估。</p></div></div><div class="roadmap"><article class="panel phase"><span class="small-tag">第一阶段 / 现有能力</span><h3>让普通组先有独立保障</h3><p>先解决共享资源耗尽时，普通任务没有资源可用的问题。</p><ul><li>盘点上游额度独立性、恢复周期及模型覆盖。</li><li>配置普通组保底账号和共享账号。</li><li>核对已有 Key、分组授权及有效订阅。</li><li>验证共享额度耗尽与跨组访问场景。</li></ul><footer>完成条件：共享池耗尽后，普通组仍能在约定保底范围内使用。</footer></article><article class="panel phase"><span class="small-tag">第二阶段 / 新增自动控制</span><h3>按余量暂停，再自动恢复</h3><p>先观察规则是否准确，再选择一个平台的高用量组试点。</p><ul><li>建设额度监测、保护状态与用量记录。</li><li>先记录拟暂停动作，覆盖相关恢复周期。</li><li>统一 HTTP、长连接及重试的保护检查。</li><li>验证自动恢复和回退后，再逐步推广。</li></ul><footer>完成条件：高用量组按规则暂停恢复，普通组不被连带阻断。</footer></article></div><div class="criteria"><div><strong>看保障效果</strong>普通组资源不足失败率与等待时长，是否符合事先约定的目标。</div><div><strong>看资源效率</strong>共享池使用率、保底闲置率、高用量组等待时长和暂停后追加消耗。</div><div><strong>保留回退能力</strong>自动机制可单独关闭，回到已验证的配置保底方案；人工停用优先。</div></div></section>
+
+    <section id="decision" class="section-gap"><div class="decision"><div><h2>建议先确认保障范围<br>并开展保底试点</h2><p>先利用已有资源建立可验证的保障，再评估自动控制的研发投入。试点结果决定阈值调整和后续推广范围。</p></div><ol><li>普通组需要保障到什么程度<small>明确用户范围、关键模型、使用时段与需求量。</small></li><li>高用量组可以接受怎样的等待<small>确认暂停范围、恢复规则和用户提示方式。</small></li><li>从哪个平台和分组开始试点<small>约定验收目标、协同人员与回退条件。</small></li></ol></div></section>
+    <details class="sources"><summary>项目依据与适用边界</summary><p>现有能力以2026年9月21日项目工作区源码核对结果为依据。自动控制为拟建设方案，本页演示不连接真实业务系统。保底以真实资源及约定需求为前提，上游整体故障或需求超过配置容量时仍需扩容或调整服务范围。</p><ul><li>订阅与 RPM：backend/internal/service/billing_cache_service.go</li><li>账号分组：backend/internal/repository/account_repo.go</li><li>账号用量阈值：backend/internal/service/openai_gateway_scheduling.go</li><li>分组状态校验：backend/internal/server/middleware/api_key_auth.go</li><li>完整文字汇报稿：docs/features/shared-compute-pool-protection-report-cn.md</li></ul></details>
+    <footer class="page-footer"><span>共享算力池普通用户保障机制 · 管理汇报</span><span>交互数据为机制示例，非生产运行数据</span></footer>
+  </main>
+  <script>
+  (() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const CAPACITY = 1000, STOP = 200, RESUME = 300, REQUIRED = 2;
+    const state = { mode:'protected', remaining:1000, status:'normal', observations:0, resumed:false, running:false, eventNumber:0 };
+    let timer = null;
+    const events = [];
+    function log(message) {
+      events.unshift({ number:++state.eventNumber, message }); if (events.length > 3) events.pop();
+      $('eventLog').replaceChildren(...events.map(item => { const li = document.createElement('li'), b = document.createElement('b'), span = document.createElement('span'); b.textContent = String(item.number).padStart(2,'0'); span.textContent = item.message; li.append(b,span); return li; }));
+    }
+    function reconcile() {
+      state.remaining = Math.max(0,Math.min(CAPACITY,state.remaining));
+      if (state.mode === 'current') { state.status='normal'; state.observations=0; state.resumed=false; return; }
+      if (state.remaining <= STOP) { state.status='paused'; state.observations=0; state.resumed=false; }
+      else if (state.status !== 'normal') {
+        if (state.remaining <= RESUME) { state.status='paused'; state.observations=0; }
+        else state.status='observing';
+      }
+    }
+    function render() {
+      const protectedMode = state.mode === 'protected', blocked = protectedMode && state.status !== 'normal', empty = state.remaining === 0;
+      $('remainingValue').textContent = state.remaining; $('remainingSlider').value = state.remaining;
+      $('poolMeter').setAttribute('aria-valuenow',state.remaining); $('poolWrap').dataset.mode=state.mode;
+      $('reserveFill').style.width = Math.min(state.remaining,STOP)/CAPACITY*100+'%';
+      $('sharedFill').style.width = Math.max(state.remaining-STOP,0)/CAPACITY*100+'%';
+      $('currentMode').setAttribute('aria-pressed',!protectedMode); $('protectedMode').setAttribute('aria-pressed',protectedMode);
+      $('stateBadge').dataset.state = protectedMode ? state.status : 'current';
+      $('stateBadge').textContent = !protectedMode ? (empty?'共享池已耗尽':'未设整组保护') : ({normal:state.resumed?'已恢复共享':'正常共享',paused:'保护暂停',observing:'恢复观察'})[state.status];
+      $('highCard').dataset.paused = String(blocked || empty);
+      $('highStatus').textContent = empty ? '共享池耗尽' : blocked ? '整组暂停' : '可使用';
+      $('normalStatus').textContent = empty ? '共享池耗尽' : '可使用';
+      $('normalDetail').textContent = empty ? '当前共享池无余量；独立保底资源不在本演示范围内。' : '继续按个人额度、并发和账号健康规则使用。';
+      $('highDetail').textContent = blocked ? '全组新请求被拦截；切换用户或 Key 也不会放行。' : protectedMode ? '本次演示请求需 100 单位，必须留足保底余量。' : '没有整组保底限制，可继续消耗共享资源。';
+      $('normalUseBtn').disabled = empty;
+      $('highUseBtn').textContent = blocked ? '尝试高用量请求（已暂停）' : '模拟高用量请求 −100';
+      $('highUseBtn').disabled = empty;
+      $('observeBtn').disabled = !(protectedMode && state.status === 'observing' && state.remaining > RESUME);
+      $('replenishBtn').disabled = state.remaining >= CAPACITY;
+      $('dot1').classList.toggle('on',state.observations>=1); $('dot2').classList.toggle('on',state.observations>=2);
+      $('observeCount').textContent = !protectedMode ? '当前模式无恢复检查' : state.status==='normal' ? (state.resumed?'2 / 2 次，已恢复':'无需等待恢复') : state.remaining <= RESUME ? '等待余量超过 300' : state.observations+' / 2 次';
+      $('rangeHint').textContent = !protectedMode ? '无整组保护' : blocked ? '高用量组暂不放行' : '高用量组可继续使用';
+      let caption;
+      if (!protectedMode) caption = empty ? '当前共享模式下，池子被耗尽后两个分组都无法从共享池获得资源。' : '当前模式不执行整组保底检查，高用量请求可以持续消耗到共享池耗尽。';
+      else if (empty) caption = '高用量组已暂停。普通组仍会消耗额度，共享池最终也可能耗尽；保障需要与实际需求和独立保底容量匹配。';
+      else if (state.status==='observing') caption = '余量已经超过恢复线，但还需要连续两次有效观测。确认稳定后，高用量组才恢复。';
+      else if (state.status==='paused') caption = state.remaining<=STOP ? '已触发保底保护：高用量组新请求暂停，普通组仍可使用现有余量。' : '高用量组保持暂停。本次请求可能突破保底线，或暂停后的余量尚未满足恢复条件。';
+      else caption = state.resumed ? '恢复条件已经满足，高用量组重新使用共享池；再次达到保护条件时仍会暂停。' : '共享池余量充足，两个分组均按既有规则使用。高用量请求不得突破保底线。';
+      $('stateCaption').textContent = caption;
+      let active = !protectedMode ? -1 : state.status==='paused'?1:state.status==='observing'?2:state.resumed?3:0;
+      document.querySelectorAll('.step').forEach((el,i)=>el.classList.toggle('active',i===active));
+      $('playBtn').textContent = state.running ? '暂停演示' : '播放完整演示';
+      $('introPlayBtn').textContent = state.running ? '查看正在播放的演示' : '播放完整演示';
+    }
+    function stopAnimation() { clearTimeout(timer); timer=null; state.running=false; $('demoStage').textContent='可手动操作，也可自动演示'; }
+    function reset(keepMode=true) {
+      const mode=keepMode?state.mode:'protected'; Object.assign(state,{mode,remaining:1000,status:'normal',observations:0,resumed:false,eventNumber:0}); events.length=0;
+      log('共享池恢复到 1000 演示单位。'); reconcile(); render();
+    }
+    function highUse() {
+      if (state.mode==='protected' && state.status!=='normal') { log('高用量请求已被整组保护拦截，余量没有减少。'); render(); return; }
+      if (state.mode==='protected' && state.remaining-100<STOP) { state.status='paused';state.observations=0;state.resumed=false;log('本次请求会突破保底线，整组暂停，本次不扣减。');render();return; }
+      if (state.remaining<100) {log('当前共享余量不足以完成 100 单位的演示请求。');render();return;}
+      state.remaining-=100; reconcile();log('高用量请求消耗 100 单位，剩余 '+state.remaining+'。'+(state.status==='paused'?'已进入保护暂停。':''));render();
+    }
+    function normalUse() { if(state.remaining<40){log('共享余量不足 40，需等待恢复或使用独立保底账号。');render();return;}state.remaining-=40;reconcile();log('普通组请求消耗 40 单位，剩余 '+state.remaining+'。');render(); }
+    function replenish() { state.remaining=Math.min(CAPACITY,state.remaining+100); state.observations=0;reconcile();log('模拟上游恢复 100 单位，剩余 '+state.remaining+'。');render(); }
+    function observe() { if(state.mode!=='protected'||state.status!=='observing'||state.remaining<=RESUME)return;state.observations++;if(state.observations>=REQUIRED){state.status='normal';state.resumed=true;log('连续两次有效观测满足恢复条件，高用量组重新放行。');}else log('第 '+state.observations+' 次有效观测通过，继续保持暂停。');render(); }
+    function manual(action) { stopAnimation();action();render(); }
+    $('currentMode').addEventListener('click',()=>manual(()=>{state.mode='current';reset();}));
+    $('protectedMode').addEventListener('click',()=>manual(()=>{state.mode='protected';reset();}));
+    $('remainingSlider').addEventListener('input',()=>manual(()=>{state.remaining=Number($('remainingSlider').value);if(state.status!=='normal')state.observations=0;reconcile();}));
+    $('remainingSlider').addEventListener('change',()=>log('手动将剩余资源调整到 '+state.remaining+' 单位。'));
+    $('highUseBtn').addEventListener('click',()=>manual(highUse));$('normalUseBtn').addEventListener('click',()=>manual(normalUse));$('replenishBtn').addEventListener('click',()=>manual(replenish));$('observeBtn').addEventListener('click',()=>manual(observe));$('resetBtn').addEventListener('click',()=>manual(()=>reset()));
+    $('playBtn').addEventListener('click',()=>{
+      if(state.running){stopAnimation();render();return;}
+      stopAnimation();reset(false);state.running=true;
+      const sequence=[()=>{state.remaining=600;log('高用量组连续使用，余量降到 600。');reconcile();},()=>{state.remaining=200;reconcile();log('余量降到暂停线 200，高用量组整组暂停。');},highUse,normalUse,replenish,replenish,observe,observe];
+      let index=0;
+      function advance(){if(!state.running)return;if(index>=sequence.length){stopAnimation();$('demoStage').textContent='完整演示结束 · 可继续手动操作';render();return;}sequence[index]();index++;$('demoStage').textContent='演示步骤 '+index+' / '+sequence.length;render();timer=setTimeout(advance,1800);}
+      $('demoStage').textContent='从正常共享开始';render();timer=setTimeout(advance,1400);
+    });
+    $('introPlayBtn').addEventListener('click',()=>{
+      $('simulation').scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+      if(!state.running) $('playBtn').click();
+    });
+    function activateTab(index,focus=false){for(let i=0;i<3;i++){const on=i===index;$('flowTab'+i).setAttribute('aria-selected',on);$('flowTab'+i).tabIndex=on?0:-1;$('flow'+i).hidden=!on;}if(focus)$('flowTab'+index).focus();}
+    for(let i=0;i<3;i++){$('flowTab'+i).addEventListener('click',()=>activateTab(i));$('flowTab'+i).addEventListener('keydown',e=>{let next=i;if(e.key==='ArrowRight')next=(i+1)%3;else if(e.key==='ArrowLeft')next=(i+2)%3;else if(e.key==='Home')next=0;else if(e.key==='End')next=2;else return;e.preventDefault();activateTab(next,true);});}
+    $('printBtn').addEventListener('click',()=>{stopAnimation();render();window.print();});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.running){stopAnimation();render();}});
+    render();
+  })();
+  </script>
+</body>
+</html>

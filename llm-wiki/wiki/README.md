@@ -5,9 +5,10 @@
 - `feature/hy/10207_department_usage` 已完成独立部门管理、多平台报表和受限额度重置；S1–S6 复核修正及 RV1–RV8 本机隔离验收完成。负责人仍不能分配订阅。
 - `catalog_version`（目录）、`admin_access_version`（角色/权限/grant）、`scope_version`（实际查询范围）明确分离；统一 CAS、降级/软删除清授权、SQL 分页/批量统计及候选成员锁已实现。
 - 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
+- 2026-09-21 代码精简与复审见 `docs/features/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
 - 未推送、部署或合回 main；创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
-更新时间: 2026-09-20
+更新时间: 2026-09-21
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 

@@ -322,3 +322,7 @@ func TestUserConcurrencyPresetServiceRunDueSchedulesMarksOnlySuccessfulRuns(t *t
 	require.Len(t, repo.markedRuns, 1)
 	require.Equal(t, runDate, repo.markedRuns[0])
 }
+
+func (s *userConcurrencyPresetUserRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}

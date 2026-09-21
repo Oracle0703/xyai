@@ -4,6 +4,7 @@
 
 状态：2026-09-20 S1–S6/RV1–RV8 本机隔离验收完成。Go default/unit、11 组真实 PG、前端 329 files / 2,459 tests、lint/typecheck/build、normal/embed build 通过。旧日志与首次失败保留，证据见部门验收表。RV3-O/RV4-O 未启用。
 
+- 2026-09-21 精简复验：default/unit 全量、12 组真实 PG、前端全量 331 files / 2,480 tests 及最后导出专项 54 项、lint/typecheck/build、normal/embed、tidy 通过。初次接口编译/夹具/未用 import 失败已修正，日志和精确边界见代码审核报告；本轮留在工作区未提交。
 - 上线按 `docs/features/organization-department-usage-design-cn.md` 第 10 节：备份，应用 migration 239/240，发布应用，由完整管理员建立各组织部门并核对成员，再授予试点负责人权限。不按订阅组自动回填；回退先撤销新增权限，保留部门数据，不改写已应用 migration。
 - 真实 PostgreSQL 专项从 `backend/` 运行：`go test -tags=integration -p 1 -count=1 ./internal/repository -run 'TestDepartmentRepositoryIntegration|TestDepartmentSubscriptionsIntegration|TestOrganizationUsageDepartmentIntegration|TestOrganizationUsageRepositoryIntegration|TestDepartmentQueryCountIntegration|TestUserAdminAccessIntegration' -v`；`SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 必须指向隔离测试库。
 - 性能在同一库用 `DEPARTMENT_USAGE_RUN_PERFORMANCE=1` 和 `-run '^TestDepartmentUsagePerformanceIntegration$'` 启动；600 用户、219,600 日志，30/90/366 天 × 全部/组织/部门/平台各 10 次，p95 3 秒门槛，记录 EXPLAIN 和导出首末页。结果只描述测试机仓储调用，不承诺生产 HTTP SLA。
@@ -124,6 +125,8 @@ pnpm --dir frontend run build
 ```
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
+
+人员表截图依赖 `html2canvas`，`frontend/vite.config.ts` 将其单独分为 `vendor-screenshot`，只在点击截图时动态加载。验证分包时应确认产物含该 chunk，且 `index.html` 不预加载它；单独运行 Vite 验证时显式传 `--config vite.config.ts`，避免本机旧生成的 `vite.config.js` 覆盖源码配置（正式 build 先执行 `vue-tsc -b`）。
 
 embed 模式只给 Vite `assets/` 下文件名带 8 字符 fingerprint 的资源设置一年 `immutable` 缓存; unhashed assets、`logo.svg`、`favicon.ico`、HTML 和 SPA fallback 不使用静态长缓存。`deploy/Caddyfile` 只负责 TLS/反向代理, 不重复按路径强制 immutable, fingerprint 判定由后端 `static_cache.go` 统一负责。根级 API `/alpha/search` 和 `/videos/*` 必须由 `shouldBypassEmbeddedFrontend` 旁路, 不能回退为 SPA HTML。更改资源路径、根级 API 或 Vite 文件名策略时要同步 `backend/internal/web/embed_on.go`、`static_cache.go` 与测试。
 

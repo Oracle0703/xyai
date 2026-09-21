@@ -80,7 +80,6 @@ const membersTarget = ref<Department | null>(null)
 const accessTarget = ref<Department | null>(null)
 const form = reactive<DepartmentSaveInput>({ organization_key: 'xunyou', name: '', status: 'active', sort_order: 0 })
 let controller: AbortController | null = null
-let sequence = 0
 
 const organizationLabel = (key: OrganizationKey) => formatOrganizationUsageOrganization(key, t('admin.organizationUsage.organizations.other'))
 const organizationOptions = computed(() => (['xunyou', 'wsdashi', 'other'] as const).map(value => ({ value, label: organizationLabel(value) })))
@@ -96,7 +95,6 @@ function managerEmails(department: Department) { return department.managers?.map
 const errorMessage = (cause: unknown) => t(departmentErrorKey(cause))
 async function load() {
   controller?.abort()
-  const request = ++sequence
   controller = new AbortController()
   const signal = controller.signal
   loading.value = true
@@ -104,12 +102,12 @@ async function load() {
   departments.value = []
   try {
     const result = await departmentsAPI.list({ organization: organization.value, status: status.value, page: page.value, page_size: pageSize.value }, signal)
-    if (request !== sequence || signal.aborted) return
+    if (signal.aborted) return
     departments.value = result.items
     total.value = result.total
   } catch (cause) {
-    if (request === sequence && !signal.aborted) { error.value = errorMessage(cause); total.value = 0 }
-  } finally { if (request === sequence) loading.value = false }
+    if (!signal.aborted) { error.value = errorMessage(cause); total.value = 0 }
+  } finally { if (!signal.aborted) loading.value = false }
 }
 function changePage(value: number) { page.value = value; void load() }
 function changePageSize(value: number) { pageSize.value = Math.min(value, 200); page.value = 1; void load() }
@@ -140,5 +138,5 @@ async function toggleStatus(department: Department) {
 }
 watch([organization, status], () => { page.value = 1; void load() })
 onMounted(load)
-onUnmounted(() => { ++sequence; controller?.abort() })
+onUnmounted(() => { controller?.abort() })
 </script>

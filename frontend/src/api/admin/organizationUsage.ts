@@ -1,5 +1,5 @@
 import { apiClient } from '../client'
-import { MAX_CLIENT_EXPORT_ROWS, MAX_XLSX_DATA_ROWS } from '@/constants/organizationUsage'
+import { MAX_CLIENT_EXPORT_ROWS } from '@/constants/organizationUsage'
 
 export { MAX_CLIENT_EXPORT_ROWS, MAX_XLSX_DATA_ROWS } from '@/constants/organizationUsage'
 
@@ -270,7 +270,7 @@ export async function fetchAllOrganizationUsageData(
   let collectedRows = 0
 
   const reportProgress = () => onProgress?.({ completed, total: totalRequests })
-  const requestPages = async <T extends { pagination: OrganizationUsagePagination; items: unknown[] }>(
+  const requestPages = async <T extends { range: OrganizationUsageRange; scope_version?: string; pagination: OrganizationUsagePagination; items: unknown[] }>(
     request: (page: number) => Promise<T>,
     onFirst?: (response: T) => void
   ): Promise<{ first: T; items: T['items'] }> => {
@@ -289,20 +289,18 @@ export async function fetchAllOrganizationUsageData(
         throw error
       }
       throwIfAborted(signal)
-      if (scopeVersion && (response as T & { scope_version?: string }).scope_version !== scopeVersion) {
-        throw new Error("REPORT_SCOPE_CHANGED")
+      const fixedSnapshot = completed > 0 || Boolean(query.as_of && query.scope_version)
+      if (!response.scope_version || (scopeVersion && response.scope_version !== scopeVersion) ||
+        !response.range.as_of || (fixedSnapshot && response.range.as_of !== snapshotAsOf)) {
+        throw new Error('REPORT_SCOPE_CHANGED')
       }
+      snapshotAsOf = response.range.as_of
+      scopeVersion = response.scope_version
       if (!first && collectedRows + response.pagination.total > MAX_CLIENT_EXPORT_ROWS) {
         throw new Error(`Organization usage export exceeds the client export row limit of ${MAX_CLIENT_EXPORT_ROWS}`)
       }
       if (collectedRows + response.items.length > MAX_CLIENT_EXPORT_ROWS) {
         throw new Error(`Organization usage export exceeds the client export row limit of ${MAX_CLIENT_EXPORT_ROWS}`)
-      }
-      if (response.pagination.total > MAX_XLSX_DATA_ROWS) {
-        throw new Error(`Organization usage export exceeds the Excel row limit of ${MAX_XLSX_DATA_ROWS}`)
-      }
-      if (items.length + response.items.length > MAX_XLSX_DATA_ROWS) {
-        throw new Error(`Organization usage export exceeds the Excel row limit of ${MAX_XLSX_DATA_ROWS}`)
       }
       if (!first) {
         first = response
@@ -324,15 +322,12 @@ export async function fetchAllOrganizationUsageData(
       }
       reportProgress()
 
-      if (isShortPage) break
+      if (isShortPage) return { first, items }
       if (page >= EXPORT_MAX_PAGES) {
         throw new Error(`Organization usage export exceeded ${EXPORT_MAX_PAGES} pages`)
       }
       page += 1
     }
-
-    if (!first) throw new Error('Organization usage pagination returned no response')
-    return { first, items }
   }
 
   const summaryPages = await requestPages(
@@ -342,8 +337,6 @@ export async function fetchAllOrganizationUsageData(
         { signal }
       ),
     (response) => {
-      if (response.range.as_of) snapshotAsOf = response.range.as_of
-      if (response.scope_version) scopeVersion = response.scope_version
       const summaryRows = (response.organizations?.length ?? 0) + (response.departments?.length ?? 0) + (response.platforms?.length ?? 0)
       if (collectedRows + summaryRows + response.pagination.total > MAX_CLIENT_EXPORT_ROWS) throw new Error('Organization usage export exceeds the client export row limit')
       collectedRows += summaryRows

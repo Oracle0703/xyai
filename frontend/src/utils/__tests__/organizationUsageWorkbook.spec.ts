@@ -66,10 +66,10 @@ describe('organization usage workbook', () => {
 
     expect(workbook.SheetNames).toEqual([
       '报表概览',
+      '人员汇总',
       '组织汇总',
       '部门汇总',
       '平台汇总',
-      '人员汇总',
       '月度明细',
       '周度明细',
       '日度明细'

@@ -302,17 +302,24 @@ export function buildOrganizationUsageWorkbook(input: OrganizationUsageWorkbookI
   const workbook = XLSX.utils.book_new()
   const sheets: Array<[string, unknown[][]]> = [
     ['报表概览', buildOverviewRows(input.summary)],
+    ['人员汇总', buildPeopleRows(input.summary)],
     ['组织汇总', buildOrganizationRows(input.summary)],
     ['部门汇总', buildDepartmentRows(input.summary)],
     ['平台汇总', buildPlatformRows(input.summary)],
-    ['人员汇总', buildPeopleRows(input.summary)],
     ['月度明细', buildPeriodRows(input.periods.month)],
     ['周度明细', buildPeriodRows(input.periods.week)],
     ['日度明细', buildPeriodRows(input.periods.day)]
   ]
 
   for (const [name, rows] of sheets) {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), name)
+    const sheet = XLSX.utils.aoa_to_sheet(rows)
+    if (name === '人员汇总') {
+      sheet['!cols'] = rows[0].map((_, index) => ({
+        wch: index === 1 ? 36 : index >= 11 && (index - 11) % 3 === 0 ? 26 : 20
+      }))
+      sheet['!autofilter'] = { ref: sheet['!ref']! }
+    }
+    XLSX.utils.book_append_sheet(workbook, sheet, name)
   }
   return workbook
 }

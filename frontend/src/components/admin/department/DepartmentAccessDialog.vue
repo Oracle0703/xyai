@@ -45,8 +45,6 @@ const searching = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-let searchSequence = 0
-let accessSequence = 0
 let searchController: AbortController | null = null
 let accessController: AbortController | null = null
 const userOptions = computed(() => [{ value: '', label: t('admin.departments.selectManager') }, ...candidates.value.map(user => ({ value: String(user.id), label: user.email }))])
@@ -65,22 +63,20 @@ async function search() {
   searchController?.abort()
   searchController = new AbortController()
   const signal = searchController.signal
-  const request = ++searchSequence
   searching.value = true
   error.value = ''
   try {
     const result = await usersAPI.list(1, 30, { role: 'sub_admin', search: query.value.trim(), include_subscriptions: false }, { signal })
-    if (request !== searchSequence || signal.aborted) return
+    if (signal.aborted) return
     const combined = new Map((props.department?.managers ?? []).map(user => [user.id, user]))
     for (const user of result.items) combined.set(user.id, { id: user.id, email: user.email })
     candidates.value = [...combined.values()]
   } catch {
-    if (request === searchSequence && !signal.aborted) error.value = t('admin.departments.failed')
-  } finally { if (request === searchSequence) searching.value = false }
+    if (!signal.aborted) error.value = t('admin.departments.failed')
+  } finally { if (!signal.aborted) searching.value = false }
 }
 async function loadAccess() {
   accessController?.abort()
-  const request = ++accessSequence
   access.value = null
   replaceGlobal.value = false
   error.value = ''
@@ -90,15 +86,15 @@ async function loadAccess() {
   loading.value = true
   try {
     const result = await departmentsAPI.getAccess(Number(selectedUserID.value), signal)
-    if (request !== accessSequence || signal.aborted) return
+    if (signal.aborted) return
     access.value = result
     const hasDepartmentPermission = result.permissions.includes('admin.organization_usage') || result.permissions.includes('admin.department_subscriptions')
     report.value = hasDepartmentPermission ? result.permissions.includes('admin.organization_usage') : true
     resetQuota.value = hasDepartmentPermission ? result.permissions.includes('admin.department_subscriptions') : true
     grantCurrent.value = alreadyGranted.value || props.department?.status === 'active'
   } catch {
-    if (request === accessSequence && !signal.aborted) error.value = t('admin.departments.failed')
-  } finally { if (request === accessSequence) loading.value = false }
+    if (!signal.aborted) error.value = t('admin.departments.failed')
+  } finally { if (!signal.aborted) loading.value = false }
 }
 async function save() {
   if (!canSave.value || !access.value || !props.department) return
@@ -114,22 +110,21 @@ async function save() {
     emit('saved')
     emit('close')
   } catch (cause) {
-    access.value = null
     await loadAccess()
     error.value = t(departmentErrorKey(cause))
   } finally { saving.value = false }
 }
 watch(selectedUserID, loadAccess)
 watch(() => [props.show, props.department?.id], () => {
-  ++accessSequence
-  ++searchSequence
   accessController?.abort()
   searchController?.abort()
+  loading.value = false
+  searching.value = false
   access.value = null
   selectedUserID.value = ''
   query.value = ''
   candidates.value = props.department?.managers ?? []
   if (props.show) void search()
 }, { immediate: true })
-onUnmounted(() => { ++accessSequence; ++searchSequence; accessController?.abort(); searchController?.abort() })
+onUnmounted(() => { accessController?.abort(); searchController?.abort() })
 </script>

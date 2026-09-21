@@ -39,7 +39,12 @@ export default {
     people: {
       title: '人员汇总',
       total: '共 {count} 人',
-      pageSize: '每页'
+      pageSize: '每页',
+      screenshot: '截图',
+      capturing: '截图中...',
+      screenshotHint: '下载当前页全部行和列的表格图片',
+      screenshotSuccess: '当前页人员汇总截图已下载。',
+      screenshotFailed: '截图失败，请重试。'
     },
     organizations: {
       all: '全部组织',

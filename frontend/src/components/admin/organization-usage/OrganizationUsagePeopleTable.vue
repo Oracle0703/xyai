@@ -5,21 +5,35 @@
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.organizationUsage.people.title') }}</h2>
         <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.organizationUsage.people.total', { count: pagination.total }) }}</p>
       </div>
-      <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
-        {{ t('admin.organizationUsage.people.pageSize') }}
-        <select
-          data-testid="people-page-size"
-          class="input h-9 w-20 py-1"
-          :value="pagination.page_size"
-          @change="emit('pageSize', Number(($event.target as HTMLSelectElement).value))"
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          data-testid="people-screenshot"
+          class="btn btn-secondary btn-sm"
+          :disabled="loading || capturing || items.length === 0"
+          :aria-busy="capturing"
+          :title="t('admin.organizationUsage.people.screenshotHint')"
+          @click="downloadScreenshot"
         >
-          <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
-        </select>
-      </label>
+          <Icon name="download" size="sm" class="mr-1.5" />
+          {{ t(capturing ? 'admin.organizationUsage.people.capturing' : 'admin.organizationUsage.people.screenshot') }}
+        </button>
+        <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
+          {{ t('admin.organizationUsage.people.pageSize') }}
+          <select
+            data-testid="people-page-size"
+            class="input h-9 w-20 py-1"
+            :value="pagination.page_size"
+            @change="emit('pageSize', Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
+          </select>
+        </label>
+      </div>
     </div>
 
     <div class="mt-3 overflow-x-auto border-y border-gray-200 dark:border-dark-700">
-      <table class="min-w-[1620px] w-full border-collapse text-sm">
+      <table ref="tableRef" class="min-w-[1620px] w-full border-collapse text-sm">
         <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
           <tr>
             <th v-for="column in columns" :key="column.key" class="whitespace-nowrap px-3 py-2.5 font-medium" :aria-sort="ariaSort(column)">
@@ -88,12 +102,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h } from 'vue'
+import { computed, defineComponent, h, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { saveAs } from 'file-saver'
 
 import type {
   OrganizationUsagePagination,
   OrganizationUsagePeriod,
+  OrganizationUsageRange,
   OrganizationUsageSortBy,
   OrganizationUsageSortOrder,
   OrganizationUsageSummaryItem
@@ -102,6 +118,8 @@ import Icon from '@/components/icons/Icon.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatCostFixed, formatNumber } from '@/utils/format'
 import { formatOrganizationUsageOrganization } from '@/utils/organizationUsageReport'
+import { captureTablePng } from '@/utils/tableScreenshot'
+import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
   items: OrganizationUsageSummaryItem[]
@@ -109,6 +127,7 @@ const props = defineProps<{
   loading: boolean
   sortBy: OrganizationUsageSortBy
   sortOrder: OrganizationUsageSortOrder
+  range?: OrganizationUsageRange
 }>()
 
 const emit = defineEmits<{
@@ -118,6 +137,38 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const appStore = useAppStore()
+const tableRef = ref<HTMLTableElement | null>(null)
+const capturing = ref(false)
+let captureController: AbortController | null = null
+
+// A new page/query or revoked scope must not download a stale table after rendering finishes.
+watch(
+  () => [props.items, props.loading, props.pagination.page, props.pagination.page_size, props.sortBy, props.sortOrder, props.range],
+  () => captureController?.abort(),
+  { flush: 'sync' }
+)
+onUnmounted(() => captureController?.abort())
+
+async function downloadScreenshot() {
+  if (capturing.value || props.loading || !props.items.length || !tableRef.value) return
+  const controller = new AbortController()
+  captureController = controller
+  capturing.value = true
+  const range = props.range ? `${props.range.start_date}_to_${props.range.end_date}_` : ''
+  const filename = `organization_usage_people_${range}page_${props.pagination.page}.png`
+  try {
+    const blob = await captureTablePng(tableRef.value, controller.signal)
+    if (controller.signal.aborted) return
+    saveAs(blob, filename)
+    appStore.showSuccess(t('admin.organizationUsage.people.screenshotSuccess'))
+  } catch {
+    if (!controller.signal.aborted) appStore.showError(t('admin.organizationUsage.people.screenshotFailed'))
+  } finally {
+    captureController = null
+    capturing.value = false
+  }
+}
 
 const PeakCell = defineComponent({
   props: { period: { type: Object as () => OrganizationUsagePeriod | null, default: null } },

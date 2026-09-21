@@ -40,20 +40,13 @@ func loadDepartmentActor(ctx context.Context, q sqlExecutor, allowedPermissions 
 	if id <= 0 {
 		return nil, service.ErrDepartmentScopeDenied
 	}
-	rows, err := q.QueryContext(ctx, `SELECT id,email,role,admin_permissions,status FROM users WHERE id=$1 AND deleted_at IS NULL`, id)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
 	var actor service.User
 	var permissions []byte
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
+	err := scanSingleRow(ctx, q, `SELECT id,email,role,admin_permissions,status FROM users WHERE id=$1 AND deleted_at IS NULL`, []any{id}, &actor.ID, &actor.Email, &actor.Role, &permissions, &actor.Status)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrDepartmentScopeDenied
 	}
-	if err := rows.Scan(&actor.ID, &actor.Email, &actor.Role, &permissions, &actor.Status); err != nil {
+	if err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(permissions, &actor.AdminPermissions); err != nil {
@@ -121,7 +114,7 @@ func departmentAudit(ctx context.Context, q sqlExecutor, actor *service.User, ac
 
 const departmentColumns = `d.id,d.organization_key,d.name,d.status,d.sort_order,d.version,d.created_at,d.updated_at`
 
-func scanDepartment(rows *sql.Rows) (service.Department, error) {
+func scanDepartment(rows interface{ Scan(...any) error }) (service.Department, error) {
 	d := service.Department{Managers: []service.DepartmentManager{}}
 	err := rows.Scan(&d.ID, &d.Organization, &d.Name, &d.Status, &d.SortOrder, &d.Version, &d.CreatedAt, &d.UpdatedAt)
 	return d, err
@@ -254,23 +247,14 @@ WHERE id=$4 AND organization_key=$5 AND version=$6`, in.Name, in.Status, in.Sort
 	if err = departmentAudit(ctx, tx, actor, "department.save", map[string]any{"department_id": id, "input": in}); err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT `+departmentColumns+` FROM departments d WHERE id=$1`, id)
-	if err != nil {
-		return nil, err
-	}
-	if !rows.Next() {
-		_ = rows.Close()
-		return nil, service.ErrDepartmentNotFound
-	}
-	d, err := scanDepartment(rows)
-	_ = rows.Close()
+	d, err := scanDepartment(tx.QueryRowContext(ctx, `SELECT `+departmentColumns+` FROM departments d WHERE id=$1`, id))
 	if err != nil {
 		return nil, err
 	}
 	return &d, tx.Commit()
 }
 
-const departmentMemberColumns = `u.id,u.email,u.username,u.status,` + "" // organization expression is appended below.
+const departmentMemberColumns = `u.id,u.email,u.username,u.status,` // organization expression is appended below.
 
 func (r *departmentRepository) Members(ctx context.Context, f service.DepartmentListFilter) (*service.DepartmentMemberList, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
@@ -367,18 +351,12 @@ func loadDepartmentAccess(ctx context.Context, q sqlExecutor, userID int64) (*se
 }
 
 func loadAdminAccess(ctx context.Context, q sqlExecutor, userID int64) (*service.DepartmentAccess, error) {
-	rows, err := q.QueryContext(ctx, `SELECT role,admin_permissions FROM users WHERE id=$1 AND deleted_at IS NULL`, userID)
-	if err != nil {
-		return nil, err
-	}
 	var role string
 	var raw []byte
-	if !rows.Next() {
-		_ = rows.Close()
+	err := scanSingleRow(ctx, q, `SELECT role,admin_permissions FROM users WHERE id=$1 AND deleted_at IS NULL`, []any{userID}, &role, &raw)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrDepartmentInvalid
 	}
-	err = rows.Scan(&role, &raw)
-	_ = rows.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +365,7 @@ func loadAdminAccess(ctx context.Context, q sqlExecutor, userID int64) (*service
 		return nil, err
 	}
 	sort.Strings(result.Permissions)
-	rows, err = q.QueryContext(ctx, `SELECT department_id FROM department_access_grants WHERE user_id=$1 ORDER BY department_id`, userID)
+	rows, err := q.QueryContext(ctx, `SELECT department_id FROM department_access_grants WHERE user_id=$1 ORDER BY department_id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -451,17 +429,41 @@ func (r *departmentRepository) SetAccess(ctx context.Context, userID int64, in s
 	for _, id := range previous.DepartmentIDs {
 		oldIDs[id] = true
 	}
+	addedIDs := []int64{}
 	for _, id := range in.DepartmentIDs {
-		var status string
-		err = tx.QueryRowContext(ctx, `SELECT status FROM departments WHERE id=$1 FOR SHARE`, id).Scan(&status)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, service.ErrDepartmentInvalid
+		if !oldIDs[id] {
+			addedIDs = append(addedIDs, id)
 		}
+	}
+	// Retained grants already reference existing departments and may remain inactive.
+	// Only additions need department status locks, ordered to match membership writes.
+	if len(addedIDs) > 0 {
+		rows, err := tx.QueryContext(ctx, `SELECT status FROM departments WHERE id=ANY($1) ORDER BY id FOR SHARE`, pq.Array(addedIDs))
 		if err != nil {
 			return nil, err
 		}
-		if status != "active" && !oldIDs[id] {
-			return nil, service.ErrDepartmentInactive
+		count := 0
+		for rows.Next() {
+			var status string
+			if err = rows.Scan(&status); err != nil {
+				break
+			}
+			if status != "active" {
+				err = service.ErrDepartmentInactive
+				break
+			}
+			count++
+		}
+		readErr := rows.Err()
+		_ = rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		if readErr != nil {
+			return nil, readErr
+		}
+		if count != len(addedIDs) {
+			return nil, service.ErrDepartmentInvalid
 		}
 	}
 	permissions := []string{}
@@ -497,8 +499,8 @@ func (r *departmentRepository) SetAccess(ctx context.Context, userID int64, in s
 	if _, err = tx.ExecContext(ctx, `DELETE FROM department_access_grants WHERE user_id=$1 AND NOT (department_id=ANY($2))`, userID, pq.Array(in.DepartmentIDs)); err != nil {
 		return nil, err
 	}
-	for _, id := range in.DepartmentIDs {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO department_access_grants(user_id,department_id,created_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, userID, id, actor.ID); err != nil {
+	if len(addedIDs) > 0 {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO department_access_grants(user_id,department_id,created_by) SELECT $1,id,$3 FROM unnest($2::bigint[]) AS id`, userID, pq.Array(addedIDs), actor.ID); err != nil {
 			return nil, err
 		}
 	}
@@ -581,7 +583,7 @@ func (r *departmentRepository) SubscriptionGroups(ctx context.Context, search st
 	if err != nil {
 		return nil, err
 	}
-	if err = scope.ValidateSelection("all", "all", ""); err != nil {
+	if err = scope.ValidateSelection("all", "all"); err != nil {
 		return nil, err
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT g.id,g.name FROM groups g

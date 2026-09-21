@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -8,12 +10,11 @@ import (
 
 func TestDepartmentScopeDoesNotExpandWithAllOrMissingGrants(t *testing.T) {
 	s := &DepartmentScope{Organizations: []string{OrganizationXunyou}, Departments: []Department{{ID: 7, Organization: OrganizationXunyou}}, Version: "current"}
-	require.NoError(t, s.ValidateSelection("all", "all", ""))
-	require.ErrorIs(t, s.ValidateSelection(OrganizationWsdashi, "all", ""), ErrDepartmentScopeDenied)
-	require.ErrorIs(t, s.ValidateSelection(OrganizationXunyou, "8", ""), ErrDepartmentScopeDenied)
-	require.ErrorIs(t, s.ValidateSelection(OrganizationXunyou, "unassigned", ""), ErrDepartmentScopeDenied)
-	require.ErrorIs(t, s.ValidateSelection(OrganizationXunyou, "7", "stale"), ErrDepartmentScopeChanged)
-	require.ErrorIs(t, (&DepartmentScope{}).ValidateSelection("all", "all", ""), ErrDepartmentScopeDenied)
+	require.NoError(t, s.ValidateSelection("all", "all"))
+	require.ErrorIs(t, s.ValidateSelection(OrganizationWsdashi, "all"), ErrDepartmentScopeDenied)
+	require.ErrorIs(t, s.ValidateSelection(OrganizationXunyou, "8"), ErrDepartmentScopeDenied)
+	require.ErrorIs(t, s.ValidateSelection(OrganizationXunyou, "unassigned"), ErrDepartmentScopeDenied)
+	require.ErrorIs(t, (&DepartmentScope{}).ValidateSelection("all", "all"), ErrDepartmentScopeDenied)
 }
 
 func TestDepartmentSelectionRequiresMatchingOrganization(t *testing.T) {
@@ -24,25 +25,43 @@ func TestDepartmentSelectionRequiresMatchingOrganization(t *testing.T) {
 	_, _, err := NormalizeDepartmentFilter("all", "7")
 	require.Error(t, err)
 	s := &DepartmentScope{Unrestricted: true, Departments: []Department{{ID: 7, Organization: OrganizationXunyou}}}
-	require.ErrorIs(t, s.ValidateSelection(OrganizationWsdashi, "7", ""), ErrDepartmentInvalid)
+	require.ErrorIs(t, s.ValidateSelection(OrganizationWsdashi, "7"), ErrDepartmentInvalid)
 	org, dept, err := NormalizeDepartmentFilter("", "")
 	require.NoError(t, err)
 	require.Equal(t, "all", org)
 	require.Equal(t, "all", dept)
 }
 
-func TestDepartmentMembershipIsIndependentOfPlatformSubscriptions(t *testing.T) {
-	id := int64(7)
-	s := &DepartmentScope{Members: []DepartmentMember{
-		{ID: 1, Email: "alpha@xunyou.com", Organization: OrganizationXunyou, DepartmentID: &id},
-		{ID: 2, Email: "zero@xunyou.com", Organization: OrganizationXunyou, DepartmentID: &id},
-		{ID: 3, Email: "unassigned@xunyou.com", Organization: OrganizationXunyou},
-	}}
-	require.Len(t, s.SelectedMembers(OrganizationXunyou, "7", ""), 2)
-	require.Equal(t, int64(3), s.SelectedMembers(OrganizationXunyou, "unassigned", "")[0].ID)
-	require.Len(t, s.SelectedMembers(OrganizationXunyou, "7", "ALPHA"), 1)
+func TestDepartmentOrganizationUsesExactDomain(t *testing.T) {
 	require.Equal(t, OrganizationOther, OrganizationForEmail("dev@team.xunyou.com"))
 	require.Equal(t, OrganizationWsdashi, OrganizationForEmail("DEV@WSDASHI.COM"))
+}
+
+type departmentFilterRecorder struct {
+	DepartmentRepository
+	filter DepartmentListFilter
+}
+
+func (r *departmentFilterRecorder) Members(_ context.Context, f DepartmentListFilter) (*DepartmentMemberList, error) {
+	r.filter = f
+	return &DepartmentMemberList{}, nil
+}
+
+func TestDepartmentMembersValidateBeforeQuery(t *testing.T) {
+	for _, f := range []DepartmentListFilter{
+		{Page: math.MaxInt, PageSize: 200}, {Page: -1}, {PageSize: 201},
+		{UserIDs: []int64{1, 1}}, {UserIDs: []int64{0}}, {UserIDs: make([]int64, 201)},
+		{DepartmentID: "01"}, {DepartmentID: "7 OR 1=1"},
+		{Organization: "unknown"}, {Status: "deleted"},
+	} {
+		// No repository: every invalid request must be rejected before invoking it.
+		_, err := NewDepartmentService(nil).Members(context.Background(), f)
+		require.ErrorIs(t, err, ErrDepartmentInvalid, "%+v", f)
+	}
+	r := &departmentFilterRecorder{}
+	_, err := NewDepartmentService(r).Members(context.Background(), DepartmentListFilter{DepartmentID: "7", Q: " dev "})
+	require.NoError(t, err)
+	require.Equal(t, DepartmentListFilter{Organization: "all", DepartmentID: "7", Q: "dev", Page: 1, PageSize: 20}, r.filter)
 }
 
 func TestDepartmentSubscriptionPermissionNeverGrantsAssignment(t *testing.T) {

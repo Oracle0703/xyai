@@ -26,7 +26,7 @@ type SubscriptionAdminFilter struct {
 }
 
 func (f SubscriptionAdminFilter) DepartmentQuery() DepartmentScopeQuery {
-	return DepartmentScopeQuery{Organization: f.Organization, DepartmentID: f.DepartmentID, Platform: f.Platform, UserID: f.UserID, GroupID: f.GroupID, Status: f.Status, Versioned: f.ScopeVersion != ""}
+	return DepartmentScopeQuery{Organization: f.Organization, DepartmentID: f.DepartmentID, Platform: f.Platform, UserID: f.UserID, GroupID: f.GroupID, Status: f.Status, ExpectedVersion: f.ScopeVersion}
 }
 
 func NormalizeSubscriptionAdminFilter(filter SubscriptionAdminFilter) (SubscriptionAdminFilter, error) {

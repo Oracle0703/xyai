@@ -86,10 +86,7 @@ func (r *organizationUsageRepository) beginScoped(ctx context.Context, organizat
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	scope, err := resolveDepartmentQueryScope(ctx, tx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{Organization: organization, DepartmentID: filters.DepartmentID, Platform: filters.Platform, Q: q})
-	if err == nil {
-		err = scope.ValidateSelection(organization, filters.DepartmentID, filters.ScopeVersion)
-	}
+	scope, err := resolveDepartmentQueryScope(ctx, tx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{Organization: organization, DepartmentID: filters.DepartmentID, Platform: filters.Platform, Q: q, ExpectedVersion: filters.ScopeVersion})
 	if err != nil {
 		_ = tx.Rollback()
 		return nil, nil, nil, err
@@ -99,7 +96,7 @@ func (r *organizationUsageRepository) beginScoped(ctx context.Context, organizat
 	copyRepo.scope = scope
 	copyRepo.filters = filters
 	copyRepo.scopeIDs = []int64{}
-	for _, m := range scope.SelectedMembers(organization, filters.DepartmentID, q) {
+	for _, m := range scope.Members {
 		copyRepo.scopeIDs = append(copyRepo.scopeIDs, m.ID)
 	}
 	applied := &service.OrganizationUsageAppliedFilters{Organization: organization, DepartmentID: filters.DepartmentID, Platform: filters.Platform, Q: q, Attribution: "current_membership"}
@@ -144,7 +141,7 @@ func (r *organizationUsageRepository) scopedSummary(ctx context.Context, p servi
 	q.enrichPeriod(result.Champions.Day, byID)
 	q.enrichPeriod(result.Champions.Week, byID)
 	q.enrichPeriod(result.Champions.Month, byID)
-	if err = q.breakdowns(ctx, p, applied, result); err != nil {
+	if err = q.breakdowns(ctx, p, applied, result, byID); err != nil {
 		return nil, err
 	}
 	return result, tx.Commit()
@@ -209,7 +206,7 @@ func departmentBucketKey(organization string, id *int64) string {
 	return organization + ":" + strconv.FormatInt(*id, 10)
 }
 
-func (r *organizationUsageRepository) breakdowns(ctx context.Context, p service.OrganizationUsageSummaryRepositoryParams, applied *service.OrganizationUsageAppliedFilters, result *service.OrganizationUsageSummaryRepositoryResult) error {
+func (r *organizationUsageRepository) breakdowns(ctx context.Context, p service.OrganizationUsageSummaryRepositoryParams, applied *service.OrganizationUsageAppliedFilters, result *service.OrganizationUsageSummaryRepositoryResult, byID map[int64]service.DepartmentMember) error {
 	result.Departments = []service.OrganizationUsageDepartment{}
 	result.Platforms = []service.OrganizationUsagePlatform{}
 	departments := map[string]*service.OrganizationUsageDepartment{}
@@ -233,7 +230,6 @@ func (r *organizationUsageRepository) breakdowns(ctx context.Context, p service.
 			order = append(order, key)
 		}
 	}
-	byID := r.memberMap()
 	for _, id := range r.scopeIDs {
 		m := byID[id]
 		if d := departments[departmentBucketKey(m.Organization, m.DepartmentID)]; d != nil {

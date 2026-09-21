@@ -125,3 +125,9 @@
 - 管理报表按当前 active 且未删除成员归属；调岗重分类历史，平台配置也不是发生时快照。生产组织名单需主管理员确认后配置。
 - `scope_version` 不是授权凭证或数据库快照；已返回/下载内容无法追回。性能实测不是生产 HTTP SLA 或并发容量保证。
 - 本轮只启动自身隔离 PostgreSQL/Redis/API/Vite；收尾关闭临时标签页及自身服务、移除验证 worktree，保留本机日志和隔离数据。清理记录 `.git/codex-department/rv-cleanup-final.json`。
+
+## 2026-09-21 深度审核与精简
+
+本轮业务代码净减少 156 行，移除重复查询校验、内存二次筛选、保留授权重复锁/插入、旧并行趋势状态和无版本导出/用户详情回退；保留并发权限、幂等和原子审计。Go default/unit 全量、12 组真实 PG、前端 331 files / 2,480 tests、最后导出专项 54 项、lint/typecheck/build 和 normal/embed 已通过。新增授权锁范围、请求迟到、错误传播、参数边界及导出快照反例。
+
+源码、锁保留理由、精确验证边界及本机日志见[代码审核报告](../../features/organization-department-usage-code-review-cn.md)。未重新执行浏览器验收，旧截图/HTTP 证据不冒充本轮结果；本轮未提交、推送或部署。

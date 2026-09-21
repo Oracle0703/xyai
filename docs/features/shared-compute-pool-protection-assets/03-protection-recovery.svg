@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="492" height="320" preserveAspectRatio="xMinYMin meet" viewBox="0 0 492 320" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="492" height="320"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-320)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="130" y="277" width="232" height="38" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="174.5" y="292.26" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,584) scale(1,-1)">持续采集剩余额度与恢复时间</text>
+			<path d="M 246,277 L 246,255 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="246 255, 243 262, 249 262" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<polygon points="246 255, 331 225, 246 195, 161 225" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.2; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="206.0" y="221.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,443) scale(1,-1)">额度数据是否可信</text>
+			<path d="M 161,225 L 82,225 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 82,225 L 82,162 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="82 162, 79 169, 85 169" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="115.0" y="234" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(61%,36%,8%); stroke:none;" transform="translate(0,468) scale(1,-1)">否</text>
+			<rect x="8" y="102" width="148" height="60" rx="5" ry="5" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(100%,95%,88%); fill-rule: evenodd;"/>
+			<text x="37.0" y="136.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,273) scale(1,-1)">进入或保持保护暂停</text>
+			<text x="32.0" y="120.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,241) scale(1,-1)">普通组按既有规则使用</text>
+			<path d="M 246,195 L 246,171 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="246 171, 243 178, 249 178" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<text x="254.0" y="180" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(12%,30%,47%); stroke:none;" transform="translate(0,360) scale(1,-1)">是</text>
+			<rect x="184" y="123" width="176" height="48" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="217.0" y="151.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,303) scale(1,-1)">计算共享池应保留的余量</text>
+			<text x="217.0" y="135.6" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,271) scale(1,-1)">包含在途消耗与安全余量</text>
+			<path d="M 272,123 L 272,96 Z" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="272 96, 269 103, 275 103" style="stroke: rgb(32%,38%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(32%,38%,43%); fill-rule: evenodd;"/>
+			<polygon points="272 96, 364 65, 272 34, 180 65" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.2; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="237.0" y="69.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,138) scale(1,-1)">满足对应状态的</text>
+			<text x="237.0" y="54.099999999999994" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,108) scale(1,-1)">放行或恢复条件</text>
+			<path d="M 180,65 L 82,65 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 82,65 L 82,102 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="82 102, 85 95, 79 95" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="127.0" y="74" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(61%,36%,8%); stroke:none;" transform="translate(0,148) scale(1,-1)">否</text>
+			<path d="M 364,65 L 432,65 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 432,65 L 432,183 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="432 183, 435 176, 429 176" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<text x="380.0" y="74" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,148) scale(1,-1)">是</text>
+			<rect x="376" y="183" width="110" height="55" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="401.0" y="215.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,430) scale(1,-1)">维持正常共享</text>
+			<text x="406.0" y="199.1" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,398) scale(1,-1)">或分步恢复</text>
+			<path d="M 432,238 L 432,296 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<path d="M 432,296 L 362,296 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<polygon points="362 296, 369 299, 369 293" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 8,132 L 1,132 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<path d="M 1,132 L 1,296 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<path d="M 1,296 L 130,296 Z" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1.15; stroke-dasharray: 4, 3;"/>
+			<polygon points="130 296, 123 293, 123 299" style="stroke: rgb(61%,36%,8%); stroke-linecap: butt; stroke-width: 1; fill: rgb(61%,36%,8%); fill-rule: evenodd;"/>
+			<text x="106.9185546875" y="7" style="font-family: Microsoft YaHei; font-size: 9.4px;fill: rgb(32%,38%,43%); stroke:none;" transform="translate(0,14) scale(1,-1)">暂停后须高于恢复线并通过连续有效观测  人工停用不会被自动恢复</text>
+		</g>
+	</g>
+</svg>

@@ -6,6 +6,8 @@
 
 状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
+- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。
+
 - `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
 - 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。
 - 部门、成员、授权变更与审计原子提交。跨组织邮箱更新由 migration 239 清归属，migration 240 以 `database_guard` 审计；任意数据库写入者无法识别时不伪造操作者。
@@ -194,7 +196,7 @@ Grok OAuth session 与密码授权:
 - User concurrency 和 account concurrency。
 - 纯文本 embeddings/alpha search 使用 `gateway.text_max_body_size`（默认 32 MiB）, 多模态/media 继续使用 `gateway.max_body_size`（默认 256 MiB）；HTTP request header 另受 10 秒读取超时和 64 KiB 上限约束, 不设置全局 `WriteTimeout`。
 - OpenAI WS ingress 生命周期使用独立于单 turn 槽位的 API Key 级 Redis lease。默认每 key 最多 64 条存活连接, lease TTL 60 秒、20 秒刷新; 容量满返回 WebSocket 1013, 缓存不可用或租约丢失时 fail-close。completed turn 之间默认 300 秒空闲超时, 两个限制都可用 0 显式关闭。
-- RPM cache: user/group/account 维度。
+- RPM cache: 用户、用户 × 分组、上游账号维度。`groups.rpm_limit` 的计数键是 `rpm:ug:{userID}:{groupID}:{minute}`，不是全组共享 RPM；用户全局 `rpm_limit` 同时生效，user-group override 仅替代该用户在该组的默认值。实现见 `service/billing_cache_service.go#checkRPM`、`repository/user_rpm_cache.go`，回归见 `service/billing_cache_service_rpm_test.go`（上述路径均相对 `backend/internal/`）。
 - Gateway scheduling: sticky session wait, fallback wait, snapshot/outbox, slot cleanup。
 - 管理员配置的临时不可调度规则在已知请求模型时写入 model rate-limit, 只隔离 `(account, model)`；401 或无法确定模型时保留账号级语义。pool mode 仍应用显式规则, 但不能把模型级失败扩大为整账号阻断。
 - OpenAI scheduler sticky escape: 当 sticky 账号 TTFT EWMA 或错误率劣化到阈值以上时可临时跳过 sticky, 配置位于 `gateway.openai_scheduler`。
@@ -208,6 +210,16 @@ Grok OAuth session 与密码授权:
 - `backend/internal/repository/concurrency_cache.go`
 - `backend/internal/service/rate_limit_service.go`
 - `backend/internal/repository/rpm_cache.go`, `user_rpm_cache.go`
+
+### 共享账号池的分组保底边界
+
+- 分组 `daily_limit_usd/weekly_limit_usd/monthly_limit_usd` 是每个用户订阅的统一限额模板，准入按 `(user_id, group_id)` 的订阅用量校验，不是整组累计预算。用户平台配额也不共享，且 `BillingCacheService.CheckBillingEligibility` 只在余额模式检查该配额；订阅模式豁免。
+- `account_groups` 支持同一上游账号绑定多个分组，额度仍属于同一个上游账号。现有配置可让普通组绑定共享账号和普通组专用账号，高用量组只绑定共享账号；保底账号必须拥有独立上游配额，并限制高用量用户使用普通组的权限/订阅。`is_exclusive` 控制用户授权，不会自动隔离上游账号。
+- OpenAI 的 5h/7d 自动暂停阈值来自账号 `extra` 或全局默认；`openai_gateway_scheduling.go#shouldAutoPauseOpenAIAccountByQuota` 在调度时跳过该账号，不区分普通组和高用量组，也不修改 `schedulable`，不能用共享账号统一阈值实现只给普通组保留余量。
+- `GroupCapacityService` 汇总关联账号的并发、会话和 RPM；`groups/usage-summary` 展示分组费用。两者都是观测接口，不提供按池余量或整组累计用量自动暂停高用量组的准入机制。手动停用分组可阻止后续鉴权请求，但不等于自动阈值控制或取消已发往上游的请求。
+- 核对入口：`backend/internal/service/billing_cache_service.go`、`user_subscription.go`、`group_capacity_service.go`、`openai_gateway_scheduling.go`；`backend/internal/repository/account_repo.go#queryAccountsByGroup`；`backend/internal/server/middleware/api_key_auth.go#validateAPIKeyGroupAvailable`。
+- 面向管理汇报的方案与三张机制图见 `docs/features/shared-compute-pool-protection-report-cn.md`；两阶段实施及自动暂停/恢复均为建议方案，不能视为已上线能力。共享池保底需求应扣除独立保底已覆盖部分，避免重复预留。
+- 离线交互汇报版：`docs/features/shared-compute-pool-protection-report-cn.html`，内嵌三张 SVG、共享模式对比及暂停/恢复演示。1000 总量、200 暂停线、300 恢复线和两次有效观测均为示例，不是生产参数；演示与真实网关无连接。
 - `backend/internal/service/scheduler_snapshot_service.go`
 - `backend/internal/repository/scheduler_cache.go`, `scheduler_outbox_repo.go`
 

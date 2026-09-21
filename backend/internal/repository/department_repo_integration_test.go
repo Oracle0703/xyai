@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -84,7 +85,7 @@ func TestDepartmentRepositoryIntegration_MembershipAndScope(t *testing.T) {
 
 	scope, err := svc.Scope(leaderCtx, service.AdminPermissionOrganizationUsage)
 	require.NoError(t, err)
-	require.ErrorIs(t, scope.ValidateSelection("all", "all", ""), service.ErrDepartmentScopeDenied)
+	require.ErrorIs(t, scope.ValidateSelection("all", "all"), service.ErrDepartmentScopeDenied)
 	access, err := svc.GetAccess(adminCtx, leaderID)
 	require.NoError(t, err)
 	access, err = svc.SetAccess(adminCtx, leaderID, service.DepartmentAccessInput{DepartmentIDs: []int64{xunyou.ID}, Report: true, ResetQuota: true, ExpectedVersion: access.Version})
@@ -94,7 +95,14 @@ func TestDepartmentRepositoryIntegration_MembershipAndScope(t *testing.T) {
 	require.Len(t, scope.Departments, 1)
 	require.Len(t, scope.Members, 1)
 	require.Equal(t, memberID, scope.Members[0].ID)
-	require.ErrorIs(t, scope.ValidateSelection(service.OrganizationWsdashi, "all", ""), service.ErrDepartmentScopeDenied)
+	_, err = svc.QueryScope(leaderCtx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{ExpectedVersion: "stale"})
+	require.ErrorIs(t, err, service.ErrDepartmentScopeChanged)
+	_, err = svc.QueryScope(leaderCtx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{Organization: service.OrganizationWsdashi, ExpectedVersion: "stale"})
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied, "authorization precedes snapshot validation")
+	selected, err := svc.QueryScope(leaderCtx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{Q: "  " + prefix + "member  "})
+	require.NoError(t, err)
+	require.Len(t, selected.Members, 1, "SQL is the only member filtering implementation")
+	require.ErrorIs(t, scope.ValidateSelection(service.OrganizationWsdashi, "all"), service.ErrDepartmentScopeDenied)
 	access, err = svc.SetAccess(adminCtx, leaderID, service.DepartmentAccessInput{DepartmentIDs: []int64{xunyou.ID, wsdashi.ID}, Report: true, ResetQuota: true, ExpectedVersion: access.Version})
 	require.NoError(t, err)
 	both, err := svc.QueryScope(leaderCtx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{})
@@ -159,7 +167,72 @@ func TestDepartmentRepositoryIntegration_MembershipAndScope(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, scope.Unrestricted)
 	require.Empty(t, scope.Members)
-	require.ErrorIs(t, scope.ValidateSelection("all", "all", ""), service.ErrDepartmentScopeDenied)
+	require.ErrorIs(t, scope.ValidateSelection("all", "all"), service.ErrDepartmentScopeDenied)
 	_, err = svc.Scope(leaderCtx, service.AdminPermissionOrganizationUsage)
 	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+}
+
+func TestDepartmentRepositoryIntegration_OnlyNewGrantsLockDepartments(t *testing.T) {
+	ctx := context.Background()
+	prefix := organizationUsageIntegrationPrefix("grant_locks")
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+	admin, _ := organizationUsageIntegrationUser(t, prefix+"admin@example.com", service.StatusActive)
+	leader, _ := organizationUsageIntegrationUser(t, prefix+"leader@example.com", service.StatusActive)
+	_, err := integrationDB.Exec(`UPDATE users SET role=CASE WHEN id=$1 THEN 'admin' ELSE 'sub_admin' END WHERE id=ANY($2)`, admin.ID, pq.Array([]int64{admin.ID, leader.ID}))
+	require.NoError(t, err)
+	adminCtx := service.WithDepartmentActor(ctx, admin.ID)
+	setup := service.NewDepartmentService(NewDepartmentRepository(integrationDB))
+	ids := []int64{}
+	t.Cleanup(func() {
+		_, e := integrationDB.Exec(`DELETE FROM department_access_grants WHERE user_id=$1`, leader.ID)
+		require.NoError(t, e)
+		_, e = integrationDB.Exec(`DELETE FROM departments WHERE id=ANY($1)`, pq.Array(ids))
+		require.NoError(t, e)
+		_, e = integrationDB.Exec(`DELETE FROM audit_logs WHERE actor_user_id=$1`, admin.ID)
+		require.NoError(t, e)
+	})
+	for _, name := range []string{"retained", "new-one", "new-two"} {
+		d, e := setup.Save(adminCtx, 0, service.DepartmentSaveInput{Organization: service.OrganizationXunyou, Name: prefix + name})
+		require.NoError(t, e)
+		ids = append(ids, d.ID)
+	}
+	access, err := setup.GetAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	db, counter := newDepartmentCountingDB(t)
+	svc := service.NewDepartmentService(NewDepartmentRepository(db))
+	counter.calls.Store(0)
+	access, err = svc.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: ids[:1], Report: true, ExpectedVersion: access.Version})
+	require.NoError(t, err)
+	oneAdditionCalls := counter.calls.Load()
+	var createdAt time.Time
+	require.NoError(t, integrationDB.QueryRow(`SELECT created_at FROM department_access_grants WHERE user_id=$1 AND department_id=$2`, leader.ID, ids[0]).Scan(&createdAt))
+	_, err = integrationDB.Exec(`UPDATE departments SET status='inactive' WHERE id=$1`, ids[0])
+	require.NoError(t, err)
+
+	blocker, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = blocker.Rollback() }()
+	_, err = blocker.Exec(`SELECT id FROM departments WHERE id=$1 FOR UPDATE`, ids[0])
+	require.NoError(t, err)
+	writeCtx, cancel := context.WithTimeout(adminCtx, 3*time.Second)
+	defer cancel()
+	counter.calls.Store(0)
+	access, err = svc.SetAccess(writeCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: ids, Report: true, ExpectedVersion: access.Version})
+	// Always release the blocker before assertions and cleanup, including failures.
+	require.NoError(t, blocker.Rollback())
+	require.NoError(t, err, "retaining an inactive grant must not lock its department again")
+	require.Equal(t, oneAdditionCalls, counter.calls.Load(), "adding multiple grants uses one status query and one INSERT")
+	var after time.Time
+	require.NoError(t, integrationDB.QueryRow(`SELECT created_at FROM department_access_grants WHERE user_id=$1 AND department_id=$2`, leader.ID, ids[0]).Scan(&after))
+	require.Equal(t, createdAt, after, "retained grants keep their creation history")
+
+	access, err = svc.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: ids[1:], Report: true, ExpectedVersion: access.Version})
+	require.NoError(t, err)
+	_, err = svc.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: ids, Report: true, ExpectedVersion: access.Version})
+	require.ErrorIs(t, err, service.ErrDepartmentInactive, "re-adding an inactive grant must still fail")
+	_, err = svc.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: append(append([]int64{}, ids[1:]...), 9223372036854775807), Report: true, ExpectedVersion: access.Version})
+	require.ErrorIs(t, err, service.ErrDepartmentInvalid)
+	current, err := setup.GetAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	require.Equal(t, access, current, "rejected additions must not partially update grants or permissions")
 }

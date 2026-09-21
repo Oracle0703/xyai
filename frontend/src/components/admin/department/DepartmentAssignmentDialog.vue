@@ -35,7 +35,6 @@ const error = ref('')
 const organizations = computed(() => [...new Set(members.value.map(member => member.organization))])
 const mixedOrganizations = computed(() => organizations.value.length > 1)
 let controller: AbortController | null = null
-let sequence = 0
 const options = computed(() => [
   { value: '', label: t('admin.departments.targetDepartment') },
   { value: 'unassigned', label: t('admin.departments.clearDepartment') },
@@ -47,17 +46,17 @@ async function load() {
   controller?.abort()
   controller = new AbortController()
   const signal = controller.signal
-  const request = ++sequence
   members.value = []
   departments.value = []
   targetID.value = ''
   error.value = ''
+  loading.value = false
   if (!props.show) return
   if (!props.userIds.length || props.userIds.length > 200) { error.value = t('admin.departments.maxSelection'); return }
   loading.value = true
   try {
     const result = await departmentsAPI.members({ user_ids: props.userIds.join(','), page: 1, page_size: 200 }, signal)
-    if (request !== sequence || signal.aborted) return
+    if (signal.aborted) return
     if (result.items.length !== props.userIds.length) throw new Error('members changed')
     members.value = result.items
     if (organizations.value.length === 1) {
@@ -65,7 +64,7 @@ async function load() {
       let page = 1
       while (true) {
         const directory = await departmentsAPI.list({ organization: organizations.value[0], status: 'active', page, page_size: 200 }, signal)
-        if (request !== sequence || signal.aborted) return
+        if (signal.aborted) return
         options.push(...directory.items)
         if (options.length >= directory.total || !directory.items.length) break
         if (++page > 100) throw new Error('department directory too large')
@@ -73,8 +72,8 @@ async function load() {
       departments.value = options
     }
   } catch {
-    if (request === sequence && !signal.aborted) { members.value = []; error.value = t('admin.departments.conflict') }
-  } finally { if (request === sequence) loading.value = false }
+    if (!signal.aborted) { members.value = []; error.value = t('admin.departments.conflict') }
+  } finally { if (!signal.aborted) loading.value = false }
 }
 async function save() {
   if (saving.value || loading.value || !targetID.value || members.value.length !== props.userIds.length) return
@@ -92,5 +91,5 @@ async function save() {
   } finally { saving.value = false }
 }
 watch(() => [props.show, props.userIds.join(',')], load, { immediate: true })
-onUnmounted(() => { ++sequence; controller?.abort() })
+onUnmounted(() => { controller?.abort() })
 </script>

@@ -97,3 +97,22 @@
 查询次数验证：部门页大小 1 和 200 都为 4 次应用 SQL，成员页为 3 次，普通全站订阅 scope 为 1 次 actor 查询；计数不含事务控制。SQL 过滤/COUNT/LIMIT 与批量负责人/人数消除了随页大小线性增加的查询；小夹具 EXPLAIN 的顺序扫描不外推大表计划。全站报表生成摘要仍需装载实际选中成员，SQL 内摘要尚未采用。
 
 可共享产物：[结构化计时](artifacts/rv-performance.json)、[实际 SQL 与 EXPLAIN](artifacts/rv-query-plans.json)。本机日志 `rv-report-performance.log`、`rv-admin-perf-50-before.log`、`rv-admin-perf-50-after.log`、`rv-pg-final.log`；测试入口 `department_usage_performance_integration_test.go`、`department_admin_performance_integration_test.go`、`department_query_count_integration_test.go`。两个性能入口均要求 `DEPARTMENT_USAGE_RUN_PERFORMANCE=1`。
+
+## 2026-09-21 代码精简后复验
+
+保留相同 600 用户/219,600 日志、每场景 10 样本和 p95 3 秒门槛；12 组全部通过。该测量不重写 09-20 管理员接口两项 p95 未改善的记录，也不外推生产 SLA。详细代码处理和验证见[代码审核报告](../../features/organization-department-usage-code-review-cn.md)。
+
+| 天数 | 范围 | 样本 | 中位数 ms | p95 ms |
+| ---: | --- | ---: | ---: | ---: |
+| 30 | 全部范围 | 10 | 175 | 246 |
+| 30 | 单组织 | 10 | 85 | 138 |
+| 30 | 单部门 | 10 | 91 | 129 |
+| 30 | 单平台 | 10 | 92 | 196 |
+| 90 | 全部范围 | 10 | 532 | 585 |
+| 90 | 单组织 | 10 | 184 | 312 |
+| 90 | 单部门 | 10 | 183 | 250 |
+| 90 | 单平台 | 10 | 186 | 234 |
+| 366 | 全部范围 | 10 | 1559 | 1621 |
+| 366 | 单组织 | 10 | 652 | 764 |
+| 366 | 单部门 | 10 | 670 | 713 |
+| 366 | 单平台 | 10 | 793 | 822 |

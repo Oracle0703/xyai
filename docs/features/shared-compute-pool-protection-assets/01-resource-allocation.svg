@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="492" height="258" preserveAspectRatio="xMinYMin meet" viewBox="0 0 492 258" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="492" height="258"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-258)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="17" y="202" width="178" height="44" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="76.0" y="219.92000000000002" style="font-family: Microsoft YaHei; font-size: 12px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,439) scale(1,-1)">普通使用组</text>
+			<rect x="297" y="202" width="178" height="44" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="362.0" y="219.92000000000002" style="font-family: Microsoft YaHei; font-size: 12px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,439) scale(1,-1)">高用量组</text>
+			<rect x="17" y="54" width="178" height="62" rx="5" ry="5" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,96%,93%); fill-rule: evenodd;"/>
+			<text x="67.5" y="89.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,178) scale(1,-1)">普通组保底账号</text>
+			<text x="73.0" y="73.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,146) scale(1,-1)">仅普通组可用</text>
+			<rect x="297" y="54" width="178" height="62" rx="5" ry="5" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.1; fill: rgb(92%,95%,98%); fill-rule: evenodd;"/>
+			<text x="364.0" y="89.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,178) scale(1,-1)">共享账号</text>
+			<text x="342.0" y="73.25999999999999" style="font-family: Microsoft YaHei; font-size: 11px;fill: rgb(9%,12%,17%); stroke:none;" transform="translate(0,146) scale(1,-1)">两个分组均可使用</text>
+			<path d="M 72,202 L 72,116 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="72 116, 69 123, 75 123" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 142,202 L 142,164 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 142,164 L 331,164 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<path d="M 331,164 L 331,116 Z" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="331 116, 328 123, 334 123" style="stroke: rgb(14%,38%,27%); stroke-linecap: butt; stroke-width: 1; fill: rgb(14%,38%,27%); fill-rule: evenodd;"/>
+			<path d="M 417,202 L 417,116 Z" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1.15;"/>
+			<polygon points="417 116, 414 123, 420 123" style="stroke: rgb(12%,30%,47%); stroke-linecap: butt; stroke-width: 1; fill: rgb(12%,30%,47%); fill-rule: evenodd;"/>
+			<text x="82" y="153" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,306) scale(1,-1)">保底</text>
+			<text x="215.0" y="173" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(14%,38%,27%); stroke:none;" transform="translate(0,346) scale(1,-1)">共享使用</text>
+			<text x="427" y="153" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(12%,30%,47%); stroke:none;" transform="translate(0,306) scale(1,-1)">使用</text>
+			<text x="98.041015625" y="22" style="font-family: Microsoft YaHei; font-size: 10px;fill: rgb(32%,38%,43%); stroke:none;" transform="translate(0,44) scale(1,-1)">保底账号必须具有独立上游额度  高用量组不得获得普通组访问权限</text>
+		</g>
+	</g>
+</svg>

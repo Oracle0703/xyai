@@ -20,17 +20,10 @@ func (r *userSubscriptionRepository) departmentSubscriptionIDs(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	org, dept, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
-	if err != nil {
-		return nil, err
-	}
-	if err = scope.ValidateSelection(org, dept, filter.ScopeVersion); err != nil {
-		return nil, err
-	}
 	if filter.ResolvedScopeVersion != nil {
 		*filter.ResolvedScopeVersion = scope.Version
 	}
-	if scope.Unrestricted && dept == "all" {
+	if scope.Unrestricted && (filter.DepartmentID == "" || filter.DepartmentID == "all") {
 		return nil, nil
 	}
 	ids := make([]int64, 0, len(scope.Members))
@@ -119,7 +112,7 @@ func dailyResetPredicates(filter service.SubscriptionAdminFilter, now time.Time,
 	return p
 }
 
-func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx context.Context, filter service.SubscriptionAdminFilter, subscriptionID int64, at ...time.Time) (context.Context, []int64, *dbent.Tx, error) {
+func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx context.Context, filter service.SubscriptionAdminFilter, subscriptionID int64, now time.Time) (context.Context, []int64, *dbent.Tx, error) {
 	if service.DepartmentActorID(ctx) == 0 {
 		return ctx, nil, nil, nil
 	}
@@ -145,7 +138,7 @@ func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx contex
 	if err != nil {
 		return fail(err)
 	}
-	org, dept, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
+	_, dept, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
 	if err != nil {
 		return fail(err)
 	}
@@ -158,18 +151,17 @@ func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx contex
 	var targetUser int64
 	if subscriptionID > 0 {
 		sub, err := client.UserSubscription.Get(ctx, subscriptionID)
-		if err != nil {
+		if dbent.IsNotFound(err) {
 			return fail(service.ErrDepartmentScopeDenied)
+		}
+		if err != nil {
+			return fail(err)
 		}
 		targetUser = sub.UserID
 		if constrained {
 			lockIDs = append(lockIDs, targetUser)
 		}
 	} else if constrained {
-		now := time.Now()
-		if len(at) > 0 {
-			now = at[0]
-		}
 		p := dailyResetPredicates(filter, now, nil)
 		if !departmentSubscriptionUnrestricted(actor) {
 			p.add("u.status='active' AND EXISTS(SELECT 1 FROM department_access_grants dg JOIN departments d ON d.id=dg.department_id WHERE dg.user_id=$%d AND d.id=u.department_id AND d.organization_key="+organizationUsageOrganizationExpression("u")+")", actor.ID)
@@ -213,9 +205,6 @@ func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx contex
 		if err != nil {
 			return fail(err)
 		}
-		if err = scope.ValidateSelection(org, dept, filter.ScopeVersion); err != nil {
-			return fail(err)
-		}
 		allowed := map[int64]bool{}
 		for _, m := range scope.Members {
 			allowed[m.ID] = true
@@ -235,8 +224,11 @@ func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx contex
 	}
 	if subscriptionID > 0 {
 		sub, err := client.UserSubscription.Query().Where(usersubscription.IDEQ(subscriptionID)).ForUpdate().Only(ctx)
-		if err != nil {
+		if dbent.IsNotFound(err) {
 			return fail(service.ErrDepartmentScopeDenied)
+		}
+		if err != nil {
+			return fail(err)
 		}
 		if sub.UserID != targetUser {
 			return fail(service.ErrDepartmentScopeChanged)

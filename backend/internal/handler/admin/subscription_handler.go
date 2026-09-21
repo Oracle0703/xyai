@@ -340,7 +340,7 @@ func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	if _, err := h.prepareDepartmentScope(c, &filter, true); err != nil {
+	if err := h.prepareDepartmentReset(c, &filter); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -516,34 +516,22 @@ func parseOptionalPositiveInt64(raw, field string) (*int64, error) {
 }
 
 // Scope is checked before idempotency replay as well as inside the write transaction.
-func (h *SubscriptionHandler) prepareDepartmentScope(c *gin.Context, filter *service.SubscriptionAdminFilter, write bool) (*service.DepartmentScope, error) {
+func (h *SubscriptionHandler) prepareDepartmentReset(c *gin.Context, filter *service.SubscriptionAdminFilter) error {
 	if h.departments == nil && service.DepartmentActorID(c.Request.Context()) == 0 {
-		return nil, nil
+		return nil
 	}
 	if h.departments == nil {
-		return nil, service.ErrDepartmentScopeDenied
+		return service.ErrDepartmentScopeDenied
 	}
-	normalized, err := service.NormalizeSubscriptionAdminFilter(*filter)
-	if err != nil {
-		return nil, err
-	}
-	*filter = normalized
 	scope, err := h.departments.QueryScope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions, filter.DepartmentQuery())
 	if err != nil {
-		return nil, err
+		return err
 	}
-	org, dept, err := service.NormalizeDepartmentFilter(filter.Organization, filter.DepartmentID)
-	if err != nil {
-		return nil, err
+	if (!scope.Unrestricted || filter.DepartmentID != "") && filter.ScopeVersion == "" {
+		return service.ErrDepartmentScopeChanged
 	}
-	if write && (!scope.Unrestricted || dept != "all") && filter.ScopeVersion == "" {
-		return nil, service.ErrDepartmentScopeChanged
-	}
-	if err = scope.ValidateSelection(org, dept, filter.ScopeVersion); err != nil {
-		return nil, err
-	}
-	if !write || !scope.Unrestricted || filter.ScopeVersion != "" {
+	if !scope.Unrestricted || filter.ScopeVersion != "" {
 		filter.ScopeVersion = scope.Version
 	}
-	return scope, nil
+	return nil
 }

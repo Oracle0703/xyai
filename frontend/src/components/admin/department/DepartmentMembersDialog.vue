@@ -51,7 +51,6 @@ const selectedMembers = computed(() => [...selected.value.values()])
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-let sequence = 0
 let controller: AbortController | null = null
 const columns = computed<Column[]>(() => [
   { key: 'select', label: '', width: '44px' }, { key: 'email', label: t('admin.departments.email') },
@@ -63,18 +62,17 @@ async function load() {
   controller?.abort()
   controller = new AbortController()
   const signal = controller.signal
-  const request = ++sequence
   loading.value = true
   error.value = ''
   members.value = []
   try {
     const result = await departmentsAPI.members({ organization: props.department.organization_key, department_id: mode.value === 'current' ? String(props.department.id) : 'all', q: appliedQuery.value, page: page.value, page_size: pageSize.value }, signal)
-    if (request !== sequence || signal.aborted) return
+    if (signal.aborted) return
     members.value = result.items
     total.value = result.total
   } catch {
-    if (request === sequence && !signal.aborted) { error.value = t('admin.departments.failed'); total.value = 0 }
-  } finally { if (request === sequence) loading.value = false }
+    if (!signal.aborted) { error.value = t('admin.departments.failed'); total.value = 0 }
+  } finally { if (!signal.aborted) loading.value = false }
 }
 function toggle(member: DepartmentMember) {
   if (saving.value || (mode.value === 'add' && member.department_id === props.department?.id)) return
@@ -110,8 +108,9 @@ async function save() {
   } finally { saving.value = false }
 }
 watch(() => [props.show, props.department?.id], () => {
-  ++sequence
   controller?.abort()
+  loading.value = false
+  total.value = 0
   selected.value.clear()
   members.value = []
   mode.value = 'current'
@@ -120,5 +119,5 @@ watch(() => [props.show, props.department?.id], () => {
   appliedQuery.value = ''
   if (props.show) void load()
 }, { immediate: true })
-onUnmounted(() => { ++sequence; controller?.abort() })
+onUnmounted(() => { controller?.abort() })
 </script>

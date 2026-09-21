@@ -79,13 +79,7 @@ func (s *adminServiceImpl) loadUserGroupRatesOneByOne(ctx context.Context, users
 }
 
 func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error) {
-	read := s.userRepo.GetByID
-	if versioned, ok := s.userRepo.(interface {
-		GetByIDWithAdminAccess(context.Context, int64) (*User, error)
-	}); ok {
-		read = versioned.GetByIDWithAdminAccess
-	}
-	user, err := read(ctx, id)
+	user, err := s.userRepo.GetByIDWithAdminAccess(ctx, id)
 	if err != nil {
 		return nil, err
 	}

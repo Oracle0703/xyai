@@ -375,6 +375,18 @@ describe('OrganizationUsageView', () => {
     expect(getTrend.mock.calls.length).toBe(trendCallsAfterMount)
   })
 
+  it('rejects a page that changes the established snapshot without restarting Trend', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const trendCalls = getTrend.mock.calls.length
+    getSummary.mockResolvedValueOnce({ ...summary(), range: { ...summary().range, as_of: '2026-07-10T03:58:00.000Z' } })
+    wrapper.getComponent(Pagination).vm.$emit('update:page', 2)
+    await flushPromises()
+    expect(wrapper.text()).toContain('admin.organizationUsage.feedback.loadFailed')
+    expect(getTrend).toHaveBeenCalledTimes(trendCalls)
+    wrapper.unmount()
+  })
+
   it('exposes server sorting through aria-sort on the sortable table headers', async () => {
     const wrapper = mountView()
     await flushPromises()

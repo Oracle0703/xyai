@@ -140,6 +140,8 @@ type UserRepository interface {
 	// 服务层的前置查重会同时通过，必须由这里串行化兜底。管理员建号仍走 Create，不受限制。
 	CreateWithEmailAliasGuard(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, id int64) (*User, error)
+	// GetByIDWithAdminAccess returns management fields and their authorization version in one snapshot.
+	GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error)
 	// GetByIDIncludeDeleted 绕过软删除过滤按 ID 取用户（含已删）。仅供管理员审计/usage 点击使用。
 	GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)

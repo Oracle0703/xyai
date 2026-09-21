@@ -39,7 +39,12 @@ export default {
     people: {
       title: 'People summary',
       total: '{count} users',
-      pageSize: 'Rows'
+      pageSize: 'Rows',
+      screenshot: 'Screenshot',
+      capturing: 'Capturing...',
+      screenshotHint: 'Download a table image with all rows and columns on the current page',
+      screenshotSuccess: 'Current page people summary image downloaded.',
+      screenshotFailed: 'Screenshot failed. Please try again.'
     },
     organizations: {
       all: 'All organizations',

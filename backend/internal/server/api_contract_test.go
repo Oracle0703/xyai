@@ -2967,3 +2967,7 @@ var (
 	_ service.UsageLogRepository         = (*stubUsageLogRepo)(nil)
 	_ service.SettingRepository          = (*stubSettingRepo)(nil)
 )
+
+func (s *stubUserRepo) GetByIDWithAdminAccess(ctx context.Context, id int64) (*service.User, error) {
+	return s.GetByID(ctx, id)
+}

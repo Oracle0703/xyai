@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import * as XLSX from 'xlsx'
+import { processOrganizationUsageExport } from '@/utils/organizationUsageExport.worker'
 
 import type {
   OrganizationUsageSortBy,
@@ -37,6 +39,7 @@ const EXPECTED_MAX_XLSX_DATA_ROWS = 1_048_575
 const EXPECTED_MAX_CLIENT_EXPORT_ROWS = 100_000
 
 const range = { start_date: '2026-07-01', end_date: '2026-07-10' }
+const SNAPSHOT_AS_OF = '2026-07-10T04:00:00.000Z'
 
 const pagination = (page: number, pages: number, total: number) => ({
   total,
@@ -66,7 +69,8 @@ const periodItem = (userId: number, periodStart: string) => ({
 })
 
 const summaryResponse = (page: number, pages: number, total: number, items: ReturnType<typeof summaryItem>[]) => ({
-  range,
+  range: { ...range, as_of: SNAPSHOT_AS_OF },
+  scope_version: 'scope-v1',
   overview: { active_users: 2, used_users: 2, ...metrics },
   organizations: [{ organization: 'xunyou', active_users: 2, used_users: 2, ...metrics }],
   champions: { day: null, week: null, month: null },
@@ -81,7 +85,8 @@ const periodsResponse = (
   total: number,
   items: ReturnType<typeof periodItem>[]
 ) => ({
-  range,
+  range: { ...range, as_of: SNAPSHOT_AS_OF },
+  scope_version: 'scope-v1',
   granularity,
   items,
   pagination: pagination(page, pages, total)
@@ -94,6 +99,35 @@ describe('organization usage API', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('serializes every personnel page into the XLSX worker output regardless of the displayed page size', async () => {
+    const people = Array.from({ length: 521 }, (_, index) => ({
+      ...summaryItem(index + 1), department_name: '研发部'
+    }))
+    get.mockResolvedValueOnce({ data: summaryResponse(1, 2, 521, people.slice(0, 500)) })
+    get.mockResolvedValueOnce({ data: summaryResponse(2, 2, 521, people.slice(500)) })
+    for (const granularity of ['day', 'week', 'month'] as const) {
+      get.mockResolvedValueOnce({ data: periodsResponse(granularity, 1, 1, 0, []) })
+    }
+    const data = await fetchAllOrganizationUsageData({ ...range, page: 3, page_size: 20 })
+    let bytes: ArrayBuffer | undefined
+    await processOrganizationUsageExport(data, message => {
+      if (message.type === 'success') bytes = message.buffer
+      if (message.type === 'error') throw new Error(message.message)
+    })
+    expect(bytes).toBeInstanceOf(ArrayBuffer)
+    const workbook = XLSX.read(bytes, { type: 'array', cellStyles: true })
+    expect(workbook.SheetNames.slice(0, 2)).toEqual(['报表概览', '人员汇总'])
+    const sheet = workbook.Sheets['人员汇总']
+    const exported = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+    expect(exported).toHaveLength(521)
+    expect(exported[0]).toMatchObject({ 用户ID: 1, 邮箱: 'user1@example.com', 部门: '研发部', 'Total Tokens': 14, 'Actual Cost': 0.25 })
+    expect(exported[520]).toMatchObject({ 用户ID: 521, 邮箱: 'user521@example.com' })
+    expect(sheet['!autofilter']?.ref).toBe('A1:T522')
+    expect(sheet['!cols']?.[1]?.wch).toBeGreaterThan(30)
+    expect(get.mock.calls[0][1].params).toMatchObject({ page: 1, page_size: 500 })
+    expect(get.mock.calls[1][1].params).toMatchObject({ page: 2, page_size: 500 })
   })
 
   it.each(['scope-v2', undefined])('stops export when a later sheet changes or omits its scope version (%s)', async (nextVersion) => {
@@ -260,7 +294,7 @@ describe('organization usage API', () => {
         }
       }
       const granularity = config.params.granularity as 'day' | 'week' | 'month'
-      return { data: periodsResponse(granularity, 1, 1, 0, []) }
+      return { data: { ...periodsResponse(granularity, 1, 1, 0, []), range: { ...range, as_of: config.params.as_of } } }
     })
 
     const result = await fetchAllOrganizationUsageData({ ...range })
@@ -381,7 +415,7 @@ describe('organization usage API', () => {
       }
       const granularity = config.params.granularity as 'day' | 'week' | 'month'
       const items = granularity === 'day' && page === 1 ? fullDayPage : []
-      return { data: periodsResponse(granularity, page, 1, items.length, items) }
+      return { data: { ...periodsResponse(granularity, page, 1, items.length, items), range: { ...range, as_of: config.params.as_of } } }
     })
 
     const result = await fetchAllOrganizationUsageData(range)
@@ -403,7 +437,7 @@ describe('organization usage API', () => {
         return { data: { ...response, range: { ...response.range, as_of: signedAsOf } } }
       }
       const granularity = config.params.granularity as 'day' | 'week' | 'month'
-      return { data: periodsResponse(granularity, 1, 1, 0, []) }
+      return { data: { ...periodsResponse(granularity, 1, 1, 0, []), range: { ...range, as_of: config.params.as_of } } }
     })
 
     await fetchAllOrganizationUsageData({ ...range, as_of: candidateAsOf })
@@ -411,21 +445,25 @@ describe('organization usage API', () => {
     expect(seenSnapshots).toEqual([candidateAsOf, signedAsOf, signedAsOf, signedAsOf])
   })
 
-  it('keeps the candidate as_of when the summary response does not echo one', async () => {
-    const explicitAsOf = '2026-07-10T16:20:30.123456789+08:00'
-    get.mockImplementation(async (url: string, config: { params: Record<string, unknown> }) => {
-      if (url.endsWith('/summary')) {
-        return { data: summaryResponse(1, 1, 0, []) }
-      }
-      const granularity = config.params.granularity as 'day' | 'week' | 'month'
-      return { data: periodsResponse(granularity, 1, 1, 0, []) }
-    })
+  it.each(['as_of', 'scope_version'] as const)('rejects an initial response missing %s instead of exporting without a snapshot', async (field) => {
+    const response = summaryResponse(1, 1, 0, [])
+    get.mockResolvedValueOnce({ data: field === 'as_of'
+      ? { ...response, range }
+      : { ...response, scope_version: undefined } })
+    await expect(fetchAllOrganizationUsageData(range)).rejects.toThrow('REPORT_SCOPE_CHANGED')
+    expect(get).toHaveBeenCalledTimes(1)
+  })
 
-    await fetchAllOrganizationUsageData({ ...range, as_of: explicitAsOf })
+  it('stops before mixing sheets with different snapshot times', async () => {
+    get.mockResolvedValueOnce({ data: summaryResponse(1, 1, 0, []) })
+    get.mockResolvedValueOnce({ data: { ...periodsResponse('day', 1, 1, 0, []), range: { ...range, as_of: '2026-07-10T03:00:00.000Z' } } })
+    await expect(fetchAllOrganizationUsageData(range)).rejects.toThrow('REPORT_SCOPE_CHANGED')
+    expect(get).toHaveBeenCalledTimes(2)
+  })
 
-    expect(get).toHaveBeenCalledTimes(4)
-    for (const call of get.mock.calls) {
-      expect(call[1].params.as_of).toBe(explicitAsOf)
-    }
+  it('keeps the already displayed snapshot fixed on the first export response', async () => {
+    get.mockResolvedValueOnce({ data: summaryResponse(1, 1, 0, []) })
+    await expect(fetchAllOrganizationUsageData({ ...range, as_of: '2026-07-10T03:00:00.000Z', scope_version: 'scope-v1' })).rejects.toThrow('REPORT_SCOPE_CHANGED')
+    expect(get).toHaveBeenCalledTimes(1)
   })
 })

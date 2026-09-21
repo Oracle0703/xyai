@@ -189,20 +189,9 @@ func (h *DepartmentHandler) SubscriptionUsers(c *gin.Context) {
 		departmentReply(c, nil, err)
 		return
 	}
-	org, dept, err := service.NormalizeDepartmentFilter(c.Query("organization"), c.Query("department_id"))
-	if err == nil {
-		err = scope.ValidateSelection(org, dept, "")
-	}
-	if err != nil {
-		departmentReply(c, nil, err)
-		return
-	}
 	result := []gin.H{}
 	for _, m := range scope.Members {
 		result = append(result, gin.H{"id": m.ID, "email": m.Email, "deleted": false})
-		if len(result) == 30 {
-			break
-		}
 	}
 	response.Success(c, result)
 }

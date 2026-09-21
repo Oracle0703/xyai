@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -159,15 +161,15 @@ type DepartmentScope struct {
 }
 
 type DepartmentScopeQuery struct {
-	Organization string
-	DepartmentID string
-	Q            string
-	Platform     string
-	UserID       *int64
-	GroupID      *int64
-	Status       string
-	Versioned    bool // Explicitly requested snapshot for an otherwise global subscription query.
-	Limit        int  // Compact search only; never used to construct a query snapshot.
+	Organization    string
+	DepartmentID    string
+	Q               string
+	Platform        string
+	UserID          *int64
+	GroupID         *int64
+	Status          string
+	ExpectedVersion string // Query snapshot to validate after resolving the authorized selection.
+	Limit           int    // Compact search only; never used to construct a query snapshot.
 }
 
 // HashDepartmentScope detects membership changes, not usage-log snapshots.
@@ -224,29 +226,18 @@ func NormalizeDepartmentFilter(org, department string) (string, string, error) {
 	return org, department, nil
 }
 
-func (s *DepartmentScope) ValidateSelection(org, department, version string) error {
+func (s *DepartmentScope) ValidateSelection(org, department string) error {
 	if s == nil {
 		return ErrDepartmentScopeDenied
 	}
 	if !s.Unrestricted && len(s.Departments) == 0 {
 		return ErrDepartmentScopeDenied
 	}
-	if version != "" && version != s.Version {
-		return ErrDepartmentScopeChanged
-	}
 	if department == "unassigned" && !s.Unrestricted {
 		return ErrDepartmentScopeDenied
 	}
-	if org != OrganizationAll && !s.Unrestricted {
-		found := false
-		for _, allowed := range s.Organizations {
-			if allowed == org {
-				found = true
-			}
-		}
-		if !found {
-			return ErrDepartmentScopeDenied
-		}
+	if org != OrganizationAll && !s.Unrestricted && !slices.Contains(s.Organizations, org) {
+		return ErrDepartmentScopeDenied
 	}
 	if department == "all" || department == "unassigned" {
 		return nil
@@ -263,26 +254,6 @@ func (s *DepartmentScope) ValidateSelection(org, department, version string) err
 		return ErrDepartmentScopeDenied
 	}
 	return ErrDepartmentNotFound
-}
-
-func (s *DepartmentScope) SelectedMembers(org, department, q string) []DepartmentMember {
-	result := make([]DepartmentMember, 0)
-	for _, m := range s.Members {
-		if org != OrganizationAll && m.Organization != org {
-			continue
-		}
-		if department == "unassigned" && m.DepartmentID != nil {
-			continue
-		}
-		if department != "all" && department != "unassigned" && (m.DepartmentID == nil || strconv.FormatInt(*m.DepartmentID, 10) != department) {
-			continue
-		}
-		if q != "" && !strings.Contains(strings.ToLower(m.Email), strings.ToLower(q)) {
-			continue
-		}
-		result = append(result, m)
-	}
-	return result
 }
 
 type DepartmentRepository interface {
@@ -303,7 +274,7 @@ func NewDepartmentService(repo DepartmentRepository) *DepartmentService {
 	return &DepartmentService{repo: repo}
 }
 
-func normalizeDepartmentList(f DepartmentListFilter, resourceID ...bool) (DepartmentListFilter, error) {
+func normalizeDepartmentList(f DepartmentListFilter, memberResource bool) (DepartmentListFilter, error) {
 	if len(f.UserIDs) > 200 {
 		return f, ErrDepartmentInvalid
 	}
@@ -315,7 +286,7 @@ func normalizeDepartmentList(f DepartmentListFilter, resourceID ...bool) (Depart
 		seen[id] = true
 	}
 	var err error
-	if len(resourceID) > 0 && resourceID[0] && f.Organization == "" && f.DepartmentID != "" && f.DepartmentID != "all" && f.DepartmentID != "unassigned" {
+	if memberResource && f.Organization == "" && f.DepartmentID != "" && f.DepartmentID != "all" && f.DepartmentID != "unassigned" {
 		id, parseErr := strconv.ParseInt(f.DepartmentID, 10, 64)
 		if parseErr != nil || id <= 0 || strconv.FormatInt(id, 10) != f.DepartmentID {
 			return f, ErrDepartmentInvalid
@@ -336,7 +307,7 @@ func normalizeDepartmentList(f DepartmentListFilter, resourceID ...bool) (Depart
 	if f.PageSize == 0 {
 		f.PageSize = 20
 	}
-	if f.Page < 1 || f.PageSize < 1 || f.PageSize > 200 {
+	if f.Page < 1 || f.PageSize < 1 || f.PageSize > 200 || f.Page-1 > math.MaxInt/f.PageSize {
 		return f, ErrDepartmentInvalid
 	}
 	f.Q = strings.TrimSpace(f.Q)
@@ -344,7 +315,7 @@ func normalizeDepartmentList(f DepartmentListFilter, resourceID ...bool) (Depart
 }
 
 func (s *DepartmentService) List(ctx context.Context, f DepartmentListFilter) (*DepartmentList, error) {
-	f, err := normalizeDepartmentList(f)
+	f, err := normalizeDepartmentList(f, false)
 	if err != nil {
 		return nil, err
 	}
@@ -426,11 +397,5 @@ func (s *DepartmentService) QueryScope(ctx context.Context, permission string, q
 	if s == nil || s.repo == nil {
 		return nil, ErrDepartmentScopeDenied
 	}
-	var err error
-	query.Organization, query.DepartmentID, err = NormalizeDepartmentFilter(query.Organization, query.DepartmentID)
-	if err != nil {
-		return nil, err
-	}
-	query.Q = strings.TrimSpace(query.Q)
 	return s.repo.QueryScope(ctx, permission, query)
 }
