@@ -6,6 +6,7 @@
 - `catalog_version`（目录）、`admin_access_version`（角色/权限/grant）、`scope_version`（实际查询范围）明确分离；统一 CAS、降级/软删除清授权、SQL 分页/批量统计及候选成员锁已实现。
 - 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
 - 2026-09-21 代码精简与复审见 `docs/features/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
+- 同日实现审核见 `docs/features/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
 - 未推送、部署或合回 main；创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
 更新时间: 2026-09-21

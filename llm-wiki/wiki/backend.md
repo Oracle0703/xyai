@@ -6,7 +6,7 @@
 状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。合同与证据见 `docs/features/organization-department-usage-implementation-plan-cn.md` 和 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
 
 - `DepartmentHandler / DepartmentService / DepartmentRepository` 提供组织下一级部门、成员和负责人管理；路由 `internal/server/routes/department.go`。部门独立于 API 分组、订阅和计费。
-- 2026-09-21 复审精简：`UserRepository.GetByIDWithAdminAccess` 为必需接口，管理详情不回退普通读取；查询仓储统一完成规范化、范围鉴权及 ExpectedVersion 校验，SQL 成员集合直接用于报表，复用成员映射。授权只批量检查/锁定和插入新增部门，保留授权不重复锁部门。详见 `docs/features/organization-department-usage-code-review-cn.md`。
+- 2026-09-21 复审精简：`UserRepository.GetByIDWithAdminAccess` 为必需接口，管理详情不回退普通读取；查询仓储统一完成规范化、范围鉴权及 ExpectedVersion 校验，SQL 成员集合直接用于报表，复用成员映射。授权只批量检查/锁定和插入新增部门，保留授权不重复锁部门。详见 `docs/features/organization-department-usage-code-review-cn.md`。同日只读实现审核见 `docs/features/organization-department-usage-implementation-audit-cn.md`，无越权回退全站；剩余进度 404 改写、组织用量分页溢出、SetAccess 省略字段不清 grant。
 
 - 管理用户详情经 `user_admin_access.go` 的 repeatable-read 事务返回角色/权限及 `admin_access_version`，不暴露在公开或嵌套浅层 DTO。通用权限修改与 department-scope 共用角色/权限/grant 摘要，在用户行锁下重读、校验并审计；降级/软删除原子清其持有 grants。
 - `/admin/usage/organization-report/scope`、`/admin/subscriptions/scope` 只返回目录 `catalog_version`，不装载成员。`department_query_scope.go` 按实际筛选构造授权 SQL 与 `scope_version`；包含选中 ID/邮箱/组织/部门/成员版本及部门标签，排除 username、排序和无关范围。
@@ -364,7 +364,7 @@ Grok/xAI 兼容:
 OpenAI 账号调度:
 
 - `gateway.openai_ws.scheduler_score_weights.reset` 是高级调度得分因子, 默认 `0` 关闭; 大于 0 时, 拥有未来 `SessionWindowEnd` 且剩余重置时间更短的账号得分更高。
-- `gateway.openai_ws.scheduler_score_weights.quota_headroom` 默认 `0` 关闭; 大于 0 时, 基于账号 `extra` 中 `codex_primary_used_percent` / `codex_7d_used_percent` 和 `codex_usage_updated_at` 计算剩余额度健康度, 快照缺失、过期或窗口已重置时使用中性分。
+- `gateway.openai_ws.scheduler_score_weights.quota_headroom` 默认 `0` 关闭；`openai_account_scheduler.go#openAIQuotaHeadroomFactor` 使用规范化的 7d 剩余比例（规范字段优先，历史 primary/secondary 按窗口长度归类），5h 信号存在且低于阈值时才额外折减；快照缺失、过期或周窗口已重置时用中性分。该项衡量相对剩余比例，不是不同套餐账号的绝对容量。候选打分将 Priority、Load、Queue、ErrorRate、TTFT、Reset、QuotaHeadroom 等加权相加，再做 TopK 与加权选择，不保证严格优先级分层或永远选余量最大；非加权粘性/不可迁移 continuation 可能提前选定账号。不得把调高此权重写成“不影响原优先级”。
 - `gateway.scheduling.prefer_soonest_reset` 默认 `false`; 开启后负载感知选择会先过滤出会话窗口最早重置的账号, 用于 use-it-or-lose-it 策略。没有活跃窗口时返回原候选集合, 不改变旧行为。
 - OpenAI Spark 影子账号使用 `parent_account_id + quota_dimension=spark`: 影子不持 OAuth 凭据, 运行时通过母账号 token 发起上游请求, 但独立读取 `codex_bengalfox`/spark 配额窗口。母账号 global 429 或过载不能连坐 spark 影子; 母账号凭据过期、临时摘除或非 OAuth 才会阻断影子调度。spark 模型当前只允许 `gpt-5.3-codex-spark` base, 默认 model_mapping 为恒等映射。
 

@@ -6,7 +6,7 @@
 
 状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
-- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。
+- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/features/organization-department-usage-implementation-audit-cn.md`。
 
 - `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
 - 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。
@@ -215,11 +215,27 @@ Grok OAuth session 与密码授权:
 
 - 分组 `daily_limit_usd/weekly_limit_usd/monthly_limit_usd` 是每个用户订阅的统一限额模板，准入按 `(user_id, group_id)` 的订阅用量校验，不是整组累计预算。用户平台配额也不共享，且 `BillingCacheService.CheckBillingEligibility` 只在余额模式检查该配额；订阅模式豁免。
 - `account_groups` 支持同一上游账号绑定多个分组，额度仍属于同一个上游账号。现有配置可让普通组绑定共享账号和普通组专用账号，高用量组只绑定共享账号；保底账号必须拥有独立上游配额，并限制高用量用户使用普通组的权限/订阅。`is_exclusive` 控制用户授权，不会自动隔离上游账号。
-- OpenAI 的 5h/7d 自动暂停阈值来自账号 `extra` 或全局默认；`openai_gateway_scheduling.go#shouldAutoPauseOpenAIAccountByQuota` 在调度时跳过该账号，不区分普通组和高用量组，也不修改 `schedulable`，不能用共享账号统一阈值实现只给普通组保留余量。
+- OpenAI 的 5h/7d 自动暂停阈值来自账号 `extra`（`auto_pause_{5h,7d}_threshold`、逐窗口 disabled 豁免）或全局默认，不区分分组且不修改 `schedulable`。拟议角色保护可复用候选过滤模式，但仅覆盖上下文默认值会被账号 override、disabled 或自动用卡提前放行绕过；需定义与原策略取交集的额外角色 gate。可保留评分算法，但候选集合、粘性命中和实际选号会变化；比例限制不等于绝对额度或并发保留。
+- `resolveOpenAIQuotaUtilization` 在快照超过 2h 或预计 reset 已过时返回无暂停信号。该 fail-open 没有单次探测/累计消耗上界；响应头快照更新有 30 秒节流与异步写回，缺头或写失败可持续放行，不能称为“一批有界泄漏”。高用量保护若需保守拒绝，要有独立后台刷新；保留原 fail-open 则需另行设计并证明探测上界。
+- 主动读取入口包括账号用量管理、OpenAI quota GET/refresh、自动用卡及重置工作流；普通账号 `getOpenAIUsage` 还会调用 `probeOpenAICodexSnapshot`，不全经 `QueryUsage`。未发现覆盖全部角色暂停账号的独立定时刷新。`OpenAIQuotaService.QueryUsage` 查询返回不等于额度与调度快照已持久更新，后台需闭合规范化、较新版本写回及缓存可见链路。
+- OpenAI Codex 快照没有绝对额度字段；分组日桶仅按 group 累加 `actual_cost`。按账号/资源范围分析需读取 `usage_logs` 等合适明细；倍率前 `total_cost` 可减少用户倍率干扰，但仍是价格口径，不自动等于物理额度。费用增量与百分比增量拟合只提供需验证的估计，可能受池外消耗、模型结构和窗口重置影响。
+- WS 后续轮次的 `BeforeTurn` 包含利润门复核、定价冻结及槽位重抢，`BeforeRequest` 包含模型白名单和审核，均不重跑 billing eligibility 或账号额度过滤，角色保护需单独接入。OpenAI 账号 gate 对非 OpenAI 直接返回不暂停；只有实际经过该 gate 的选号/复核才可能覆盖。Gemini、Grok 和 Anthropic 兜底不能因调用了公共 billing 入口就宣称自动覆盖；重试与兜底的角色身份须明确，不能随资源切换洗掉限制。
 - `GroupCapacityService` 汇总关联账号的并发、会话和 RPM；`groups/usage-summary` 展示分组费用。两者都是观测接口，不提供按池余量或整组累计用量自动暂停高用量组的准入机制。手动停用分组可阻止后续鉴权请求，但不等于自动阈值控制或取消已发往上游的请求。
 - 核对入口：`backend/internal/service/billing_cache_service.go`、`user_subscription.go`、`group_capacity_service.go`、`openai_gateway_scheduling.go`；`backend/internal/repository/account_repo.go#queryAccountsByGroup`；`backend/internal/server/middleware/api_key_auth.go#validateAPIKeyGroupAvailable`。
 - 面向管理汇报的方案与三张机制图见 `docs/features/shared-compute-pool-protection-report-cn.md`；两阶段实施及自动暂停/恢复均为建议方案，不能视为已上线能力。共享池保底需求应扣除独立保底已覆盖部分，避免重复预留。
 - 离线交互汇报版：`docs/features/shared-compute-pool-protection-report-cn.html`，内嵌三张 SVG、共享模式对比及暂停/恢复演示。1000 总量、200 暂停线、300 恢复线和两次有效观测均为示例，不是生产参数；演示与真实网关无连接。
+- 方案决策对比见 `docs/features/shared-compute-pool-three-options-comparison-cn.html`（2026-09-21 源码核对修订）：方案一按完整的“独立保底账号＋自动保护”比较，方案二为分组标识加“普通组近 7 天累计用量 × 1.05”的全共享触停，方案三在二上增加最低保底、数据过期保护和高用量组分级限速，方案四为在既有账号级自动暂停上按分组角色区分阈值的替代路线。页面先列前置门槛（快照仅百分比、日桶无资源维度、无后台刷新、过期 fail-open、WS `BeforeTurn` 不重跑准入），门槛未满足的二/三标记“暂不可实施”，评分不折算门槛；另含准入覆盖矩阵。演示改为按账号周重置事件恢复（离散归零，E 模型保留迟滞与两次观测，方案四无迟滞并沿用过期/预计重置放行语义）；总量 1000、普通组历史 200、动态线 210、方案一独立额度 300、方案四等价保留 200 及限速档位均为示例，非已实现能力或生产参数。三、四都不具备独立账号隔离，也不能保证覆盖突发需求；建议区改为先以方案四观察模式验证阈值与刷新，再决定是否升级二/三或选一。
+- 现有 OpenAI 路由按分组/平台获取 scheduler snapshot，随后过滤模型、transport、健康、quota 等条件，并在选中账号路径按需回读 DB；不是每次请求查询全部上游额度。`openai_gateway_usage.go#updateCodexUsageSnapshot` 从响应头更新额度，`OpenAIQuotaService.QueryUsage` 提供主动查询；`setting_gateway_runtime.go#GetOpenAIQuotaAutoPauseSettings` 的配置读取使用本机缓存和异步 singleflight 刷新。复用这些模式不等于已有整组保底机制。
+- 动态保底的拟议性能边界：后台汇总历史需求并按额度更新事件/有界定时任务更新保护快照，请求只读取有版本和有效期的状态；组级限速需共享原子计数。过期/缺失状态对受保护的高用量流量按明确的保守规则处理，禁止在网关请求中同步遍历上游或全表统计；需要独立刷新已暂停账号，避免无响应头更新导致无法恢复。
+- 动态保护范围必须匹配现有路由实际可用且配额可互换的账号/模型集合，按真实配额主体去重；5h 与 7d 是并存约束，不能相加，未来 reset 也不能提前计入当前容量。普通组能使用的稀缺模型子池不能被其它模型余量掩盖。首期宜约束在明确且稳定的资源范围；重叠池、多个重置窗口和强一致额度预占会扩大原人日估算。
+- 新准入逻辑应只影响受限组，不全局改账号 `schedulable` 或已有人为状态；放行仍需经过原调度器。若进一步增加按组保护特定账号的过滤，必须覆盖候选、sticky、fallback、选中复核和 WebSocket 逐轮路径，属于调度接入而非纯外围检查。缓存控制只能提供有延迟的保护，5% 不自动覆盖在途及尚未反映的消耗；严格额度保证需同单位预算与原子预占/结算机制。
+- 2026-09-21 方案范围修订：用户计划把含 5h 限额的账号移出目标号池，当前汇报按周额度目标池设计，不把账号已移出写为事实。真实路由现有 5h 检查不因此删除；移出与路由可达范围核验是部署前置条件。周账号容量和 reset 时刻仍可不同，预计 reset 只触发后台刷新，实际确认的新余量才能计入；暂停期间仍需独立刷新。HTML 增加分批恢复第四场景、后台计算与请求缓存准入分工、边界及验收表。
+- 周池拟议合同：方案二仍用同资源范围普通组滚动 168h 消耗 × 1.05；方案三再取人工最低保底。有效余量为可信当前周余量减去尚未反映的消耗修正，在途与已完成未反映消耗需要去重，不能对已被上游快照计入的部分重复扣减。没有可靠同单位计量/修正时属于近似控制，严格预占和跨池预算协调不在原轻量人日估算内。
+- 方案复核补充：历史受限/新用户会低估需求；七天样本清理、角色和账号范围变动必须更新策略版本；一个账号失效先剔除其可信供给，整体状态过期才对高用量保守拒绝。保底超过可用容量时明示资源不足，不自动压低保底；恢复需独立的新鲜快照，重复读同版本不算多次观测。其它模型余量、共享凭证和池外消耗不能被漏计或重复承诺。
+- 账号数、累计周额度和瞬时并发是不同维度。保底触停应使用同口径、去重且符合目标模型范围的有效周余量；配置并发/实际占用衡量瞬时服务压力，不能乘入周额度或代替真实吞吐。`ConcurrencyService.AcquireAccountSlot` 的 `maxConcurrency<=0` 表示不限制，不可把 0 当作零容量求和；`Account.EffectiveLoadFactor` 可能覆盖评分分母，实际抢槽/等待仍使用账号 `Concurrency`。`GroupCapacityService` 的容量汇总是观测值，共享账号跨组会重叠，不能把多个组的汇总再直接相加。
+- 保底余额并不保证并发可用：高用量组可在未触额度线时占满共享槽位。最少源码改动的隔离方式是配置普通组专用账号，并同时验证其周额度与并发能力；方案二保留原路由，只新增动态额度准入，不能宣称已预留普通组并发。若要共享账号并硬预留普通组并发，需新增组/池级原子槽位与租约释放、超时、重试及 WS 逐轮合同，属于独立容量控制范围，工作量高于单纯触停。
+- 独立设计需求见 `docs/features/shared-compute-pool-independent-design-brief-cn.md`。2026-09-22 对 Claude 旧稿的复评及源文件 hash 见 `docs/features/shared-compute-pool-claude-revision-review-cn.md`：角色百分比政策不等价于 `U7×1.05`，增大已用比例阈值 T 会减少名义保留。用户授权后已修订同路径 HTML 的文档与演示；这不代表后端角色 gate 已实现。
+- 2026-09-22 HTML 当前版：四方案按 82/69/71/83 条件性规划分比较，第四为修正设计目标（旧稿复评 74），投入 3–5 人日。第四明确原账号规则与额外角色检查取交集，高用量未知/过期/待重置确认时不放行；后台查询必须经过较新快照写回并对调度可见，首期按已确认 OpenAI 周池及约定文本 HTTP/WS 范围。演示为四方案各自的三账号数组，容量 500/300/200，账号分别重置、数据时效独立，包含偏斜消耗第五场景和 T 调节；同一快照不重复增加恢复观测。原规则豁免或用卡不自动绕过角色门，未知单次输出仍可能越线。真实计量、并发保障和多平台覆盖仍未验收。
 - `backend/internal/service/scheduler_snapshot_service.go`
 - `backend/internal/repository/scheduler_cache.go`, `scheduler_outbox_repo.go`
 
