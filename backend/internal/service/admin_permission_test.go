@@ -47,7 +47,21 @@ func TestCanAccessAdminRoute(t *testing.T) {
 		{"subscription filtered daily reset allowed", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/reset-daily-filtered", true},
 		{"subscription compact group search allowed", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/subscriptions/search-groups", true},
 		{"subscription full group catalog denied", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/groups/all", false},
-		{"subscription assignment denied", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/assign", false},
+		{"subscription assignment allowed", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/assign", true},
+		{"subscription bulk assignment allowed", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/bulk-assign", true},
+		{"subscription assignment group options allowed", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/subscriptions/assignable-groups", true},
+		{"subscription assignment user search allowed", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/subscriptions/search-users", true},
+		{"subscription full user catalog denied", []string{AdminPermissionSubscriptions}, http.MethodGet, "/api/v1/admin/users", false},
+		{"assignment without permission denied", nil, http.MethodPost, "/api/v1/admin/subscriptions/assign", false},
+		{"usage permission cannot assign", []string{AdminPermissionUsage}, http.MethodPost, "/api/v1/admin/subscriptions/assign", false},
+		{"usage permission cannot bulk assign", []string{AdminPermissionUsage}, http.MethodPost, "/api/v1/admin/subscriptions/bulk-assign", false},
+		{"usage permission cannot read assignment groups", []string{AdminPermissionUsage}, http.MethodGet, "/api/v1/admin/subscriptions/assignable-groups", false},
+		{"usage permission cannot search assignment users", []string{AdminPermissionUsage}, http.MethodGet, "/api/v1/admin/subscriptions/search-users", false},
+		{"subscription extend denied", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/:id/extend", false},
+		{"subscription revoke denied", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/:id/revoke", false},
+		{"subscription restore denied", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/:id/restore", false},
+		{"subscription delete denied", []string{AdminPermissionSubscriptions}, http.MethodDelete, "/api/v1/admin/subscriptions/:id", false},
+		{"subscription bulk management denied", []string{AdminPermissionSubscriptions}, http.MethodPost, "/api/v1/admin/subscriptions/bulk-action", false},
 		{"usage read allowed", []string{AdminPermissionUsage}, http.MethodGet, "/api/v1/admin/usage", true},
 		{"usage compact account search allowed", []string{AdminPermissionUsage}, http.MethodGet, "/api/v1/admin/usage/search-accounts", true},
 		{"usage cleanup denied", []string{AdminPermissionUsage}, http.MethodPost, "/api/v1/admin/usage/cleanup-tasks", false},
@@ -89,8 +103,16 @@ func TestCanAccessAdmin(t *testing.T) {
 }
 
 func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
+	for _, permission := range AdminPermissionCatalog() {
+		user := &User{Role: RoleSubAdmin, AdminPermissions: []string{permission.Code}}
+		for _, method := range []string{http.MethodGet, http.MethodPut} {
+			require.False(t, CanAccessAdminRoute(user, method, "/api/v1/admin/subscriptions/self-reset-policy"))
+		}
+	}
 	allowedWrites := map[string]map[adminRouteRule]struct{}{
 		AdminPermissionSubscriptions: {
+			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/assign"}:               {},
+			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/bulk-assign"}:          {},
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/reset-quota"}:      {},
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/reset-daily-filtered"}: {},
 		},

@@ -227,6 +227,11 @@ API 模块分布:
 
 订阅管理:
 
+- 用户订阅自助日重置已实现：用户页在续费后显示“重置（N）”，每订阅独立计次，组织默认上限 1；用尽显示 0 并禁用。日卡、零用量、无日限或不可用订阅不能自助，管理端原重置不限次。设计见 `docs/features/subscription-self-daily-reset-design-cn.md`，交付证据见 `docs/features/subscription-self-daily-reset-implementation-cn.md`，实现审核见 `docs/features/subscription-self-daily-reset-implementation-review-cn.md`。审核问题已于 2026-09-23 修复，见交付记录“审核后修复”。
+- `useSubscriptionSelfReset.ts` 的 refresh 同时读次数状态和页面列表。刷新期间保留上一份状态，不闪成“—”；只有状态请求失败才清空状态、禁用按钮并显示“状态暂不可用”。列表失败由 `loadSubscriptions` 自己提示 `failedToLoad`，不连带丢弃状态。全局 store 只在重置成功后强制刷新；失败时提示并在下一次 refresh 补刷，切回标签页平时不刷新它。旧响应按代次丢弃，按钮只认 can_reset。
+- 操作键首次提交用 getRandomValues 生成，提交前按订阅记入内存和按用户隔离的 sessionStorage（写入失败退回内存，不拒绝提交）。未知结果、401/408/429、处理中/退避都保留原键原日期，并遵守 Retry-After；关闭弹窗或刷新页面后再次打开同一订阅仍沿用原键并提示结果未确认。只有成功或确定性失败才删除，日期变化后作废。不能靠 NO_USAGE 兜底：上限 ≥2 且原请求已提交后又有新用量时，新键会再清零、再扣一次。未确认的键不锁其他订阅。
+- 管理订阅页“自助重置设置”只对完整管理员显示；独立 `SubscriptionSelfResetPolicyDialog.vue` 配置三类组织的 0–100 整数、以及 `rollout=off/admin/all`。默认 `admin` 只开放完整管理员，验证后切为 `all`，异常时可切回 `off`。用户页对 `ROLLOUT_DISABLED` 或尚未加载成功的状态不渲染按钮和提示行，灰度期间普通用户看不到该功能。读取失败时显示空白输入框，不填默认值，可重试，也可填满三项后保存覆盖损坏或缺失的配置。
+
 - 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
 - 筛选项包含状态、用户、分组、平台和组织；组织内部值/API 参数为 `xunyou` / `wsdashi`, 页面固定显示“迅游”/“速宝”。列表请求仍发送表格的 `sort_by` / `sort_order`, 后端将其作为同日剩余比例时的次序。
 - 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
@@ -315,7 +320,8 @@ API 模块分布:
 
 - 权限路由顺序和 backend landing 的最小映射在 `frontend/src/utils/adminPermissions.ts`; 权限目录本身由后端 API 返回。
 - `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、使用记录、Token 分析; 账号、风控、请求拦截、设置和管理员自定义菜单不显示。
-- `SubscriptionsView.vue` 对子管理员只显示全量配额重置和仅日限重置; 分配、延期、撤销、恢复及其弹窗仅完整管理员可见。
+- `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
+- 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询当前未删除用户，通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
 - `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
 - API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新。标准模式回 `/dashboard`; backend 模式无剩余权限时先 logout 再回 `/login`。

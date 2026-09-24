@@ -273,7 +273,9 @@ describe('OrganizationUsageView', () => {
     expect(wsdashiButton.text()).toBe('速宝')
 
     const personEmail = wrapper.get('tbody [title="alice@xunyou.com"]')
-    expect(personEmail.element.closest('tr')?.querySelector('td')?.textContent?.trim()).toBe('迅游')
+    const personCells = personEmail.element.closest('tr')?.querySelectorAll('td')
+    expect(personCells?.[0]?.textContent?.trim()).toBe('1')
+    expect(personCells?.[1]?.textContent?.trim()).toBe('迅游')
 
     expect(xunyouButton.element.tagName).toBe('BUTTON')
     const organizationRow = xunyouButton.element.closest('tr')!

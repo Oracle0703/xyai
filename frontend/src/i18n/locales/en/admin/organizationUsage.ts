@@ -63,6 +63,7 @@ export default {
       tokenShare: 'Token share'
     },
     columns: {
+      rank: 'Rank',
       organization: 'Organization',
       email: 'Email',
       peakDay: 'Peak day',

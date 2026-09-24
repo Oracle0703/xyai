@@ -57,6 +57,8 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 文档地图（路径说明）
 
+- [[gpt-account-quota-display-design]]：GPT 账号额度共享展示设计，迅游/速宝双列；待审核、未实施。审核稿在 `docs/reviews/gpt-account-quota-display-design-review-cn.md`，结论未写入设计正文，审核通过后才能编码。
+
 - `backend.md`: 后端入口, 路由, Wire 依赖注入, service/repository 分层, 网关路径。
 - `frontend.md`: Vue 前端入口, 路由守卫, store, API client, 组件和样式约定。
 - `ops.md`: 本地启动, 构建, 测试, CI, 配置和部署入口。

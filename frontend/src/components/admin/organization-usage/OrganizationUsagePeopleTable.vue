@@ -22,6 +22,7 @@
       <table class="min-w-[1620px] w-full border-collapse text-sm">
         <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
           <tr>
+            <th class="whitespace-nowrap px-3 py-2.5 font-medium">{{ t('admin.organizationUsage.columns.rank') }}</th>
             <th v-for="column in columns" :key="column.key" class="whitespace-nowrap px-3 py-2.5 font-medium" :aria-sort="ariaSort(column)">
               <button
                 v-if="column.sortable"
@@ -55,7 +56,8 @@
             </td>
           </tr>
           <template v-else>
-            <tr v-for="item in items" :key="item.user_id" class="hover:bg-gray-50 dark:hover:bg-dark-800/70">
+            <tr v-for="(item, index) in items" :key="item.user_id" class="hover:bg-gray-50 dark:hover:bg-dark-800/70">
+              <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">{{ (pagination.page - 1) * pagination.page_size + index + 1 }}</td>
               <td class="whitespace-nowrap px-3 py-3">{{ organizationLabel(item.organization) }}</td>
               <td class="max-w-[240px] truncate px-3 py-3 font-medium text-gray-900 dark:text-white" :title="item.email">{{ item.email }}</td>
               <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.requests) }}</td>

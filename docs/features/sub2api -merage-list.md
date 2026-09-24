@@ -2005,3 +2005,17 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 文档 / 图谱 | 六个 wiki 页、账号/布局 README、审核报告已更新；wiki graph 为 34 nodes / 72 edges / 54 wikilinks / 0 unresolved，状态 READY（允许待审核 wiki dirty） |
 | 审核材料 | `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`；本机原始日志在忽略目录 `backend/.gocache/merge-207/` |
 | 交付状态 | 仅解决冲突与经确认的 ticket 对齐，不修复上游/第一父既有问题；未 commit、未 push、未创建 PR、未部署 |
+
+## 2026-09-23 审核文档路径迁移说明（非上游合并）
+
+本次仅整理文档，未执行上游合并。既有条目保持原样：其中 `docs/features/sub2api-v0.1.135-merge-review-cn.md` 和 `docs/features/sub2api-v0.1.146-merge-review-cn.md` 已分别迁至 `docs/reviews/` 下同名文件。其余审核文档迁移映射见 `docs/reviews/features-review-archive-index.md`。
+
+## 2026-09-23 本地分叉：`ProvidePluginManager`（下次上游合并必查）
+
+上游 `c63bd14a0`（shaw，2026-09-19）直接手改 `backend/cmd/server/wire_gen.go`，在生成代码里调用 `pluginManager.SetAccountDirectory(openAIGatewayService)`；`wire.go` 源定义里没有这一步，重新执行 `go generate ./cmd/server` 会把它丢掉。本仓库在自助日重置分支把它移到 `backend/internal/service/wire.go#ProvidePluginManager`，由 Wire 源定义生成。
+
+合并上游时：
+
+- `wire_gen.go` 冲突以本地重新生成的结果为准，不整块接受上游手改版本。
+- 若上游改了 `NewPluginManager` 的参数或 `SetAccountDirectory` 的接线，同步修改 `ProvidePluginManager`，然后重新执行 `go generate ./cmd/server`，确认生成结果里仍有 `SetAccountDirectory`。
+- 若上游自己把这一步并进 Wire 源定义，删除本地 `ProvidePluginManager`，改回上游的 provider。

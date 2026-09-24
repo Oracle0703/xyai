@@ -1,7 +1,7 @@
 # Request Archive 异步写入改造 — 深度代码审查报告
 
 > 审查对象: 当前工作区 `gateway.request_archive` 全链路改造（异步写入 + 运行态开关 + 管理后台 UI）。
-> 配套设计文档: [request-archive-async-writer-technical-notes-cn.md](./request-archive-async-writer-technical-notes-cn.md)
+> 配套设计文档: [request-archive-async-writer-technical-notes-cn.md](../features/request-archive-async-writer-technical-notes-cn.md)
 > 审查日期: 2026-05-30
 > 结论摘要: **方案合理、可上线**。核心异步写入与运行态开关链路正确、测试覆盖到位（含新增服务层用例 `request_archive_settings_test.go`，全绿）；存在若干非阻塞性健壮性与最佳实践改进项（无 P0）。设计文档"Gateway 标签页"的描述经核对**与实现一致**。回归中 `internal/service` 的 2 个失败用例经定位**与本特性无关**（既有的定价 codegen 漂移 + OpenAI chat 兼容），详见 §2。另有 1 处与本特性无关的"重置日限"前端变更夹带在同一工作区，建议拆分提交。
 

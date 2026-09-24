@@ -167,7 +167,7 @@
             >
               <Icon name="questionCircle" size="md" />
             </button>
-            <button v-if="canManageSubscriptions" @click="showAssignModal = true" class="btn btn-primary">
+            <button v-if="canAssignSubscriptions" @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
             </button>
@@ -180,6 +180,9 @@
             >
               <Icon name="sun" size="md" class="mr-2" />
               {{ t('admin.subscriptions.bulkResetDaily') }}
+            </button>
+            <button v-if="canManageSubscriptions" class="btn btn-secondary" @click="showSelfResetPolicy = true">
+              {{ t('userSubscriptions.selfReset.policyTitle') }}
             </button>
           </div>
         </div>
@@ -485,8 +488,8 @@
             <EmptyState
               :title="t('admin.subscriptions.noSubscriptionsYet')"
               :description="t('admin.subscriptions.assignFirstSubscription')"
-              :action-text="canManageSubscriptions ? t('admin.subscriptions.assignSubscription') : undefined"
-              @action="canManageSubscriptions && (showAssignModal = true)"
+              :action-text="canAssignSubscriptions ? t('admin.subscriptions.assignSubscription') : undefined"
+              @action="canAssignSubscriptions && (showAssignModal = true)"
             />
           </template>
         </DataTable>
@@ -515,8 +518,9 @@
     />
 
     <!-- Assign Subscription Modal -->
+    <SubscriptionSelfResetPolicyDialog v-if="canManageSubscriptions && showSelfResetPolicy" @close="showSelfResetPolicy = false" />
     <BaseDialog
-      v-if="canManageSubscriptions"
+      v-if="canAssignSubscriptions"
       :show="showAssignModal"
       :title="t('admin.subscriptions.assignSubscription')"
       width="normal"
@@ -888,16 +892,17 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
+import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
 import type {
   SubscriptionAdminFilters,
   SubscriptionGroupFilterOption,
   SubscriptionOrganization
 } from '@/api/admin/subscriptions'
-import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult } from '@/api/admin/subscriptions'
+import type { SubscriptionBulkAction, SubscriptionBulkActionResult, BulkAssignSubscriptionResult, SubscriptionAssignmentUserOption, SubscriptionAssignmentGroupOption } from '@/api/admin/subscriptions'
 import { useTableSelection } from '@/composables/useTableSelection'
 import BulkSubscriptionActionDialog from '@/components/admin/subscription/BulkSubscriptionActionDialog.vue'
+import SubscriptionSelfResetPolicyDialog from '@/components/admin/subscription/SubscriptionSelfResetPolicyDialog.vue'
 import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -924,6 +929,8 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const canManageSubscriptions = computed(() => authStore.isAdmin)
+const showSelfResetPolicy = ref(false)
+const canAssignSubscriptions = computed(() => authStore.hasAdminPermission('admin.subscriptions'))
 const canResetSubscriptionQuotas = computed(() =>
   authStore.hasAdminPermission('admin.subscriptions')
 )
@@ -1066,6 +1073,7 @@ const subscriptions = ref<UserSubscription[]>([])
 type SubscriptionGroupOptionSource = SubscriptionGroupFilterOption & Partial<Group>
 
 const groups = ref<SubscriptionGroupOptionSource[]>([])
+const assignableGroups = ref<SubscriptionAssignmentGroupOption[]>([])
 const loading = ref(false)
 let abortController: AbortController | null = null
 
@@ -1109,12 +1117,12 @@ let filterUserSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // User search state
 const userSearchKeyword = ref('')
-const userSearchResults = ref<AdminUser[]>([])
+const userSearchResults = ref<SubscriptionAssignmentUserOption[]>([])
 const userSearchLoading = ref(false)
 const showUserDropdown = ref(false)
-const selectedUser = ref<AdminUser | null>(null)
+const selectedUser = ref<SubscriptionAssignmentUserOption | null>(null)
 const batchAssignEnabled = ref(false)
-const assignUsers = ref<AdminUser[]>([])
+const assignUsers = ref<SubscriptionAssignmentUserOption[]>([])
 const batchAssignResult = ref<BulkAssignSubscriptionResult | null>(null)
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -1207,7 +1215,7 @@ const organizationFilterOptions = computed(() => [
 
 // Group options for assign (only subscription type groups)
 const subscriptionGroupOptions = computed(() =>
-  groups.value
+  (authStore.isAdmin ? groups.value : assignableGroups.value)
     .filter((g) => g.subscription_type === 'subscription' && g.status === 'active')
     .map((g) => ({
       value: g.id,
@@ -1283,6 +1291,9 @@ const loadGroups = async () => {
     groups.value = authStore.isAdmin
       ? await adminAPI.groups.getAll()
       : await adminAPI.subscriptions.searchGroups()
+    if (!authStore.isAdmin && canAssignSubscriptions.value) {
+      assignableGroups.value = await adminAPI.subscriptions.getAssignableGroups()
+    }
   } catch (error) {
     console.error('Error loading groups:', error)
   }
@@ -1362,10 +1373,11 @@ const searchUsers = async () => {
 
   userSearchLoading.value = true
   try {
-    const result = await adminAPI.users.list(1, 30, {
-      search: keyword, sort_by: 'email', sort_order: 'asc'
-    })
-    userSearchResults.value = result.items
+    userSearchResults.value = authStore.isAdmin
+      ? (await adminAPI.users.list(1, 30, {
+          search: keyword, sort_by: 'email', sort_order: 'asc'
+        })).items
+      : await adminAPI.subscriptions.searchAssignmentUsers(keyword)
   } catch (error) {
     console.error('Failed to search users:', error)
     userSearchResults.value = []
@@ -1374,7 +1386,7 @@ const searchUsers = async () => {
   }
 }
 
-const selectUser = (user: AdminUser) => {
+const selectUser = (user: SubscriptionAssignmentUserOption) => {
   if (submitting.value) return
   if (batchAssignEnabled.value) {
     if (assignUsers.value.length < 100 && !assignUsers.value.some((selected) => selected.id === user.id)) {
@@ -1442,7 +1454,7 @@ const closeAssignModal = () => {
 }
 
 const handleAssignSubscription = async () => {
-  if (submitting.value) return
+  if (!canAssignSubscriptions.value || submitting.value) return
   if (batchAssignEnabled.value ? assignUsers.value.length === 0 : !assignForm.user_id) {
     appStore.showError(t('admin.subscriptions.pleaseSelectUser'))
     return

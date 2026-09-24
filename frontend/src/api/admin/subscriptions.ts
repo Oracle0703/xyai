@@ -5,6 +5,8 @@
 
 import { apiClient } from '../client'
 import type {
+  AdminUser,
+  Group,
   UserSubscription,
   SubscriptionProgress,
   AssignSubscriptionRequest,
@@ -17,6 +19,12 @@ export interface SubscriptionGroupFilterOption {
   id: number
   name: string
 }
+
+export type SubscriptionAssignmentUserOption = Pick<AdminUser, 'id' | 'email'>
+export type SubscriptionAssignmentGroupOption = Pick<
+  Group,
+  'id' | 'name' | 'description' | 'platform' | 'rate_multiplier' | 'subscription_type' | 'status'
+>
 
 export type SubscriptionOrganization = 'xunyou' | 'wsdashi'
 
@@ -108,6 +116,21 @@ export async function searchGroups(keyword = ''): Promise<SubscriptionGroupFilte
   const { data } = await apiClient.get<SubscriptionGroupFilterOption[]>(
     '/admin/subscriptions/search-groups',
     { params: { q: keyword } }
+  )
+  return data
+}
+
+export async function searchAssignmentUsers(keyword: string): Promise<SubscriptionAssignmentUserOption[]> {
+  const { data } = await apiClient.get<SubscriptionAssignmentUserOption[]>(
+    '/admin/subscriptions/search-users',
+    { params: { q: keyword } }
+  )
+  return data
+}
+
+export async function getAssignableGroups(): Promise<SubscriptionAssignmentGroupOption[]> {
+  const { data } = await apiClient.get<SubscriptionAssignmentGroupOption[]>(
+    '/admin/subscriptions/assignable-groups'
   )
   return data
 }
@@ -278,6 +301,8 @@ export async function listByUser(
 export const subscriptionsAPI = {
   list,
   searchGroups,
+  searchAssignmentUsers,
+  getAssignableGroups,
   getById,
   getProgress,
   assign,

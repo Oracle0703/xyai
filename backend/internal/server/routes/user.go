@@ -129,6 +129,8 @@ func RegisterUserRoutes(
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{
+			subscriptions.GET("/self-reset-status", h.SubscriptionSelfReset.Status)
+			subscriptions.POST("/:id/reset-daily", h.SubscriptionSelfReset.Reset)
 			subscriptions.GET("", h.Subscription.List)
 			subscriptions.GET("/active", h.Subscription.GetActive)
 			subscriptions.GET("/progress", h.Subscription.GetProgress)

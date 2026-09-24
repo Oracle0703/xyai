@@ -205,12 +205,18 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 用户角色为 `admin`、`sub_admin`、`user`; 权限码与路由白名单集中在 `backend/internal/service/admin_permission.go`。
 - `AdminAuth` 对 `admin` 和 Admin API Key 全量放行; `sub_admin` 每次请求从数据库加载最新角色、状态、TokenVersion 和 `admin_permissions`, 再按 HTTP 方法 + Gin `FullPath()` 精确匹配。未登记路由返回 `403 ADMIN_PERMISSION_DENIED`。
 - 固定权限为 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
-- 订阅权限只允许查看、`POST /subscriptions/:id/reset-quota`、`POST /subscriptions/reset-daily-filtered` 和 compact 用户/分组筛选。分组筛选走 `/admin/subscriptions/search-groups`, 不得重新放行返回完整 `AdminGroup` 的 `/admin/groups/all`。
+- `admin.subscriptions` 允许查看、单人/批量分配（`POST /admin/subscriptions/assign`、`bulk-assign`）、单项配额重置和筛选日限重置；分配继续调用现有 SubscriptionService，并以登录操作者记录 `assigned_by`。重新分配已过期订阅沿用服务的续期语义；独立延期、撤销、恢复、删除及 `bulk-action` 接口仍拒绝子管理员。
+- 分配选项在 `handler/admin/subscription_assignment_options.go`：`GET /admin/subscriptions/search-users?q=` 按邮箱升序返回最多 30 个未删除用户的 `{id,email}`，空查询返回空数组；`GET /admin/subscriptions/assignable-groups` 从启用分组中过滤订阅类型，仅返回 `id,name,description,platform,rate_multiplier,subscription_type,status`。列表分组筛选仍走 `/admin/subscriptions/search-groups`；不得为弹窗放行完整 `/admin/users` 或 `/admin/groups/all`。
 - 使用记录权限允许 usage、Dashboard 聚合/排行与 Ops 错误只读接口; 账号和分组筛选使用 `/admin/usage/search-accounts`、`search-groups` 的 `{id,name}` 响应。Token 分析权限只允许相关 GET 和选中用户趋势查询。
 - 0.1.161 新增的 `/admin/ops/ingress-rejections`、`/admin/ops/ingress-rejections/health` 与 `/admin/ops/auth-cache-invalidation/health` 不在 `admin.usage` 白名单，当前仅完整管理员可访问。它们包含入口拒绝身份维度和鉴权缓存安全运行态；未知路由默认拒绝是既有 fail-closed 合同，后续若向子管理员开放必须先做显式产品与最小权限评审。
 - backend mode 仅允许至少有一项权限的子管理员登录/刷新 token; 权限清空后不能继续保留 backend 会话。管理端合规查询/确认是所有已认证子管理员的公共白名单, 不代表业务管理权限。
 
 用户侧用量接口:
+
+- 用户自助日重置：`handler/subscription_self_reset_handler.go`、`service/subscription_self_reset.go`、`repository/subscription_self_reset_repo.go`。用户路由 `GET /api/v1/subscriptions/self-reset-status`、`POST /api/v1/subscriptions/:id/reset-daily`；完整管理员策略路由 `GET/PUT /api/v1/admin/subscriptions/self-reset-policy`。不扩展全局 UserSubscription DTO，状态批量读取。
+- 策略 JSON 新增 `rollout=off|admin|all`，缺失字段按 `admin` 兼容；`admin` 仅 role=admin，sub_admin 不包含在灰度管理员范围。Status 和 Reset 都在后端检查，前端隐藏不能替代权限。
+- POST 用认证 user_id 和 subscription_id 同时限定 FOR UPDATE；同事务先读完整策略、再锁订阅并复查关联用户/分组、扣次数和调用 ResetUsageWindows 仅清日用量，AtomicSuccess 同事务保存成功结果。提交后复用批量日重置三段式缓存失效；不调用 AdminResetQuota 代替用户鉴权/扣次。
+- `service/wire.go#ProvidePluginManager` 保留原 SetAccountDirectory 接线，确保 Wire 重生成不丢插件账号目录能力。自助锁查询使用 Ent WithUser/WithGroup 在父行 FOR UPDATE 后单独加载关联，不手动拼装 Edges；WHERE 仍同时限制用户与订阅归属。
 
 - `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
 - `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。

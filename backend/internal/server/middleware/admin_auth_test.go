@@ -134,7 +134,7 @@ func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
 		Role:             service.RoleSubAdmin,
 		Status:           service.StatusActive,
 		TokenVersion:     3,
-		AdminPermissions: []string{service.AdminPermissionUsage},
+		AdminPermissions: []string{service.AdminPermissionUsage, service.AdminPermissionSubscriptions},
 	}
 	userRepo := &stubUserRepo{getByID: func(_ context.Context, _ int64) (*service.User, error) {
 		clone := *current
@@ -149,6 +149,14 @@ func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
 	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(authService, userService, nil, nil)))
 	router.GET("/api/v1/admin/usage", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	router.GET("/api/v1/admin/accounts", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	for _, path := range []string{"/api/v1/admin/subscriptions/assign", "/api/v1/admin/subscriptions/bulk-assign"} {
+		router.POST(path, func(c *gin.Context) {
+			subject, ok := GetAuthSubjectFromContext(c)
+			require.True(t, ok)
+			require.Equal(t, current.ID, subject.UserID)
+			c.Status(http.StatusNoContent)
+		})
+	}
 
 	request := func(path string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
@@ -167,6 +175,25 @@ func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
 	revoked := request("/api/v1/admin/usage")
 	require.Equal(t, http.StatusForbidden, revoked.Code)
 	require.Contains(t, revoked.Body.String(), "ADMIN_PERMISSION_DENIED")
+
+	for _, path := range []string{"/api/v1/admin/subscriptions/assign", "/api/v1/admin/subscriptions/bulk-assign"} {
+		for _, allowed := range []bool{true, false} {
+			current.AdminPermissions = nil
+			if allowed {
+				current.AdminPermissions = []string{service.AdminPermissionSubscriptions}
+			}
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			router.ServeHTTP(w, req)
+			if allowed {
+				require.Equal(t, http.StatusNoContent, w.Code, path)
+			} else {
+				require.Equal(t, http.StatusForbidden, w.Code, path)
+				require.Contains(t, w.Body.String(), "ADMIN_PERMISSION_DENIED")
+			}
+		}
+	}
 }
 
 func TestAdminAuthAdminAPIKeyBypassesSubAdminRouteCatalog(t *testing.T) {

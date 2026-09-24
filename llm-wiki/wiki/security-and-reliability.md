@@ -117,7 +117,7 @@ Passkey / WebAuthn:
 - `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。
 - 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。
 - 权限目录和白名单在 `backend/internal/service/admin_permission.go`; 当前仅有订阅管理、使用记录和 Token 分析。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
-- 订阅权限是唯一含业务写操作的子管理员权限, 只允许 `POST /api/v1/admin/subscriptions/:id/reset-quota` 和 `POST /api/v1/admin/subscriptions/reset-daily-filtered`; 使用记录清理、Token 立即索引、订阅分配/延期/撤销/恢复/删除始终拒绝。
+- 订阅权限是唯一含业务写操作的子管理员权限，允许 `POST /api/v1/admin/subscriptions/assign`、`bulk-assign`、`:id/reset-quota` 和 `reset-daily-filtered`。使用记录清理、Token 立即索引、订阅延期/撤销/恢复/删除及 `bulk-action` 仍拒绝；无 `admin.subscriptions` 的子管理员不能分配或查询分配选项。
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。
@@ -209,6 +209,12 @@ Grok OAuth session 与密码授权:
 - `backend/internal/repository/scheduler_cache.go`, `scheduler_outbox_repo.go`
 
 ## 幂等
+
+- 用户自助日重置必须显式非空 Idempotency-Key，不能受 observe_only 放宽；scope 隔离认证用户，指纹含具体订阅 ID＋quota_date，TTL 显式 48 小时。缺少 coordinator/事务/提交后回调能力拒绝写入；扣次、日清零和成功结果原子提交，只有提交后执行本机/billing/跨实例缓存失效。
+- 自助锁查询同时限定当前 user_id、subscription_id、未删除；其他用户与不存在订阅统一 404。策略 GET/PUT 不在任何子管理员白名单；管理员在用户入口仍受次数约束。BackendModeUserGuard 开启后仍拦截非完整管理员。
+- 自助 rollout 三态由服务端策略控制：`off` fail-closed、`admin` 只允许完整 `admin` 角色、`all` 才允许普通用户；sub_admin 不因订阅管理权限获得自助入口。线上灰度先用 `admin`，验证完成再切 `all`。
+- 自助次数的组织归属只看当前邮箱域名。注册邮箱验证 `IsEmailVerifyEnabled` 是可关闭的开关；关闭时任何人都能注册 `@xunyou.com` / `@wsdashi.com` 邮箱。给三类组织配置不同上限前，必须确认邮箱验证处于开启状态，或能用其他方式保证这些域名的账号受控。
+- 未知网络结果及其重试遇到 401/408/429 时沿用原键原日期（按订阅存 sessionStorage，关闭弹窗、刷新页面后仍沿用），不能把前置鉴权/限流拒绝当成原操作失败；处理中/退避遵守 Retry-After。确定业务拒绝结束原操作，日期变化须刷新并重新确认。旧成功响应只作为回执，不覆盖当前查询结果；旧日期请求即使幂等记录过期也不能执行新日清零。
 
 幂等服务:
 

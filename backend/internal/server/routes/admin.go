@@ -706,8 +706,12 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	subscriptions := admin.Group("/subscriptions")
 	{
+		subscriptions.GET("/self-reset-policy", h.SubscriptionSelfReset.GetPolicy)
+		subscriptions.PUT("/self-reset-policy", h.SubscriptionSelfReset.SetPolicy)
 		subscriptions.GET("", h.Admin.Subscription.List)
 		subscriptions.GET("/search-groups", h.Admin.Usage.SearchGroups)
+		subscriptions.GET("/assignable-groups", h.Admin.Group.SubscriptionAssignmentGroups)
+		subscriptions.GET("/search-users", h.Admin.User.SearchSubscriptionAssignmentUsers)
 		subscriptions.POST("/reset-daily-filtered", h.Admin.Subscription.ResetDailyFiltered)
 		subscriptions.GET("/:id", h.Admin.Subscription.GetByID)
 		subscriptions.GET("/:id/progress", h.Admin.Subscription.GetProgress)
