@@ -1,6 +1,10 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <div v-if="resetStatusError" role="alert" class="text-sm text-red-600">
+        {{ t('userSubscriptions.selfReset.statusFailed') }}
+        <button class="ml-2 underline" @click="refreshSubscriptions">{{ t('userSubscriptions.selfReset.retry') }}</button>
+      </div>
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
         <div
@@ -33,13 +37,13 @@
         >
           <!-- Header -->
           <div
-            class="flex items-center justify-between border-b border-gray-100 p-4 dark:border-dark-700"
+            class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4 dark:border-dark-700"
           >
-            <div class="flex items-center gap-3">
+            <div class="flex max-w-full min-w-0 items-center gap-3">
               <div :class="['h-1.5 w-1.5 shrink-0 rounded-full', platformAccentDotClass(subscription.group?.platform || '')]" />
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-semibold text-gray-900 dark:text-white">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="break-all font-semibold text-gray-900 dark:text-white">
                     {{ subscription.group?.name || `Group #${subscription.group_id}` }}
                   </h3>
                   <span :class="['rounded-md border px-2 py-0.5 text-[11px] font-medium', platformBadgeClass(subscription.group?.platform || '')]">
@@ -57,7 +61,7 @@
                 </div>
               </div>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
               <span
                 :class="[
                   'rounded-full px-2 py-0.5 text-xs font-medium',
@@ -77,11 +81,22 @@
               >
                 {{ t('payment.renewNow') }}
               </button>
+              <button
+                v-if="subscription.status === 'active' && selfResetVisible(subscription.id)"
+                :data-self-reset="subscription.id"
+                class="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:border-dark-600"
+                :disabled="!canSelfReset(subscription.id)"
+                :title="resetHint(subscription.id)"
+                @click="openSelfReset(subscription.id)"
+              >
+                {{ t('userSubscriptions.selfReset.button', { count: resetItems.get(subscription.id)?.remaining_count ?? '—' }) }}
+              </button>
             </div>
           </div>
 
           <!-- Usage Progress -->
           <div class="space-y-4 p-4">
+            <p v-if="selfResetVisible(subscription.id)" class="text-xs text-gray-500 dark:text-dark-400">{{ resetHint(subscription.id) }}</p>
             <!-- Expiration Info -->
             <div v-if="subscription.expires_at" class="flex items-center justify-between text-sm">
               <span class="text-gray-500 dark:text-dark-400">{{
@@ -244,11 +259,21 @@
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      :show="resetDialogOpen"
+      :title="t('userSubscriptions.selfReset.title')"
+      :message="t('userSubscriptions.selfReset.confirm', { id: resetOperation?.id })"
+      :disabled="resetDialogDisabled"
+      @confirm="confirmSelfReset"
+      @cancel="closeSelfReset"
+    >
+      <p v-if="resetRequestError" role="alert" class="text-sm text-red-600">{{ resetRequestError }}</p>
+    </ConfirmDialog>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
@@ -256,6 +281,8 @@ import subscriptionsAPI from '@/api/subscriptions'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { useSubscriptionSelfReset } from '@/composables/useSubscriptionSelfReset'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { platformBorderClass, platformBadgeClass, platformButtonClass, platformLabel } from '@/utils/platformColors'
@@ -282,6 +309,28 @@ const appStore = useAppStore()
 
 const subscriptions = ref<UserSubscription[]>([])
 const loading = ref(true)
+let listGeneration = 0
+let disposed = false
+const {
+  status: resetStatus, statusError: resetStatusError, items: resetItems,
+  operation: resetOperation, dialogOpen: resetDialogOpen, dialogDisabled: resetDialogDisabled,
+  requestError: resetRequestError, canReset: canSelfReset, open: openSelfReset,
+  close: closeSelfReset, confirm: confirmSelfReset, refresh: refreshSubscriptions
+} = useSubscriptionSelfReset(loadSubscriptions, () => { listGeneration++ })
+
+// Accounts outside the rollout, and pages without an authoritative status, do not see the feature.
+function selfResetVisible(id: number): boolean {
+  const item = resetItems.value.get(id)
+  return !!item && item.disabled_reason !== 'ROLLOUT_DISABLED'
+}
+
+function resetHint(id: number): string {
+  const item = resetItems.value.get(id)
+  if (!item || !resetStatus.value) return ''
+  const reason = item.disabled_reason ? t(`userSubscriptions.selfReset.${item.disabled_reason}`) : t('userSubscriptions.selfReset.available')
+  if (item.disabled_reason === 'POLICY_DISABLED' || item.disabled_reason === 'ONE_TIME_QUOTA') return reason
+  return `${reason} · ${t('userSubscriptions.selfReset.nextReset', { time: formatDateTimeToMinute(resetStatus.value.next_reset_at) })}`
+}
 
 function subscriptionHasPeakRate(subscription: UserSubscription): boolean {
   return hasPeakRate(subscription.group)
@@ -292,14 +341,15 @@ function subscriptionPeakRateLabel(subscription: UserSubscription): string {
 }
 
 async function loadSubscriptions() {
+  const current = ++listGeneration
   try {
-    loading.value = true
-    subscriptions.value = await subscriptionsAPI.getMySubscriptions()
+    const result = await subscriptionsAPI.getMySubscriptions()
+    if (current === listGeneration && !disposed) subscriptions.value = result
   } catch (error) {
     console.error('Failed to load subscriptions:', error)
-    appStore.showError(t('userSubscriptions.failedToLoad'))
+    if (current === listGeneration && !disposed) appStore.showError(t('userSubscriptions.failedToLoad'))
   } finally {
-    loading.value = false
+    if (current === listGeneration && !disposed) loading.value = false
   }
 }
 
@@ -388,7 +438,6 @@ function formatResetTime(windowStart: string | null, windowHours: number): strin
   return parts ? formatDurationParts(parts) : t('userSubscriptions.windowNotActive')
 }
 
-onMounted(() => {
-  loadSubscriptions()
-})
+onMounted(refreshSubscriptions)
+onBeforeUnmount(() => { disposed = true; listGeneration++ })
 </script>

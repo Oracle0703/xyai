@@ -113,6 +113,24 @@ export default {
 
   // User Subscriptions Page
   userSubscriptions: {
+    selfReset: {
+      button: 'Reset ({count})', title: 'Reset daily usage',
+      confirm: 'Clear today’s usage for subscription #{id} and spend one self-reset opportunity for this subscription? Weekly/monthly usage and expiration stay unchanged.',
+      available: 'Daily usage can be reset', nextReset: 'Opportunities refresh at {time}',
+      success: 'Daily usage reset', refreshFailed: 'Reset succeeded, but refreshing status failed. Please refresh the status.',
+      statusFailed: 'Self-reset status is unavailable', requestFailed: 'Reset was not completed. Refresh the status and try again.', ROLLOUT_DISABLED: 'Self-reset is not enabled for this account yet',
+      retrySame: 'The outcome is being confirmed. Retry the same operation without spending another opportunity.',
+      retry: 'Retry',
+      resumePending: 'The previous reset outcome is unconfirmed. Confirming reuses that operation and will not spend another opportunity.',
+      dayChanged: 'The date changed. Refresh the status and confirm again.',
+      SUBSCRIPTION_INACTIVE: 'Subscription is not active', GROUP_DISABLED: 'Group is disabled',
+      ONE_TIME_QUOTA: 'One-time daily passes cannot be self-reset', NO_DAILY_LIMIT: 'This subscription has no daily limit',
+      POLICY_DISABLED: 'Self-reset is disabled for your organization', DAILY_LIMIT_REACHED: 'No self-reset opportunities left today', NO_USAGE: 'Daily usage is zero; no reset needed',
+      policyTitle: 'Self-reset settings', policyHint: 'Daily resets per subscription (0–100). Zero disables self-reset. Changes apply against today’s used count. Administrator resets are unaffected.',
+      rollout: 'Rollout scope', rolloutOff: 'Off', rolloutAdmin: 'Admins only', rolloutAll: 'All users',
+      policyLoadFailed: 'Failed to load settings. Retry, or fill in every organization and save to overwrite.', policySaveFailed: 'Failed to save settings', policySaved: 'Self-reset settings saved', policyInvalid: 'Enter integers from 0 to 100',
+      xunyou: 'Xunyou', wsdashi: 'Wsdashi', other: 'Other users'
+    },
     title: 'My Subscriptions',
     description: 'View your subscription plans and usage',
     noActiveSubscriptions: 'No Active Subscriptions',

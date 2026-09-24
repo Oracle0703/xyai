@@ -489,6 +489,13 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - 更改 OpenAI WS 或调度配置要检查 fallback, sticky session 和连接池策略。
 - 修改 Wire provider 或后台服务启动/清理逻辑后运行 `cd backend && go generate ./cmd/server` 与 `go test ./cmd/server -run Wire`。
 
+## 自助日重置专项验证（2026-09-23）
+
+- 后端在 `backend/` 按本页 Go 缓存入口运行 `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler ./internal/server/middleware ./internal/server/routes -run 'SubscriptionSelfReset|AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|BackendModeUserGuard|SubscriptionBulkActionRoutes'`。
+- 隔离 PostgreSQL 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后执行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run SubscriptionSelfReset`。覆盖并发、单连接池、回滚、DATE、组织一致性及两个服务实例缓存回读；缓存测试用 miniredis TCP/PubSub，不代表生产 Redis 集群故障验证。勿对业务库运行迁移测试。既没有 Docker 也没有设置该 DSN 时，`TestMain` 会打印 `docker is not available; skipping integration tests` 并返回 `ok`，必须加 `-v` 确认三个用例 `--- PASS`。main 上 CI 的单测步骤当前失败，集成步骤不会执行，CI 不能替代这一步。上线后的 SQL 验证步骤见交付记录「上线与 PostgreSQL 验证」。
+- 前端 `pnpm --dir frontend exec vitest run src/views/user/__tests__/SubscriptionsView.selfReset.spec.ts src/composables/__tests__/useSubscriptionSelfReset.spec.ts src/components/admin/subscription/__tests__/SubscriptionSelfResetPolicyDialog.spec.ts`，并运行既有管理订阅用例、locale 完整性、typecheck 与 ESLint。
+- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-implementation-cn.md`。实现审核见 `docs/features/subscription-self-daily-reset-implementation-review-cn.md`。
+
 ## 上游历史分支合并注意事项
 
 - `upstream/revert-114-feature/atomic-scheduling` 是 Wei-Shaw/sub2api 在 2026-01-01 创建的旧分支, 单提交 `30326cf2671a` 用于撤销早期 `#114` 负载感知账号调度优化。

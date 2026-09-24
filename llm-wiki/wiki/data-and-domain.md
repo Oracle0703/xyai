@@ -282,6 +282,10 @@ go generate ./cmd/server
 
 订阅配额重置:
 
+- `241_subscription_self_daily_reset.sql` 增加附属表 `subscription_self_daily_reset_usage(subscription_id PK/FK, quota_date DATE, used_count, updated_at)` 与 settings key `subscription_self_daily_reset_policy`。三类组织 xunyou/wsdashi/other 默认均为 1，配置范围 0–100，使用当前邮箱分类；不存冗余 user_id，不增加定时任务。239/240 为部门分支已使用编号，本功能使用 241。
+- 自助次数按每订阅、服务端配置时区自然日计算；DATE 绑定 YYYY-MM-DD 字符串，读回 to_char 后按日历值比较，禁止混入 organizationUsageLocation 固定上海报表时区。旧日期计数逻辑视为 0，当天首次成功才 UPSERT；同日续期、组织变化和管理员重置不清计数。上限升降立即按“上限减今日已用”计算，不能得到负剩余。
+- 自助排除 HasOneTimeDailyQuota 为真的一次性日卡，不按剩余时间判断日卡。普通旧窗口日用量逻辑视为 0，不扣机会；自助不改变周/月用量、额度、余额、历史或到期时间。
+
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
 - 管理端订阅列表的主序是每日剩余比例 `max(daily_limit_usd - effective_daily_usage, 0) / daily_limit_usd` 升序。日限为空或非正数的无限额订阅排最后；比例相同时沿用请求的 `sort_by` / `sort_order`, 再按订阅 ID 升序。普通订阅的日窗口早于当天零点时 `effective_daily_usage=0`, 未过期的一日订阅仍使用已存日用量, 超限用量钳制为 0% 剩余。PostgreSQL 的参数化排序表达式必须通过随外层 selector 累计参数的 `entsql.ExprFunc` 构造；不要在 `OrderExprFunc` 内调用 `Arg`, 该包装会提前固化 SQL 并丢失参数列表, 使排序占位符错误复用筛选参数。
@@ -390,7 +394,7 @@ User x platform quota:
 - `accounts` 新增 `proxy_fallback_origin_id`, 记录手动回切来源。
 - 后台逻辑见 `backend.md` 的"代理有效期与失败回退"。
 
-> 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2。
+> 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/reviews/sub2api-v0.1.135-merge-review-cn.md` P2。
 
 ## 相关页面
 

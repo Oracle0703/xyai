@@ -63,6 +63,7 @@ export default {
       tokenShare: 'Token 占比'
     },
     columns: {
+      rank: '排名',
       organization: '组织',
       email: '邮箱',
       peakDay: '个人日峰值',

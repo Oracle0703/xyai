@@ -111,6 +111,24 @@ export default {
 
   // User Subscriptions Page
   userSubscriptions: {
+    selfReset: {
+      button: '重置（{count}）', title: '重置日额度',
+      confirm: '将清空订阅 #{id} 今天的已用额度，并消耗该订阅 1 次自助机会。周/月额度和到期时间不变。确认重置？',
+      available: '可自助重置日额度', nextReset: '次数于 {time} 恢复',
+      success: '日额度已重置', refreshFailed: '重置成功，状态刷新失败，请刷新状态',
+      statusFailed: '自助重置状态暂不可用', requestFailed: '重置未完成，请刷新状态后再试', ROLLOUT_DISABLED: '自助重置暂未对当前账号开放',
+      retrySame: '正在确认本次操作结果，请重试；不会重复扣除同一次操作的次数',
+      retry: '重试',
+      resumePending: '上一次重置结果尚未确认，本次确认会沿用原操作，不会重复扣次',
+      dayChanged: '日期已变化，请刷新状态并重新确认',
+      SUBSCRIPTION_INACTIVE: '订阅未生效或已失效', GROUP_DISABLED: '分组已停用',
+      ONE_TIME_QUOTA: '一次性日卡不支持自助重置', NO_DAILY_LIMIT: '该订阅没有日限额',
+      POLICY_DISABLED: '组织未开放自助重置', DAILY_LIMIT_REACHED: '今日自助次数已用完', NO_USAGE: '当前日用量为 0，无需重置',
+      policyTitle: '自助重置设置', policyHint: '每个订阅每日可重置次数（0–100）。0 表示关闭。修改立即按当天已用次数计算剩余机会；管理员重置不受影响。',
+      rollout: '开放范围', rolloutOff: '关闭', rolloutAdmin: '仅管理员', rolloutAll: '全部用户',
+      policyLoadFailed: '加载配置失败，可重试，或填写全部组织后保存覆盖', policySaveFailed: '保存配置失败', policySaved: '自助重置配置已保存', policyInvalid: '请输入 0–100 的整数',
+      xunyou: '迅游', wsdashi: '速宝', other: '其他用户'
+    },
     title: '我的订阅',
     description: '查看您的订阅计划和用量',
     noActiveSubscriptions: '暂无有效订阅',

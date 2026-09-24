@@ -206,3 +206,18 @@ llm-wiki/.understand-anything/tmp/
 
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+# Archived feature reviews retained with their design documents
+!docs/reviews/codex-prompt-risk-filter-design-audit-cn.md
+!docs/reviews/codex-prompt-risk-filter-implementation-audit-cn.md
+!docs/reviews/prompt-risk-judge-release-review-cn.md
+!docs/reviews/request-archive-async-writer-review-cn.md
+!docs/reviews/request-archive-dir-runtime-config-code-review-cn.md
+!docs/reviews/sub2api-v0.1.135-merge-review-cn.md
+!docs/reviews/sub2api-v0.1.146-merge-review-cn.md
+!docs/reviews/subscription-self-daily-reset-design-audit-cn.md
+!docs/reviews/subscription-self-daily-reset-design-review-cn.md
+!docs/reviews/subscription-self-daily-reset-review-decisions-cn.md
+!docs/reviews/token-analysis-user-input-retention-main-merge-review-cn.md
+!docs/reviews/token-analysis-user-input-retention-staged-code-review-cn.md
+!docs/reviews/features-review-archive-index.md

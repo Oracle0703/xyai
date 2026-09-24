@@ -215,7 +215,7 @@ if err != nil { return allow, nil }
 | --- | --- |
 | [RiskControlView.vue](../../frontend/src/views/admin/RiskControlView.vue) | 新增 "Prompt 风险" 区块:全局 `Mode`(off/observe/block)、`InputScope`(newest/full)、各等级关键词集、豁免(分组/用户/key + 封顶等级)、升级阈值、**group 级 opt-in**(分组多选)、拦截消息 + 改写建议,以及**在线测试器**(粘贴 prompt → 显示等级/动作/命中词);日志筛选加 `blocked`(含 prompt_risk_block)/`observe` 桶与新动作标签 |
 | `frontend/src/api/admin/` | 在既有风控调用旁加新 API 方法 |
-| i18n([en.ts](../../frontend/src/i18n/locales/en.ts)、[zh.ts](../../frontend/src/i18n/locales/zh.ts)) | `admin.riskControl.promptRisk.*`;给日志筛选/表格加新动作标签(`prompt_risk_block`/`prompt_risk_observe`)与 `observe` 结果桶文案 |
+| i18n([en/admin/channels.ts](../../frontend/src/i18n/locales/en/admin/channels.ts)、[zh/admin/channels.ts](../../frontend/src/i18n/locales/zh/admin/channels.ts)) | `admin.riskControl.promptRisk.*`;给日志筛选/表格加新动作标签(`prompt_risk_block`/`prompt_risk_observe`)与 `observe` 结果桶文案 |
 
 ### 测试
 
@@ -251,5 +251,5 @@ if err != nil { return allow, nil }
 
 ## 修订记录
 
-- **2026-06-22**:经 Codex 设计审核([codex-prompt-risk-filter-design-audit-cn.md](codex-prompt-risk-filter-design-audit-cn.md))核验,确认其「关键问题清单」代码级论断全部属实,已将结论**直接折叠进本设计正文**(最终口径,非附加回应):分数归一化 0~1(修 `DECIMAL(8,6)` 溢出)、删除 `EmailOnHigh`/`NotifyOnMedium` 改为拆分副作用开关且 v1 不喂自动封禁、默认词表按"双用途→observe / 明确恶意→block"重排并首版 `Mode=observe`、新 action 纳入 metric/筛选/前端、风险阶段上移到 `loadConfig` 之前并独立加载、作用域改 group 级 opt-in、新增专用抽取器、request_intercept `word` 模式合并升为本期必做;账号池隔离列为 v1 已知局限 / v1.1。
-- **2026-06-22(实现审核)**:经 Codex 实现审核([codex-prompt-risk-filter-implementation-audit-cn.md](codex-prompt-risk-filter-implementation-audit-cn.md))核验落地代码,采纳并修复:`prompt_risk_block` 计入 blocked 指标(P0-1);抽取改为 `input_scope=newest` 默认、`full` 显式 opt-in,避免多轮里历史高危在"谢谢/继续"等普通后续上重复触发(P0-2);删除热路径不执行的死配置 `FailOpen` 与 `AutoBan/AdminEmail*`(P1-1/P1-2,明确**只支持 fail-open**);保存改 `validateRaw` 先拒非法枚举原值再 normalize(P1-3);`pass` 桶排除 `prompt_risk_observe`(P1-4);`category_scores` 键改 `level:source:keyword` 保留等级(P2-1)。`request_intercept` 完整抽取器统一(P1-5)、结构化 reasons 快照、管理员邮件均评估后**列入 v1.1**(理由见正文)。
+- **2026-06-22**:经 Codex 设计审核([codex-prompt-risk-filter-design-audit-cn.md](../reviews/codex-prompt-risk-filter-design-audit-cn.md))核验,确认其「关键问题清单」代码级论断全部属实,已将结论**直接折叠进本设计正文**(最终口径,非附加回应):分数归一化 0~1(修 `DECIMAL(8,6)` 溢出)、删除 `EmailOnHigh`/`NotifyOnMedium` 改为拆分副作用开关且 v1 不喂自动封禁、默认词表按"双用途→observe / 明确恶意→block"重排并首版 `Mode=observe`、新 action 纳入 metric/筛选/前端、风险阶段上移到 `loadConfig` 之前并独立加载、作用域改 group 级 opt-in、新增专用抽取器、request_intercept `word` 模式合并升为本期必做;账号池隔离列为 v1 已知局限 / v1.1。
+- **2026-06-22(实现审核)**:经 Codex 实现审核([codex-prompt-risk-filter-implementation-audit-cn.md](../reviews/codex-prompt-risk-filter-implementation-audit-cn.md))核验落地代码,采纳并修复:`prompt_risk_block` 计入 blocked 指标(P0-1);抽取改为 `input_scope=newest` 默认、`full` 显式 opt-in,避免多轮里历史高危在"谢谢/继续"等普通后续上重复触发(P0-2);删除热路径不执行的死配置 `FailOpen` 与 `AutoBan/AdminEmail*`(P1-1/P1-2,明确**只支持 fail-open**);保存改 `validateRaw` 先拒非法枚举原值再 normalize(P1-3);`pass` 桶排除 `prompt_risk_observe`(P1-4);`category_scores` 键改 `level:source:keyword` 保留等级(P2-1)。`request_intercept` 完整抽取器统一(P1-5)、结构化 reasons 快照、管理员邮件均评估后**列入 v1.1**(理由见正文)。

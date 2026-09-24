@@ -5,11 +5,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { Group, User, UserSubscription } from '@/types'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { listSubscriptions, resetQuota, resetDailyFiltered, searchSubscriptionGroups, getAllGroups, searchUsers, showError, showSuccess } = vi.hoisted(() => ({
+const { listSubscriptions, resetQuota, resetDailyFiltered, searchSubscriptionGroups, getAssignableGroups, getAllGroups, searchUsers, showError, showSuccess } = vi.hoisted(() => ({
   listSubscriptions: vi.fn(),
   resetQuota: vi.fn(),
   resetDailyFiltered: vi.fn(),
   searchSubscriptionGroups: vi.fn(),
+  getAssignableGroups: vi.fn(),
   getAllGroups: vi.fn(),
   searchUsers: vi.fn(),
   showError: vi.fn(),
@@ -31,7 +32,8 @@ vi.mock('@/api/admin', () => ({
       revoke: vi.fn(),
       resetQuota,
       resetDailyFiltered,
-      searchGroups: searchSubscriptionGroups
+      searchGroups: searchSubscriptionGroups,
+      getAssignableGroups
     },
     groups: {
       getAll: getAllGroups
@@ -211,6 +213,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
     resetQuota.mockReset()
     resetDailyFiltered.mockReset()
     searchSubscriptionGroups.mockReset()
+    getAssignableGroups.mockReset()
     getAllGroups.mockReset()
     searchUsers.mockReset()
     showError.mockReset()
@@ -236,6 +239,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
       subscription_type: testGroup.subscription_type
     }])
     getAllGroups.mockResolvedValue([testGroup])
+    getAssignableGroups.mockResolvedValue([testGroup])
     searchUsers.mockResolvedValue([])
   })
 
@@ -275,7 +279,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(resetQuota).toHaveBeenCalledWith(31, { daily: true, weekly: true, monthly: true })
   })
 
-  it('shows sub admins only the two permitted quota reset actions', async () => {
+  it('shows subscription sub admins assignment and quota reset actions', async () => {
     authState.isAdmin = false
     authState.isSubAdmin = true
 
@@ -285,11 +289,13 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(buttonTexts).toContain('admin.subscriptions.resetQuota')
     expect(buttonTexts).toContain('admin.subscriptions.resetDailyQuota')
     expect(buttonTexts).toContain('admin.subscriptions.bulkResetDaily')
-    expect(buttonTexts).not.toContain('admin.subscriptions.assignSubscription')
+    expect(buttonTexts).toContain('admin.subscriptions.assignSubscription')
     expect(buttonTexts).not.toContain('admin.subscriptions.adjust')
     expect(buttonTexts).not.toContain('admin.subscriptions.revoke')
     expect(buttonTexts).not.toContain('admin.subscriptions.restore')
+    expect(buttonTexts).not.toContain('userSubscriptions.selfReset.policyTitle')
     expect(searchSubscriptionGroups).toHaveBeenCalledTimes(1)
+    expect(getAssignableGroups).toHaveBeenCalledTimes(1)
     expect(getAllGroups).not.toHaveBeenCalled()
   })
 
@@ -303,6 +309,18 @@ describe('admin SubscriptionsView quota reset actions', () => {
 
     expect(wrapper.find('[data-test="subscription-bulk-actions"]').exists()).toBe(false)
     expect(wrapper.getComponent(DataTableStub).attributes('selectable')).toBe('false')
+  })
+
+  it('hides assignment and its dialog when subscription permission is missing', async () => {
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+    authState.hasAdminPermission.mockReturnValue(false)
+
+    const wrapper = await mountView()
+    expect(wrapper.findAll('button').map((button) => button.text()))
+      .not.toContain('admin.subscriptions.assignSubscription')
+    expect(wrapper.find('#assign-subscription-form').exists()).toBe(false)
+    expect(getAssignableGroups).not.toHaveBeenCalled()
   })
 
   it('applies the organization filter while retaining secondary sort fields', async () => {
@@ -342,7 +360,7 @@ describe('admin SubscriptionsView quota reset actions', () => {
     wrapper = await mountView()
     buttonTexts = wrapper.findAll('button').map((button) => button.text())
 
-    expect(buttonTexts).not.toContain('admin.subscriptions.assignSubscription')
+    expect(buttonTexts).toContain('admin.subscriptions.assignSubscription')
     expect(buttonTexts).toContain('admin.subscriptions.bulkResetDaily')
   })
 
