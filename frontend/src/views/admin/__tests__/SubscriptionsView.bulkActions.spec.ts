@@ -3,15 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { list, bulkAction, bulkAssign, listUsers, showError } = vi.hoisted(() => ({
-  list: vi.fn(), bulkAction: vi.fn(), bulkAssign: vi.fn(), listUsers: vi.fn(), showError: vi.fn()
+const { list, bulkAction, bulkAssign, listUsers, searchAssignmentUsers, showError } = vi.hoisted(() => ({
+  list: vi.fn(), bulkAction: vi.fn(), bulkAssign: vi.fn(), listUsers: vi.fn(), searchAssignmentUsers: vi.fn(), showError: vi.fn()
 }))
 
 vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    subscriptions: { list, bulkAction, bulkAssign },
+    subscriptions: {
+      list, bulkAction, bulkAssign, searchAssignmentUsers,
+      searchGroups: vi.fn().mockResolvedValue([]),
+      getAssignableGroups: vi.fn().mockResolvedValue([])
+    },
     groups: { getAll: vi.fn().mockResolvedValue([]) },
     users: { list: listUsers }
   }
@@ -57,6 +61,8 @@ let wrapper: ReturnType<typeof mountView>
 beforeEach(async () => {
   vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
   vi.clearAllMocks()
+  authState.isAdmin = true
+  authState.isSubAdmin = false
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('auth_user', JSON.stringify({ id: 777 }))
@@ -119,7 +125,14 @@ describe('subscription bulk operations', () => {
     expect(wrapper.getComponent({ name: 'DataTable' }).props('selectedKeys')).toEqual([])
   })
 
-  it('assigns multiple users once and retries only failed users', async () => {
+  it.each(['admin', 'sub_admin'])('%s assigns multiple users once and retries only failed users', async (role) => {
+    if (role === 'sub_admin') {
+      wrapper.unmount()
+      authState.isAdmin = false
+      authState.isSubAdmin = true
+      wrapper = mountView()
+      await flushPromises()
+    }
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     await wrapper.findAll('button').find(button => button.text() === 'admin.subscriptions.assignSubscription')!.trigger('click')
     const form = wrapper.get('#assign-subscription-form')
@@ -128,6 +141,7 @@ describe('subscription bulk operations', () => {
     const search = form.get('[data-assign-user-search] input')
     for (const id of [11, 22]) {
       listUsers.mockResolvedValue({ items: [{ id, email: `user${id}@example.com` }] })
+      searchAssignmentUsers.mockResolvedValue([{ id, email: `user${id}@example.com` }])
       await search.trigger('focus')
       await search.setValue(`user${id}`)
       await vi.advanceTimersByTimeAsync(300)
@@ -152,5 +166,6 @@ describe('subscription bulk operations', () => {
     await flushPromises()
     expect(bulkAssign).toHaveBeenLastCalledWith({ user_ids: [22], group_id: 7, validity_days: 30 })
     expect(form.find('[data-test="assign-users"]').exists()).toBe(false)
+    if (role === 'sub_admin') expect(listUsers).not.toHaveBeenCalled()
   })
 })

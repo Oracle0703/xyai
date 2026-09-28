@@ -54,11 +54,11 @@ func ProvideAdminHandlers(
 	auditLogHandler *admin.AuditLogHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
-	settingService *service.SettingService,
+	opencodeGoUsage *service.OpenCodeGoUsageService,
 ) *AdminHandlers {
 	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	accountHandler.SetOllamaCloudUsageService(ollamaCloudUsage)
-	accountHandler.SetCodexTicketSettings(settingService)
+	accountHandler.SetOpenCodeGoUsageService(opencodeGoUsage)
 	return &AdminHandlers{
 		Dashboard:              dashboardHandler,
 		User:                   userHandler,
@@ -191,6 +191,7 @@ func ProvideHandlers(
 	usageHandler *UsageHandler,
 	redeemHandler *RedeemHandler,
 	subscriptionHandler *SubscriptionHandler,
+	subscriptionSelfResetHandler *SubscriptionSelfResetHandler,
 	announcementHandler *AnnouncementHandler,
 	channelMonitorUserHandler *ChannelMonitorUserHandler,
 	channelMonitorV2Handler *ChannelMonitorV2Handler,
@@ -206,37 +207,41 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	gptQuotaDisplayHandler *GPTQuotaDisplayHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
 ) *Handlers {
 	return &Handlers{
-		Auth:             authHandler,
-		User:             userHandler,
-		APIKey:           apiKeyHandler,
-		Usage:            usageHandler,
-		Redeem:           redeemHandler,
-		Subscription:     subscriptionHandler,
-		Announcement:     announcementHandler,
-		ChannelMonitor:   channelMonitorUserHandler,
-		ChannelMonitorV2: channelMonitorV2Handler,
-		Admin:            adminHandlers,
-		Gateway:          gatewayHandler,
-		OpenAIGateway:    openaiGatewayHandler,
-		Setting:          settingHandler,
-		Totp:             totpHandler,
-		Passkey:          passkeyHandler,
-		Payment:          paymentHandler,
-		PaymentWebhook:   paymentWebhookHandler,
-		AvailableChannel: availableChannelHandler,
-		ModelPlaza:       modelPlazaHandler,
-		AsyncImage:       asyncImageHandler,
-		BatchImage:       batchImageHandler,
+		Auth:                  authHandler,
+		User:                  userHandler,
+		APIKey:                apiKeyHandler,
+		Usage:                 usageHandler,
+		Redeem:                redeemHandler,
+		Subscription:          subscriptionHandler,
+		SubscriptionSelfReset: subscriptionSelfResetHandler,
+		Announcement:          announcementHandler,
+		ChannelMonitor:        channelMonitorUserHandler,
+		ChannelMonitorV2:      channelMonitorV2Handler,
+		Admin:                 adminHandlers,
+		Gateway:               gatewayHandler,
+		OpenAIGateway:         openaiGatewayHandler,
+		Setting:               settingHandler,
+		Totp:                  totpHandler,
+		Passkey:               passkeyHandler,
+		Payment:               paymentHandler,
+		PaymentWebhook:        paymentWebhookHandler,
+		AvailableChannel:      availableChannelHandler,
+		ModelPlaza:            modelPlazaHandler,
+		AsyncImage:            asyncImageHandler,
+		BatchImage:            batchImageHandler,
+		GPTQuotaDisplay:       gptQuotaDisplayHandler,
 	}
 }
 
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
+	NewSubscriptionSelfResetHandler,
 	// Top-level handlers
 	NewAuthHandler,
 	NewUserHandler,
@@ -258,6 +263,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	NewGPTQuotaDisplayHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

@@ -129,10 +129,19 @@ func RegisterUserRoutes(
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{
+			subscriptions.GET("/self-reset-status", h.SubscriptionSelfReset.Status)
+			subscriptions.POST("/:id/reset-daily", h.SubscriptionSelfReset.Reset)
 			subscriptions.GET("", h.Subscription.List)
 			subscriptions.GET("/active", h.Subscription.GetActive)
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
+		}
+
+		// GPT 账号额度共享展示（只读快照，不触发上游采集）
+		gptQuota := authenticated.Group("/gpt-quota")
+		{
+			gptQuota.GET("", h.GPTQuotaDisplay.Get)
+			gptQuota.GET("/status", h.GPTQuotaDisplay.Status)
 		}
 
 		// 渠道监控（用户只读）

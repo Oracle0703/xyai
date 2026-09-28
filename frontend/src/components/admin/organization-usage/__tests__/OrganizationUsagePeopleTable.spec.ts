@@ -43,7 +43,7 @@ describe('OrganizationUsagePeopleTable screenshots', () => {
     const table = captureTablePng.mock.calls[0][0] as HTMLTableElement
     expect(table).toBe(wrapper.get('table').element)
     expect(table.tBodies[0].rows).toHaveLength(count)
-    expect(table.tHead!.rows[0].cells).toHaveLength(12)
+    expect(table.tHead!.rows[0].cells).toHaveLength(13)
     expect(table.tBodies[0].rows[0].textContent).toContain('person100@example.com')
     expect(saveAs).toHaveBeenCalledWith(expect.any(Blob), 'organization_usage_people_2026-09-01_to_2026-09-30_page_2.png')
     expect(showSuccess).toHaveBeenCalledOnce()

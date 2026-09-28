@@ -12,9 +12,24 @@
 - Windows 继续使用下文 repo-local cache/fresh GOTMPDIR 和 `-p 1 -count=1`。涉及 PgDumper 时先确认 `sh.exe` 可用，本机 Git shell 在 `F:\an\Git\usr\bin`；增量 lint 使用匹配 Go 1.27 的 golangci-lint 2.13，旧全局 2.9 不适用。
 - 最终门禁：Go default/unit、PG 专项、schema/provider 改变时生成 Ent/Wire 并查漂移（本次无变化）、`go mod tidy -diff`、增量 lint、normal/embed build；前端 `pnpm.cmd typecheck`、`lint:check`、`test:run`、`build`。完整证据见部门验收表，不把跳过 integration 当通过。
 
+## 0.2.8 合并与验证基线
+
+- 本地 `main@abd369d942b55a1a3314f386b51269cdf8210ec8` 创建 `feature/hy/10210_merge_sub2api_208`，固定上游 `main@a3eb7ef302961cba716dc78b39b93b60c467db0e`，`VERSION=0.2.8`，merge base=`fbb9006adef852c46f0c7f18b0a8a740722cfac7`。普通 merge 仅有 `.gitignore`、`backend/cmd/server/wire_gen.go` 两个文本冲突；Wire 保留本地 provider 链并接入 OpenCode Go/Claude Code 服务。
+- `go test ./...` 编译与绝大多数包通过；3 个 `backup_pg_dumper` 用例因 Windows PATH 缺少 `sh.exe` 失败，属于环境/上游测试边界，本轮不改。前端 `pnpm run lint:check`、`pnpm run typecheck`、`pnpm run test:run` 通过，Vitest 364 files / 2718 tests。
+- 当前保持 `MERGE_HEAD`，不提交、不推送；只解决冲突及必要的重复 provider 合并，不修复上游自身问题。
+
+## 0.2.7 合并与验证基线
+
+- 本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 为第一父，分支 `feature/hy/10207_merge_sub2api_207`，固定上游 `main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`，`VERSION=0.2.7`；共同祖先为 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`。上游曾强制更新历史，普通 merge 会保留已撤下的 0.2.6 ticket；本轮按用户明确选择同步移除。
+- `gateway.openai_codex_ticket` / `GATEWAY_OPENAI_CODEX_TICKET_*`、后台票据开关/代理和 harvester 已移除；普通 Codex turn-state 机制仍在。旧配置/数据库值不由本轮主动清理，下方 0.2.6 ticket 配置仅供历史追溯。
+- Go 1.27.0 和前端 package/lockfile 不变；采用已有 pnpm 9 依赖。Wire 重生成后必须核对目标上游已有 `pluginManager.SetAccountDirectory(openAIGatewayService)`：上游源图缺少这条接线，生成器会删除它。本轮保留目标行为并登记问题，不修复源图。
+- 验证使用仓库 `.gocache`、每命令独立 GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git `usr/bin`；完整 default/unit/integration、前端 Vitest、lint/typecheck/build 与已知失败归属见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。退出 0 但因 Docker/凭据缺失而 skip 的测试不算完整执行覆盖。
+
+- 本轮 default、专项、normal/embed build、tidy、增量 lint、前端 lint/typecheck/build 通过；unit 留有第一父 auth/me golden 与 Ollama CAS，Vitest 留有第一父 Pinia 6 失败。integration 在 `CI=true` 下因 Docker 不可用使 repository 包失败，另有 18 个显式 skip；未把退出码或跳过视为全量覆盖。
+
 ## 0.2.6 合并与验证基线
 
-- 基于本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；merge base 为 `881f3202694c6bc932446931a30c27d9675178b9`，`VERSION=0.2.6`。保持未提交 merge 等待用户审核，不自动推进到更新的上游提交。
+- 基于本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`；merge base 为 `881f3202694c6bc932446931a30c27d9675178b9`，`VERSION=0.2.6`。该轮已由 `ee829b777` 创建 merge commit 并合入 main；ticket 后续在 0.2.7 按目标上游移除。
 - 新增 `gateway.openai_codex_ticket` 配置：`enabled=false`、`target_length=292`、`ttl_seconds=3600`、`refresh_before_seconds=600`、`harvest_proxy_url=""`、`harvest_probe_interval_seconds=6`、`harvest_attempt_timeout_seconds=25`、`fail_closed=true`，models 默认 `gpt-6-astra` / `gpt-5.6-sol`。环境变量使用 `GATEWAY_OPENAI_CODEX_TICKET_*`；后台总开关与代理设置优先于 YAML/env，读取缓存 5 秒；后台代理输入留空保存表示保持已有值。
 - Go 保持 1.27.0，gRPC 升至 1.83.2，并沿上游同步 x/*、OpenTelemetry 等依赖；本地直接引用的 `golang.org/x/sys` / `golang.org/x/text` 继续列为直接依赖，但采用上游版本。Wire provider 变化已连续生成两次并核对一致；本轮无 Ent schema 变化，无需重建 Ent。生成工具临时增加的 checksum 不属于业务依赖，生成后恢复目标 `go.sum`。
 - Windows 验证可仅在测试进程 PATH 加入现有 Git for Windows 的 `usr/bin`，满足 `backup_pg_dumper` 测试硬编码的 `sh` 依赖；不用修改生产实现或测试。`golangci-lint` 使用仓库缓存中与 CI 相同的 v2.13.0/Go 1.27 二进制，避免默认旧 v2.9.0 拒绝加载。
@@ -493,6 +508,13 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - 修改网关 body/stream 逻辑要验证流式和非流式两类请求。
 - 更改 OpenAI WS 或调度配置要检查 fallback, sticky session 和连接池策略。
 - 修改 Wire provider 或后台服务启动/清理逻辑后运行 `cd backend && go generate ./cmd/server` 与 `go test ./cmd/server -run Wire`。
+
+## 自助日重置专项验证（2026-09-23）
+
+- 后端在 `backend/` 按本页 Go 缓存入口运行 `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler ./internal/server/middleware ./internal/server/routes -run 'SubscriptionSelfReset|AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|BackendModeUserGuard|SubscriptionBulkActionRoutes'`。
+- 隔离 PostgreSQL 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后执行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run SubscriptionSelfReset`。覆盖并发、单连接池、回滚、DATE、组织一致性及两个服务实例缓存回读；缓存测试用 miniredis TCP/PubSub，不代表生产 Redis 集群故障验证。勿对业务库运行迁移测试。既没有 Docker 也没有设置该 DSN 时，`TestMain` 会打印 `docker is not available; skipping integration tests` 并返回 `ok`，必须加 `-v` 确认三个用例 `--- PASS`。main 上 CI 的单测步骤当前失败，集成步骤不会执行，CI 不能替代这一步。上线后的 SQL 验证步骤见交付记录「上线与 PostgreSQL 验证」。
+- 前端 `pnpm --dir frontend exec vitest run src/views/user/__tests__/SubscriptionsView.selfReset.spec.ts src/composables/__tests__/useSubscriptionSelfReset.spec.ts src/components/admin/subscription/__tests__/SubscriptionSelfResetPolicyDialog.spec.ts`，并运行既有管理订阅用例、locale 完整性、typecheck 与 ESLint。
+- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-implementation-cn.md`。实现审核见 `docs/features/subscription-self-daily-reset-implementation-review-cn.md`。
 
 ## 上游历史分支合并注意事项
 

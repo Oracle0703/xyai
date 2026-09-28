@@ -7,6 +7,20 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// 本地 Prompt Risk 继续沿用过滤 reminder 的输入合同；上游内容审核已将
+// 共享抽取函数迁入 moderationTextCollector，关键词审核另用不过滤的 collector。
+func addModerationText(parts *[]string, text string) {
+	(moderationTextCollector{filterReminders: true}).addModerationText(parts, text)
+}
+
+func collectContentValue(value gjson.Result, parts *[]string, images *[]string) {
+	(moderationTextCollector{filterReminders: true}).collectContentValue(value, parts, images)
+}
+
+func collectAnthropicUserContentValue(value gjson.Result, parts *[]string, images *[]string) {
+	(moderationTextCollector{filterReminders: true}).collectAnthropicUserContentValue(value, parts, images)
+}
+
 // extractPromptRiskInput 为 Prompt 风险审查抽取用户意图文本。与内容审核的
 // ExtractContentModerationInput(只取最后一项)不同,它按 scope 抽取:
 //   - newest(默认):只取**最新一轮**用户意图——定位最后一个 user item,连同其前面相邻的

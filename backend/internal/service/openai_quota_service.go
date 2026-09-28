@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -35,6 +37,7 @@ const (
 	openaiQuotaSecFetchMode     = "no-cors"
 	openaiQuotaSecFetchDest     = "empty"
 	openaiQuotaResetCreditsKey  = "codex_reset_credit_snapshot"
+	openaiQuotaCreditsKey       = "codex_credits_snapshot"
 )
 
 // OpenAIRateLimitWindow describes a single rate-limit window returned by
@@ -75,6 +78,21 @@ type OpenAIRateLimitResetCredits struct {
 	Credits        []OpenAIRateLimitResetCreditDetail `json:"credits,omitempty"`
 }
 
+// OpenAICredits is the spendable Codex credit balance from /wham/usage.
+// It is separate from reset credits. Upstream represents the balance as a
+// nullable decimal string; keep that representation to preserve precision.
+// Source: Codex 41ece455b7fa, codex-backend-openapi-models/src/models/credit_status_details.rs.
+type OpenAICredits struct {
+	HasCredits bool    `json:"has_credits"`
+	Unlimited  bool    `json:"unlimited"`
+	Balance    *string `json:"balance"`
+}
+
+type openAICreditsSnapshot struct {
+	Credits   *OpenAICredits `json:"credits"`
+	FetchedAt int64          `json:"fetched_at"`
+}
+
 // OpenAIQuotaUsage is the typed projection of /wham/usage we expose to the UI.
 // Fields not relevant to the quota card are intentionally omitted to keep the
 // surface narrow; full upstream payload preservation is unnecessary.
@@ -86,6 +104,7 @@ type OpenAIQuotaUsage struct {
 	RateLimit             *OpenAIRateLimit             `json:"rate_limit,omitempty"`
 	AdditionalRateLimits  []OpenAIAdditionalRateLimit  `json:"additional_rate_limits,omitempty"`
 	RateLimitResetCredits *OpenAIRateLimitResetCredits `json:"rate_limit_reset_credits,omitempty"`
+	Credits               *OpenAICredits               `json:"credits,omitempty"`
 	FetchedAt             int64                        `json:"fetched_at"`
 	autoResetCandidates   []openAIAutoResetCreditCandidate
 }
@@ -119,6 +138,7 @@ type OpenAIQuotaService struct {
 	proxyRepo            ProxyRepository
 	tokenProvider        *OpenAITokenProvider
 	privacyClientFactory PrivacyClientFactory
+	referralClient       OpenAIReferralClient
 	agentIdentityTaskMu  sync.Mutex
 	agentIdentityWS      agentIdentityWSConnectionInvalidator
 }
@@ -131,12 +151,14 @@ func NewOpenAIQuotaService(
 	proxyRepo ProxyRepository,
 	tokenProvider *OpenAITokenProvider,
 	privacyClientFactory PrivacyClientFactory,
+	referralClient OpenAIReferralClient,
 ) *OpenAIQuotaService {
 	return &OpenAIQuotaService{
 		accountRepo:          accountRepo,
 		proxyRepo:            proxyRepo,
 		tokenProvider:        tokenProvider,
 		privacyClientFactory: privacyClientFactory,
+		referralClient:       referralClient,
 	}
 }
 
@@ -213,6 +235,153 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 	return &payload, nil
 }
 
+// OpenAIQuotaReadOnlyError classifies QueryUsageReadOnly failures into stable
+// categories (see GPTQuotaStatus*). It never carries the upstream body.
+type OpenAIQuotaReadOnlyError struct {
+	Category   string
+	StatusCode int
+	RetryAfter time.Duration
+	cause      error
+}
+
+func (e *OpenAIQuotaReadOnlyError) Error() string {
+	if e.StatusCode > 0 {
+		return fmt.Sprintf("openai quota read-only query failed: %s (upstream %d)", e.Category, e.StatusCode)
+	}
+	return "openai quota read-only query failed: " + e.Category
+}
+
+func (e *OpenAIQuotaReadOnlyError) Unwrap() error { return e.cause }
+
+func newOpenAIQuotaReadOnlyError(category string, statusCode int, cause error) *OpenAIQuotaReadOnlyError {
+	return &OpenAIQuotaReadOnlyError{Category: category, StatusCode: statusCode, cause: cause}
+}
+
+// QueryUsageReadOnly fetches only the usage document for an ordinary OpenAI
+// OAuth account. It deliberately skips reset-credit probing, never persists the
+// response into account extra, and refuses shadow / Agent Identity accounts so
+// no agent-identity task is created or recovered. Before touching the token
+// provider it rejects accounts whose access token is expired without a refresh
+// token, because that provider path would disable the account. GPT quota
+// display uses this narrow path so a read cannot alter scheduling or automatic
+// reset state.
+func (s *OpenAIQuotaService) QueryUsageReadOnly(ctx context.Context, accountID int64) (*OpenAIQuotaUsage, error) {
+	if s == nil || s.accountRepo == nil || s.privacyClientFactory == nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusInternalError, 0, nil)
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil || account == nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusAccountUnavailable, 0, err)
+	}
+	if !account.IsOpenAIOAuth() || account.IsShadow() || account.IsOpenAIAgentIdentity() {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusNotSupported, 0, nil)
+	}
+	if !account.IsOpenAIPersonalAccessToken() {
+		if expiresAt := account.GetOpenAITokenExpiresAt(); expiresAt != nil && time.Now().Add(openAITokenRefreshSkew).After(*expiresAt) && strings.TrimSpace(account.GetOpenAIRefreshToken()) == "" {
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusTokenUnavailable, 0, nil)
+		}
+	}
+	accessToken, chatGPTAccountID, proxyURL, fedRAMP, err := s.prepareUpstreamCall(ctx, accountID)
+	if err != nil {
+		if category := openAIQuotaContextCategory(ctx); category != "" {
+			return nil, newOpenAIQuotaReadOnlyError(category, 0, err)
+		}
+		switch infraerrors.Reason(err) {
+		case "OPENAI_QUOTA_TOKEN_UNAVAILABLE", "OPENAI_QUOTA_MISSING_ACCOUNT_ID":
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusTokenUnavailable, 0, err)
+		case "OPENAI_QUOTA_ACCOUNT_NOT_FOUND":
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusAccountUnavailable, 0, err)
+		}
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusRequestFailed, 0, err)
+	}
+	client, err := s.privacyClientFactory(proxyURL)
+	if err != nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusRequestFailed, 0, err)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, openaiQuotaUpstreamTimeout)
+	defer cancel()
+	resp, err := client.R().
+		SetContext(callCtx).
+		SetHeaders(buildCodexCommonHeaders(accessToken, chatGPTAccountID, fedRAMP)).
+		Get(chatGPTUsageURL)
+	if err != nil {
+		if category := openAIQuotaContextCategory(ctx); category != "" {
+			return nil, newOpenAIQuotaReadOnlyError(category, 0, err)
+		}
+		if callCtx.Err() != nil {
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusTimeout, 0, err)
+		}
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusRequestFailed, 0, err)
+	}
+	if !resp.IsSuccessState() {
+		status := resp.StatusCode
+		switch status {
+		case http.StatusUnauthorized:
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusUnauthorized, status, nil)
+		case http.StatusForbidden:
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusForbidden, status, nil)
+		case http.StatusTooManyRequests:
+			readOnlyErr := newOpenAIQuotaReadOnlyError(GPTQuotaStatusRateLimited, status, nil)
+			now := time.Now()
+			if retryAt := parseRetryAfterResetTime(resp.Header, now); retryAt != nil && retryAt.After(now) {
+				readOnlyErr.RetryAfter = retryAt.Sub(now)
+			}
+			return nil, readOnlyErr
+		default:
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusUpstreamError, status, nil)
+		}
+	}
+	payload, err := decodeOpenAIQuotaUsageReadOnly(resp.Bytes())
+	if err != nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusParseFailed, resp.StatusCode, err)
+	}
+	payload.FetchedAt = time.Now().Unix()
+	return payload, nil
+}
+
+// openAIQuotaContextCategory 优先识别调用方取消或整体超时，避免被误记成令牌或解析失败。
+func openAIQuotaContextCategory(ctx context.Context) string {
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return GPTQuotaStatusTimeout
+	case ctx.Err() != nil:
+		return GPTQuotaStatusCancelled
+	default:
+		return ""
+	}
+}
+
+// decodeOpenAIQuotaUsageReadOnly 解析 usage 文档。OpenAIRateLimitWindow.UsedPercent 是 float64，
+// 缺失或 null 会解码成 0（剩余 100%），因此没有 used_percent 的主额度窗口按缺失处理。
+func decodeOpenAIQuotaUsageReadOnly(body []byte) (*OpenAIQuotaUsage, error) {
+	var payload OpenAIQuotaUsage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	var probe struct {
+		RateLimit *struct {
+			PrimaryWindow *struct {
+				UsedPercent *float64 `json:"used_percent"`
+			} `json:"primary_window"`
+			SecondaryWindow *struct {
+				UsedPercent *float64 `json:"used_percent"`
+			} `json:"secondary_window"`
+		} `json:"rate_limit"`
+	}
+	if err := json.Unmarshal(body, &probe); err != nil {
+		return nil, err
+	}
+	if payload.RateLimit != nil && probe.RateLimit != nil {
+		if probe.RateLimit.PrimaryWindow == nil || probe.RateLimit.PrimaryWindow.UsedPercent == nil {
+			payload.RateLimit.PrimaryWindow = nil
+		}
+		if probe.RateLimit.SecondaryWindow == nil || probe.RateLimit.SecondaryWindow.UsedPercent == nil {
+			payload.RateLimit.SecondaryWindow = nil
+		}
+	}
+	return &payload, nil
+}
+
 // CacheResetCreditsSnapshot persists a complete reset-credit snapshot after an
 // explicit UI refresh. The snapshot is written to the account that was queried
 // (for a spark shadow that is the shadow row, even though the credits belong to
@@ -228,16 +397,36 @@ func (s *OpenAIQuotaService) CacheResetCreditsSnapshot(ctx context.Context, acco
 	return s.cacheResetCreditsSnapshot(ctx, accountID, credits, nil)
 }
 
+// CacheCreditsSnapshot stores the queried row's display snapshot independently
+// of reset-credit expiration details. A successful read with absent credits
+// replaces the previous balance with unknown, never with a fabricated zero.
+func (s *OpenAIQuotaService) CacheCreditsSnapshot(ctx context.Context, accountID int64, usage *OpenAIQuotaUsage) error {
+	if usage == nil {
+		return infraerrors.New(http.StatusBadGateway, "OPENAI_QUOTA_EMPTY_USAGE", "openai quota query returned an empty result")
+	}
+	if err := s.accountRepo.UpdateExtra(ctx, accountID, map[string]any{
+		openaiQuotaCreditsKey: openAICreditsSnapshot{Credits: usage.Credits, FetchedAt: usage.FetchedAt},
+	}); err != nil {
+		return infraerrors.New(http.StatusInternalServerError, "OPENAI_QUOTA_CACHE_WRITE_FAILED", "failed to cache Codex credits").WithCause(err)
+	}
+	return nil
+}
+
 // CachePostResetSnapshot persists the credits and usage windows observed after a reset.
 func (s *OpenAIQuotaService) CachePostResetSnapshot(ctx context.Context, accountID int64, usage *OpenAIQuotaUsage) error {
 	if usage == nil {
 		return s.cacheResetCreditsSnapshot(ctx, accountID, nil, nil)
 	}
+	updates := buildOpenAIAutoResetUsageUpdates(usage, time.Now())
+	if updates == nil {
+		updates = make(map[string]any)
+	}
+	updates[openaiQuotaCreditsKey] = openAICreditsSnapshot{Credits: usage.Credits, FetchedAt: usage.FetchedAt}
 	return s.cacheResetCreditsSnapshot(
 		ctx,
 		accountID,
 		usage.RateLimitResetCredits,
-		buildOpenAIAutoResetUsageUpdates(usage, time.Now()),
+		updates,
 	)
 }
 

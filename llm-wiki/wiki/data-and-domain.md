@@ -13,6 +13,14 @@
 - 普通分组优先取分组平台、缺失时回退账号；Composite 按实际账号平台，软删除关联仍参与历史归因，未知归入 `unknown`。平台配置不是日志快照，修改后可改变历史分类。
 - API 兼容保留 `active_users` 为成员数、`used_users` 为选区内有记录人数；`applied_filters.attribution=current_membership` 明示口径。`as_of` 固定用量时间上界，`scope_version` 检测当前范围变化，两者都不冻结数据库历史。
 
+## 0.2.7 合并增量
+
+- 新增 `backend/migrations/238b_content_moderation_engine_meta.sql`，为 `content_moderation_logs` 追加可空 `engine_meta JSONB`，保存 engine/model/rules_version/skipped_images；旧行与旧应用写入仍可为空。无 Ent schema 改动，既有迁移不改写。
+- 内容审计引擎配置保存在既有 settings 合同中；OpenAI 保持旧配置兼容，TypeSafe 独立 profile，日志仍保留本地 Prompt Risk action 与筛选口径。
+- Seedance 复用共享媒体任务绑定：同一用户/API Key/分组访问，固定原提交账号，Redis 绑定默认 24h；首次查询成功后按 `usage.completion_tokens` 计费并去重，不按视频秒数计价，无后台自动轮询。
+- 插件 KV 使用 `plugin:kv:v1:<pluginKey>:<namespace>:`，运行时由宿主绑定 pluginKey；单值最大 256 KiB，TTL 最大 90 天。账号目录不序列化原始 `Credentials`，但 `Extra`/`Proxy` 按上游合同可见；出站身份是单独的敏感接口。
+- Codex ticket 代码移除不执行数据库清理；旧 settings/extra 数据未做删除或迁移，本轮只对齐指定源码版本。0.2.6 下列 ticket 描述仅是历史记录，当前不再生效。
+
 ## 0.2.6 合并增量
 
 - 本次没有新增 SQL migration 或 Ent schema。Codex 临时票据保存于 `accounts.extra` 的 `codex_turn_ticket:<model>`，包含账号、模型、state、长度、捕获/过期时间；有效期默认 3600 秒。`account_repo.go` 将这些键归为 scheduler-neutral 更新，仍刷新单账号快照；账号编辑加锁合并当前私有票据，禁止旧表单快照覆盖后台新票据。
@@ -204,6 +212,7 @@ go generate ./cmd/server
 | `217_group_video_model_prices.sql` | `groups.video_model_prices` 保存 Grok 视频“规范模型族 × 分辨率”的 USD/s 覆盖；解析顺序为该 map、legacy `video_price_*`、代码内 model-aware 默认价。 |
 | `218_group_audio_voice_pricing.sql`、`219_group_search_price_per_1k.sql` | 增加 Grok realtime(USD/min)、TTS(USD/百万字符)、STT(USD/hour)和搜索(USD/1000 calls)价格列。NULL 使用代码默认价, 0 明确免费, 正数为分组覆盖价。 |
 | `220_clear_non_grok_video_generation_config.sql` | 首次执行先创建 `groups_video_price_backup_220`, 再清空非 Grok、非 composite 分组的 legacy 与 per-model 视频价；composite 可能路由 Grok, 当前版本保留其配置。备份表确认无需回滚后才能人工删除。 |
+| `243_gpt_quota_display.sql` | GPT 账号额度展示：单例 `gpt_quota_display_config`（默认关闭、30/60 分钟、`version` 乐观锁、`last_slot_at` 槽位去重）、`gpt_quota_display_entries`（account_id 唯一、别名、selected）、每账号一行 `gpt_quota_display_snapshots`（窗口 JSONB，缺失为 SQL NULL；`sampled_at` 条件发布；`last_attempt_*`/`retry_after` 承载跨实例冷却与 429 退避）。与 `accounts.extra` 隔离；账号软删除不级联，读取按 `deleted_at` 排除。 |
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 
@@ -286,6 +295,11 @@ go generate ./cmd/server
 - `backend/resources/model-pricing/README.md`
 
 订阅配额重置:
+
+- `241_subscription_self_daily_reset.sql` 增加附属表 `subscription_self_daily_reset_usage(subscription_id PK/FK, quota_date DATE, used_count, updated_at)` 与 settings key `subscription_self_daily_reset_policy`。三类组织 xunyou/wsdashi/other 默认均为 1，配置范围 0–100，使用当前邮箱分类；不存冗余 user_id，不增加定时任务。239/240 为部门分支已使用编号，本功能使用 241。
+- `242_subscription_self_reset_events.sql` 增加只追加的历史表 `subscription_self_reset_events`（subscription/user/group id、organization 快照、quota_date、当日第几次 used_count、daily_limit、重置前日用量 daily_usage_usd_before、created_at），无外键以便订阅删除后仍保留历史。`Reset` 在 `Consume` 之后同事务写入，只记录成功；幂等重放不重复执行业务函数故不产生重复记录。管理员页 `/admin/subscriptions/self-reset-events`（仅完整管理员）按邮箱/组织/额度日期分页查询。
+- 自助次数按每订阅、服务端配置时区自然日计算；DATE 绑定 YYYY-MM-DD 字符串，读回 to_char 后按日历值比较，禁止混入 organizationUsageLocation 固定上海报表时区。旧日期计数逻辑视为 0，当天首次成功才 UPSERT；同日续期、组织变化和管理员重置不清计数。上限升降立即按“上限减今日已用”计算，不能得到负剩余。
+- 自助排除 HasOneTimeDailyQuota 为真的一次性日卡，不按剩余时间判断日卡。普通旧窗口日用量逻辑视为 0，不扣机会；自助不改变周/月用量、额度、余额、历史或到期时间。
 
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。
@@ -395,7 +409,7 @@ User x platform quota:
 - `accounts` 新增 `proxy_fallback_origin_id`, 记录手动回切来源。
 - 后台逻辑见 `backend.md` 的"代理有效期与失败回退"。
 
-> 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/features/sub2api-v0.1.135-merge-review-cn.md` P2。
+> 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/reviews/sub2api-v0.1.135-merge-review-cn.md` P2。
 
 ## 相关页面
 

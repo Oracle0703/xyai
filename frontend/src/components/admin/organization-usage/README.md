@@ -9,7 +9,7 @@
 | `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；总 Token 包含缓存创建/读取 |
 | `OrganizationUsageSummary.vue` | 仅渲染服务端返回的组织，不补范围外组织行；按钮提交原内部键 |
 | `OrganizationUsageBreakdowns.vue` | 同范围部门/平台汇总，平台活跃人数不能相加作为总人数 |
-| `OrganizationUsagePeopleTable.vue` | 带组织和部门的人员表，服务端排序分页，保留宽表横向滚动；每页选择器前可下载当前页 PNG |
+| `OrganizationUsagePeopleTable.vue` | 带组织和部门的人员表，首列显示跨分页连续排名，服务端排序分页，保留宽表横向滚动；每页选择器前可下载当前页 PNG |
 
 组织内部键 `xunyou / wsdashi / other` 显示为迅游/速宝/其他，部门名称动态配置。平台筛选只过滤用量，零用量成员仍保留。
 

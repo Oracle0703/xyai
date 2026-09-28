@@ -215,6 +215,8 @@ export default {
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
+    gptQuota: 'GPT Account Quota',
+    gptQuotaDisplay: 'GPT Quota Display',
     requestIntercept: 'Request Intercept',
     tokenAnalysis: 'Token Analysis',
     promptMetrics: 'Prompt Metrics',

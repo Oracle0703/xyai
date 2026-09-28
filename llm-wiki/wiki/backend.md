@@ -14,6 +14,21 @@
 - 报表在同一 repeatable-read 快照内解析实际范围并查询 Summary/Periods/Trend；物化 selected_users/period_aggregates/peak CTE，复用个人峰值提取 champion。零用量成员保留；SQL 内摘要备选未启用。
 - `department_subscription_read.go` 保证授权、分页与嵌套用户同快照；重置仅锁 actor 和实际候选成员，锁内重新鉴权，UPDATE 限定已锁集合，新候选触发范围变化。保留幂等 AtomicSuccess、重放鉴权和提交后缓存失效。
 - Admin API Key 保留独立标记的完整管理员语义。负责人 compact 选项走专用受限接口；无 grant 可读空目录，数据/重置拒绝，不能回退全站。
+- 订阅页 compact 选项合并口径（2026-09-28 合入 10209 分支）：`/admin/subscriptions/search-users`、`search-groups` 固定走 `DepartmentHandler.SubscriptionUsers/SubscriptionGroups`，完整管理员与 `admin.subscriptions` 为全站、`admin.department_subscriptions` 限授权部门；`/admin/subscriptions/assignable-groups` 走 `GroupHandler.SubscriptionAssignmentGroups`，仅全站订阅权限可用。`UserHandler.SearchSubscriptionAssignmentUsers` 未挂路由，不能替换 search-users，否则部门负责人可枚举全站用户。
+
+## 0.2.8 合并增量
+
+- 固定上游提交 `a3eb7ef302961cba716dc78b39b93b60c467db0e` 引入 OpenCode Go 用量查询/管理端展示、OpenAI referral、Claude Code 版本同步、reasoning effort 计费与多项网关兼容测试；本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、quota flusher 与插件账号目录接线继续保留。
+- `backend/cmd/server/wire_gen.go` 合并后同时注入 `OpenCodeGoUsageService`、`ClaudeCodeVersionSyncService` 与本地 cleanup/provider；`ProvidePluginManager` 在 service provider source 仅保留一个定义并继续调用 `SetAccountDirectory`，避免 Wire 生成重复符号。
+- 上游 `backup_pg_dumper` 测试依赖 shell 命令 `sh`；Windows 默认 PATH 缺失时失败，验证时应记录为环境边界，不修改生产代码或上游测试。
+
+## 0.2.7 合并增量
+
+- 固定合入 `fbb9006adef852c46f0c7f18b0a8a740722cfac7`。上游重写历史后不再包含 0.2.6 的 Codex ticket；经用户确认移除 harvester、票据注入/调度门控、相关设置/DTO/账号状态，保留原有 `x-codex-turn-state` affinity 与跨账号 echo guard。
+- Seedance Ark 原生视频任务入口位于 `internal/handler/seedance.go` 和 `internal/service/seedance.go`；POST 创建、GET 查询、DELETE 删除支持 `/api/v3`、`/v3`、`/v1` 和根级别名。复用媒体任务所有权/计费链及本地归档、拦截中间件，账号需显式开启 `seedance` endpoint capability。
+- 内容审计支持 OpenAI / TypeSafe 独立 engine profile，`content_moderation_engines.go` 统一处理选择、配置与阈值；本地 Prompt Risk / LLM judge 仍为独立前置阶段。上游将抽取 helpers 改为 `moderationTextCollector` 方法，本地 `prompt_risk_input.go` 以 `filterReminders=true` 适配旧合同；上游关键词检查使用不过滤 reminder 的独立路径。
+- 插件 HostService 通过 broker 提供按插件隔离的 Redis KV、账号目录和出站身份解析；`NewPluginManager` 新增 KVStore，目录由 `OpenAIGatewayService` 提供；管理端新增 `GET /admin/plugins/:id/status`。目标上游仅在 `cmd/server/wire_gen.go` 调用 `SetAccountDirectory`，Wire 源图无等价注入，重生成会丢该行；本轮保留目标生成物的该接线，不修复上游源图问题。
+- Responses/Chat 的响应 `model` 按公开模型名还原；DeepSeek thinking Chat 回退为空缺的 assistant `reasoning_content` 补空格；Gemini 裸模型名按 thinkingConfig 选择变体。用量查询不再清除 OpenAI refresh error；CN coding-plan quota 403 暂停和 HTTP/2 keepalive 容错均沿上游实现。
 
 ## 0.2.6 合并增量
 
@@ -212,12 +227,18 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 用户角色为 `admin`、`sub_admin`、`user`; 权限码与路由白名单集中在 `backend/internal/service/admin_permission.go`。
 - `AdminAuth` 对 `admin` 和 Admin API Key 全量放行; `sub_admin` 每次请求从数据库加载最新角色、状态、TokenVersion 和 `admin_permissions`, 再按 HTTP 方法 + Gin `FullPath()` 精确匹配。未登记路由返回 `403 ADMIN_PERMISSION_DENIED`。
 - 固定权限为 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
-- 订阅权限只允许查看、`POST /subscriptions/:id/reset-quota`、`POST /subscriptions/reset-daily-filtered` 和 compact 用户/分组筛选。分组筛选走 `/admin/subscriptions/search-groups`, 不得重新放行返回完整 `AdminGroup` 的 `/admin/groups/all`。
+- `admin.subscriptions` 允许查看、单人/批量分配（`POST /admin/subscriptions/assign`、`bulk-assign`）、单项配额重置和筛选日限重置；分配继续调用现有 SubscriptionService，并以登录操作者记录 `assigned_by`。重新分配已过期订阅沿用服务的续期语义；独立延期、撤销、恢复、删除及 `bulk-action` 接口仍拒绝子管理员。
+- 分配选项在 `handler/admin/subscription_assignment_options.go`：`GET /admin/subscriptions/search-users?q=` 按邮箱升序返回最多 30 个未删除用户的 `{id,email}`，空查询返回空数组；`GET /admin/subscriptions/assignable-groups` 从启用分组中过滤订阅类型，仅返回 `id,name,description,platform,rate_multiplier,subscription_type,status`。列表分组筛选仍走 `/admin/subscriptions/search-groups`；不得为弹窗放行完整 `/admin/users` 或 `/admin/groups/all`。
 - 使用记录权限允许 usage、Dashboard 聚合/排行与 Ops 错误只读接口; 账号和分组筛选使用 `/admin/usage/search-accounts`、`search-groups` 的 `{id,name}` 响应。Token 分析权限只允许相关 GET 和选中用户趋势查询。
 - 0.1.161 新增的 `/admin/ops/ingress-rejections`、`/admin/ops/ingress-rejections/health` 与 `/admin/ops/auth-cache-invalidation/health` 不在 `admin.usage` 白名单，当前仅完整管理员可访问。它们包含入口拒绝身份维度和鉴权缓存安全运行态；未知路由默认拒绝是既有 fail-closed 合同，后续若向子管理员开放必须先做显式产品与最小权限评审。
 - backend mode 仅允许至少有一项权限的子管理员登录/刷新 token; 权限清空后不能继续保留 backend 会话。管理端合规查询/确认是所有已认证子管理员的公共白名单, 不代表业务管理权限。
 
 用户侧用量接口:
+
+- 用户自助日重置：`handler/subscription_self_reset_handler.go`、`service/subscription_self_reset.go`、`repository/subscription_self_reset_repo.go`。用户路由 `GET /api/v1/subscriptions/self-reset-status`、`POST /api/v1/subscriptions/:id/reset-daily`；完整管理员策略路由 `GET/PUT /api/v1/admin/subscriptions/self-reset-policy`。不扩展全局 UserSubscription DTO，状态批量读取。
+- 策略 JSON 新增 `rollout=off|admin|all`，缺失字段按 `admin` 兼容；`admin` 仅 role=admin，sub_admin 不包含在灰度管理员范围。Status 和 Reset 都在后端检查，前端隐藏不能替代权限。
+- POST 用认证 user_id 和 subscription_id 同时限定 FOR UPDATE；同事务先读完整策略、再锁订阅并复查关联用户/分组、扣次数和调用 ResetUsageWindows 仅清日用量，AtomicSuccess 同事务保存成功结果。提交后复用批量日重置三段式缓存失效；不调用 AdminResetQuota 代替用户鉴权/扣次。
+- `service/wire.go#ProvidePluginManager` 保留原 SetAccountDirectory 接线，确保 Wire 重生成不丢插件账号目录能力。自助锁查询使用 Ent WithUser/WithGroup 在父行 FOR UPDATE 后单独加载关联，不手动拼装 Edges；WHERE 仍同时限制用户与订阅归属。
 
 - `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
 - `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。
@@ -249,6 +270,13 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - V2 以1 分钟事实表为源, 预计算 5m/1h/12h/1d 固定 rollup。用户 1m 明细保留 3 天, 其他 1m 指标/错误/直方图保留 7 天, 5m/1h/12h/1d rollup 分别保留 7/30/45/90 天。水位表记录 coverage 和 backfill cursor, 进程重启后必须从持久水位续跑。
 - 用户视图的脱敏发生在 service/handler 出口, 不依赖前端隐藏：绝对请求量、Token 量、延迟样本量和 upstream attempt 数清空; `channel_monitor_hide_throughput=true` 时再隐藏 RPM/TPM。用户排行只保留查看者本人 identity 和 drilldown, 其他人匿名; errors 不返回 count/details, config 不向用户暴露 group IDs、模型清单、ignored categories 和 updated_by。
 - Wire 源图必须同时保留 `NewChannelMonitorV2Repository`、`ProvideChannelMonitorV2Service`、`ProvideChannelMonitorV2Aggregator` 与 `provideCleanup` 中的 `ChannelMonitorV2Aggregator.Stop()`; 只接入 provider 而不接 cleanup 会泄漏后台协程和 settings listener。
+
+## GPT 账号额度展示
+
+- 分层：`internal/repository/gpt_quota_display_repo.go`（原生 SQL）、`internal/service/gpt_quota_display.go`、`internal/handler/gpt_quota_display_handler.go`；用户路由 `/api/v1/gpt-quota[/status]` 挂在已认证组（JWT + BackendModeUserGuard + 面板限流 + 审计），管理路由 `/api/v1/admin/gpt-quota`（GET、GET candidates、PUT config、POST refresh）仅完整管理员，不进子管理员白名单。
+- 后台任务：`ProvideGPTQuotaDisplayService` 构造时 `Start()`，每 30 秒按固定 Asia/Shanghai 时区检查计划槽位（不跟随全局 timezone）；`provideCleanup` 必须保留 `GPTQuotaDisplayService.Stop()`，它取消在途上游请求并等待批次退出。单主用 `tryAcquireSingletonLeaderLock`（key `jobs:gpt-quota-display`），槽位用 `gpt_quota_display_config.last_slot_at` 条件更新去重。
+- 上游只能走 `OpenAIQuotaService.QueryUsageReadOnly`（只查 wham/usage、不写 extra、不查 reset-credit、拒绝 shadow/Agent Identity、token 预检防禁用）；不得改用 `QueryUsage`、`getOpenAIUsage` 或渠道监控链路。任何读取接口都不得触发采集。
+- 细节与合同见 [[gpt-account-quota-display-design]]。
 
 ## 网关路径
 

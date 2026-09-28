@@ -1,17 +1,18 @@
 import { departmentsAPI } from '@/api/admin/departments'
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: true, isSubAdmin: false, hasAdminPermission: () => true }) }))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 
 import SubscriptionsView from '../SubscriptionsView.vue'
 
-const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchUsageUsers, showError } = vi.hoisted(() => ({
+const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchAssignmentUsers, getAssignableGroups, searchUsageUsers, showError } = vi.hoisted(() => ({
   listSubscriptions: vi.fn(),
   assignSubscription: vi.fn(),
   showError: vi.fn(),
   getAllGroups: vi.fn(),
   listUsers: vi.fn(),
+  searchAssignmentUsers: vi.fn(),
+  getAssignableGroups: vi.fn(),
   searchUsageUsers: vi.fn()
 }))
 
@@ -19,12 +20,22 @@ vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope:
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    subscriptions: { list: listSubscriptions, assign: assignSubscription },
+    subscriptions: {
+      list: listSubscriptions, assign: assignSubscription, searchAssignmentUsers, getAssignableGroups,
+      searchGroups: vi.fn().mockResolvedValue([{ id: 3, name: 'Subscription' }])
+    },
     groups: { getAll: getAllGroups },
     users: { list: listUsers },
     usage: { searchUsers: searchUsageUsers }
   }
 }))
+
+const authState = vi.hoisted(() => ({
+  isAdmin: true,
+  isSubAdmin: false,
+  hasAdminPermission: vi.fn((_permission: string) => true)
+}))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -61,11 +72,16 @@ const RouterLinkStub = defineComponent({
   template: '<a :href="`${to.path}?user_id=${to.query.user_id}`"><slot /></a>'
 })
 
-describe('admin subscription users', () => {
+describe.each(['admin', 'sub_admin'])('%s subscription users', (role) => {
   beforeEach(() => {
   vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
     vi.clearAllMocks()
     localStorage.clear()
+    authState.isAdmin = role === 'admin'
+    authState.isSubAdmin = role === 'sub_admin'
+    // Global and department subscription permissions are mutually exclusive for sub-admins.
+    authState.hasAdminPermission.mockImplementation((permission: string) =>
+      role === 'admin' || permission === 'admin.subscriptions')
     listSubscriptions.mockResolvedValue({
       scope_version: 'scope-v1',
       items: [{
@@ -90,6 +106,11 @@ describe('admin subscription users', () => {
     })
     assignSubscription.mockResolvedValue({})
     getAllGroups.mockResolvedValue([])
+    getAssignableGroups.mockResolvedValue([{
+      id: 3, name: 'Subscription', status: 'active', subscription_type: 'subscription',
+      platform: 'openai', rate_multiplier: 2, description: 'Subscription group'
+    }])
+    searchAssignmentUsers.mockResolvedValue([{ id: 42, email: 'reader@example.com' }])
     listUsers.mockResolvedValue({
       items: [{ id: 42, email: 'reader@example.com' }],
       total: 1,
@@ -137,9 +158,20 @@ describe('admin subscription users', () => {
       await vi.advanceTimersByTimeAsync(300)
       await flushPromises()
 
-      expect(listUsers).toHaveBeenCalledWith(1, 30, {
-        search: 'example.com', sort_by: 'email', sort_order: 'asc'
-      })
+      if (role === 'admin') {
+        expect(listUsers).toHaveBeenCalledWith(1, 30, {
+          search: 'example.com', sort_by: 'email', sort_order: 'asc'
+        })
+      } else {
+        expect(searchAssignmentUsers).toHaveBeenCalledWith('example.com')
+        expect(listUsers).not.toHaveBeenCalled()
+        expect(getAllGroups).not.toHaveBeenCalled()
+        const groupSelect = wrapper.get('#assign-subscription-form').getComponent({ name: 'Select' })
+        expect(groupSelect.props('options')).toEqual([{
+          value: 3, label: 'Subscription', description: 'Subscription group',
+          platform: 'openai', subscriptionType: 'subscription', rate: 2
+        }])
+      }
       expect(searchUsageUsers).not.toHaveBeenCalled()
       const picker = wrapper.get('[data-assign-user-search]')
       expect(picker.text()).toContain('reader@example.com')
@@ -175,9 +207,10 @@ describe('admin subscription users', () => {
 
       expect(assignSubscription).not.toHaveBeenCalled()
       expect(showError).toHaveBeenCalledWith('admin.subscriptions.pleaseSelectUser')
-      expect(listUsers).toHaveBeenCalledTimes(1)
+      expect(role === 'admin' ? listUsers : searchAssignmentUsers).toHaveBeenCalledTimes(1)
 
       listUsers.mockResolvedValue({ items: [{ id: 84, email: 'another@example.com' }] })
+      searchAssignmentUsers.mockResolvedValue([{ id: 84, email: 'another@example.com' }])
       await search.trigger('focus')
       await search.setValue('another')
       await vi.advanceTimersByTimeAsync(300)

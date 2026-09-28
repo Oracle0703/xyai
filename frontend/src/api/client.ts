@@ -270,12 +270,14 @@ apiClient.interceptors.response.use(
         error: apiData.error,
         message: apiData.message || apiData.detail || error.message,
         metadata: apiData.metadata,
+        retryAfter: error.response?.headers?.['retry-after'],
       })
     }
 
     // Network error
     return Promise.reject({
       status: 0,
+      code: error.code || 'ERR_NETWORK',
       message: 'Network error. Please check your connection.'
     })
   }

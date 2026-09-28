@@ -15,6 +15,13 @@
 - `utils/departmentErrors.ts` 优先读取业务 `reason`，兼容中间件字符串 `code` 及 Axios/普通错误对象；数字 HTTP code 或普通 409 不能触发范围重载。部门停用、跨组织、版本和全站切换错误分别显示中英文提示。
 - Excel 的页面筛选、当前归属、as_of/scope_version 与各分页/Sheet 一致；变化中止。仅部门权限登录默认进入报表或订阅页，保留显式 redirect 与个人 dashboard。
 
+## 0.2.7 合并增量
+
+- 跟随固定上游移除 Codex ticket 设置字段、账号状态展示与类型；原有归档设置、本地 OpenAI-compatible preset 和子管理员权限保留。
+- 账号创建、编辑与批量编辑支持显式 `seedance` 能力；默认仍为 chat/embeddings，空选项不隐式启用 Seedance。相关合同集中在 `components/account/README.md`。
+- `RiskControlView.vue` 增加 OpenAI / TypeSafe 引擎选择，分别维护 URL/model/keys/proxy/thresholds，测试 key 使用当前草稿引擎；本地 `PromptRiskPanel`、独立保存与风险结果筛选继续保留。
+- `PluginsView.vue` 和 API client 增加只读状态通道；竖屏移动端顶栏保留模型广场图标入口。完整 Vitest 的第一父失败与本轮验证见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。
+
 ## 0.2.6 合并增量
 
 - 管理设置增加 `openai_codex_ticket_enabled`、`openai_codex_ticket_harvest_proxy_url` 与只读 `openai_codex_ticket_harvest_proxy_configured`。读取时代理 URL 留空，仅展示已配置状态；空输入保存保持已有代理，替换时提交完整新 URL。本地请求归档设置、子管理员类型及 auth-source 默认值 fallback 仍保留。
@@ -236,6 +243,11 @@ API 模块分布:
 
 订阅管理:
 
+- 用户订阅自助日重置已实现：用户页在续费后显示“重置（N）”，每订阅独立计次，组织默认上限 1；用尽显示 0 并禁用。日卡、零用量、无日限或不可用订阅不能自助，管理端原重置不限次。设计见 `docs/features/subscription-self-daily-reset-design-cn.md`，交付证据见 `docs/features/subscription-self-daily-reset-implementation-cn.md`，实现审核见 `docs/features/subscription-self-daily-reset-implementation-review-cn.md`。审核问题已于 2026-09-23 修复，见交付记录“审核后修复”。
+- `useSubscriptionSelfReset.ts` 的 refresh 同时读次数状态和页面列表。刷新期间保留上一份状态，不闪成“—”；只有状态请求失败才清空状态、禁用按钮并显示“状态暂不可用”。列表失败由 `loadSubscriptions` 自己提示 `failedToLoad`，不连带丢弃状态。全局 store 只在重置成功后强制刷新；失败时提示并在下一次 refresh 补刷，切回标签页平时不刷新它。旧响应按代次丢弃，按钮只认 can_reset。
+- 操作键首次提交用 getRandomValues 生成，提交前按订阅记入内存和按用户隔离的 sessionStorage（写入失败退回内存，不拒绝提交）。未知结果、401/408/429、处理中/退避都保留原键原日期，并遵守 Retry-After；关闭弹窗或刷新页面后再次打开同一订阅仍沿用原键并提示结果未确认。只有成功或确定性失败才删除，日期变化后作废。不能靠 NO_USAGE 兜底：上限 ≥2 且原请求已提交后又有新用量时，新键会再清零、再扣一次。未确认的键不锁其他订阅。
+- 管理订阅页“自助重置设置”只对完整管理员显示；独立 `SubscriptionSelfResetPolicyDialog.vue` 配置三类组织的 0–100 整数、以及 `rollout=off/admin/all`。默认 `admin` 只开放完整管理员，验证后切为 `all`，异常时可切回 `off`。用户页对 `ROLLOUT_DISABLED` 或尚未加载成功的状态不渲染按钮和提示行，灰度期间普通用户看不到该功能。读取失败时显示空白输入框，不填默认值，可重试，也可填满三项后保存覆盖损坏或缺失的配置。
+
 - 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
 - 筛选项包含状态、用户、分组、平台、组织及部门；组织内部值为 `xunyou / wsdashi / other`。部门负责人先请求 subscription scope，默认其唯一组织/部门；compact 用户及分组选项限制授权范围，保留原列表排序合同。
 - 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
@@ -325,7 +337,8 @@ API 模块分布:
 
 - 权限路由顺序和 backend landing 的最小映射在 `frontend/src/utils/adminPermissions.ts`; 权限目录本身由后端 API 返回。
 - `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、使用记录、Token 分析; 账号、风控、请求拦截、设置和管理员自定义菜单不显示。
-- `SubscriptionsView.vue` 对子管理员只显示全量配额重置和仅日限重置; 分配、延期、撤销、恢复及其弹窗仅完整管理员可见。
+- `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。`admin.department_subscriptions` 负责人只显示范围内全量/仅日限重置。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
+- 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询 active 未删除用户（后端按部门范围收口，全站订阅权限即全站），通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
 - `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
 - API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新。标准模式回 `/dashboard`; backend 模式无剩余权限时先 logout 再回 `/login`。
@@ -338,6 +351,12 @@ API 模块分布:
 - `SettingsView.vue` 的 `channel_monitor_mode`、`channel_monitor_hide_throughput`、`registration_email_domain_quota_enabled` 和 `grok_cross_client_model_map_enabled` 都是 GET→form→PUT 的保真字段。后端 Grok 跨客户端映射默认 true, 而前端本地 form 初值可为 false; 必须等 GET 值覆盖初值后再保存, 并用 settings round-trip 测试防止与本次编辑无关的 true 被静默写成 false。
 - `UsageView.vue` 和 CSV 导出同时展示 requested/model、`upstream_model`、`upstream_response_model` 及 mismatch。`upstream_model_mismatch` 筛选是 true/false/不筛选三态; 记录值为 `null` 时展示空白/未观测, 不得归入 false 的“一致”集合。Dashboard trend/models/groups 请求要传递同一筛选值。
 - 注册和待完成 OAuth 邮箱页从 public settings 读取 `registration_email_suffix_whitelist` 与 `registration_email_domain_quota_enabled`。额度开启时前端可放行非白名单邮箱提交给后端做权威计数; 后端返回 `EMAIL_DOMAIN_REGISTRATION_LIMIT` 时统一映射为主域额度文案, 不在浏览器端猜测当前账户数。
+
+## GPT 账号额度展示 UI
+
+- 用户页 `/gpt-quota` 为 `views/user/GPTQuotaView.vue` + `components/user/GPTQuotaColumn.vue`：`md` 以上左迅游右速宝，窄屏单列迅游在前；15 分钟只读轮询，隐藏标签页暂停、恢复可见且间隔已到才补读，卸载时清定时器并 abort 请求；重置倒计时本地 30 秒刷新，到点只显示"已到重置时间，待更新"，不改剩余比例。
+- 管理页 `/admin/gpt-quota` 为 `views/admin/GPTQuotaDisplayView.vue`：已选条目（含失去资格条目，可直接移除）、别名、单条刷新、候选分页搜索、全量刷新与批次计数；保存携带 `expected_version`，409 提示重新读取。批次轮询只刷新服务端条目状态和计数，不覆盖未保存编辑，也不更新编辑基线 `version`（否则会绕过乐观锁）。
+- 菜单开关不走 public settings / `featureFlags.ts`：`composables/useGPTQuotaVisibility.ts` 调 `/gpt-quota/status`，opt-in（未加载或失败隐藏），用户页读取和管理员保存后同步。文案在 `i18n/locales/{zh,en}/gptQuota.ts`，导航键 `nav.gptQuota` / `nav.gptQuotaDisplay`。
 
 ## Grok 与 Codex 管理端 UI
 
