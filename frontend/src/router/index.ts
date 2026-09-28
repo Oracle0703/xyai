@@ -501,6 +501,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/gpt-quota',
+    name: 'AdminGPTQuotaDisplay',
+    component: () => import('@/views/admin/GPTQuotaDisplayView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'GPT Quota Display',
+      titleKey: 'nav.gptQuotaDisplay',
+      descriptionKey: 'gptQuota.admin.description'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),
@@ -509,6 +521,17 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Channel Status',
       titleKey: 'nav.channelStatus'
+    }
+  },
+  {
+    path: '/gpt-quota',
+    name: 'GPTQuotaDisplay',
+    component: () => import('@/views/user/GPTQuotaView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'GPT Account Quota',
+      titleKey: 'nav.gptQuota'
     }
   },
   {

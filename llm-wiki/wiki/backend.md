@@ -255,6 +255,13 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 用户视图的脱敏发生在 service/handler 出口, 不依赖前端隐藏：绝对请求量、Token 量、延迟样本量和 upstream attempt 数清空; `channel_monitor_hide_throughput=true` 时再隐藏 RPM/TPM。用户排行只保留查看者本人 identity 和 drilldown, 其他人匿名; errors 不返回 count/details, config 不向用户暴露 group IDs、模型清单、ignored categories 和 updated_by。
 - Wire 源图必须同时保留 `NewChannelMonitorV2Repository`、`ProvideChannelMonitorV2Service`、`ProvideChannelMonitorV2Aggregator` 与 `provideCleanup` 中的 `ChannelMonitorV2Aggregator.Stop()`; 只接入 provider 而不接 cleanup 会泄漏后台协程和 settings listener。
 
+## GPT 账号额度展示
+
+- 分层：`internal/repository/gpt_quota_display_repo.go`（原生 SQL）、`internal/service/gpt_quota_display.go`、`internal/handler/gpt_quota_display_handler.go`；用户路由 `/api/v1/gpt-quota[/status]` 挂在已认证组（JWT + BackendModeUserGuard + 面板限流 + 审计），管理路由 `/api/v1/admin/gpt-quota`（GET、GET candidates、PUT config、POST refresh）仅完整管理员，不进子管理员白名单。
+- 后台任务：`ProvideGPTQuotaDisplayService` 构造时 `Start()`，每 30 秒按固定 Asia/Shanghai 时区检查计划槽位（不跟随全局 timezone）；`provideCleanup` 必须保留 `GPTQuotaDisplayService.Stop()`，它取消在途上游请求并等待批次退出。单主用 `tryAcquireSingletonLeaderLock`（key `jobs:gpt-quota-display`），槽位用 `gpt_quota_display_config.last_slot_at` 条件更新去重。
+- 上游只能走 `OpenAIQuotaService.QueryUsageReadOnly`（只查 wham/usage、不写 extra、不查 reset-credit、拒绝 shadow/Agent Identity、token 预检防禁用）；不得改用 `QueryUsage`、`getOpenAIUsage` 或渠道监控链路。任何读取接口都不得触发采集。
+- 细节与合同见 [[gpt-account-quota-display-design]]。
+
 ## 网关路径
 
 `backend/internal/server/routes/gateway.go` 是网关路由入口。

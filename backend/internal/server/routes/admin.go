@@ -121,6 +121,15 @@ func RegisterAdminRoutes(
 		// 渠道管理
 		registerChannelRoutes(admin, h)
 
+		// GPT 账号额度共享展示（仅完整管理员；不加入子管理员白名单）
+		gptQuota := admin.Group("/gpt-quota")
+		{
+			gptQuota.GET("", h.GPTQuotaDisplay.AdminGet)
+			gptQuota.GET("/candidates", h.GPTQuotaDisplay.AdminCandidates)
+			gptQuota.PUT("/config", h.GPTQuotaDisplay.UpdateConfig)
+			gptQuota.POST("/refresh", h.GPTQuotaDisplay.Refresh)
+		}
+
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)

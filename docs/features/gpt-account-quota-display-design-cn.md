@@ -1,8 +1,8 @@
 # GPT 账号额度展示设计
 
-状态：**待最终审核，未实施**。修订日期：2026-09-24。
+状态：**已实施（2026-09-28），待上线验收**。设计修订日期：2026-09-24；实施记录见第 13 节。
 
-本文记录本轮已确认需求和供审核的技术方案。用户明确要求先设计、审核通过后再实施；本文件不代表已授权修改业务代码、执行迁移或启用真实采集。当前工作区其他未提交功能与本设计无关。
+本文记录已确认需求、技术方案和实施结果。第 1—12 节是设计合同，第 13 节记录实施时的落地细节与澄清；两者冲突时以第 13 节和源码为准。展示默认关闭，真实账号的主动采集要等管理员上线后显式开启并勾选账号。
 
 ## 1. 目标与已确认范围
 
@@ -140,7 +140,7 @@
 
 ## 7. 持久化模型（提案）
 
-沿用 PostgreSQL 持久化配置、展示条目和当前快照，不仅存进程内缓存。最终迁移编号在实施时按实际仓库分配，本设计不预占编号。
+沿用 PostgreSQL 持久化配置、展示条目和当前快照，不仅存进程内缓存。实施迁移为 `backend/migrations/243_gpt_quota_display.sql`。
 
 | 对象 | 主要字段 | 约束 |
 | --- | --- | --- |
@@ -154,7 +154,7 @@
 
 ## 8. API 提案
 
-下列路径、字段均为待实现设计，不是当前已经存在的接口。
+下表是设计阶段的接口提案；实施后的最终路径、请求体与错误码见第 13.2 节。
 
 | 方法与路径 | 权限 | 行为 |
 | --- | --- | --- |
@@ -225,4 +225,60 @@
 | 只读数据源 | 抽取现有 wham usage 查询，不复用会发模型探测的用量入口 | 保持原调用者和 token/代理合同；不附带 reset-credit 明细请求 |
 | 展示发布 | 默认关闭、初始选择为空，显式发布 | 避免上线即公开账号名称或触发真实采集 |
 | 一致性 | 独立持久化快照、leader lock、槽位条件更新、账号级 singleflight、sampled_at 条件写入 | 不建立通用任务表/租约/代次；实现前验证多实例与崩溃恢复 |
-| 审核结果 | **待最终审核** | 本轮已吸收 Claude/Grok 共同意见；用户明确通过修订设计后，才进入编码阶段 |
+| 审核结果 | **已通过并实施（2026-09-28）** | 已吸收 Claude/Grok 共同意见；实施细节与验证见第 13 节 |
+
+## 13. 实施记录（2026-09-28）
+
+### 13.1 代码位置
+
+| 层次 | 路径 |
+| --- | --- |
+| 迁移 | `backend/migrations/243_gpt_quota_display.sql`（main 已有 239—242，不重号） |
+| 服务 | `backend/internal/service/gpt_quota_display.go`；只读上游方法 `OpenAIQuotaService.QueryUsageReadOnly`（`openai_quota_service.go`） |
+| 仓储 | `backend/internal/repository/gpt_quota_display_repo.go` |
+| Handler 与路由 | `backend/internal/handler/gpt_quota_display_handler.go`；`backend/internal/server/routes/user.go`、`admin.go` |
+| Wire | `ProvideGPTQuotaDisplayService` 构造时 `Start()`；`provideCleanup` 调用 `Stop()` |
+| 前端 | `frontend/src/api/gptQuotaDisplay.ts`、`views/user/GPTQuotaView.vue`、`components/user/GPTQuotaColumn.vue`、`views/admin/GPTQuotaDisplayView.vue`、`composables/useGPTQuotaVisibility.ts`、`i18n/locales/{zh,en}/gptQuota.ts` |
+
+### 13.2 最终接口
+
+| 方法与路径 | 权限 | 行为 |
+| --- | --- | --- |
+| GET /api/v1/gpt-quota | 登录用户（JWT、BackendModeUserGuard、面板限流、审计） | 返回 enabled、server_time、poll_interval_seconds=900、schedule{start,end,interval_minutes,timezone}、next_scheduled_at、in_schedule_window、groups.xunyou / groups.wsdashi。卡片只含 id、display_name、five_hour、seven_day、sampled_at、stale；关闭时分组为空 |
+| GET /api/v1/gpt-quota/status | 登录用户 | 只返回 {enabled}，供侧栏决定是否显示菜单 |
+| GET /api/v1/admin/gpt-quota | 完整管理员 | config、计划、全部已选条目（含失去资格条目的 reason、warnings、快照、最近尝试状态、retry_after）和本实例最近批次计数；不受公开开关影响 |
+| GET /api/v1/admin/gpt-quota/candidates | 完整管理员 | search、page、page_size；数据库侧 COUNT + LIMIT/OFFSET 分页，列出未删除的 OpenAI OAuth 账号及资格原因（c-/d- 前缀账号按编号自然排序在前），可添加的账号还要有前缀；搜索词中的 `%`、`_` 按字面匹配 |
+| PUT /api/v1/admin/gpt-quota/config | 完整管理员 | {enabled, interval_minutes, expected_version, entries[{account_id, display_name}]}；配置和选择在同一事务保存；版本不符返回 409 `GPT_QUOTA_CONFIG_CONFLICT`；响应可带 warnings（`duplicate_chatgpt_account`） |
+| POST /api/v1/admin/gpt-quota/refresh | 完整管理员 | 必须且只能二选一：{entry_id} 同步返回 status 和条目；{all: true} 返回 202 异步批次，已有批次时 409 `GPT_QUOTA_BATCH_RUNNING`；展示关闭时 409 `GPT_QUOTA_DISPLAY_DISABLED`；畸形请求体 400 |
+
+四个管理路由都不在子管理员白名单内。
+
+### 13.3 实施澄清
+
+- **菜单开关**：公开开关只存于 `gpt_quota_display_config`，不复制到 public settings。侧栏调用 `/gpt-quota/status`，按 opt-in 处理（未加载或读取失败时隐藏），结果缓存 5 分钟，侧栏随路由重新挂载时过期重读；用户页读取和管理员保存后会同步该状态。
+- **冷却与退避**：60 秒冷却和 429 退避（尊重 Retry-After，缺失时 5 分钟，最长 24 小时）由快照行的条件 upsert（`ClaimAttempt`）实现，跨实例生效；进程内再用 singleflight 合并同账号请求。冷却内返回 `skipped_cooldown`，退避内返回 `skipped_backoff`，都不访问上游。
+- **尝试状态**：`ClaimAttempt` 写 `running`；`FinishAttempt` 和 `PublishSnapshot` 只在 `last_attempt_at` 仍等于本次尝试时改状态，晚返回的旧尝试不覆盖新状态；快照另按 `sampled_at` 条件发布。失败类别为 `token_unavailable`、`account_unavailable`、`not_supported`、`unauthorized`、`forbidden`、`rate_limited`、`timeout`、`upstream_error`、`request_failed`、`parse_failed`、`no_supported_windows`、`cancelled`、`internal_error`。
+- **只读上游**：`QueryUsageReadOnly` 只请求 wham/usage；拒绝 shadow 与 Agent Identity，不创建或恢复 agent task；在调用 token provider 前拦截"access token 已过期且无 refresh token"；不写 `accounts.extra`，不查 reset-credit。窗口缺少或为 null 的 `used_percent` 按缺失窗口处理，不会被解码成 0% 已用。调用方取消或整体超时优先记为 `cancelled` / `timeout`。
+- **重置时间**：上游 `reset_at`、`reset_after_seconds` 是 int64，缺失即 0，所以只接受正值，0 按"重置时间未提供"展示；晚于采样时间 8 天以上（如毫秒时间戳）也视为未提供。剩余比例四舍五入到 1 位小数。
+- **默认展示名**：前缀加原样编号（`c-01`）；无编号时为前缀加 `#条目ID`，避免多张卡片同名。别名先去首尾空白再校验，另拒绝含 `sk-`、UUID 片段或 20 位以上连续字母数字的内容。
+- **排序**：迅游固定在速宝之前（用户页、管理页已选列表、候选列表一致）；同组内有编号的按数值升序（`c-002` 在 `c-10` 前），无编号的排在后面，再按规范化名称和账号 ID。
+- **保存**：管理页的批次进度轮询只刷新条目状态和计数，不更新编辑基线的 `version`，避免本地未保存修改绕过乐观锁。新增条目必须通过资格与前缀校验。已保存但后来失去资格（删除、改为 PAT/shadow、改名）的条目可以保留或移除，不挡保存；用户侧和采集仍排除这些条目。
+- **过期**：取最近一个已过 5 分钟宽限的计划时点 S，`sampled_at` 早于 S 减 60 秒（冷却提前量）即 stale；夜间不因时间流逝变成过期。从未成功采集时 `sampled_at` 为 null，前端显示"暂无数据"。
+- **时区**：排程、过期判断与"下次计划采集"固定使用 Asia/Shanghai（缺少 tzdata 时回落 UTC+8），不再跟随全局 `timezone` 配置，避免部署为 UTC 时采集时段偏移。
+- **排程**：每 30 秒检查一次。顺序为：读取已选条目 → 以检查并设置的方式原子占用本实例批次 → 条件领取槽位 → 执行批次。读取失败、手动批次执行中或领取失败都不消耗槽位（领取失败时释放占用并恢复上一批次统计），在槽位有效期内下次检查重试；定时批次占用后，同实例的手动全量刷新返回 409，避免"槽位已领取但批次未执行"。槽位只在该时点到下一时点之间有效（18:00 末槽宽限 5 分钟），所以重启只补最近一个到期槽位。开启展示或修改间隔时，保存事务把 `last_slot_at` 抬到保存时刻（只进不退），当前已过的槽位不会被隐式补跑，等待下一计划时点。批次并发 3，单批上限 25 分钟，leader lock TTL 30 分钟；每次派发前重读开关，关闭展示后不再派发新请求；批次结束时若已跨过下一槽位，直接领取该槽位并记录 skipped 日志，不补跑。
+- **停机**：`Stop` 取消服务根 context，在途上游请求随之取消；尝试结果用独立短超时 context 记为 `cancelled`。手动全量批次和单条同步刷新都由服务 WaitGroup 跟踪。单条刷新后端上限 45 秒，前端该请求单独使用 60 秒超时。
+- **审计**：沿用现有管理审计中间件，PUT 配置的脱敏请求体会进入操作日志，其中包含别名；别名已按 §3.1 校验为非敏感内容。本功能不写审计 extra。
+- **未单独实现**：第 9 节"服务采集暂停"没有独立开关（设计已去掉自动采集开关），不单独展示。批次计数只保存在执行实例内存中，多实例下管理页以各条目的最近尝试状态为准。
+
+### 13.4 验证
+
+| 项目 | 结果 |
+| --- | --- |
+| 后端构建与静态检查 | `go build ./...`、`go vet`（service/handler/repository/server/cmd/server）通过；golangci-lint v2.14（go1.27 构建）`--new-from-rev=HEAD` 对改动包 0 issues，含 integration tag |
+| 后端测试 | `internal/service` 全量通过（GPT 额度用例另跑 `-race`）；handler、server、repository、cmd/server、migrations 通过 |
+| 前端 | `vue-tsc --noEmit` 与改动文件 eslint 通过；vitest 全量通过 |
+| PostgreSQL | 本机无 Docker，改用临时 embedded PostgreSQL 16 并设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN`：`TestGPTQuotaDisplayRepositoryRoundTrip` 与 `TestMigrationsRunner*` 通过（从零执行全部迁移含 243）。另做过一次一次性端到端冒烟（真实 handler + service + repository + PostgreSQL，fake 上游），覆盖默认关闭、保存/409/非法别名、读路径零上游、单条刷新与冷却、全量批次计数、删除账号即时排除、关闭后刷新 409，已通过后删除。CI 使用 PostgreSQL 18 镜像，仍需在 CI 再跑一次集成测试 |
+| PostgreSQL 18 | 用 CI 同版本（embedded PostgreSQL 18）执行 `TestGPTQuotaDisplayRepository*`（含候选分页/排序/转义、16 路并发领取槽位与采集尝试各只有一个成功）与 `TestMigrationsRunner*`，全部通过 |
+| 真实链路 API 验收 | 真实服务二进制（AUTO_SETUP 从零迁移）+ PostgreSQL 18 + Redis 8，真实 JWT 登录：匿名 401、普通用户与子管理员访问管理接口 403（子管理员为 `ADMIN_PERMISSION_DENIED`）、候选分页/搜索/资格、保存校验与 409、用户卡片白名单与脱敏、单条/全量刷新与计数、软删除即时排除、关闭后 409、配置写入审计。测试账号均为"token 已过期且无 refresh token"，采集在预检处停止，未访问 OpenAI；账号状态与 `accounts.extra` 未被修改 |
+| 浏览器验收 | Playwright 驱动 Edge：管理员配置页（失去资格条目可移除、保存、双会话版本冲突提示、单条刷新状态）、普通用户侧栏随开关显隐、桌面左右双列与手机单列、剩余比例/未提供/暂无数据/已到重置时间、无邮箱、子管理员无菜单且直接访问被重定向，23 项全部通过。截图与脚本保存在本机 `E:	mp\e2e`，不入库 |
+| 未执行 | 真实 OpenAI 账号采集（需上线后用隔离账号验证） |

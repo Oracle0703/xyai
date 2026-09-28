@@ -137,6 +137,13 @@ func RegisterUserRoutes(
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
 
+		// GPT 账号额度共享展示（只读快照，不触发上游采集）
+		gptQuota := authenticated.Group("/gpt-quota")
+		{
+			gptQuota.GET("", h.GPTQuotaDisplay.Get)
+			gptQuota.GET("/status", h.GPTQuotaDisplay.Status)
+		}
+
 		// 渠道监控（用户只读）
 		monitors := authenticated.Group("/channel-monitors")
 		{

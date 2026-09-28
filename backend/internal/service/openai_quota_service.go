@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -228,6 +230,153 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 			payload.RateLimitResetCredits.AvailableCount = *details.AvailableCount
 		case details.CreditListPresent:
 			payload.RateLimitResetCredits.AvailableCount = details.AvailableCreditCount
+		}
+	}
+	return &payload, nil
+}
+
+// OpenAIQuotaReadOnlyError classifies QueryUsageReadOnly failures into stable
+// categories (see GPTQuotaStatus*). It never carries the upstream body.
+type OpenAIQuotaReadOnlyError struct {
+	Category   string
+	StatusCode int
+	RetryAfter time.Duration
+	cause      error
+}
+
+func (e *OpenAIQuotaReadOnlyError) Error() string {
+	if e.StatusCode > 0 {
+		return fmt.Sprintf("openai quota read-only query failed: %s (upstream %d)", e.Category, e.StatusCode)
+	}
+	return "openai quota read-only query failed: " + e.Category
+}
+
+func (e *OpenAIQuotaReadOnlyError) Unwrap() error { return e.cause }
+
+func newOpenAIQuotaReadOnlyError(category string, statusCode int, cause error) *OpenAIQuotaReadOnlyError {
+	return &OpenAIQuotaReadOnlyError{Category: category, StatusCode: statusCode, cause: cause}
+}
+
+// QueryUsageReadOnly fetches only the usage document for an ordinary OpenAI
+// OAuth account. It deliberately skips reset-credit probing, never persists the
+// response into account extra, and refuses shadow / Agent Identity accounts so
+// no agent-identity task is created or recovered. Before touching the token
+// provider it rejects accounts whose access token is expired without a refresh
+// token, because that provider path would disable the account. GPT quota
+// display uses this narrow path so a read cannot alter scheduling or automatic
+// reset state.
+func (s *OpenAIQuotaService) QueryUsageReadOnly(ctx context.Context, accountID int64) (*OpenAIQuotaUsage, error) {
+	if s == nil || s.accountRepo == nil || s.privacyClientFactory == nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusInternalError, 0, nil)
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil || account == nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusAccountUnavailable, 0, err)
+	}
+	if !account.IsOpenAIOAuth() || account.IsShadow() || account.IsOpenAIAgentIdentity() {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusNotSupported, 0, nil)
+	}
+	if !account.IsOpenAIPersonalAccessToken() {
+		if expiresAt := account.GetOpenAITokenExpiresAt(); expiresAt != nil && time.Now().Add(openAITokenRefreshSkew).After(*expiresAt) && strings.TrimSpace(account.GetOpenAIRefreshToken()) == "" {
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusTokenUnavailable, 0, nil)
+		}
+	}
+	accessToken, chatGPTAccountID, proxyURL, fedRAMP, err := s.prepareUpstreamCall(ctx, accountID)
+	if err != nil {
+		if category := openAIQuotaContextCategory(ctx); category != "" {
+			return nil, newOpenAIQuotaReadOnlyError(category, 0, err)
+		}
+		switch infraerrors.Reason(err) {
+		case "OPENAI_QUOTA_TOKEN_UNAVAILABLE", "OPENAI_QUOTA_MISSING_ACCOUNT_ID":
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusTokenUnavailable, 0, err)
+		case "OPENAI_QUOTA_ACCOUNT_NOT_FOUND":
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusAccountUnavailable, 0, err)
+		}
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusRequestFailed, 0, err)
+	}
+	client, err := s.privacyClientFactory(proxyURL)
+	if err != nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusRequestFailed, 0, err)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, openaiQuotaUpstreamTimeout)
+	defer cancel()
+	resp, err := client.R().
+		SetContext(callCtx).
+		SetHeaders(buildCodexCommonHeaders(accessToken, chatGPTAccountID, fedRAMP)).
+		Get(chatGPTUsageURL)
+	if err != nil {
+		if category := openAIQuotaContextCategory(ctx); category != "" {
+			return nil, newOpenAIQuotaReadOnlyError(category, 0, err)
+		}
+		if callCtx.Err() != nil {
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusTimeout, 0, err)
+		}
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusRequestFailed, 0, err)
+	}
+	if !resp.IsSuccessState() {
+		status := resp.StatusCode
+		switch status {
+		case http.StatusUnauthorized:
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusUnauthorized, status, nil)
+		case http.StatusForbidden:
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusForbidden, status, nil)
+		case http.StatusTooManyRequests:
+			readOnlyErr := newOpenAIQuotaReadOnlyError(GPTQuotaStatusRateLimited, status, nil)
+			now := time.Now()
+			if retryAt := parseRetryAfterResetTime(resp.Header, now); retryAt != nil && retryAt.After(now) {
+				readOnlyErr.RetryAfter = retryAt.Sub(now)
+			}
+			return nil, readOnlyErr
+		default:
+			return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusUpstreamError, status, nil)
+		}
+	}
+	payload, err := decodeOpenAIQuotaUsageReadOnly(resp.Bytes())
+	if err != nil {
+		return nil, newOpenAIQuotaReadOnlyError(GPTQuotaStatusParseFailed, resp.StatusCode, err)
+	}
+	payload.FetchedAt = time.Now().Unix()
+	return payload, nil
+}
+
+// openAIQuotaContextCategory 优先识别调用方取消或整体超时，避免被误记成令牌或解析失败。
+func openAIQuotaContextCategory(ctx context.Context) string {
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		return GPTQuotaStatusTimeout
+	case ctx.Err() != nil:
+		return GPTQuotaStatusCancelled
+	default:
+		return ""
+	}
+}
+
+// decodeOpenAIQuotaUsageReadOnly 解析 usage 文档。OpenAIRateLimitWindow.UsedPercent 是 float64，
+// 缺失或 null 会解码成 0（剩余 100%），因此没有 used_percent 的主额度窗口按缺失处理。
+func decodeOpenAIQuotaUsageReadOnly(body []byte) (*OpenAIQuotaUsage, error) {
+	var payload OpenAIQuotaUsage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	var probe struct {
+		RateLimit *struct {
+			PrimaryWindow *struct {
+				UsedPercent *float64 `json:"used_percent"`
+			} `json:"primary_window"`
+			SecondaryWindow *struct {
+				UsedPercent *float64 `json:"used_percent"`
+			} `json:"secondary_window"`
+		} `json:"rate_limit"`
+	}
+	if err := json.Unmarshal(body, &probe); err != nil {
+		return nil, err
+	}
+	if payload.RateLimit != nil && probe.RateLimit != nil {
+		if probe.RateLimit.PrimaryWindow == nil || probe.RateLimit.PrimaryWindow.UsedPercent == nil {
+			payload.RateLimit.PrimaryWindow = nil
+		}
+		if probe.RateLimit.SecondaryWindow == nil || probe.RateLimit.SecondaryWindow.UsedPercent == nil {
+			payload.RateLimit.SecondaryWindow = nil
 		}
 	}
 	return &payload, nil

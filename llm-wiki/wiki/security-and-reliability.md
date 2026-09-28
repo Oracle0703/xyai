@@ -118,6 +118,7 @@ Passkey / WebAuthn:
 - 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。
 - 权限目录和白名单在 `backend/internal/service/admin_permission.go`; 当前仅有订阅管理、使用记录和 Token 分析。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
 - 订阅权限是唯一含业务写操作的子管理员权限，允许 `POST /api/v1/admin/subscriptions/assign`、`bulk-assign`、`:id/reset-quota` 和 `reset-daily-filtered`。使用记录清理、Token 立即索引、订阅延期/撤销/恢复/删除及 `bulk-action` 仍拒绝；无 `admin.subscriptions` 的子管理员不能分配或查询分配选项。
+- GPT 账号额度展示的 4 个 `/api/v1/admin/gpt-quota` 路由只给完整管理员，不进 `subAdminCommonRouteRules` 或任何权限白名单（`gpt_quota_display_test.go` 有拒绝测试）。用户侧 `/api/v1/gpt-quota` 只返回卡片白名单（不含账号 ID、原名、邮箱、尝试状态）。读取路径不得触发上游；主动采集只用 `QueryUsageReadOnly`，不得写 `accounts.extra`、调度键或触发 reset-credit/自动用卡，token 预检避免走到 `disableAccountMissingRefreshToken`。管理员豁免面板限流，刷新防重依赖 60 秒冷却 + singleflight，不依赖限流。详见 [[gpt-account-quota-display-design]]。
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。
