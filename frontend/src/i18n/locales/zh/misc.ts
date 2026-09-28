@@ -127,7 +127,10 @@ export default {
       policyTitle: '自助重置设置', policyHint: '每个订阅每日可重置次数（0–100）。0 表示关闭。修改立即按当天已用次数计算剩余机会；管理员重置不受影响。',
       rollout: '开放范围', rolloutOff: '关闭', rolloutAdmin: '仅管理员', rolloutAll: '全部用户',
       policyLoadFailed: '加载配置失败，可重试，或填写全部组织后保存覆盖', policySaveFailed: '保存配置失败', policySaved: '自助重置配置已保存', policyInvalid: '请输入 0–100 的整数',
-      xunyou: '迅游', wsdashi: '速宝', other: '其他用户'
+      xunyou: '迅游', wsdashi: '速宝', other: '其他用户',
+      eventsTitle: '自助重置记录', eventsDescription: '查看用户自助重置日额度的历史记录（仅记录成功的重置）', eventsEmpty: '暂无自助重置记录',
+      eventsEmail: '用户邮箱', eventsOrganization: '组织', eventsAllOrganizations: '全部组织', eventsStartDate: '开始日期', eventsEndDate: '结束日期',
+      eventsTime: '重置时间', eventsUser: '用户', eventsSubscription: '订阅 / 分组', eventsQuotaDate: '额度日期', eventsCount: '当日第几次 / 上限', eventsUsageBefore: '重置前日用量'
     },
     title: '我的订阅',
     description: '查看您的订阅计划和用量',

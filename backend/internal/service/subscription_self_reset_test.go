@@ -152,3 +152,70 @@ func TestSubscriptionSelfResetDayUsesConfiguredTimezone(t *testing.T) {
 		require.Equal(t, tc.hours, start.AddDate(0, 0, 1).Sub(start).Hours())
 	}
 }
+
+type selfResetRecordingRepo struct {
+	SubscriptionSelfResetRepository
+	sub       *UserSubscription
+	recordErr error
+	events    []SubscriptionSelfResetEvent
+}
+
+func (r *selfResetRecordingRepo) ReadPolicy(context.Context) (string, error) {
+	return `{"rollout":"all","daily_limit_by_organization":{"xunyou":2,"wsdashi":1,"other":1}}`, nil
+}
+
+func (r *selfResetRecordingRepo) GetOwnedByIDForUpdate(context.Context, int64, int64) (*UserSubscription, error) {
+	return r.sub, nil
+}
+
+func (r *selfResetRecordingRepo) GetUsage(context.Context, int64) (SubscriptionSelfResetUsage, error) {
+	return SubscriptionSelfResetUsage{}, nil
+}
+
+func (r *selfResetRecordingRepo) Consume(context.Context, int64, string) error { return nil }
+
+func (r *selfResetRecordingRepo) RecordEvent(_ context.Context, event *SubscriptionSelfResetEvent) error {
+	if r.recordErr != nil {
+		return r.recordErr
+	}
+	r.events = append(r.events, *event)
+	return nil
+}
+
+type selfResetWindowRepo struct {
+	userSubRepoNoop
+	calls *int
+}
+
+func (r selfResetWindowRepo) ResetUsageWindows(context.Context, int64, bool, bool, bool, time.Time, time.Time) error {
+	*r.calls++
+	return nil
+}
+
+func TestSubscriptionSelfResetRecordsEventBeforeResettingUsage(t *testing.T) {
+	now := time.Now()
+	start := timezone.StartOfDay(now)
+	limit := 100.0
+	newRepo := func() *selfResetRecordingRepo {
+		return &selfResetRecordingRepo{sub: &UserSubscription{ID: 31, GroupID: 7, StartsAt: now.AddDate(-1, 0, 0), ExpiresAt: now.AddDate(1, 0, 0), Status: SubscriptionStatusActive, DailyUsageUSD: 80, DailyWindowStart: &start, Group: &Group{Status: StatusActive, DailyLimitUSD: &limit}, User: &User{Email: "a@xunyou.com", Status: StatusActive}}}
+	}
+	ctx := context.WithValue(dbent.NewTxContext(context.Background(), &dbent.Tx{}), idempotencyPostCommitContextKey{}, &idempotencyPostCommitState{})
+	today := start.Format(time.DateOnly)
+
+	calls := 0
+	repo := newRepo()
+	svc := NewSubscriptionSelfResetService(repo, &SubscriptionService{userSubRepo: selfResetWindowRepo{calls: &calls}})
+	_, err := svc.Reset(ctx, 5, 31, RoleUser, today)
+	require.NoError(t, err)
+	require.Equal(t, 1, calls)
+	require.Equal(t, []SubscriptionSelfResetEvent{{SubscriptionID: 31, UserID: 5, GroupID: 7, Organization: OrganizationXunyou, QuotaDate: today, UsedCount: 1, DailyLimit: 2, DailyUsageUSDBefore: 80}}, repo.events)
+
+	// A failed history write aborts the reset so the transaction rolls back.
+	calls = 0
+	repo = newRepo()
+	repo.recordErr = context.DeadlineExceeded
+	svc = NewSubscriptionSelfResetService(repo, &SubscriptionService{userSubRepo: selfResetWindowRepo{calls: &calls}})
+	_, err = svc.Reset(ctx, 5, 31, RoleUser, today)
+	require.Equal(t, "SELF_RESET_UNAVAILABLE", infraerrors.Reason(err))
+	require.Zero(t, calls)
+}

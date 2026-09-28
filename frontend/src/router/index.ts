@@ -525,6 +525,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/subscriptions/self-reset-events',
+    name: 'AdminSubscriptionSelfResetEvents',
+    component: () => import('@/views/admin/SubscriptionSelfResetEventsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Self-reset History',
+      titleKey: 'userSubscriptions.selfReset.eventsTitle',
+      descriptionKey: 'userSubscriptions.selfReset.eventsDescription'
+    }
+  },
+  {
     path: '/admin/accounts',
     name: 'AdminAccounts',
     component: () => import('@/views/admin/AccountsView.vue'),

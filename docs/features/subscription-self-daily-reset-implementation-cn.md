@@ -171,9 +171,16 @@ done; wait
 ### 放开后的巡检
 
 ```sql
--- 每天使用情况
-SELECT quota_date, count(*) AS subscriptions, sum(used_count) AS resets
-  FROM subscription_self_daily_reset_usage GROUP BY quota_date ORDER BY quota_date DESC LIMIT 7;
+-- 每天使用情况（历史表 242；状态表每个订阅只保留最后一天，不能用来看历史）
+SELECT quota_date, organization, count(DISTINCT subscription_id) AS subscriptions, count(*) AS resets,
+       sum(daily_usage_usd_before) AS usd_cleared
+  FROM subscription_self_reset_events GROUP BY 1, 2 ORDER BY 1 DESC, 2 LIMIT 21;
+
+-- 历史表与状态表当天计数应一致：有结果说明写入不同步
+SELECT u.subscription_id, u.used_count, count(e.id) AS events
+  FROM subscription_self_daily_reset_usage u
+  LEFT JOIN subscription_self_reset_events e ON e.subscription_id = u.subscription_id AND e.quota_date = u.quota_date
+ WHERE u.quota_date = CURRENT_DATE GROUP BY 1, 2 HAVING u.used_count <> count(e.id);
 
 -- 超过上限的计数：各组织上限都是 1 时应无结果；上限改过就把 1 换成最大上限
 SELECT * FROM subscription_self_daily_reset_usage

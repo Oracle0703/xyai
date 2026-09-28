@@ -129,7 +129,10 @@ export default {
       policyTitle: 'Self-reset settings', policyHint: 'Daily resets per subscription (0–100). Zero disables self-reset. Changes apply against today’s used count. Administrator resets are unaffected.',
       rollout: 'Rollout scope', rolloutOff: 'Off', rolloutAdmin: 'Admins only', rolloutAll: 'All users',
       policyLoadFailed: 'Failed to load settings. Retry, or fill in every organization and save to overwrite.', policySaveFailed: 'Failed to save settings', policySaved: 'Self-reset settings saved', policyInvalid: 'Enter integers from 0 to 100',
-      xunyou: 'Xunyou', wsdashi: 'Wsdashi', other: 'Other users'
+      xunyou: 'Xunyou', wsdashi: 'Wsdashi', other: 'Other users',
+      eventsTitle: 'Self-reset history', eventsDescription: 'History of successful daily self resets by users', eventsEmpty: 'No self-reset records',
+      eventsEmail: 'User email', eventsOrganization: 'Organization', eventsAllOrganizations: 'All organizations', eventsStartDate: 'Start date', eventsEndDate: 'End date',
+      eventsTime: 'Reset at', eventsUser: 'User', eventsSubscription: 'Subscription / group', eventsQuotaDate: 'Quota date', eventsCount: 'Nth today / limit', eventsUsageBefore: 'Daily usage before reset'
     },
     title: 'My Subscriptions',
     description: 'View your subscription plans and usage',

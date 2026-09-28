@@ -220,6 +220,24 @@ func TestSubscriptionSelfResetIntegration(t *testing.T) {
 	}
 	_, err = reset(sub2.ID, today, "deleted-group")
 	require.Equal(t, "SELF_RESET_GROUP_DISABLED", errors.Reason(err))
+	// History has exactly one row per committed success: replays, rollbacks and rejections add none.
+	events, total, err := repo.ListEvents(ctx, service.SubscriptionSelfResetEventFilter{Email: prefix, Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	require.EqualValues(t, 6, total)
+	perSub := map[int64]int{}
+	for _, e := range events {
+		perSub[e.SubscriptionID]++
+	}
+	require.Equal(t, map[int64]int{sub.ID: 4, sub2.ID: 1, otherSub.ID: 1}, perSub)
+	first := events[len(events)-1]
+	require.Equal(t, service.SubscriptionSelfResetEvent{ID: first.ID, SubscriptionID: sub.ID, UserID: owner.ID, UserEmail: owner.Email, GroupID: group.ID, GroupName: group.Name, Organization: service.OrganizationXunyou, QuotaDate: today, UsedCount: 1, DailyLimit: 1, DailyUsageUSDBefore: 80, CreatedAt: first.CreatedAt}, first)
+	events, total, err = repo.ListEvents(ctx, service.SubscriptionSelfResetEventFilter{Email: prefix, Organization: service.OrganizationOther, StartDate: today, EndDate: today, Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, total)
+	require.Equal(t, otherSub.ID, events[0].SubscriptionID)
+	_, total, err = repo.ListEvents(ctx, service.SubscriptionSelfResetEventFilter{Email: prefix, StartDate: timezone.StartOfDay(now).AddDate(0, 0, 1).Format(time.DateOnly), Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	require.Zero(t, total)
 }
 
 func TestSubscriptionSelfResetCrossInstanceCaches(t *testing.T) {

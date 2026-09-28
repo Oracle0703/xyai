@@ -40,3 +40,14 @@ func TestSubscriptionSelfResetHandlerFailsClosed(t *testing.T) {
 		require.Equal(t, tc.code, w.Code, tc.body)
 	}
 }
+
+func TestSubscriptionSelfResetHandlerListEventsRejectsBadFilters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/events", NewSubscriptionSelfResetHandler(nil).ListEvents)
+	for _, query := range []string{"organization=unknown", "start_date=2026-09-31", "end_date=09/23/2026"} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/events?"+query, nil))
+		require.Equal(t, http.StatusBadRequest, w.Code, query)
+	}
+}

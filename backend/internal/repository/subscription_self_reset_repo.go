@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -89,4 +91,65 @@ func (r *subscriptionSelfResetRepository) GetUsage(ctx context.Context, subscrip
 func (r *subscriptionSelfResetRepository) Consume(ctx context.Context, subscriptionID int64, date string) error {
 	_, err := clientFromContext(ctx, r.client).ExecContext(ctx, `INSERT INTO subscription_self_daily_reset_usage (subscription_id, quota_date, used_count) VALUES ($1, $2::date, 1) ON CONFLICT (subscription_id) DO UPDATE SET quota_date=EXCLUDED.quota_date, used_count=CASE WHEN subscription_self_daily_reset_usage.quota_date=EXCLUDED.quota_date THEN subscription_self_daily_reset_usage.used_count+1 ELSE 1 END, updated_at=NOW()`, subscriptionID, date)
 	return err
+}
+
+func (r *subscriptionSelfResetRepository) RecordEvent(ctx context.Context, event *service.SubscriptionSelfResetEvent) error {
+	_, err := clientFromContext(ctx, r.client).ExecContext(ctx, `INSERT INTO subscription_self_reset_events (subscription_id, user_id, group_id, organization, quota_date, used_count, daily_limit, daily_usage_usd_before) VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8)`,
+		event.SubscriptionID, event.UserID, event.GroupID, event.Organization, event.QuotaDate, event.UsedCount, event.DailyLimit, event.DailyUsageUSDBefore)
+	return err
+}
+
+func (r *subscriptionSelfResetRepository) ListEvents(ctx context.Context, filter service.SubscriptionSelfResetEventFilter) ([]service.SubscriptionSelfResetEvent, int64, error) {
+	client := clientFromContext(ctx, r.client)
+	var conds []string
+	var args []any
+	add := func(cond string, arg any) {
+		args = append(args, arg)
+		conds = append(conds, fmt.Sprintf(cond, len(args)))
+	}
+	if filter.Email != "" {
+		add(`u.email ILIKE '%%' || $%d || '%%'`, escapeLikeWildcards(filter.Email))
+	}
+	if filter.Organization != "" {
+		add(`e.organization = $%d`, filter.Organization)
+	}
+	if filter.StartDate != "" {
+		add(`e.quota_date >= $%d::date`, filter.StartDate)
+	}
+	if filter.EndDate != "" {
+		add(`e.quota_date <= $%d::date`, filter.EndDate)
+	}
+	from := ` FROM subscription_self_reset_events e LEFT JOIN users u ON u.id = e.user_id LEFT JOIN groups g ON g.id = e.group_id`
+	if len(conds) > 0 {
+		from += " WHERE " + strings.Join(conds, " AND ")
+	}
+	var total int64
+	countRows, err := client.QueryContext(ctx, `SELECT COUNT(*)`+from, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = countRows.Close() }()
+	if countRows.Next() {
+		if err := countRows.Scan(&total); err != nil {
+			return nil, 0, err
+		}
+	}
+	if err := countRows.Err(); err != nil {
+		return nil, 0, err
+	}
+	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
+	rows, err := client.QueryContext(ctx, `SELECT e.id, e.subscription_id, e.user_id, COALESCE(u.email, ''), e.group_id, COALESCE(g.name, ''), e.organization, to_char(e.quota_date, 'YYYY-MM-DD'), e.used_count, e.daily_limit, e.daily_usage_usd_before::float8, e.created_at`+from+fmt.Sprintf(` ORDER BY e.id DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+	events := []service.SubscriptionSelfResetEvent{}
+	for rows.Next() {
+		var e service.SubscriptionSelfResetEvent
+		if err := rows.Scan(&e.ID, &e.SubscriptionID, &e.UserID, &e.UserEmail, &e.GroupID, &e.GroupName, &e.Organization, &e.QuotaDate, &e.UsedCount, &e.DailyLimit, &e.DailyUsageUSDBefore, &e.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		events = append(events, e)
+	}
+	return events, total, rows.Err()
 }

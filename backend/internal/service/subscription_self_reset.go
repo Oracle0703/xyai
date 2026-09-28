@@ -92,6 +92,31 @@ type SubscriptionSelfResetUsage struct {
 	UsedCount int
 }
 
+// SubscriptionSelfResetEvent is one successful self reset. UserEmail and GroupName are read-time joins.
+type SubscriptionSelfResetEvent struct {
+	ID                  int64     `json:"id"`
+	SubscriptionID      int64     `json:"subscription_id"`
+	UserID              int64     `json:"user_id"`
+	UserEmail           string    `json:"user_email"`
+	GroupID             int64     `json:"group_id"`
+	GroupName           string    `json:"group_name"`
+	Organization        string    `json:"organization"`
+	QuotaDate           string    `json:"quota_date"`
+	UsedCount           int       `json:"used_count"`
+	DailyLimit          int       `json:"daily_limit"`
+	DailyUsageUSDBefore float64   `json:"daily_usage_usd_before"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+type SubscriptionSelfResetEventFilter struct {
+	Email        string
+	Organization string
+	StartDate    string
+	EndDate      string
+	Page         int
+	PageSize     int
+}
+
 type SubscriptionSelfResetRepository interface {
 	ReadPolicy(context.Context) (string, error)
 	WritePolicy(context.Context, string) error
@@ -99,6 +124,8 @@ type SubscriptionSelfResetRepository interface {
 	GetOwnedByIDForUpdate(context.Context, int64, int64) (*UserSubscription, error)
 	GetUsage(context.Context, int64) (SubscriptionSelfResetUsage, error)
 	Consume(context.Context, int64, string) error
+	RecordEvent(context.Context, *SubscriptionSelfResetEvent) error
+	ListEvents(context.Context, SubscriptionSelfResetEventFilter) ([]SubscriptionSelfResetEvent, int64, error)
 }
 
 type SubscriptionSelfResetItem struct {
@@ -169,6 +196,14 @@ func (s *SubscriptionSelfResetService) SetPolicy(ctx context.Context, raw []byte
 		return nil, selfResetStorageError(err)
 	}
 	return policy, nil
+}
+
+func (s *SubscriptionSelfResetService) ListEvents(ctx context.Context, filter SubscriptionSelfResetEventFilter) ([]SubscriptionSelfResetEvent, int64, error) {
+	events, total, err := s.repo.ListEvents(ctx, filter)
+	if err != nil {
+		return nil, 0, selfResetStorageError(err)
+	}
+	return events, total, nil
 }
 
 func selfResetItem(sub *UserSubscription, usage SubscriptionSelfResetUsage, limit int, now time.Time) SubscriptionSelfResetItem {
@@ -253,7 +288,8 @@ func (s *SubscriptionSelfResetService) Reset(ctx context.Context, userID, subscr
 	if date != today {
 		return nil, errors.Conflict("SELF_RESET_DAY_CHANGED", "Refresh the reset status before confirming")
 	}
-	limit := policy.DailyLimitByOrganization[ResolveSubscriptionOrganization(sub.User.Email)]
+	org := ResolveSubscriptionOrganization(sub.User.Email)
+	limit := policy.DailyLimitByOrganization[org]
 	item := selfResetItem(sub, usage, limit, now)
 	if item.DisabledReason != nil {
 		reason := *item.DisabledReason
@@ -266,6 +302,10 @@ func (s *SubscriptionSelfResetService) Reset(ctx context.Context, userID, subscr
 		return nil, errors.Conflict("SELF_RESET_"+reason, "Subscription cannot be reset: "+reason)
 	}
 	if err := s.repo.Consume(ctx, subscriptionID, today); err != nil {
+		return nil, selfResetStorageError(err)
+	}
+	// Same transaction as Consume: a success response always has its history row; replays never re-run this.
+	if err := s.repo.RecordEvent(ctx, &SubscriptionSelfResetEvent{SubscriptionID: subscriptionID, UserID: userID, GroupID: sub.GroupID, Organization: org, QuotaDate: today, UsedCount: item.UsedCount + 1, DailyLimit: limit, DailyUsageUSDBefore: sub.DailyUsageUSD}); err != nil {
 		return nil, selfResetStorageError(err)
 	}
 	if err := s.subscriptions.userSubRepo.ResetUsageWindows(ctx, subscriptionID, true, false, false, timezone.StartOfDay(now), now); err != nil {

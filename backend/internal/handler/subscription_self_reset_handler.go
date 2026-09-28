@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -100,6 +101,35 @@ func (h *SubscriptionSelfResetHandler) Reset(c *gin.Context) {
 		c.Header("X-Idempotency-Replayed", "true")
 	}
 	response.Success(c, result.Data)
+}
+
+// ListEvents GET /api/v1/admin/subscriptions/self-reset-events
+func (h *SubscriptionSelfResetHandler) ListEvents(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	pageSize = min(pageSize, 200)
+	filter := service.SubscriptionSelfResetEventFilter{
+		Email: strings.TrimSpace(c.Query("email")), Organization: strings.TrimSpace(c.Query("organization")),
+		StartDate: strings.TrimSpace(c.Query("start_date")), EndDate: strings.TrimSpace(c.Query("end_date")),
+		Page: page, PageSize: pageSize,
+	}
+	switch filter.Organization {
+	case "", service.OrganizationXunyou, service.OrganizationWsdashi, service.OrganizationOther:
+	default:
+		response.BadRequest(c, "Invalid organization")
+		return
+	}
+	for _, date := range []string{filter.StartDate, filter.EndDate} {
+		if _, err := time.Parse(time.DateOnly, date); date != "" && err != nil {
+			response.BadRequest(c, "Invalid date, expect YYYY-MM-DD")
+			return
+		}
+	}
+	events, total, err := h.service.ListEvents(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, events, total, page, pageSize)
 }
 
 func (h *SubscriptionSelfResetHandler) GetPolicy(c *gin.Context) {

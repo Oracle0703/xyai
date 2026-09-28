@@ -184,6 +184,9 @@
             <button v-if="canManageSubscriptions" class="btn btn-secondary" @click="showSelfResetPolicy = true">
               {{ t('userSubscriptions.selfReset.policyTitle') }}
             </button>
+            <button v-if="canManageSubscriptions" class="btn btn-secondary" @click="$router.push('/admin/subscriptions/self-reset-events')">
+              {{ t('userSubscriptions.selfReset.eventsTitle') }}
+            </button>
           </div>
         </div>
         <div

@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import type { PaginatedResponse } from '@/types'
 
 export type SelfResetReason = 'SUBSCRIPTION_INACTIVE' | 'GROUP_DISABLED' | 'ONE_TIME_QUOTA' | 'NO_DAILY_LIMIT' | 'POLICY_DISABLED' | 'DAILY_LIMIT_REACHED' | 'NO_USAGE' | 'ROLLOUT_DISABLED'
 export interface SelfResetItem {
@@ -39,4 +40,27 @@ export async function getSelfResetPolicy(): Promise<SelfResetPolicy> {
 }
 export async function setSelfResetPolicy(policy: SelfResetPolicy): Promise<SelfResetPolicy> {
   return (await apiClient.put<SelfResetPolicy>('/admin/subscriptions/self-reset-policy', policy)).data
+}
+export interface SelfResetEvent {
+  id: number
+  subscription_id: number
+  user_id: number
+  user_email: string
+  group_id: number
+  group_name: string
+  organization: 'xunyou' | 'wsdashi' | 'other'
+  quota_date: string
+  used_count: number
+  daily_limit: number
+  daily_usage_usd_before: number
+  created_at: string
+}
+export interface SelfResetEventFilters {
+  email?: string
+  organization?: string
+  start_date?: string
+  end_date?: string
+}
+export async function listSelfResetEvents(page: number, pageSize: number, filters: SelfResetEventFilters): Promise<PaginatedResponse<SelfResetEvent>> {
+  return (await apiClient.get<PaginatedResponse<SelfResetEvent>>('/admin/subscriptions/self-reset-events', { params: { page, page_size: pageSize, ...filters } })).data
 }

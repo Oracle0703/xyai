@@ -708,6 +708,7 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		subscriptions.GET("/self-reset-policy", h.SubscriptionSelfReset.GetPolicy)
 		subscriptions.PUT("/self-reset-policy", h.SubscriptionSelfReset.SetPolicy)
+		subscriptions.GET("/self-reset-events", h.SubscriptionSelfReset.ListEvents)
 		subscriptions.GET("", h.Admin.Subscription.List)
 		subscriptions.GET("/search-groups", h.Admin.Usage.SearchGroups)
 		subscriptions.GET("/assignable-groups", h.Admin.Group.SubscriptionAssignmentGroups)

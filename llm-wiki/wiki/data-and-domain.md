@@ -283,6 +283,7 @@ go generate ./cmd/server
 订阅配额重置:
 
 - `241_subscription_self_daily_reset.sql` 增加附属表 `subscription_self_daily_reset_usage(subscription_id PK/FK, quota_date DATE, used_count, updated_at)` 与 settings key `subscription_self_daily_reset_policy`。三类组织 xunyou/wsdashi/other 默认均为 1，配置范围 0–100，使用当前邮箱分类；不存冗余 user_id，不增加定时任务。239/240 为部门分支已使用编号，本功能使用 241。
+- `242_subscription_self_reset_events.sql` 增加只追加的历史表 `subscription_self_reset_events`（subscription/user/group id、organization 快照、quota_date、当日第几次 used_count、daily_limit、重置前日用量 daily_usage_usd_before、created_at），无外键以便订阅删除后仍保留历史。`Reset` 在 `Consume` 之后同事务写入，只记录成功；幂等重放不重复执行业务函数故不产生重复记录。管理员页 `/admin/subscriptions/self-reset-events`（仅完整管理员）按邮箱/组织/额度日期分页查询。
 - 自助次数按每订阅、服务端配置时区自然日计算；DATE 绑定 YYYY-MM-DD 字符串，读回 to_char 后按日历值比较，禁止混入 organizationUsageLocation 固定上海报表时区。旧日期计数逻辑视为 0，当天首次成功才 UPSERT；同日续期、组织变化和管理员重置不清计数。上限升降立即按“上限减今日已用”计算，不能得到负剩余。
 - 自助排除 HasOneTimeDailyQuota 为真的一次性日卡，不按剩余时间判断日卡。普通旧窗口日用量逻辑视为 0，不扣机会；自助不改变周/月用量、额度、余额、历史或到期时间。
 
