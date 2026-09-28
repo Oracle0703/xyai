@@ -1,15 +1,18 @@
 <template>
   <section class="space-y-3" :data-testid="`gpt-quota-column-${groupKey}`">
-    <header class="flex items-baseline justify-between">
-      <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ title }}</h2>
-      <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('gptQuota.count', { count: items.length }) }}</span>
+    <header class="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white/80 px-4 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-800/80">
+      <div class="flex items-center gap-2.5">
+        <span class="h-2.5 w-2.5 rounded-full" :class="groupKey === 'xunyou' ? 'bg-sky-500' : 'bg-violet-500'" />
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ title }}</h2>
+      </div>
+      <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-dark-300">{{ t('gptQuota.count', { count: items.length }) }}</span>
     </header>
 
     <div v-if="!items.length" class="card p-6 text-center text-sm text-gray-500 dark:text-dark-400">
       {{ t('gptQuota.emptyGroup') }}
     </div>
 
-    <article v-for="item in items" :key="item.id" class="card p-4" data-testid="gpt-quota-card">
+    <article v-for="item in items" :key="item.id" class="group rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-800/80 dark:hover:border-primary-800" data-testid="gpt-quota-card">
       <div class="flex items-center justify-between gap-2">
         <strong class="truncate text-sm font-semibold text-gray-900 dark:text-white" :title="item.display_name">
           {{ item.display_name }}
@@ -24,8 +27,8 @@
             <span class="text-gray-600 dark:text-dark-300">{{ row.label }}</span>
             <span class="font-medium tabular-nums text-gray-900 dark:text-white">{{ row.value }}</span>
           </div>
-          <div v-if="row.window" class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
-            <div class="h-full rounded-full" :class="barClass(row.window.remaining_percent)" :style="{ width: `${row.window.remaining_percent}%` }" />
+          <div v-if="row.window" class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+            <div class="h-full rounded-full transition-all" :class="barClass(row.window.remaining_percent)" :style="{ width: `${row.window.remaining_percent}%` }" />
           </div>
           <p v-if="row.window" class="mt-1 text-xs text-gray-500 dark:text-dark-400" :title="row.resetTitle">{{ row.reset }}</p>
         </div>

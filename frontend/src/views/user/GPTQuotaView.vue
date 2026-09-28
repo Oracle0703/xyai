@@ -1,10 +1,23 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <header class="space-y-1">
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('gptQuota.title') }}</h1>
-        <p class="text-sm text-gray-600 dark:text-dark-300">{{ t('gptQuota.description') }}</p>
-        <p v-if="view?.enabled" class="text-xs text-gray-500 dark:text-dark-400">
+    <div class="space-y-6 pb-8">
+      <header class="relative overflow-hidden rounded-3xl border border-primary-100 bg-gradient-to-br from-primary-50 via-white to-indigo-50 p-6 shadow-sm dark:border-primary-900/40 dark:from-primary-950/40 dark:via-dark-900 dark:to-indigo-950/30 sm:p-8">
+        <div class="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary-300/20 blur-3xl dark:bg-primary-500/10" />
+        <div class="relative flex flex-wrap items-start justify-between gap-6">
+          <div class="max-w-2xl space-y-2">
+            <div class="inline-flex items-center gap-2 rounded-full bg-primary-100/80 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {{ t('gptQuota.title') }}
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">{{ t('gptQuota.title') }}</h1>
+            <p class="text-sm leading-6 text-gray-600 dark:text-dark-300">{{ t('gptQuota.description') }}</p>
+          </div>
+          <div v-if="view?.enabled" class="rounded-2xl border border-white/80 bg-white/70 px-4 py-3 text-right shadow-sm backdrop-blur dark:border-dark-700/70 dark:bg-dark-800/70">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-400">{{ t('gptQuota.nextScheduled', { time: '' }).replace('：', '').replace(': ', '') }}</p>
+            <p class="mt-1 text-sm font-semibold text-gray-800 dark:text-dark-100">{{ view.next_scheduled_at ? formatDateTimeToMinute(view.next_scheduled_at) : '—' }}</p>
+          </div>
+        </div>
+        <p v-if="view?.enabled" class="relative mt-5 border-t border-primary-100/80 pt-4 text-xs text-gray-500 dark:border-dark-700/70 dark:text-dark-400">
           {{ t('gptQuota.schedule', { start: view.schedule.start, end: view.schedule.end, timezone: view.schedule.timezone, interval: view.schedule.interval_minutes }) }}
           <template v-if="view.next_scheduled_at">
             · {{ t('gptQuota.nextScheduled', { time: formatDateTimeToMinute(view.next_scheduled_at) }) }}
@@ -21,11 +34,11 @@
           {{ t('gptQuota.disabled') }}
         </div>
         <template v-else>
-          <p v-if="!view.in_schedule_window" class="rounded-lg bg-gray-50 px-4 py-2 text-sm text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+          <p v-if="!view.in_schedule_window" class="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
             {{ t('gptQuota.outsideWindow') }}
           </p>
           <!-- 桌面左迅游、右速宝；窄屏单列，迅游在前。 -->
-          <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
             <GPTQuotaColumn group-key="xunyou" :title="t('gptQuota.groups.xunyou')" :items="view.groups.xunyou" :now="now" />
             <GPTQuotaColumn group-key="wsdashi" :title="t('gptQuota.groups.wsdashi')" :items="view.groups.wsdashi" :now="now" />
           </div>
