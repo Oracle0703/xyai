@@ -2019,3 +2019,19 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 - `wire_gen.go` 冲突以本地重新生成的结果为准，不整块接受上游手改版本。
 - 若上游改了 `NewPluginManager` 的参数或 `SetAccountDirectory` 的接线，同步修改 `ProvidePluginManager`，然后重新执行 `go generate ./cmd/server`，确认生成结果里仍有 `SetAccountDirectory`。
 - 若上游自己把这一步并进 Wire 源定义，删除本地 `ProvidePluginManager`，改回上游的 provider。
+
+
+## 2026-09-28 v0.2.8 exact-SHA merge awaiting review
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 / 工作分支 | 2026-09-28 / `feature/hy/10210_merge_sub2api_208` |
+| 本地 main / 第一父 | `abd369d942b55a1a3314f386b51269cdf8210ec8` |
+| 上游分支 / 第二父 | `Wei-Shaw/sub2api main` / `a3eb7ef302961cba716dc78b39b93b60c467db0e`，`VERSION=0.2.8` |
+| 共同祖先 / 增量 | `fbb9006adef852c46f0c7f18b0a8a740722cfac7`；222 commits、439 paths、`+25657/-1573` |
+| 合并提交 | 尚未创建；`MERGE_HEAD` 固定为上述上游 SHA，等待用户审核 |
+| 冲突文件 | `.gitignore`、`backend/cmd/server/wire_gen.go` |
+| 处理方式 | `.gitignore` 合并本地 features/reviews/图谱规则并加入上游 codex credits；Wire 同时保留本地组织用量、Token Analysis、并发预设、插件账号目录、Claude/OpenAI 同步及上游 OpenCode Go 用量。`ProvidePluginManager` 的等价重复 provider 删除一份，继续保留 `SetAccountDirectory`。未修复上游自身 bug。 |
+| 本地 features | 相对本地 main 的 `docs/features/` 无删除或改动；RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、quota flusher 等继续保留。 |
+| 验证结果 | `git diff --check` 通过；前端 lint/typecheck/Vitest 通过（364 files、2718 tests）；Go 全量编译及绝大多数测试通过，仅 `backup_pg_dumper` 3 个用例因 Windows 缺少 `sh.exe` 失败。 |
+| 交付状态 | 仅解决冲突和必要重复定义，未 commit、未 push、未创建 PR、未部署；等待用户审核后再决定 commit。 |

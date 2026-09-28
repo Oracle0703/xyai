@@ -1,5 +1,11 @@
 # 运维, 配置与验证基线
 
+## 0.2.8 合并与验证基线
+
+- 本地 `main@abd369d942b55a1a3314f386b51269cdf8210ec8` 创建 `feature/hy/10210_merge_sub2api_208`，固定上游 `main@a3eb7ef302961cba716dc78b39b93b60c467db0e`，`VERSION=0.2.8`，merge base=`fbb9006adef852c46f0c7f18b0a8a740722cfac7`。普通 merge 仅有 `.gitignore`、`backend/cmd/server/wire_gen.go` 两个文本冲突；Wire 保留本地 provider 链并接入 OpenCode Go/Claude Code 服务。
+- `go test ./...` 编译与绝大多数包通过；3 个 `backup_pg_dumper` 用例因 Windows PATH 缺少 `sh.exe` 失败，属于环境/上游测试边界，本轮不改。前端 `pnpm run lint:check`、`pnpm run typecheck`、`pnpm run test:run` 通过，Vitest 364 files / 2718 tests。
+- 当前保持 `MERGE_HEAD`，不提交、不推送；只解决冲突及必要的重复 provider 合并，不修复上游自身问题。
+
 ## 0.2.7 合并与验证基线
 
 - 本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 为第一父，分支 `feature/hy/10207_merge_sub2api_207`，固定上游 `main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`，`VERSION=0.2.7`；共同祖先为 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`。上游曾强制更新历史，普通 merge 会保留已撤下的 0.2.6 ticket；本轮按用户明确选择同步移除。

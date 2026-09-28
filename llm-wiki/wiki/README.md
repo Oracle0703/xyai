@@ -11,6 +11,8 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-09-28 从本地 `main@abd369d942b55a1a3314f386b51269cdf8210ec8` 创建 `feature/hy/10210_merge_sub2api_208`，固定合入 `Wei-Shaw/sub2api main@a3eb7ef302961cba716dc78b39b93b60c467db0e`（`VERSION=0.2.8`，merge base=`fbb9006adef852c46f0c7f18b0a8a740722cfac7`）。上游增量 222 commits、439 paths（+25657/-1573）；仅 `.gitignore` 与 `backend/cmd/server/wire_gen.go` 发生文本冲突。冲突保留本地 features、组织用量、Token Analysis、并发预设、插件目录接线等能力，并接入上游 OpenCode Go 用量与 Claude Code 版本同步；重叠的 `ProvidePluginManager` 仅保留一个等价 provider。当前 `MERGE_HEAD` 固定为目标 SHA，未 commit、未 push，等待审核；上游 `backup_pg_dumper` 的 3 个测试因 Windows 缺少 `sh.exe` 失败，未修复。前端 lint/typecheck/Vitest 全部通过（364 files / 2718 tests）。详见 `docs/features/sub2api -merage-list.md`。
+
 - 2026-09-20 从本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 创建 `feature/hy/10207_merge_sub2api_207`，固定合入 `Wei-Shaw/sub2api main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`（`0.2.7`）。上游重写历史，共同祖先退至 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`；按用户确认移除已撤下的 Codex ticket，保留 25 个 feature 文档和本地独有能力。合入 Seedance、TypeSafe 独立引擎、插件 HostService/KV/账号目录及网关兼容更新；解决 VERSION、ticket 移除和 Prompt Risk 抽取接口冲突，不修复上游自身问题。当前 `MERGE_HEAD` 固定为目标，等待提交前审核；详见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。
 
 - 2026-09-18 从本地 `main@5ec57e4fc51a9052e8812f4cb925565c984856cc` 创建 `feature/hy/10206_merge_sub2api_206`，固定合入 `Wei-Shaw/sub2api main@8b69738d782ccaa7fd26511e1cca26ba8d1b58db`（`0.2.6`，merge base `881f3202694c6bc932446931a30c27d9675178b9`）。60 commits / 132 paths，4 个文本冲突、31 个双方修改路径已按三方合同处理；保留 24 个 feature 文档及本地独有能力。新增默认关闭的 Codex ticket 后台生命周期/脱敏状态、Gemini 混合模型、兑换历史分页及分组用量 SQL 优化。该轮已由 `ee829b777` 创建 merge commit 并合入本地 main；ticket 能力在 0.2.7 同步时随目标上游移除。历史验收见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`。

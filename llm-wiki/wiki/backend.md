@@ -1,5 +1,11 @@
 # 后端知识基线
 
+## 0.2.8 合并增量
+
+- 固定上游提交 `a3eb7ef302961cba716dc78b39b93b60c467db0e` 引入 OpenCode Go 用量查询/管理端展示、OpenAI referral、Claude Code 版本同步、reasoning effort 计费与多项网关兼容测试；本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、quota flusher 与插件账号目录接线继续保留。
+- `backend/cmd/server/wire_gen.go` 合并后同时注入 `OpenCodeGoUsageService`、`ClaudeCodeVersionSyncService` 与本地 cleanup/provider；`ProvidePluginManager` 在 service provider source 仅保留一个定义并继续调用 `SetAccountDirectory`，避免 Wire 生成重复符号。
+- 上游 `backup_pg_dumper` 测试依赖 shell 命令 `sh`；Windows 默认 PATH 缺失时失败，验证时应记录为环境边界，不修改生产代码或上游测试。
+
 ## 0.2.7 合并增量
 
 - 固定合入 `fbb9006adef852c46f0c7f18b0a8a740722cfac7`。上游重写历史后不再包含 0.2.6 的 Codex ticket；经用户确认移除 harvester、票据注入/调度门控、相关设置/DTO/账号状态，保留原有 `x-codex-turn-state` affinity 与跨账号 echo guard。
