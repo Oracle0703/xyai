@@ -1,3 +1,5 @@
+import { formatOrganizationUsageOrganization } from './organizations'
+export { formatOrganizationUsageOrganization } from './organizations'
 import * as XLSX from 'xlsx'
 
 import { MAX_CLIENT_EXPORT_ROWS, MAX_XLSX_DATA_ROWS } from '@/constants/organizationUsage'
@@ -132,11 +134,6 @@ export function getOrganizationUsageExportFileName(startDate: string, endDate: s
   return `organization_usage_${startDate}_to_${endDate}.xlsx`
 }
 
-export function formatOrganizationUsageOrganization(value: string, otherLabel = '其他'): string {
-  if (value === 'xunyou' || value === 'xunyou.com') return '迅游'
-  if (value === 'wsdashi' || value === 'wsdashi.com') return '速宝'
-  return otherLabel
-}
 
 const METRIC_HEADERS = [
   'Requests',
@@ -187,7 +184,16 @@ function buildOverviewRows(summary: OrganizationUsageSummaryResponse): unknown[]
   return [
     ['指标', '值', '周期开始', '周期结束', 'Partial', '用户', '组织', 'Total Tokens'],
     ['日期范围', `${range.start_date} 至 ${range.end_date}`, '', '', '', '', '', ''],
-    ['注册人数', overview.active_users, '', '', '', '', '', ''],
+    ['生成时间', new Date().toISOString()],
+    ['统计时区', 'Asia/Shanghai'],
+    ['数据截至', range.as_of ?? ''],
+    ['归属口径', '当前启用成员及当前部门归属'],
+    ['筛选组织', !summary.applied_filters || summary.applied_filters.organization === 'all' ? '全部可见组织' : formatOrganizationUsageOrganization(summary.applied_filters.organization)],
+    ['筛选部门', summary.applied_filters?.department_id === 'unassigned' ? '未分配' : summary.departments?.find(item => String(item.department_id) === summary.applied_filters?.department_id)?.department_name ?? '全部可见部门'],
+    ['筛选平台', !summary.applied_filters || summary.applied_filters.platform === 'all' ? '全部平台' : summary.applied_filters.platform],
+    ['邮箱筛选', summary.applied_filters?.q ?? ''],
+    ['范围版本', summary.scope_version ?? ''],
+    ['成员人数', overview.active_users, '', '', '', '', '', ''],
     ['活跃人数', overview.used_users, '', '', '', '', '', ''],
     ['Requests', overview.requests, '', '', '', '', '', ''],
     ['Input Tokens', overview.input_tokens, '', '', '', '', '', ''],
@@ -204,7 +210,7 @@ function buildOverviewRows(summary: OrganizationUsageSummaryResponse): unknown[]
 
 function buildOrganizationRows(summary: OrganizationUsageSummaryResponse): unknown[][] {
   return [
-    ['组织', '注册人数', '活跃人数', ...METRIC_HEADERS],
+    ['组织', '成员人数', '活跃人数', ...METRIC_HEADERS],
     ...summary.organizations.map((organization) => [
       formatOrganizationUsageOrganization(organization.organization),
       organization.active_users,
@@ -220,6 +226,7 @@ function buildPeopleRows(summary: OrganizationUsageSummaryResponse): unknown[][]
       '用户ID',
       '邮箱',
       '组织',
+      '部门',
       ...METRIC_HEADERS,
       '日峰值日期范围',
       '日峰值Partial',
@@ -235,6 +242,7 @@ function buildPeopleRows(summary: OrganizationUsageSummaryResponse): unknown[][]
       item.user_id,
       item.email,
       formatOrganizationUsageOrganization(item.organization),
+      item.department_name || '未分配',
       ...metricCells(item),
       ...peakCells(item.peak_day),
       ...peakCells(item.peak_week),
@@ -245,7 +253,7 @@ function buildPeopleRows(summary: OrganizationUsageSummaryResponse): unknown[][]
 
 function buildPeriodRows(periods: OrganizationUsagePeriod[]): unknown[][] {
   return [
-    ['周期开始', '周期结束', 'Partial', '用户ID', '邮箱', '组织', ...METRIC_HEADERS],
+    ['周期开始', '周期结束', 'Partial', '用户ID', '邮箱', '组织', '部门', ...METRIC_HEADERS],
     ...periods.map((period) => [
       period.period_start,
       period.period_end,
@@ -253,13 +261,29 @@ function buildPeriodRows(periods: OrganizationUsagePeriod[]): unknown[][] {
       period.user_id,
       period.email,
       formatOrganizationUsageOrganization(period.organization),
+      period.department_name || '未分配',
       ...metricCells(period)
     ])
   ]
 }
 
+function buildDepartmentRows(summary: OrganizationUsageSummaryResponse): unknown[][] {
+  return [['组织', '部门ID', '部门', '成员人数', '活跃人数', ...METRIC_HEADERS], ...(summary.departments ?? []).map(department => [
+    formatOrganizationUsageOrganization(department.organization), department.department_id ?? '', department.department_name || '未分配', department.active_users, department.used_users, ...metricCells(department)
+  ])]
+}
+
+function buildPlatformRows(summary: OrganizationUsageSummaryResponse): unknown[][] {
+  return [['平台', '活跃人数', ...METRIC_HEADERS], ...(summary.platforms ?? []).map(platform => [
+    platform.platform, platform.used_users, ...metricCells(platform)
+  ])]
+}
+
 export function buildOrganizationUsageWorkbook(input: OrganizationUsageWorkbookInput): XLSX.WorkBook {
   const rowCounts: Array<[string, number]> = [
+    ['组织汇总', input.summary.organizations.length],
+    ['部门汇总', input.summary.departments?.length ?? 0],
+    ['平台汇总', input.summary.platforms?.length ?? 0],
     ['人员汇总', input.summary.items.length],
     ['月度明细', input.periods.month.length],
     ['周度明细', input.periods.week.length],
@@ -278,15 +302,24 @@ export function buildOrganizationUsageWorkbook(input: OrganizationUsageWorkbookI
   const workbook = XLSX.utils.book_new()
   const sheets: Array<[string, unknown[][]]> = [
     ['报表概览', buildOverviewRows(input.summary)],
-    ['组织汇总', buildOrganizationRows(input.summary)],
     ['人员汇总', buildPeopleRows(input.summary)],
+    ['组织汇总', buildOrganizationRows(input.summary)],
+    ['部门汇总', buildDepartmentRows(input.summary)],
+    ['平台汇总', buildPlatformRows(input.summary)],
     ['月度明细', buildPeriodRows(input.periods.month)],
     ['周度明细', buildPeriodRows(input.periods.week)],
     ['日度明细', buildPeriodRows(input.periods.day)]
   ]
 
   for (const [name, rows] of sheets) {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), name)
+    const sheet = XLSX.utils.aoa_to_sheet(rows)
+    if (name === '人员汇总') {
+      sheet['!cols'] = rows[0].map((_, index) => ({
+        wch: index === 1 ? 36 : index >= 11 && (index - 11) % 3 === 0 ? 26 : 20
+      }))
+      sheet['!autofilter'] = { ref: sheet['!ref']! }
+    }
+    XLSX.utils.book_append_sheet(workbook, sheet, name)
   }
   return workbook
 }

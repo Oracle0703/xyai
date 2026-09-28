@@ -1165,3 +1165,7 @@ func cloneEmailBindUser(user *service.User) *service.User {
 	cloned := *user
 	return &cloned
 }
+
+func (s *emailBindUserRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*service.User, error) {
+	return s.GetByID(ctx, id)
+}

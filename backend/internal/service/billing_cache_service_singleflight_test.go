@@ -165,3 +165,7 @@ func TestBillingCacheServiceGetUserBalance_Singleflight(t *testing.T) {
 		return cache.setBalanceCalls.Load() >= 1
 	}, time.Second, 10*time.Millisecond)
 }
+
+func (s *balanceLoadUserRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}

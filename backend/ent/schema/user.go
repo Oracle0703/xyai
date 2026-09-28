@@ -49,6 +49,8 @@ func (User) Fields() []ent.Field {
 		field.JSON("admin_permissions", []string{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Default([]string{}),
+		field.Int64("department_id").Optional().Nillable(),
+		field.Int64("department_version").Default(0),
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
@@ -128,6 +130,10 @@ func (User) Fields() []ent.Field {
 
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
+		edge.From("department", Department.Type).Ref("members").Field("department_id").Unique().
+			Annotations(entsql.OnDelete(entsql.Restrict)),
+		edge.To("authorized_departments", Department.Type).
+			Through("department_access_grants", DepartmentAccessGrant.Type),
 		edge.To("api_keys", APIKey.Type),
 		edge.To("redeem_codes", RedeemCode.Type),
 		edge.To("subscriptions", UserSubscription.Type),
@@ -151,5 +157,6 @@ func (User) Indexes() []ent.Index {
 		// email 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("deleted_at"),
+		index.Fields("department_id", "id"),
 	}
 }

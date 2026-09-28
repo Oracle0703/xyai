@@ -811,3 +811,7 @@ func TestUserHandlerStartIdentityBindingReturnsAuthorizeURL(t *testing.T) {
 	require.Contains(t, resp.Data.AuthorizeURL, "intent=bind_current_user")
 	require.Contains(t, resp.Data.AuthorizeURL, "redirect=%2Fsettings%2Fprofile")
 }
+
+func (s *userHandlerRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*service.User, error) {
+	return s.GetByID(ctx, id)
+}

@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	AdminPermissionSubscriptions = "admin.subscriptions"
-	AdminPermissionUsage         = "admin.usage"
-	AdminPermissionTokenAnalysis = "admin.token_analysis"
+	AdminPermissionSubscriptions           = "admin.subscriptions"
+	AdminPermissionUsage                   = "admin.usage"
+	AdminPermissionTokenAnalysis           = "admin.token_analysis"
+	AdminPermissionOrganizationUsage       = "admin.organization_usage"
+	AdminPermissionDepartmentSubscriptions = "admin.department_subscriptions"
 )
 
 type AdminPermissionCatalogItem struct {
@@ -28,10 +30,32 @@ var adminPermissionCatalog = []AdminPermissionCatalogItem{
 	{Code: AdminPermissionSubscriptions, MenuKey: "subscriptions", Route: "/admin/subscriptions"},
 	{Code: AdminPermissionUsage, MenuKey: "usage", Route: "/admin/usage"},
 	{Code: AdminPermissionTokenAnalysis, MenuKey: "token_analysis", Route: "/admin/token-analysis"},
+	{Code: AdminPermissionOrganizationUsage, MenuKey: "organization_usage", Route: "/admin/organization-usage"},
+	{Code: AdminPermissionDepartmentSubscriptions, MenuKey: "department_subscriptions", Route: "/admin/subscriptions"},
 }
 
 var adminPermissionRouteRules = map[string][]adminRouteRule{
+	AdminPermissionOrganizationUsage: {
+		{"GET", "/api/v1/admin/usage/organization-report/scope"},
+		{"GET", "/api/v1/admin/usage/organization-report/summary"},
+		{"GET", "/api/v1/admin/usage/organization-report/periods"},
+		{"GET", "/api/v1/admin/usage/organization-report/trend"},
+	},
+	AdminPermissionDepartmentSubscriptions: {
+		{"GET", "/api/v1/admin/subscriptions"},
+		{"GET", "/api/v1/admin/subscriptions/:id"},
+		{"GET", "/api/v1/admin/subscriptions/:id/progress"},
+		{"GET", "/api/v1/admin/users/:id/subscriptions"},
+		{"GET", "/api/v1/admin/groups/:id/subscriptions"},
+		{"GET", "/api/v1/admin/subscriptions/scope"},
+		{"GET", "/api/v1/admin/subscriptions/search-users"},
+		{"GET", "/api/v1/admin/subscriptions/search-groups"},
+		{"POST", "/api/v1/admin/subscriptions/:id/reset-quota"},
+		{"POST", "/api/v1/admin/subscriptions/reset-daily-filtered"},
+	},
 	AdminPermissionSubscriptions: {
+		{"GET", "/api/v1/admin/subscriptions/scope"},
+		{"GET", "/api/v1/admin/subscriptions/search-users"},
 		{"GET", "/api/v1/admin/subscriptions"},
 		{"GET", "/api/v1/admin/subscriptions/:id"},
 		{"GET", "/api/v1/admin/subscriptions/:id/progress"},
@@ -39,7 +63,6 @@ var adminPermissionRouteRules = map[string][]adminRouteRule{
 		{"GET", "/api/v1/admin/users/:id/subscriptions"},
 		{"GET", "/api/v1/admin/subscriptions/search-groups"},
 		{"GET", "/api/v1/admin/subscriptions/assignable-groups"},
-		{"GET", "/api/v1/admin/subscriptions/search-users"},
 		{"GET", "/api/v1/admin/usage/search-users"},
 		{"POST", "/api/v1/admin/subscriptions/assign"},
 		{"POST", "/api/v1/admin/subscriptions/bulk-assign"},
@@ -103,6 +126,11 @@ func NormalizeAdminPermissions(role string, permissions []string) ([]string, err
 	}
 	if role != RoleSubAdmin {
 		return []string{}, nil
+	}
+	_, globalSubscriptions := requested[AdminPermissionSubscriptions]
+	_, departmentSubscriptions := requested[AdminPermissionDepartmentSubscriptions]
+	if globalSubscriptions && departmentSubscriptions {
+		return nil, infraerrors.BadRequest("CONFLICTING_ADMIN_PERMISSIONS", "global and department subscription permissions are mutually exclusive")
 	}
 
 	normalized := make([]string, 0, len(requested))

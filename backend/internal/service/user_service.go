@@ -66,10 +66,12 @@ var (
 
 // UserListFilters contains all filter options for listing users
 type UserListFilters struct {
-	Status    string // User status filter
-	Role      string // User role filter
-	Search    string // Search in email, username
-	GroupName string // Filter by allowed group name (fuzzy match)
+	Organization string
+	DepartmentID string
+	Status       string // User status filter
+	Role         string // User role filter
+	Search       string // Search in email, username
+	GroupName    string // Filter by allowed group name (fuzzy match)
 	// APIKeyGroupID filters users who own at least one non-soft-deleted API key
 	// bound to this group (api_keys.group_id). 0 = no filter. Covers all three
 	// group types since it matches the key's group directly, not allowed_groups.
@@ -96,18 +98,19 @@ type UserListFilters struct {
 // 注意这里没有 balance / total_recharged：余额只能经由 AdjustBalance、
 // SetBalance、UpdateBalance、DeductBalance 等原子接口修改，Update 永远不碰它们。
 type UserUpdateFields struct {
-	Email            bool
-	Username         bool
-	Notes            bool
-	PasswordHash     bool
-	Role             bool
-	AdminPermissions bool
-	Status           bool
-	Concurrency      bool
-	RPMLimit         bool
-	SignupSource     bool
-	LastLoginAt      bool
-	LastActiveAt     bool
+	ExpectedAdminAccessVersion string
+	Email                      bool
+	Username                   bool
+	Notes                      bool
+	PasswordHash               bool
+	Role                       bool
+	AdminPermissions           bool
+	Status                     bool
+	Concurrency                bool
+	RPMLimit                   bool
+	SignupSource               bool
+	LastLoginAt                bool
+	LastActiveAt               bool
 	// BalanceNotifySettings 覆盖 balance_notify_enabled / _threshold_type / _threshold。
 	BalanceNotifySettings bool
 	// BalanceNotifyExtraEmails 与上一项分开，避免"改通知阈值"覆盖并发的"加通知邮箱"。
@@ -137,6 +140,8 @@ type UserRepository interface {
 	// 服务层的前置查重会同时通过，必须由这里串行化兜底。管理员建号仍走 Create，不受限制。
 	CreateWithEmailAliasGuard(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, id int64) (*User, error)
+	// GetByIDWithAdminAccess returns management fields and their authorization version in one snapshot.
+	GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error)
 	// GetByIDIncludeDeleted 绕过软删除过滤按 ID 取用户（含已删）。仅供管理员审计/usage 点击使用。
 	GetByIDIncludeDeleted(ctx context.Context, id int64) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)

@@ -1,5 +1,20 @@
 # 前端知识基线
 
+
+## 部门管理与负责人入口
+
+状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。完整合同与证据见部门设计、实施方案及验收表。
+
+- 2026-09-21 复审精简：删除 Summary/Trend 旧并行对齐状态；人员翻页必须保持已建立的 as_of，趋势只对同一快照最多重试一次。导出首响应必须有 as_of/scope_version，后续页及 Sheet 严格一致，不回退无版本/客户端时间。部门弹窗用每次请求的 AbortSignal 作废迟到响应，取消/切换/卸载均中止旧请求。
+
+- `views/admin/DepartmentsView.vue` 仅完整管理员可用；`components/admin/department/` 管理成员、负责人授权和用户页分配。成员 CAS 冲突需刷新再确认；授权保留其他部门，切换全站订阅需显式确认。
+- `UserEditModal.vue` 每次打开/切换先 GET 用户详情和 `admin_access_version`，加载失败禁止保存，忽略迟到结果；仅提交改动字段，角色/权限集合变化时才同时发送两字段与 `expected_admin_access_version`。冲突刷新后手动确认，备注不能覆写旧权限。
+- 用户页展示部门列与筛选；完整管理员维护归属和分配订阅。负责人仅查询、导出与额度重置，不开放成员管理或订阅分配。
+- 报表先读 `catalog_version` 目录，再由 Summary 建立 canonical `as_of/scope_version` 后加载 Trend；仅 REPORT_SCOPE_CHANGED 最多重建一次，持续冲突停止。403/范围切换清数据、取消导出并作废迟到响应，空授权不回退全站。
+- 订阅重置绑定最新成功列表返回的筛选及 scope_version；加载/失败立即使旧快照失效，不能使用目录版本。负责人姓名不链接全站 usage。
+- `utils/departmentErrors.ts` 优先读取业务 `reason`，兼容中间件字符串 `code` 及 Axios/普通错误对象；数字 HTTP code 或普通 409 不能触发范围重载。部门停用、跨组织、版本和全站切换错误分别显示中英文提示。
+- Excel 的页面筛选、当前归属、as_of/scope_version 与各分页/Sheet 一致；变化中止。仅部门权限登录默认进入报表或订阅页，保留显式 redirect 与个人 dashboard。
+
 ## 0.2.7 合并增量
 
 - 跟随固定上游移除 Codex ticket 设置字段、账号状态展示与类型；原有归档设置、本地 OpenAI-compatible preset 和子管理员权限保留。
@@ -117,6 +132,7 @@
 - dev server 默认端口来自 `VITE_DEV_PORT` 或 `3000`。
 - dev proxy 转发 `/api`, `/v1`, `/setup` 到 `VITE_DEV_PROXY_TARGET` 或 `http://localhost:8080`。
 - build 输出到 `../backend/internal/web/dist`, 供后端嵌入。
+- `html2canvas` 单独输出 `vendor-screenshot` chunk，由表格截图工具动态加载；不得并入首屏共享的 `vendor-misc`。
 - dev 模式会尝试从后端 `/api/v1/settings/public` 注入 `window.__APP_CONFIG__`, 并在 HTML 返回前注入安全转义的站点标题/favicon, 模拟生产 embedded HTML 注入行为。默认 favicon 与静态品牌资源已统一为 `/logo.svg`, README 使用 `assets/logo.svg`; 自定义 favicon 只接受相对路径、HTTP(S) 或 `data:image/*`, runtime 统一复用 `frontend/src/utils/branding.ts`。
 
 ## 路由与守卫
@@ -233,10 +249,10 @@ API 模块分布:
 - 管理订阅页“自助重置设置”只对完整管理员显示；独立 `SubscriptionSelfResetPolicyDialog.vue` 配置三类组织的 0–100 整数、以及 `rollout=off/admin/all`。默认 `admin` 只开放完整管理员，验证后切为 `all`，异常时可切回 `off`。用户页对 `ROLLOUT_DISABLED` 或尚未加载成功的状态不渲染按钮和提示行，灰度期间普通用户看不到该功能。读取失败时显示空白输入框，不填默认值，可重试，也可填满三项后保存覆盖损坏或缺失的配置。
 
 - 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
-- 筛选项包含状态、用户、分组、平台和组织；组织内部值/API 参数为 `xunyou` / `wsdashi`, 页面固定显示“迅游”/“速宝”。列表请求仍发送表格的 `sort_by` / `sort_order`, 后端将其作为同日剩余比例时的次序。
+- 筛选项包含状态、用户、分组、平台、组织及部门；组织内部值为 `xunyou / wsdashi / other`。部门负责人先请求 subscription scope，默认其唯一组织/部门；compact 用户及分组选项限制授权范围，保留原列表排序合同。
 - 操作列的“重置配额”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: true, monthly: true })`, 会同时归零日/周/月用量。
 - 操作列的“重置日限”调用 `adminAPI.subscriptions.resetQuota(id, { daily: true, weekly: false, monthly: false })`, 只归零每日用量, 不修改周/月用量。
-- “分配订阅”后的一键重置按钮对完整管理员和持有 `admin.subscriptions` 的子管理员显示。每次列表请求开始时立即使 `status,user_id,group_id,platform,organization` 的 applied snapshot 失效, 只有最新请求成功后才恢复；初次加载、筛选请求在途或失败时按钮均禁用, 避免按旧筛选范围批量重置。打开确认框时复制该快照, 调用 `resetDailyFiltered` 时不携带分页或排序字段；同一确认框失败重试复用 `Idempotency-Key`, 重新打开才生成新键。
+- “分配订阅”后的一键重置按钮对完整管理员和持有 `admin.subscriptions` 或 `admin.department_subscriptions` 的子管理员显示。每次列表请求开始时立即使 `status,user_id,group_id,platform,organization,department_id,scope_version` 的 applied snapshot 失效, 只有最新请求成功后才恢复；初次加载、筛选请求在途或失败时按钮均禁用, 避免按旧筛选范围批量重置。打开确认框时复制该快照, 调用 `resetDailyFiltered` 时不携带分页或排序字段；同一确认框失败重试复用 `Idempotency-Key`, 重新打开才生成新键。
 - 一键重置成功后关闭确认框并刷新列表, `reset_count > 0` 显示数量, `reset_count = 0` 显示无匹配；失败保留确认框和筛选状态, 请求进行中忽略重复确认。
 - 管理端订阅支持撤销/恢复: revoked 订阅在列表中保留历史, 操作列显示 restore; 恢复时后端会按当前过期时间决定 active/expired。用户侧和管理侧订阅卡展示 `expires_at` 剩余时长, one-time daily quota 会使用剩余时长文案。
 
@@ -255,11 +271,12 @@ API 模块分布:
 管理端组织用量报表:
 
 - 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-trend-chart-design-cn.md`。
-- 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持组织/邮箱筛选、服务端排序分页、三组织汇总、用量趋势折线和个人/团队日周月峰值。
-- 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面完整加载并行 Summary+Trend 并共享 candidate `as_of`, 以 Summary canonical 为权威必要时单次对齐 Trend; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
+- 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持授权组织/部门/平台/邮箱筛选、服务端排序分页、范围内组织/部门/平台汇总、用量趋势折线和个人/团队日周月峰值。
+- 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面先读取 scope 目录，再由首个 Summary 确定查询 `scope_version` 与 canonical `as_of` 后加载 Trend，目录 `catalog_version` 不作为查询版本，必要时单次对齐 Trend; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
 - 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/总 Token 与请求数。`total_tokens` 包含缓存创建和缓存读取两类 Token，不能视为输入与输出两条可见曲线之和。
-- 人数只改前端展示名：`active_users` 显示为“注册人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
-- Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 固定生成“报表概览、组织汇总、人员汇总、月度明细、周度明细、日度明细”六个 Sheet。客户端四类数据合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
+- 人数只改前端展示名：`active_users` 显示为“成员人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
+- Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 生成“报表概览、人员汇总、组织汇总、部门汇总、平台汇总、月度明细、周度明细、日度明细”八个 Sheet。人员汇总为筛选范围内全部人员（含零用量成员、组织/部门、费用和日周月峰值），设置列宽与自动筛选，不受页面分页限制。所有数据 Sheet（含新增汇总）合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
+- 人员表“每页”前的截图按钮通过 `utils/tableScreenshot.ts` 按需加载 `html2canvas`，下载当前页所有实际人员行及完整宽表列的 PNG，文件名包含日期范围和页码；截图不请求其它分页。空数据/加载中禁用，重复点击防重，分页、查询数据变化或卸载时作废在途截图。
 - 页面组件位于 `frontend/src/components/admin/organization-usage/`; 人员表始终保持宽表横向滚动, 不使用移动端卡片化 DataTable。修改筛选、组织汇总、峰值、趋势或导出交互时同步该目录 README、View/Worker 测试与中英文 `admin/organizationUsage.ts` locale。
 
 管理端 Token Analysis 计费用量趋势:
@@ -319,9 +336,9 @@ API 模块分布:
 ## 子管理员菜单与页面
 
 - 权限路由顺序和 backend landing 的最小映射在 `frontend/src/utils/adminPermissions.ts`; 权限目录本身由后端 API 返回。
-- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、使用记录、Token 分析; 账号、风控、请求拦截、设置和管理员自定义菜单不显示。
-- `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
-- 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询当前未删除用户，通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
+- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、使用记录、Token 分析; 账号、风控、请求拦截、设置和管理员自定义菜单不显示。
+- `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。`admin.department_subscriptions` 负责人只显示范围内全量/仅日限重置。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
+- 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询 active 未删除用户（后端按部门范围收口，全站订阅权限即全站），通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
 - `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
 - API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新。标准模式回 `/dashboard`; backend 模式无剩余权限时先 logout 再回 `/login`。

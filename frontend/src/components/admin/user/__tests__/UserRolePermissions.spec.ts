@@ -8,6 +8,7 @@ import Select from '@/components/common/Select.vue'
 const api = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
+  getById: vi.fn(),
   getPermissionCatalog: vi.fn(),
   updateUserAttributeValues: vi.fn(),
 }))
@@ -17,6 +18,7 @@ vi.mock('@/api/admin', () => ({
     users: {
       create: api.create,
       update: api.update,
+      getById: api.getById,
       getPermissionCatalog: api.getPermissionCatalog,
     },
     userAttributes: { updateUserAttributeValues: api.updateUserAttributeValues },
@@ -44,6 +46,7 @@ describe('admin user role permission forms', () => {
   beforeEach(() => {
     api.create.mockReset()
     api.update.mockReset()
+    api.getById.mockReset().mockResolvedValue({ id:9,email:'sub@example.com',username:'sub',notes:'',role:'sub_admin',admin_permissions:['admin.usage'],concurrency:1,rpm_limit:0,status:'active',admin_access_version:'access-v1' })
     api.getPermissionCatalog.mockReset()
     api.updateUserAttributeValues.mockReset()
     api.create.mockResolvedValue({})
@@ -116,7 +119,7 @@ describe('admin user role permission forms', () => {
 
     expect(api.update).toHaveBeenCalledWith(
       9,
-      expect.objectContaining({ role: 'user', admin_permissions: [] }),
+      expect.objectContaining({ role: 'user', admin_permissions: [], expected_admin_access_version: 'access-v1' }),
     )
   })
 })

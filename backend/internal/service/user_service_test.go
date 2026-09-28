@@ -914,3 +914,7 @@ func TestGetProfile_HydratesAvatarFromRepository(t *testing.T) {
 	require.Equal(t, "https://cdn.example.com/profile.png", user.AvatarURL)
 	require.Equal(t, "remote_url", user.AvatarSource)
 }
+
+func (s *mockUserRepo) GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}

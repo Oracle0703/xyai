@@ -79,7 +79,7 @@ func (s *adminServiceImpl) loadUserGroupRatesOneByOne(ctx context.Context, users
 }
 
 func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error) {
-	user, err := s.userRepo.GetByID(ctx, id)
+	user, err := s.userRepo.GetByIDWithAdminAccess(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -199,6 +199,9 @@ func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, userI
 }
 
 func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error) {
+	if (input.Role != "" || input.AdminPermissions != nil) && input.ExpectedAdminAccessVersion == "" {
+		return nil, ErrAdminAccessVersionRequired
+	}
 	// 校验用户专属分组倍率：必须 > 0（nil 合法，表示清除专属倍率）
 	if input.GroupRates != nil {
 		for groupID, rate := range input.GroupRates {
@@ -228,6 +231,9 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	// fields 与下面的 input.X 判空条件一一对应：管理员没提交的列不写回，
 	// 避免这份快照回滚并发的扣费、状态变更或批量限额调整。
 	var fields UserUpdateFields
+	if input.Role != "" || input.AdminPermissions != nil {
+		fields.ExpectedAdminAccessVersion = input.ExpectedAdminAccessVersion
+	}
 
 	if input.Email != "" {
 		user.Email = input.Email

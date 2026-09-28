@@ -863,6 +863,70 @@ var (
 			},
 		},
 	}
+	// DepartmentsColumns holds the columns for the "departments" table.
+	DepartmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "organization_key", Type: field.TypeString, Size: 20},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "version", Type: field.TypeInt64, Default: 0},
+	}
+	// DepartmentsTable holds the schema information for the "departments" table.
+	DepartmentsTable = &schema.Table{
+		Name:       "departments",
+		Columns:    DepartmentsColumns,
+		PrimaryKey: []*schema.Column{DepartmentsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "department_organization_key_status_sort_order_id",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[3], DepartmentsColumns[5], DepartmentsColumns[6], DepartmentsColumns[0]},
+			},
+		},
+	}
+	// DepartmentAccessGrantsColumns holds the columns for the "department_access_grants" table.
+	DepartmentAccessGrantsColumns = []*schema.Column{
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "user_id", Type: field.TypeInt64},
+		{Name: "department_id", Type: field.TypeInt64},
+		{Name: "created_by", Type: field.TypeInt64},
+	}
+	// DepartmentAccessGrantsTable holds the schema information for the "department_access_grants" table.
+	DepartmentAccessGrantsTable = &schema.Table{
+		Name:       "department_access_grants",
+		Columns:    DepartmentAccessGrantsColumns,
+		PrimaryKey: []*schema.Column{DepartmentAccessGrantsColumns[1], DepartmentAccessGrantsColumns[2]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "department_access_grants_users_user",
+				Columns:    []*schema.Column{DepartmentAccessGrantsColumns[1]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+			{
+				Symbol:     "department_access_grants_departments_department",
+				Columns:    []*schema.Column{DepartmentAccessGrantsColumns[2]},
+				RefColumns: []*schema.Column{DepartmentsColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+			{
+				Symbol:     "department_access_grants_users_creator",
+				Columns:    []*schema.Column{DepartmentAccessGrantsColumns[3]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.Restrict,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "departmentaccessgrant_department_id_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentAccessGrantsColumns[2], DepartmentAccessGrantsColumns[1]},
+			},
+		},
+	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1794,6 +1858,7 @@ var (
 		{Name: "password_hash", Type: field.TypeString, Size: 255},
 		{Name: "role", Type: field.TypeString, Size: 20, Default: "user"},
 		{Name: "admin_permissions", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "department_version", Type: field.TypeInt64, Default: 0},
 		{Name: "balance", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "frozen_balance", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "concurrency", Type: field.TypeInt, Default: 5},
@@ -1813,22 +1878,36 @@ var (
 		{Name: "balance_notify_extra_emails", Type: field.TypeString, Default: "[]", SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "total_recharged", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
+		{Name: "department_id", Type: field.TypeInt64, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "users_departments_members",
+				Columns:    []*schema.Column{UsersColumns[28]},
+				RefColumns: []*schema.Column{DepartmentsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "user_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[11]},
+				Columns: []*schema.Column{UsersColumns[12]},
 			},
 			{
 				Name:    "user_deleted_at",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[3]},
+			},
+			{
+				Name:    "user_department_id_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[28], UsersColumns[0]},
 			},
 		},
 	}
@@ -2104,6 +2183,8 @@ var (
 		ChannelMonitorHistoriesTable,
 		ChannelMonitorRequestTemplatesTable,
 		CompositeModelRoutesTable,
+		DepartmentsTable,
+		DepartmentAccessGrantsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
@@ -2191,6 +2272,15 @@ func init() {
 	CompositeModelRoutesTable.Annotation = &entsql.Annotation{
 		Table: "composite_model_routes",
 	}
+	DepartmentsTable.Annotation = &entsql.Annotation{
+		Table: "departments",
+	}
+	DepartmentAccessGrantsTable.ForeignKeys[0].RefTable = UsersTable
+	DepartmentAccessGrantsTable.ForeignKeys[1].RefTable = DepartmentsTable
+	DepartmentAccessGrantsTable.ForeignKeys[2].RefTable = UsersTable
+	DepartmentAccessGrantsTable.Annotation = &entsql.Annotation{
+		Table: "department_access_grants",
+	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",
 	}
@@ -2259,6 +2349,7 @@ func init() {
 	UsageLogsTable.Annotation = &entsql.Annotation{
 		Table: "usage_logs",
 	}
+	UsersTable.ForeignKeys[0].RefTable = DepartmentsTable
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",
 	}

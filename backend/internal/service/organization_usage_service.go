@@ -55,19 +55,23 @@ type OrganizationUsagePagination struct {
 }
 
 type OrganizationUsagePeriod struct {
-	PeriodStart  string `json:"period_start"`
-	PeriodEnd    string `json:"period_end"`
-	Partial      bool   `json:"partial"`
-	UserID       int64  `json:"user_id"`
-	Email        string `json:"email"`
-	Organization string `json:"organization"`
+	DepartmentID   *int64 `json:"department_id,omitempty"`
+	DepartmentName string `json:"department_name,omitempty"`
+	PeriodStart    string `json:"period_start"`
+	PeriodEnd      string `json:"period_end"`
+	Partial        bool   `json:"partial"`
+	UserID         int64  `json:"user_id"`
+	Email          string `json:"email"`
+	Organization   string `json:"organization"`
 	OrganizationUsageMetrics
 }
 
 type OrganizationUsageSummaryItem struct {
-	UserID       int64  `json:"user_id"`
-	Email        string `json:"email"`
-	Organization string `json:"organization"`
+	DepartmentID   *int64 `json:"department_id,omitempty"`
+	DepartmentName string `json:"department_name,omitempty"`
+	UserID         int64  `json:"user_id"`
+	Email          string `json:"email"`
+	Organization   string `json:"organization"`
 	OrganizationUsageMetrics
 	PeakDay   *OrganizationUsagePeriod `json:"peak_day"`
 	PeakWeek  *OrganizationUsagePeriod `json:"peak_week"`
@@ -94,19 +98,25 @@ type OrganizationUsageChampions struct {
 }
 
 type OrganizationUsageSummaryResponse struct {
-	Range         OrganizationUsageRange          `json:"range"`
-	Overview      OrganizationUsageOverview       `json:"overview"`
-	Organizations []OrganizationUsageOrganization `json:"organizations"`
-	Champions     OrganizationUsageChampions      `json:"champions"`
-	Items         []OrganizationUsageSummaryItem  `json:"items"`
-	Pagination    OrganizationUsagePagination     `json:"pagination"`
+	Departments    []OrganizationUsageDepartment    `json:"departments,omitempty"`
+	Platforms      []OrganizationUsagePlatform      `json:"platforms,omitempty"`
+	ScopeVersion   string                           `json:"scope_version,omitempty"`
+	AppliedFilters *OrganizationUsageAppliedFilters `json:"applied_filters,omitempty"`
+	Range          OrganizationUsageRange           `json:"range"`
+	Overview       OrganizationUsageOverview        `json:"overview"`
+	Organizations  []OrganizationUsageOrganization  `json:"organizations"`
+	Champions      OrganizationUsageChampions       `json:"champions"`
+	Items          []OrganizationUsageSummaryItem   `json:"items"`
+	Pagination     OrganizationUsagePagination      `json:"pagination"`
 }
 
 type OrganizationUsagePeriodsResponse struct {
-	Range       OrganizationUsageRange      `json:"range"`
-	Granularity string                      `json:"granularity"`
-	Items       []OrganizationUsagePeriod   `json:"items"`
-	Pagination  OrganizationUsagePagination `json:"pagination"`
+	ScopeVersion   string                           `json:"scope_version,omitempty"`
+	AppliedFilters *OrganizationUsageAppliedFilters `json:"applied_filters,omitempty"`
+	Range          OrganizationUsageRange           `json:"range"`
+	Granularity    string                           `json:"granularity"`
+	Items          []OrganizationUsagePeriod        `json:"items"`
+	Pagination     OrganizationUsagePagination      `json:"pagination"`
 }
 
 // OrganizationUsageTrendPoint is one zero-filled calendar bucket for the trend chart.
@@ -119,13 +129,16 @@ type OrganizationUsageTrendPoint struct {
 
 // OrganizationUsageTrendResponse is the continuous time series for organization-usage charts.
 type OrganizationUsageTrendResponse struct {
-	Range       OrganizationUsageRange        `json:"range"`
-	DataThrough string                        `json:"data_through,omitempty"`
-	Granularity string                        `json:"granularity"`
-	Points      []OrganizationUsageTrendPoint `json:"points"`
+	ScopeVersion   string                           `json:"scope_version,omitempty"`
+	AppliedFilters *OrganizationUsageAppliedFilters `json:"applied_filters,omitempty"`
+	Range          OrganizationUsageRange           `json:"range"`
+	DataThrough    string                           `json:"data_through,omitempty"`
+	Granularity    string                           `json:"granularity"`
+	Points         []OrganizationUsageTrendPoint    `json:"points"`
 }
 
 type OrganizationUsageSummaryQuery struct {
+	Filters      OrganizationUsageDepartmentFilters
 	StartDate    string
 	EndDate      string
 	AsOf         string
@@ -138,6 +151,7 @@ type OrganizationUsageSummaryQuery struct {
 }
 
 type OrganizationUsagePeriodsQuery struct {
+	Filters      OrganizationUsageDepartmentFilters
 	StartDate    string
 	EndDate      string
 	AsOf         string
@@ -150,6 +164,7 @@ type OrganizationUsagePeriodsQuery struct {
 
 // OrganizationUsageTrendQuery filters the zero-filled trend series (no pagination).
 type OrganizationUsageTrendQuery struct {
+	Filters      OrganizationUsageDepartmentFilters
 	StartDate    string
 	EndDate      string
 	AsOf         string
@@ -159,6 +174,7 @@ type OrganizationUsageTrendQuery struct {
 }
 
 type OrganizationUsageSummaryRepositoryParams struct {
+	Filters      OrganizationUsageDepartmentFilters
 	StartTime    time.Time
 	EndTime      time.Time
 	StartDate    time.Time
@@ -172,6 +188,7 @@ type OrganizationUsageSummaryRepositoryParams struct {
 }
 
 type OrganizationUsagePeriodsRepositoryParams struct {
+	Filters      OrganizationUsageDepartmentFilters
 	StartTime    time.Time
 	EndTime      time.Time
 	StartDate    time.Time
@@ -185,6 +202,7 @@ type OrganizationUsagePeriodsRepositoryParams struct {
 
 // OrganizationUsageTrendRepositoryParams keeps Periods $1..$6 bindings and adds $7=data_through.
 type OrganizationUsageTrendRepositoryParams struct {
+	Filters      OrganizationUsageDepartmentFilters
 	StartTime    time.Time
 	EndTime      time.Time
 	StartDate    time.Time
@@ -196,20 +214,28 @@ type OrganizationUsageTrendRepositoryParams struct {
 }
 
 type OrganizationUsageSummaryRepositoryResult struct {
-	Overview      OrganizationUsageOverview
-	Organizations []OrganizationUsageOrganization
-	Champions     OrganizationUsageChampions
-	Items         []OrganizationUsageSummaryItem
-	Total         int64
+	Departments    []OrganizationUsageDepartment `json:"departments,omitempty"`
+	Platforms      []OrganizationUsagePlatform   `json:"platforms,omitempty"`
+	ScopeVersion   string
+	AppliedFilters *OrganizationUsageAppliedFilters
+	Overview       OrganizationUsageOverview
+	Organizations  []OrganizationUsageOrganization
+	Champions      OrganizationUsageChampions
+	Items          []OrganizationUsageSummaryItem
+	Total          int64
 }
 
 type OrganizationUsagePeriodsRepositoryResult struct {
-	Items []OrganizationUsagePeriod
-	Total int64
+	ScopeVersion   string
+	AppliedFilters *OrganizationUsageAppliedFilters
+	Items          []OrganizationUsagePeriod
+	Total          int64
 }
 
 type OrganizationUsageTrendRepositoryResult struct {
-	Points []OrganizationUsageTrendPoint
+	ScopeVersion   string
+	AppliedFilters *OrganizationUsageAppliedFilters
+	Points         []OrganizationUsageTrendPoint
 }
 
 type OrganizationUsageRepository interface {
@@ -232,6 +258,10 @@ func (s *OrganizationUsageService) Summary(ctx context.Context, query Organizati
 	if err != nil {
 		return nil, err
 	}
+	filters, filterErr := query.Filters.Normalize(query.Organization)
+	if filterErr != nil {
+		return nil, filterErr
+	}
 	if base.asOf != nil {
 		base.clampAsOfToServerNow(s.now())
 	}
@@ -253,6 +283,7 @@ func (s *OrganizationUsageService) Summary(ctx context.Context, query Organizati
 
 	startTime, endTime := base.repositoryRange()
 	result, err := s.repo.Summary(ctx, OrganizationUsageSummaryRepositoryParams{
+		Filters:   filters,
 		StartTime: startTime, EndTime: endTime,
 		StartDate: base.start, EndDate: base.end,
 		Organization: base.organization, Q: base.q, Page: base.page, PageSize: base.pageSize,
@@ -262,6 +293,8 @@ func (s *OrganizationUsageService) Summary(ctx context.Context, query Organizati
 		return nil, err
 	}
 	return &OrganizationUsageSummaryResponse{
+		ScopeVersion: result.ScopeVersion, AppliedFilters: result.AppliedFilters,
+		Departments: result.Departments, Platforms: result.Platforms,
 		Range:         OrganizationUsageRange{StartDate: query.StartDate, EndDate: query.EndDate, AsOf: base.asOfCanonical},
 		Overview:      result.Overview,
 		Organizations: result.Organizations,
@@ -276,6 +309,10 @@ func (s *OrganizationUsageService) Periods(ctx context.Context, query Organizati
 	if err != nil {
 		return nil, err
 	}
+	filters, filterErr := query.Filters.Normalize(query.Organization)
+	if filterErr != nil {
+		return nil, filterErr
+	}
 	if base.asOf != nil {
 		base.clampAsOfToServerNow(s.now())
 	}
@@ -289,6 +326,7 @@ func (s *OrganizationUsageService) Periods(ctx context.Context, query Organizati
 
 	startTime, endTime := base.repositoryRange()
 	result, err := s.repo.Periods(ctx, OrganizationUsagePeriodsRepositoryParams{
+		Filters:   filters,
 		StartTime: startTime, EndTime: endTime,
 		StartDate: base.start, EndDate: base.end,
 		Organization: base.organization, Q: base.q, Page: base.page, PageSize: base.pageSize,
@@ -298,6 +336,7 @@ func (s *OrganizationUsageService) Periods(ctx context.Context, query Organizati
 		return nil, err
 	}
 	return &OrganizationUsagePeriodsResponse{
+		ScopeVersion: result.ScopeVersion, AppliedFilters: result.AppliedFilters,
 		Range:       OrganizationUsageRange{StartDate: query.StartDate, EndDate: query.EndDate, AsOf: base.asOfCanonical},
 		Granularity: granularity,
 		Items:       result.Items,
@@ -312,6 +351,10 @@ func (s *OrganizationUsageService) Trend(ctx context.Context, query Organization
 	base, err := normalizeOrganizationUsageQuery(query.StartDate, query.EndDate, query.AsOf, query.Organization, query.Q, 1, 20)
 	if err != nil {
 		return nil, err
+	}
+	filters, filterErr := query.Filters.Normalize(query.Organization)
+	if filterErr != nil {
+		return nil, filterErr
 	}
 	serverNow := s.now()
 	if base.asOf != nil {
@@ -334,7 +377,7 @@ func (s *OrganizationUsageService) Trend(ctx context.Context, query Organization
 	if dataThrough.After(base.end) {
 		dataThrough = base.end
 	}
-	if dataThrough.Before(base.start) {
+	if dataThrough.Before(base.start) && DepartmentActorID(ctx) == 0 {
 		return &OrganizationUsageTrendResponse{
 			Range:       OrganizationUsageRange{StartDate: query.StartDate, EndDate: query.EndDate, AsOf: base.asOfCanonical},
 			Granularity: granularity,
@@ -343,6 +386,7 @@ func (s *OrganizationUsageService) Trend(ctx context.Context, query Organization
 	}
 
 	result, err := s.repo.Trend(ctx, OrganizationUsageTrendRepositoryParams{
+		Filters:   filters,
 		StartTime: startTime, EndTime: endTime,
 		StartDate: base.start, EndDate: base.end, DataThrough: dataThrough,
 		Organization: base.organization, Q: base.q,
@@ -355,9 +399,14 @@ func (s *OrganizationUsageService) Trend(ctx context.Context, query Organization
 	if points == nil {
 		points = []OrganizationUsageTrendPoint{}
 	}
+	dataThroughText := dataThrough.Format("2006-01-02")
+	if dataThrough.Before(base.start) {
+		dataThroughText = ""
+	}
 	return &OrganizationUsageTrendResponse{
+		ScopeVersion: result.ScopeVersion, AppliedFilters: result.AppliedFilters,
 		Range:       OrganizationUsageRange{StartDate: query.StartDate, EndDate: query.EndDate, AsOf: base.asOfCanonical},
-		DataThrough: dataThrough.Format("2006-01-02"),
+		DataThrough: dataThroughText,
 		Granularity: granularity,
 		Points:      points,
 	}, nil

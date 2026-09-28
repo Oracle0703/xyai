@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -287,6 +288,20 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		}
 	}
 
+	var accessBefore *service.DepartmentAccess
+	var accessActor *service.User
+	if fields.Role || fields.AdminPermissions || fields.ExpectedAdminAccessVersion != "" {
+		if fields.ExpectedAdminAccessVersion == "" {
+			return service.ErrAdminAccessVersionRequired
+		}
+		accessActor, accessBefore, err = prepareUserAdminAccessWrite(txCtx, txClient, userIn.ID)
+		if err != nil {
+			return err
+		}
+		if accessBefore.Version != fields.ExpectedAdminAccessVersion {
+			return service.ErrAdminAccessChanged
+		}
+	}
 	existing, err := clientFromContext(txCtx, txClient).User.Get(txCtx, userIn.ID)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
@@ -348,6 +363,23 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	updated, err := updateOp.Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
+	}
+	if accessBefore != nil {
+		if updated.Role != service.RoleSubAdmin {
+			if err := clearUserDepartmentGrants(txCtx, txClient, accessActor, accessBefore, "role_changed"); err != nil {
+				return err
+			}
+		}
+		after, err := loadAdminAccess(txCtx, txClient, userIn.ID)
+		if err != nil {
+			return err
+		}
+		userIn.AdminAccessVersion = after.Version
+		if accessBefore.Version != after.Version {
+			if err := departmentAudit(txCtx, txClient, accessActor, "department.user_access_changed", map[string]any{"before": accessBefore, "after": after, "before_role": accessBefore.Role, "after_role": after.Role}); err != nil {
+				return err
+			}
+		}
 	}
 
 	if fields.AllowedGroups {
@@ -488,6 +520,16 @@ func (r *userRepository) Delete(ctx context.Context, id int64) error {
 
 // deleteUser 在给定 client（可能是外部事务 client）上删除用户及其身份关联记录，自身不开启/提交事务。
 func (r *userRepository) deleteUser(ctx context.Context, exec *dbent.Client, id int64) error {
+	actor, access, err := prepareUserAdminAccessWrite(ctx, exec, id)
+	if err != nil {
+		return err
+	}
+	if actor != nil && access.Role == service.RoleAdmin {
+		return service.ErrInsufficientPerms
+	}
+	if err := clearUserDepartmentGrants(ctx, exec, actor, access, "user_deleted"); err != nil {
+		return err
+	}
 	identityIDs, err := exec.AuthIdentity.Query().
 		Where(authidentity.UserIDEQ(id)).
 		IDs(ctx)
@@ -528,6 +570,10 @@ func (r *userRepository) List(ctx context.Context, params pagination.PaginationP
 }
 
 func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters service.UserListFilters) ([]service.User, *pagination.PaginationResult, error) {
+	organization, department, scopeErr := service.NormalizeDepartmentFilter(filters.Organization, filters.DepartmentID)
+	if scopeErr != nil {
+		return nil, nil, scopeErr
+	}
 	// SkipSoftDelete 仅作用于 User 身份解析（下方 Count/All）；订阅、分组等关联实体沿用原始 ctx，避免穿透到这些同样带软删除的实体而带出已删除行。
 	userCtx := ctx
 	if filters.IncludeDeleted {
@@ -535,6 +581,19 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 	}
 
 	q := r.client.User.Query()
+	if organization != service.OrganizationAll {
+		q = q.Where(predicate.User(func(selector *entsql.Selector) {
+			selector.Where(entsql.P(func(builder *entsql.Builder) {
+				builder.WriteString(organizationUsageOrganizationExpression(selector.TableName())).WriteString(" = ").Arg(organization)
+			}))
+		}))
+	}
+	if department == "unassigned" {
+		q = q.Where(dbuser.DepartmentIDIsNil())
+	} else if department != "all" {
+		id, _ := strconv.ParseInt(department, 10, 64)
+		q = q.Where(dbuser.DepartmentIDEQ(id))
+	}
 
 	if filters.Status != "" {
 		q = q.Where(dbuser.StatusEQ(filters.Status))
@@ -1537,6 +1596,8 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	}
 	dst.ID = src.ID
 	dst.AdminPermissions = append([]string(nil), src.AdminPermissions...)
+	dst.DepartmentID = src.DepartmentID
+	dst.DepartmentVersion = src.DepartmentVersion
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt

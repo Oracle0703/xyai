@@ -26,9 +26,11 @@ export type SubscriptionAssignmentGroupOption = Pick<
   'id' | 'name' | 'description' | 'platform' | 'rate_multiplier' | 'subscription_type' | 'status'
 >
 
-export type SubscriptionOrganization = 'xunyou' | 'wsdashi'
+export type SubscriptionOrganization = 'xunyou' | 'wsdashi' | 'other'
 
 export interface SubscriptionAdminFilters {
+  department_id?: string
+  scope_version?: string
   status?: 'active' | 'expired' | 'revoked' | 'suspended'
   user_id?: number
   group_id?: number
@@ -40,7 +42,7 @@ export interface SubscriptionAdminFilters {
 
 type SubscriptionDailyResetFilters = Pick<
   SubscriptionAdminFilters,
-  'status' | 'user_id' | 'group_id' | 'platform' | 'organization'
+  'status' | 'user_id' | 'group_id' | 'platform' | 'organization' | 'department_id' | 'scope_version'
 >
 
 export type SubscriptionBulkAction = 'extend' | 'reset_quota' | 'revoke' | 'restore'
@@ -96,8 +98,8 @@ export async function list(
   options?: {
     signal?: AbortSignal
   }
-): Promise<PaginatedResponse<UserSubscription>> {
-  const { data } = await apiClient.get<PaginatedResponse<UserSubscription>>(
+): Promise<PaginatedResponse<UserSubscription> & { scope_version?: string }> {
+  const { data } = await apiClient.get<PaginatedResponse<UserSubscription> & { scope_version?: string }>(
     '/admin/subscriptions',
     {
       params: {
@@ -244,7 +246,9 @@ export async function resetDailyFiltered(
     user_id: filters.user_id,
     group_id: filters.group_id,
     platform: filters.platform,
-    organization: filters.organization
+    organization: filters.organization,
+    department_id: filters.department_id,
+    scope_version: filters.scope_version
   }
   const { data } = await apiClient.post<{ reset_count: number }>(
     '/admin/subscriptions/reset-daily-filtered',

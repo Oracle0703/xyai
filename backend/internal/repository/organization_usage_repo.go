@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,7 +11,11 @@ import (
 )
 
 type organizationUsageRepository struct {
-	db *sql.DB
+	db       *sql.DB
+	query    organizationUsageExecutor
+	scope    *service.DepartmentScope
+	scopeIDs []int64
+	filters  service.OrganizationUsageDepartmentFilters
 }
 
 func NewOrganizationUsageRepository(db *sql.DB) service.OrganizationUsageRepository {
@@ -18,6 +23,9 @@ func NewOrganizationUsageRepository(db *sql.DB) service.OrganizationUsageReposit
 }
 
 func (r *organizationUsageRepository) Summary(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams) (*service.OrganizationUsageSummaryRepositoryResult, error) {
+	if service.DepartmentActorID(ctx) > 0 && r.scope == nil {
+		return r.scopedSummary(ctx, params)
+	}
 	orderBy, err := organizationUsageOrderBy(params.SortBy, params.SortOrder)
 	if err != nil {
 		return nil, err
@@ -27,31 +35,37 @@ func (r *organizationUsageRepository) Summary(ctx context.Context, params servic
 	if err != nil {
 		return nil, err
 	}
-	items, total, err := r.querySummaryItems(ctx, params, orderBy)
+	items, total, champions, err := r.querySummaryItems(ctx, params, orderBy)
 	if err != nil {
 		return nil, err
 	}
-	champions, err := r.queryChampions(ctx, params)
-	if err != nil {
-		return nil, err
+	if champions == nil {
+		result, err := r.queryChampions(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		champions = &result
 	}
 
 	return &service.OrganizationUsageSummaryRepositoryResult{
 		Overview:      organizationUsageOverview(organizations, params.Organization),
 		Organizations: organizations,
-		Champions:     champions,
+		Champions:     *champions,
 		Items:         items,
 		Total:         total,
 	}, nil
 }
 
 func (r *organizationUsageRepository) Periods(ctx context.Context, params service.OrganizationUsagePeriodsRepositoryParams) (*service.OrganizationUsagePeriodsRepositoryResult, error) {
+	if service.DepartmentActorID(ctx) > 0 && r.scope == nil {
+		return r.scopedPeriods(ctx, params)
+	}
 	countQuery, err := organizationUsagePeriodsCountQuery(params.Granularity)
 	if err != nil {
 		return nil, err
 	}
 	var total int64
-	if err := r.db.QueryRowContext(ctx, countQuery,
+	if err := r.queryRow(ctx, countQuery,
 		params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q), params.Organization,
 	).Scan(&total); err != nil {
 		return nil, fmt.Errorf("count organization usage periods: %w", err)
@@ -61,7 +75,7 @@ func (r *organizationUsageRepository) Periods(ctx context.Context, params servic
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.db.QueryContext(ctx, query,
+	rows, err := r.queryRows(ctx, query,
 		params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q), params.Organization,
 		params.StartDate.Format("2006-01-02"), params.EndDate.Format("2006-01-02"), params.PageSize, (params.Page-1)*params.PageSize,
 	)
@@ -92,11 +106,14 @@ func (r *organizationUsageRepository) Periods(ctx context.Context, params servic
 }
 
 func (r *organizationUsageRepository) Trend(ctx context.Context, params service.OrganizationUsageTrendRepositoryParams) (*service.OrganizationUsageTrendRepositoryResult, error) {
+	if service.DepartmentActorID(ctx) > 0 && r.scope == nil {
+		return r.scopedTrend(ctx, params)
+	}
 	query, err := organizationUsageTrendQuery(params.Granularity)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.db.QueryContext(ctx, query,
+	rows, err := r.queryRows(ctx, query,
 		params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q), params.Organization,
 		params.StartDate.Format("2006-01-02"), params.EndDate.Format("2006-01-02"), params.DataThrough.Format("2006-01-02"),
 	)
@@ -126,7 +143,7 @@ func (r *organizationUsageRepository) Trend(ctx context.Context, params service.
 }
 
 func (r *organizationUsageRepository) queryOrganizations(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams) ([]service.OrganizationUsageOrganization, error) {
-	rows, err := r.db.QueryContext(ctx, organizationUsageOrganizationsQuery(), params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q))
+	rows, err := r.queryRows(ctx, organizationUsageOrganizationsQuery(), params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q))
 	if err != nil {
 		return nil, fmt.Errorf("query organization usage organizations: %w", err)
 	}
@@ -149,17 +166,22 @@ func (r *organizationUsageRepository) queryOrganizations(ctx context.Context, pa
 	return result, nil
 }
 
-func (r *organizationUsageRepository) querySummaryItems(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams, orderBy string) ([]service.OrganizationUsageSummaryItem, int64, error) {
+func (r *organizationUsageRepository) querySummaryItems(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams, orderBy string) ([]service.OrganizationUsageSummaryItem, int64, *service.OrganizationUsageChampions, error) {
 	var total int64
-	if err := r.db.QueryRowContext(ctx, organizationUsageSummaryItemsCountQuery(), organizationUsageSearchPattern(params.Q), params.Organization).Scan(&total); err != nil {
-		return nil, 0, fmt.Errorf("count organization usage summary items: %w", err)
+	if err := r.queryRow(ctx, organizationUsageSummaryItemsCountQuery(), organizationUsageSearchPattern(params.Q), params.Organization).Scan(&total); err != nil {
+		return nil, 0, nil, fmt.Errorf("count organization usage summary items: %w", err)
 	}
-	rows, err := r.db.QueryContext(ctx, organizationUsageSummaryItemsQuery(orderBy),
+	includeChampions := r.scope != nil
+	var champions *service.OrganizationUsageChampions
+	if includeChampions && total == 0 {
+		return []service.OrganizationUsageSummaryItem{}, 0, &service.OrganizationUsageChampions{}, nil
+	}
+	rows, err := r.queryRows(ctx, organizationUsageSummaryItemsSQL(orderBy, includeChampions),
 		params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q), params.Organization,
 		params.StartDate.Format("2006-01-02"), params.EndDate.Format("2006-01-02"), params.PageSize, (params.Page-1)*params.PageSize,
 	)
 	if err != nil {
-		return nil, 0, fmt.Errorf("query organization usage summary items: %w", err)
+		return nil, 0, nil, fmt.Errorf("query organization usage summary items: %w", err)
 	}
 	defer rows.Close()
 
@@ -168,14 +190,25 @@ func (r *organizationUsageRepository) querySummaryItems(ctx context.Context, par
 		var item service.OrganizationUsageSummaryItem
 		var day, week, month nullableOrganizationUsagePeriod
 		var rowTotal int64
-		if err := rows.Scan(
+		destinations := []any{
 			&rowTotal, &item.UserID, &item.Email, &item.Organization,
 			&item.Requests, &item.InputTokens, &item.OutputTokens, &item.CacheCreationTokens, &item.CacheReadTokens, &item.TotalTokens, &item.ActualCost,
 			&day.start, &day.end, &day.partial, &day.requests, &day.inputTokens, &day.outputTokens, &day.cacheCreationTokens, &day.cacheReadTokens, &day.totalTokens, &day.actualCost,
 			&week.start, &week.end, &week.partial, &week.requests, &week.inputTokens, &week.outputTokens, &week.cacheCreationTokens, &week.cacheReadTokens, &week.totalTokens, &week.actualCost,
 			&month.start, &month.end, &month.partial, &month.requests, &month.inputTokens, &month.outputTokens, &month.cacheCreationTokens, &month.cacheReadTokens, &month.totalTokens, &month.actualCost,
-		); err != nil {
-			return nil, 0, fmt.Errorf("scan organization usage summary item: %w", err)
+		}
+		var metadata []byte
+		if includeChampions {
+			destinations = append([]any{&metadata}, destinations...)
+		}
+		if err := rows.Scan(destinations...); err != nil {
+			return nil, 0, nil, fmt.Errorf("scan organization usage summary item: %w", err)
+		}
+		if includeChampions && champions == nil {
+			champions = &service.OrganizationUsageChampions{}
+			if err := json.Unmarshal(metadata, champions); err != nil {
+				return nil, 0, nil, err
+			}
 		}
 		item.PeakDay = day.period(item.UserID, item.Email, item.Organization)
 		item.PeakWeek = week.period(item.UserID, item.Email, item.Organization)
@@ -183,13 +216,13 @@ func (r *organizationUsageRepository) querySummaryItems(ctx context.Context, par
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("iterate organization usage summary items: %w", err)
+		return nil, 0, nil, fmt.Errorf("iterate organization usage summary items: %w", err)
 	}
-	return items, total, nil
+	return items, total, champions, nil
 }
 
 func (r *organizationUsageRepository) queryChampions(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams) (service.OrganizationUsageChampions, error) {
-	rows, err := r.db.QueryContext(ctx, organizationUsageChampionsQuery(),
+	rows, err := r.queryRows(ctx, organizationUsageChampionsQuery(),
 		params.StartTime, params.EndTime, organizationUsageSearchPattern(params.Q), params.Organization,
 		params.StartDate.Format("2006-01-02"), params.EndDate.Format("2006-01-02"),
 	)
@@ -289,6 +322,7 @@ func organizationUsageActiveUsersCTE() string {
     FROM users u
     WHERE u.deleted_at IS NULL
       AND u.status = 'active'
+      /* department_members */
       AND ($3 = '' OR u.email ILIKE $3 ESCAPE E'\\')
 )`, organizationUsageOrganizationExpression("u"))
 }
@@ -304,7 +338,11 @@ const organizationUsageRowsCTE = `usage_rows AS (
         (ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens)::bigint AS total_tokens,
         ul.actual_cost::double precision AS actual_cost
     FROM usage_logs ul
+    LEFT JOIN groups g ON g.id=ul.group_id
+    LEFT JOIN accounts a ON a.id=ul.account_id
     WHERE ul.created_at >= $1 AND ul.created_at < $2
+      AND ul.user_id IN (SELECT user_id FROM active_users)
+      /* department_platform */
 )`
 
 const organizationUsageTotalsCTE = `usage_totals AS (
@@ -352,6 +390,7 @@ func organizationUsageSummaryItemsCountQuery() string {
     FROM users u
     WHERE u.deleted_at IS NULL
       AND u.status = 'active'
+      /* department_members */
       AND ($1 = '' OR u.email ILIKE $1 ESCAPE E'\\')
 )
 SELECT COUNT(*)::bigint
@@ -401,14 +440,23 @@ func organizationUsageAllPeriodAggregationsSQL() string {
 }
 
 func organizationUsageSummaryItemsQuery(orderBy string) string {
+	return organizationUsageSummaryItemsSQL(orderBy, false)
+}
+
+func organizationUsageSummaryItemsSQL(orderBy string, includeChampions bool) string {
+	metadataCTE, metadataColumn := "", ""
+	if includeChampions {
+		metadataCTE = organizationUsageChampionMetadataCTE
+		metadataColumn = "(SELECT payload FROM report_champions),"
+	}
 	return fmt.Sprintf(`WITH %s,
-selected_users AS (
+selected_users AS MATERIALIZED (
     SELECT * FROM active_users
     WHERE $4 = 'all' OR organization = $4
 ),
 %s,
 %s,
-period_aggregates AS (
+period_aggregates AS MATERIALIZED (
     %s
 ),
 ranked_periods AS (
@@ -419,11 +467,11 @@ ranked_periods AS (
         ) AS rn
     FROM period_aggregates
 ),
-day_peak AS (SELECT * FROM ranked_periods WHERE granularity = 'day' AND rn = 1),
-week_peak AS (SELECT * FROM ranked_periods WHERE granularity = 'week' AND rn = 1),
-month_peak AS (SELECT * FROM ranked_periods WHERE granularity = 'month' AND rn = 1)
+day_peak AS MATERIALIZED (SELECT * FROM ranked_periods WHERE granularity = 'day' AND rn = 1),
+week_peak AS MATERIALIZED (SELECT * FROM ranked_periods WHERE granularity = 'week' AND rn = 1),
+month_peak AS MATERIALIZED (SELECT * FROM ranked_periods WHERE granularity = 'month' AND rn = 1)%s
 SELECT
-    COUNT(*) OVER()::bigint AS total_count,
+    %s COUNT(*) OVER()::bigint AS total_count,
     su.user_id, su.email, su.organization,
     COALESCE(ut.requests, 0)::bigint AS requests,
     COALESCE(ut.input_tokens, 0)::bigint AS input_tokens,
@@ -456,17 +504,17 @@ FROM selected_users su
     LEFT JOIN week_peak wp ON wp.user_id = su.user_id
     LEFT JOIN month_peak mp ON mp.user_id = su.user_id
 ORDER BY %s
-LIMIT $7 OFFSET $8`, organizationUsageActiveUsersCTE(), organizationUsageRowsCTE, organizationUsageTotalsCTE, organizationUsageAllPeriodAggregationsSQL(), orderBy)
+LIMIT $7 OFFSET $8`, organizationUsageActiveUsersCTE(), organizationUsageRowsCTE, organizationUsageTotalsCTE, organizationUsageAllPeriodAggregationsSQL(), metadataCTE, metadataColumn, orderBy)
 }
 
 func organizationUsageChampionsQuery() string {
 	return fmt.Sprintf(`WITH %s,
-selected_users AS (
+selected_users AS MATERIALIZED (
     SELECT * FROM active_users
     WHERE $4 = 'all' OR organization = $4
 ),
 %s,
-period_aggregates AS (
+period_aggregates AS MATERIALIZED (
     %s
 ),
 ranked AS (
@@ -497,12 +545,12 @@ func organizationUsagePeriodsQuery(granularity string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf(`WITH %s,
-selected_users AS (
+selected_users AS MATERIALIZED (
     SELECT * FROM active_users
     WHERE $4 = 'all' OR organization = $4
 ),
 %s,
-period_aggregates AS (
+period_aggregates AS MATERIALIZED (
     %s
 )
 SELECT
@@ -524,12 +572,12 @@ func organizationUsagePeriodsCountQuery(granularity string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf(`WITH %s,
-selected_users AS (
+selected_users AS MATERIALIZED (
     SELECT * FROM active_users
     WHERE $4 = 'all' OR organization = $4
 ),
 %s,
-period_aggregates AS (
+period_aggregates AS MATERIALIZED (
     %s
 )
 SELECT COUNT(*)::bigint
@@ -597,7 +645,7 @@ func organizationUsageTrendQuery(granularity string) (string, error) {
 	}
 	// $1 start_time, $2 end_time, $3 q, $4 org, $5 start_date, $6 end_date, $7 data_through
 	return fmt.Sprintf(`WITH %s,
-selected_users AS (
+selected_users AS MATERIALIZED (
     SELECT * FROM active_users
     WHERE $4 = 'all' OR organization = $4
 ),
@@ -607,7 +655,7 @@ filtered_usage AS (
     FROM usage_rows ur
     JOIN selected_users su ON su.user_id = ur.user_id
 ),
-period_aggregates AS (
+period_aggregates AS MATERIALIZED (
     %s
 ),
 buckets AS (

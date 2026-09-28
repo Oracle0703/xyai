@@ -1,3 +1,4 @@
+import departments from './departments'
 import overview from './overview'
 import channels from './channels'
 import accounts from './accounts'
@@ -13,6 +14,7 @@ import promptAudit from './promptAudit'
 import plugins from './plugins'
 
 export default {
+  ...departments,
   ...overview,
   ...channels,
   ...accounts,

@@ -1879,3 +1879,7 @@ func TestContentModerationUpdateConfig_CyberPolicyExcludeFromBanCount(t *testing
 	require.NoError(t, err)
 	require.False(t, view.CyberPolicyExcludeFromBanCount)
 }
+
+func (s *contentModerationTestUserRepo) GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}

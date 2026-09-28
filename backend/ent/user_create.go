@@ -14,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
+	"github.com/Wei-Shaw/sub2api/ent/department"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/pendingauthsession"
@@ -105,6 +106,34 @@ func (_c *UserCreate) SetNillableRole(v *string) *UserCreate {
 // SetAdminPermissions sets the "admin_permissions" field.
 func (_c *UserCreate) SetAdminPermissions(v []string) *UserCreate {
 	_c.mutation.SetAdminPermissions(v)
+	return _c
+}
+
+// SetDepartmentID sets the "department_id" field.
+func (_c *UserCreate) SetDepartmentID(v int64) *UserCreate {
+	_c.mutation.SetDepartmentID(v)
+	return _c
+}
+
+// SetNillableDepartmentID sets the "department_id" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDepartmentID(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetDepartmentID(*v)
+	}
+	return _c
+}
+
+// SetDepartmentVersion sets the "department_version" field.
+func (_c *UserCreate) SetDepartmentVersion(v int64) *UserCreate {
+	_c.mutation.SetDepartmentVersion(v)
+	return _c
+}
+
+// SetNillableDepartmentVersion sets the "department_version" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDepartmentVersion(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetDepartmentVersion(*v)
+	}
 	return _c
 }
 
@@ -374,6 +403,26 @@ func (_c *UserCreate) SetNillableRpmLimit(v *int) *UserCreate {
 	return _c
 }
 
+// SetDepartment sets the "department" edge to the Department entity.
+func (_c *UserCreate) SetDepartment(v *Department) *UserCreate {
+	return _c.SetDepartmentID(v.ID)
+}
+
+// AddAuthorizedDepartmentIDs adds the "authorized_departments" edge to the Department entity by IDs.
+func (_c *UserCreate) AddAuthorizedDepartmentIDs(ids ...int64) *UserCreate {
+	_c.mutation.AddAuthorizedDepartmentIDs(ids...)
+	return _c
+}
+
+// AddAuthorizedDepartments adds the "authorized_departments" edges to the Department entity.
+func (_c *UserCreate) AddAuthorizedDepartments(v ...*Department) *UserCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAuthorizedDepartmentIDs(ids...)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -628,6 +677,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultAdminPermissions
 		_c.mutation.SetAdminPermissions(v)
 	}
+	if _, ok := _c.mutation.DepartmentVersion(); !ok {
+		v := user.DefaultDepartmentVersion
+		_c.mutation.SetDepartmentVersion(v)
+	}
 	if _, ok := _c.mutation.Balance(); !ok {
 		v := user.DefaultBalance
 		_c.mutation.SetBalance(v)
@@ -721,6 +774,9 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.AdminPermissions(); !ok {
 		return &ValidationError{Name: "admin_permissions", err: errors.New(`ent: missing required field "User.admin_permissions"`)}
+	}
+	if _, ok := _c.mutation.DepartmentVersion(); !ok {
+		return &ValidationError{Name: "department_version", err: errors.New(`ent: missing required field "User.department_version"`)}
 	}
 	if _, ok := _c.mutation.Balance(); !ok {
 		return &ValidationError{Name: "balance", err: errors.New(`ent: missing required field "User.balance"`)}
@@ -834,6 +890,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldAdminPermissions, field.TypeJSON, value)
 		_node.AdminPermissions = value
 	}
+	if value, ok := _c.mutation.DepartmentVersion(); ok {
+		_spec.SetField(user.FieldDepartmentVersion, field.TypeInt64, value)
+		_node.DepartmentVersion = value
+	}
 	if value, ok := _c.mutation.Balance(); ok {
 		_spec.SetField(user.FieldBalance, field.TypeFloat64, value)
 		_node.Balance = value
@@ -909,6 +969,43 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
 		_node.RpmLimit = value
+	}
+	if nodes := _c.mutation.DepartmentIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   user.DepartmentTable,
+			Columns: []string{user.DepartmentColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.DepartmentID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.AuthorizedDepartmentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   user.AuthorizedDepartmentsTable,
+			Columns: user.AuthorizedDepartmentsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &DepartmentAccessGrantCreate{config: _c.config, mutation: newDepartmentAccessGrantMutation(_c.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1249,6 +1346,42 @@ func (u *UserUpsert) SetAdminPermissions(v []string) *UserUpsert {
 // UpdateAdminPermissions sets the "admin_permissions" field to the value that was provided on create.
 func (u *UserUpsert) UpdateAdminPermissions() *UserUpsert {
 	u.SetExcluded(user.FieldAdminPermissions)
+	return u
+}
+
+// SetDepartmentID sets the "department_id" field.
+func (u *UserUpsert) SetDepartmentID(v int64) *UserUpsert {
+	u.Set(user.FieldDepartmentID, v)
+	return u
+}
+
+// UpdateDepartmentID sets the "department_id" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDepartmentID() *UserUpsert {
+	u.SetExcluded(user.FieldDepartmentID)
+	return u
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (u *UserUpsert) ClearDepartmentID() *UserUpsert {
+	u.SetNull(user.FieldDepartmentID)
+	return u
+}
+
+// SetDepartmentVersion sets the "department_version" field.
+func (u *UserUpsert) SetDepartmentVersion(v int64) *UserUpsert {
+	u.Set(user.FieldDepartmentVersion, v)
+	return u
+}
+
+// UpdateDepartmentVersion sets the "department_version" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDepartmentVersion() *UserUpsert {
+	u.SetExcluded(user.FieldDepartmentVersion)
+	return u
+}
+
+// AddDepartmentVersion adds v to the "department_version" field.
+func (u *UserUpsert) AddDepartmentVersion(v int64) *UserUpsert {
+	u.Add(user.FieldDepartmentVersion, v)
 	return u
 }
 
@@ -1679,6 +1812,48 @@ func (u *UserUpsertOne) SetAdminPermissions(v []string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateAdminPermissions() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateAdminPermissions()
+	})
+}
+
+// SetDepartmentID sets the "department_id" field.
+func (u *UserUpsertOne) SetDepartmentID(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDepartmentID(v)
+	})
+}
+
+// UpdateDepartmentID sets the "department_id" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDepartmentID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDepartmentID()
+	})
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (u *UserUpsertOne) ClearDepartmentID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDepartmentID()
+	})
+}
+
+// SetDepartmentVersion sets the "department_version" field.
+func (u *UserUpsertOne) SetDepartmentVersion(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDepartmentVersion(v)
+	})
+}
+
+// AddDepartmentVersion adds v to the "department_version" field.
+func (u *UserUpsertOne) AddDepartmentVersion(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddDepartmentVersion(v)
+	})
+}
+
+// UpdateDepartmentVersion sets the "department_version" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDepartmentVersion() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDepartmentVersion()
 	})
 }
 
@@ -2324,6 +2499,48 @@ func (u *UserUpsertBulk) SetAdminPermissions(v []string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateAdminPermissions() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateAdminPermissions()
+	})
+}
+
+// SetDepartmentID sets the "department_id" field.
+func (u *UserUpsertBulk) SetDepartmentID(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDepartmentID(v)
+	})
+}
+
+// UpdateDepartmentID sets the "department_id" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDepartmentID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDepartmentID()
+	})
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (u *UserUpsertBulk) ClearDepartmentID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDepartmentID()
+	})
+}
+
+// SetDepartmentVersion sets the "department_version" field.
+func (u *UserUpsertBulk) SetDepartmentVersion(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDepartmentVersion(v)
+	})
+}
+
+// AddDepartmentVersion adds v to the "department_version" field.
+func (u *UserUpsertBulk) AddDepartmentVersion(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddDepartmentVersion(v)
+	})
+}
+
+// UpdateDepartmentVersion sets the "department_version" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDepartmentVersion() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDepartmentVersion()
 	})
 }
 

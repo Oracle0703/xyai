@@ -812,3 +812,7 @@ func TestAdminService_BatchDeleteRedeemCodes_PartialFailures(t *testing.T) {
 	require.Equal(t, int64(2), deleted)
 	require.Equal(t, []int64{1, 2, 3}, repo.deletedIDs)
 }
+
+func (s *userRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}

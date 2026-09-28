@@ -3593,3 +3593,7 @@ func (oauthPendingFlowTotpEncryptorStub) Encrypt(plaintext string) (string, erro
 func (oauthPendingFlowTotpEncryptorStub) Decrypt(ciphertext string) (string, error) {
 	return ciphertext, nil
 }
+
+func (s *oauthPendingFlowUserRepo) GetByIDWithAdminAccess(ctx context.Context, id int64) (*service.User, error) {
+	return s.GetByID(ctx, id)
+}

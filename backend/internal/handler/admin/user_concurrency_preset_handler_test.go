@@ -255,3 +255,7 @@ func TestUserConcurrencyPresetHandlerJSONShape(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(payload), `"trigger":"manual"`)
 }
+
+func (s *handlerPresetUserRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*service.User, error) {
+	return s.GetByID(ctx, id)
+}

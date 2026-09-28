@@ -188,6 +188,7 @@ func performOrganizationUsageRequest(handler gin.HandlerFunc, target string) *ht
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
+	c.Request = c.Request.WithContext(service.WithDepartmentActor(c.Request.Context(), 1))
 	handler(c)
 	return w
 }

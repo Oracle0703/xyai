@@ -1,5 +1,10 @@
 # Layout Components
 
+## 部门导航
+
+- 完整管理员增加“部门管理”；子管理员的“组织用量报表”依赖 `admin.organization_usage`，“订阅管理”接受全站或部门订阅权限。部门负责人不显示用户管理、部门管理及未授权全站菜单。
+- 路由与登录默认页共同使用 `utils/adminPermissions.ts`；仅部门权限账号默认进入报表或订阅页，显式 redirect 保留。菜单隐藏不代替服务端范围验证。
+
 Vue 3 layout components for the Sub2API frontend, built with Composition API, TypeScript, and TailwindCSS.
 
 ## 0.2.7 合并增量

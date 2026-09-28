@@ -1,3 +1,4 @@
+import { departmentsAPI } from '@/api/admin/departments'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
@@ -15,6 +16,8 @@ const { listSubscriptions, assignSubscription, getAllGroups, listUsers, searchAs
   searchUsageUsers: vi.fn()
 }))
 
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
+
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     subscriptions: {
@@ -30,7 +33,7 @@ vi.mock('@/api/admin', () => ({
 const authState = vi.hoisted(() => ({
   isAdmin: true,
   isSubAdmin: false,
-  hasAdminPermission: vi.fn(() => true)
+  hasAdminPermission: vi.fn((_permission: string) => true)
 }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
 
@@ -71,11 +74,16 @@ const RouterLinkStub = defineComponent({
 
 describe.each(['admin', 'sub_admin'])('%s subscription users', (role) => {
   beforeEach(() => {
+  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
     vi.clearAllMocks()
     localStorage.clear()
     authState.isAdmin = role === 'admin'
     authState.isSubAdmin = role === 'sub_admin'
+    // Global and department subscription permissions are mutually exclusive for sub-admins.
+    authState.hasAdminPermission.mockImplementation((permission: string) =>
+      role === 'admin' || permission === 'admin.subscriptions')
     listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1',
       items: [{
         id: 9,
         user_id: 42,
@@ -259,6 +267,7 @@ describe.each(['admin', 'sub_admin'])('%s subscription users', (role) => {
   it('uses the user ID label for the usage link when username mode has no username', async () => {
     localStorage.setItem('subscription-user-column-mode', 'username')
     listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1',
       items: [{
         id: 9,
         user_id: 42,

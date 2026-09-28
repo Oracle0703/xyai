@@ -29,6 +29,10 @@ const (
 	FieldRole = "role"
 	// FieldAdminPermissions holds the string denoting the admin_permissions field in the database.
 	FieldAdminPermissions = "admin_permissions"
+	// FieldDepartmentID holds the string denoting the department_id field in the database.
+	FieldDepartmentID = "department_id"
+	// FieldDepartmentVersion holds the string denoting the department_version field in the database.
+	FieldDepartmentVersion = "department_version"
 	// FieldBalance holds the string denoting the balance field in the database.
 	FieldBalance = "balance"
 	// FieldFrozenBalance holds the string denoting the frozen_balance field in the database.
@@ -67,6 +71,10 @@ const (
 	FieldTotalRecharged = "total_recharged"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
+	// EdgeDepartment holds the string denoting the department edge name in mutations.
+	EdgeDepartment = "department"
+	// EdgeAuthorizedDepartments holds the string denoting the authorized_departments edge name in mutations.
+	EdgeAuthorizedDepartments = "authorized_departments"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -93,10 +101,24 @@ const (
 	EdgePendingAuthSessions = "pending_auth_sessions"
 	// EdgePlatformQuotas holds the string denoting the platform_quotas edge name in mutations.
 	EdgePlatformQuotas = "platform_quotas"
+	// EdgeDepartmentAccessGrants holds the string denoting the department_access_grants edge name in mutations.
+	EdgeDepartmentAccessGrants = "department_access_grants"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
 	// Table holds the table name of the user in the database.
 	Table = "users"
+	// DepartmentTable is the table that holds the department relation/edge.
+	DepartmentTable = "users"
+	// DepartmentInverseTable is the table name for the Department entity.
+	// It exists in this package in order to avoid circular dependency with the "department" package.
+	DepartmentInverseTable = "departments"
+	// DepartmentColumn is the table column denoting the department relation/edge.
+	DepartmentColumn = "department_id"
+	// AuthorizedDepartmentsTable is the table that holds the authorized_departments relation/edge. The primary key declared below.
+	AuthorizedDepartmentsTable = "department_access_grants"
+	// AuthorizedDepartmentsInverseTable is the table name for the Department entity.
+	// It exists in this package in order to avoid circular dependency with the "department" package.
+	AuthorizedDepartmentsInverseTable = "departments"
 	// APIKeysTable is the table that holds the api_keys relation/edge.
 	APIKeysTable = "api_keys"
 	// APIKeysInverseTable is the table name for the APIKey entity.
@@ -186,6 +208,13 @@ const (
 	PlatformQuotasInverseTable = "user_platform_quotas"
 	// PlatformQuotasColumn is the table column denoting the platform_quotas relation/edge.
 	PlatformQuotasColumn = "user_id"
+	// DepartmentAccessGrantsTable is the table that holds the department_access_grants relation/edge.
+	DepartmentAccessGrantsTable = "department_access_grants"
+	// DepartmentAccessGrantsInverseTable is the table name for the DepartmentAccessGrant entity.
+	// It exists in this package in order to avoid circular dependency with the "departmentaccessgrant" package.
+	DepartmentAccessGrantsInverseTable = "department_access_grants"
+	// DepartmentAccessGrantsColumn is the table column denoting the department_access_grants relation/edge.
+	DepartmentAccessGrantsColumn = "user_id"
 	// UserAllowedGroupsTable is the table that holds the user_allowed_groups relation/edge.
 	UserAllowedGroupsTable = "user_allowed_groups"
 	// UserAllowedGroupsInverseTable is the table name for the UserAllowedGroup entity.
@@ -205,6 +234,8 @@ var Columns = []string{
 	FieldPasswordHash,
 	FieldRole,
 	FieldAdminPermissions,
+	FieldDepartmentID,
+	FieldDepartmentVersion,
 	FieldBalance,
 	FieldFrozenBalance,
 	FieldConcurrency,
@@ -227,6 +258,9 @@ var Columns = []string{
 }
 
 var (
+	// AuthorizedDepartmentsPrimaryKey and AuthorizedDepartmentsColumn2 are the table columns denoting the
+	// primary key for the authorized_departments relation (M2M).
+	AuthorizedDepartmentsPrimaryKey = []string{"user_id", "department_id"}
 	// AllowedGroupsPrimaryKey and AllowedGroupsColumn2 are the table columns denoting the
 	// primary key for the allowed_groups relation (M2M).
 	AllowedGroupsPrimaryKey = []string{"user_id", "group_id"}
@@ -266,6 +300,8 @@ var (
 	RoleValidator func(string) error
 	// DefaultAdminPermissions holds the default value on creation for the "admin_permissions" field.
 	DefaultAdminPermissions []string
+	// DefaultDepartmentVersion holds the default value on creation for the "department_version" field.
+	DefaultDepartmentVersion int64
 	// DefaultBalance holds the default value on creation for the "balance" field.
 	DefaultBalance float64
 	// DefaultFrozenBalance holds the default value on creation for the "frozen_balance" field.
@@ -338,6 +374,16 @@ func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
 // ByRole orders the results by the role field.
 func ByRole(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRole, opts...).ToFunc()
+}
+
+// ByDepartmentID orders the results by the department_id field.
+func ByDepartmentID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDepartmentID, opts...).ToFunc()
+}
+
+// ByDepartmentVersion orders the results by the department_version field.
+func ByDepartmentVersion(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDepartmentVersion, opts...).ToFunc()
 }
 
 // ByBalance orders the results by the balance field.
@@ -433,6 +479,27 @@ func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 // ByRpmLimit orders the results by the rpm_limit field.
 func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
+}
+
+// ByDepartmentField orders the results by department field.
+func ByDepartmentField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDepartmentStep(), sql.OrderByField(field, opts...))
+	}
+}
+
+// ByAuthorizedDepartmentsCount orders the results by authorized_departments count.
+func ByAuthorizedDepartmentsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAuthorizedDepartmentsStep(), opts...)
+	}
+}
+
+// ByAuthorizedDepartments orders the results by authorized_departments terms.
+func ByAuthorizedDepartments(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAuthorizedDepartmentsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
 }
 
 // ByAPIKeysCount orders the results by api_keys count.
@@ -617,6 +684,20 @@ func ByPlatformQuotas(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByDepartmentAccessGrantsCount orders the results by department_access_grants count.
+func ByDepartmentAccessGrantsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDepartmentAccessGrantsStep(), opts...)
+	}
+}
+
+// ByDepartmentAccessGrants orders the results by department_access_grants terms.
+func ByDepartmentAccessGrants(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDepartmentAccessGrantsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserAllowedGroupsCount orders the results by user_allowed_groups count.
 func ByUserAllowedGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -629,6 +710,20 @@ func ByUserAllowedGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newUserAllowedGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
+}
+func newDepartmentStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DepartmentInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, DepartmentTable, DepartmentColumn),
+	)
+}
+func newAuthorizedDepartmentsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AuthorizedDepartmentsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, false, AuthorizedDepartmentsTable, AuthorizedDepartmentsPrimaryKey...),
+	)
 }
 func newAPIKeysStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
@@ -719,6 +814,13 @@ func newPlatformQuotasStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PlatformQuotasInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, PlatformQuotasTable, PlatformQuotasColumn),
+	)
+}
+func newDepartmentAccessGrantsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DepartmentAccessGrantsInverseTable, DepartmentAccessGrantsColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, DepartmentAccessGrantsTable, DepartmentAccessGrantsColumn),
 	)
 }
 func newUserAllowedGroupsStep() *sqlgraph.Step {

@@ -26,11 +26,16 @@ func NewOrganizationUsageHandler(usageService *service.OrganizationUsageService)
 }
 
 func (h *OrganizationUsageHandler) Summary(c *gin.Context) {
+	if service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	page, pageSize, ok := parseOrganizationUsagePagination(c)
 	if !ok {
 		return
 	}
 	result, err := h.service.Summary(c.Request.Context(), service.OrganizationUsageSummaryQuery{
+		Filters:   service.OrganizationUsageDepartmentFilters{DepartmentID: c.Query("department_id"), Platform: c.Query("platform"), ScopeVersion: c.Query("scope_version")},
 		StartDate: c.Query("start_date"), EndDate: c.Query("end_date"), AsOf: c.Query("as_of"),
 		Organization: c.Query("organization"), Q: c.Query("q"),
 		Page: page, PageSize: pageSize,
@@ -43,11 +48,16 @@ func (h *OrganizationUsageHandler) Summary(c *gin.Context) {
 }
 
 func (h *OrganizationUsageHandler) Periods(c *gin.Context) {
+	if service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	page, pageSize, ok := parseOrganizationUsagePagination(c)
 	if !ok {
 		return
 	}
 	result, err := h.service.Periods(c.Request.Context(), service.OrganizationUsagePeriodsQuery{
+		Filters:   service.OrganizationUsageDepartmentFilters{DepartmentID: c.Query("department_id"), Platform: c.Query("platform"), ScopeVersion: c.Query("scope_version")},
 		StartDate: c.Query("start_date"), EndDate: c.Query("end_date"), AsOf: c.Query("as_of"),
 		Organization: c.Query("organization"), Q: c.Query("q"),
 		Page: page, PageSize: pageSize, Granularity: c.Query("granularity"),
@@ -59,7 +69,12 @@ func (h *OrganizationUsageHandler) Periods(c *gin.Context) {
 }
 
 func (h *OrganizationUsageHandler) Trend(c *gin.Context) {
+	if service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	result, err := h.service.Trend(c.Request.Context(), service.OrganizationUsageTrendQuery{
+		Filters:   service.OrganizationUsageDepartmentFilters{DepartmentID: c.Query("department_id"), Platform: c.Query("platform"), ScopeVersion: c.Query("scope_version")},
 		StartDate: c.Query("start_date"), EndDate: c.Query("end_date"), AsOf: c.Query("as_of"),
 		Organization: c.Query("organization"), Q: c.Query("q"),
 		Granularity: c.Query("granularity"),

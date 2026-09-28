@@ -94,8 +94,11 @@
                 v-model="filters.organization"
                 :options="organizationFilterOptions"
                 :placeholder="t('admin.subscriptions.allOrganizations')"
-                @change="applyFilters"
+                @change="changeSubscriptionOrganization"
               />
+            </div>
+            <div v-if="needsDepartmentScope" class="w-full sm:w-44" data-testid="subscription-department-filter">
+              <Select v-model="filters.department_id" :options="departmentFilterOptions" :disabled="!filters.organization || loading" @change="changeSubscriptionDepartment" />
             </div>
           </div>
 
@@ -215,6 +218,7 @@
           </div>
           <p class="text-xs text-gray-600 dark:text-gray-400">{{ t('admin.subscriptions.bulk.selectionHint') }}</p>
         </div>
+        <p v-if="departmentScopeError" role="alert" class="mt-3 text-sm text-red-600">{{ departmentScopeError }}</p>
       </template>
 
       <!-- Subscriptions Table -->
@@ -246,6 +250,7 @@
                 </span>
               </div>
               <RouterLink
+                v-if="!isDepartmentScoped"
                 :to="{ path: '/admin/usage', query: { user_id: row.user_id } }"
                 class="rounded font-medium text-gray-900 hover:text-primary-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:text-white dark:hover:text-primary-400 dark:focus-visible:ring-offset-dark-800"
               >
@@ -254,6 +259,7 @@
                   : (row.user?.username || t('admin.redeem.userPrefix', { id: row.user_id }))
                 }}
               </RouterLink>
+              <span v-else class="font-medium text-gray-900 dark:text-white">{{ userColumnMode === 'email' ? (row.user?.email || `#${row.user_id}`) : (row.user?.username || `#${row.user_id}`) }}</span>
             </div>
           </template>
 
@@ -894,6 +900,9 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { departmentsAPI, type DepartmentScope } from '@/api/admin/departments'
+import { formatOrganizationUsageOrganization } from '@/utils/organizations'
+import { departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
@@ -932,10 +941,16 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const canManageSubscriptions = computed(() => authStore.isAdmin)
+const isDepartmentScoped = computed(() => authStore.isSubAdmin && authStore.hasAdminPermission('admin.department_subscriptions'))
+const needsDepartmentScope = computed(() => authStore.isAdmin || isDepartmentScoped.value)
+const departmentScope = ref<DepartmentScope | null>(null)
+const departmentScopeError = ref('')
+let departmentScopeInitialized = false
+
 const showSelfResetPolicy = ref(false)
 const canAssignSubscriptions = computed(() => authStore.hasAdminPermission('admin.subscriptions'))
 const canResetSubscriptionQuotas = computed(() =>
-  authStore.hasAdminPermission('admin.subscriptions')
+  authStore.hasAdminPermission('admin.subscriptions') || authStore.hasAdminPermission('admin.department_subscriptions')
 )
 
 interface GroupOption {
@@ -1116,6 +1131,7 @@ const filterUserResults = ref<SimpleUser[]>([])
 const filterUserLoading = ref(false)
 const showFilterUserDropdown = ref(false)
 const selectedFilterUser = ref<SimpleUser | null>(null)
+let filterUserSearchSequence = 0
 let filterUserSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // User search state
@@ -1130,6 +1146,7 @@ const batchAssignResult = ref<BulkAssignSubscriptionResult | null>(null)
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const filters = reactive({
+  department_id: '',
   status: 'active',
   group_id: '',
   platform: '',
@@ -1212,9 +1229,27 @@ const platformFilterOptions = computed(() => [
 
 const organizationFilterOptions = computed(() => [
   { value: '', label: t('admin.subscriptions.allOrganizations') },
-  { value: 'xunyou', label: '迅游' },
-  { value: 'wsdashi', label: '速宝' }
+  ...(departmentScope.value?.organizations ?? ['xunyou', 'wsdashi', 'other']).map(value => ({ value, label: formatOrganizationUsageOrganization(value, t('admin.organizationUsage.organizations.other')) }))
 ])
+const departmentFilterOptions = computed(() => [
+  { value: '', label: t('admin.departments.allDepartments') },
+  ...(departmentScope.value?.departments ?? []).filter(department => department.organization_key === filters.organization).map(department => ({ value: String(department.id), label: department.name })),
+  ...(departmentScope.value?.unrestricted && filters.organization ? [{ value: 'unassigned', label: t('admin.departments.unassigned') }] : [])
+])
+function changeSubscriptionOrganization() {
+  filters.department_id = ''
+  changeSubscriptionDepartment()
+}
+function changeSubscriptionDepartment() {
+  ++filterUserSearchSequence
+  filterUserLoading.value = false
+  filters.user_id = null
+  selectedFilterUser.value = null
+  filterUserKeyword.value = ''
+  filterUserResults.value = []
+  applyFilters()
+}
+
 
 // Group options for assign (only subscription type groups)
 const subscriptionGroupOptions = computed(() =>
@@ -1241,7 +1276,8 @@ const getAppliedResetFilters = (): SubscriptionAdminFilters => ({
   user_id: filters.user_id || undefined,
   group_id: filters.group_id ? parseInt(filters.group_id) : undefined,
   platform: filters.platform || undefined,
-  organization: filters.organization || undefined
+  organization: filters.organization || undefined,
+  department_id: filters.department_id || undefined
 })
 
 const loadSubscriptions = async () => {
@@ -1251,11 +1287,42 @@ const loadSubscriptions = async () => {
   const requestController = new AbortController()
   abortController = requestController
   const { signal } = requestController
-  const requestFilters = getAppliedResetFilters()
 
   appliedResetFilters.value = null
   loading.value = true
+  departmentScopeError.value = ''
+  subscriptions.value = []
   try {
+    if (needsDepartmentScope.value) {
+      const currentScope = await departmentsAPI.subscriptionScope(signal)
+      if (signal.aborted || abortController !== requestController) return
+      departmentScope.value = currentScope
+      if (!currentScope.catalog_version) throw new Error('REPORT_SCOPE_CHANGED')
+      if (!departmentScopeInitialized) {
+        if (isDepartmentScoped.value) {
+          filters.organization = currentScope.default_organization === 'all' ? '' : currentScope.default_organization
+          filters.department_id = currentScope.default_department_id === 'all' ? '' : currentScope.default_department_id
+        }
+        departmentScopeInitialized = true
+      }
+      if (!currentScope.unrestricted && !currentScope.departments.length) {
+        departmentScopeError.value = t('admin.departments.noDepartmentScope')
+        departmentScopeInitialized = false
+        ++groupRequestSequence
+        ++filterUserSearchSequence
+        filterUserLoading.value = false
+        filters.user_id = null
+        selectedFilterUser.value = null
+        filterUserKeyword.value = ''
+        groups.value = []
+        filterUserResults.value = []
+        pagination.total = 0
+        pagination.pages = 0
+        return
+      }
+      if (isDepartmentScoped.value) void loadGroups()
+    }
+    const requestFilters = getAppliedResetFilters()
     const response = await adminAPI.subscriptions.list(
       pagination.page,
       pagination.page_size,
@@ -1269,15 +1336,33 @@ const loadSubscriptions = async () => {
       }
     )
     if (signal.aborted || abortController !== requestController) return
+    if ((isDepartmentScoped.value || filters.department_id) && !response.scope_version) throw new Error('REPORT_SCOPE_CHANGED')
     subscriptions.value = response.items
     const visibleIds = new Set(response.items.map((subscription) => subscription.id))
     setSelectedIds(selectedIds.value.filter((id) => visibleIds.has(id)))
     pagination.total = response.total
     pagination.pages = response.pages
-    appliedResetFilters.value = { ...requestFilters }
+    appliedResetFilters.value = { ...requestFilters, ...(response.scope_version ? { scope_version: response.scope_version } : {}) }
   } catch (error: any) {
     if (signal.aborted || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') {
       return
+    }
+    subscriptions.value = []
+    pagination.total = 0
+    pagination.pages = 0
+    filterUserResults.value = []
+    appliedResetFilters.value = null
+    if (departmentErrorStatus(error) === 403 || isDepartmentScopeChanged(error)) {
+      departmentScopeInitialized = false
+      filters.user_id = null
+      selectedFilterUser.value = null
+      filterUserKeyword.value = ''
+      ++groupRequestSequence
+      ++filterUserSearchSequence
+      filterUserLoading.value = false
+      departmentScopeError.value = t('admin.departments.scopeChanged')
+      departmentScope.value = null
+      groups.value = []
     }
     appStore.showError(t('admin.subscriptions.failedToLoad'))
     console.error('Error loading subscriptions:', error)
@@ -1289,15 +1374,21 @@ const loadSubscriptions = async () => {
   }
 }
 
+let groupRequestSequence = 0
 const loadGroups = async () => {
+  const request = ++groupRequestSequence
   try {
-    groups.value = authStore.isAdmin
+    const result = authStore.isAdmin
       ? await adminAPI.groups.getAll()
       : await adminAPI.subscriptions.searchGroups()
+    if (request === groupRequestSequence) groups.value = result
     if (!authStore.isAdmin && canAssignSubscriptions.value) {
-      assignableGroups.value = await adminAPI.subscriptions.getAssignableGroups()
+      const assignable = await adminAPI.subscriptions.getAssignableGroups()
+      if (request === groupRequestSequence) assignableGroups.value = assignable
     }
   } catch (error) {
+    if (request !== groupRequestSequence) return
+    groups.value = []
     console.error('Error loading groups:', error)
   }
 }
@@ -1311,6 +1402,9 @@ const debounceSearchFilterUsers = () => {
 }
 
 const searchFilterUsers = async () => {
+  const request = ++filterUserSearchSequence
+  const organization = filters.organization
+  const department = filters.department_id
   const keyword = filterUserKeyword.value.trim()
 
   // Clear active user filter if user modified the search keyword
@@ -1326,13 +1420,19 @@ const searchFilterUsers = async () => {
   }
 
   filterUserLoading.value = true
+  filterUserResults.value = []
   try {
-    filterUserResults.value = await adminAPI.usage.searchUsers(keyword)
+    const result = isDepartmentScoped.value
+      ? await departmentsAPI.subscriptionUsers(keyword, organization || undefined, department || undefined)
+      : await adminAPI.usage.searchUsers(keyword)
+    if (request !== filterUserSearchSequence || filterUserKeyword.value.trim() !== keyword || filters.organization !== organization || filters.department_id !== department) return
+    filterUserResults.value = result
   } catch (error) {
+    if (request !== filterUserSearchSequence) return
     console.error('Failed to search users:', error)
     filterUserResults.value = []
   } finally {
-    filterUserLoading.value = false
+    if (request === filterUserSearchSequence) filterUserLoading.value = false
   }
 }
 
@@ -1345,6 +1445,8 @@ const selectFilterUser = (user: SimpleUser) => {
 }
 
 const clearFilterUser = () => {
+  ++filterUserSearchSequence
+  filterUserLoading.value = false
   selectedFilterUser.value = null
   filterUserKeyword.value = ''
   filterUserResults.value = []
@@ -1798,6 +1900,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  abortController?.abort()
+  ++groupRequestSequence
+  ++filterUserSearchSequence
   document.removeEventListener('click', handleClickOutside)
   if (filterUserSearchTimeout) {
     clearTimeout(filterUserSearchTimeout)

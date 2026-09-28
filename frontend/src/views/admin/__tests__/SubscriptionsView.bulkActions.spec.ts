@@ -1,3 +1,4 @@
+import { departmentsAPI } from '@/api/admin/departments'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import SubscriptionsView from '../SubscriptionsView.vue'
@@ -5,6 +6,8 @@ import SubscriptionsView from '../SubscriptionsView.vue'
 const { list, bulkAction, bulkAssign, listUsers, searchAssignmentUsers, showError } = vi.hoisted(() => ({
   list: vi.fn(), bulkAction: vi.fn(), bulkAssign: vi.fn(), listUsers: vi.fn(), searchAssignmentUsers: vi.fn(), showError: vi.fn()
 }))
+
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { subscriptionScope: vi.fn().mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' }) } }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
@@ -56,13 +59,14 @@ function mountView() {
 let wrapper: ReturnType<typeof mountView>
 
 beforeEach(async () => {
+  vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ unrestricted: true, organizations: ['xunyou', 'wsdashi', 'other'], departments: [], catalog_version: 'scope-v1', default_organization: 'all', default_department_id: 'all' })
   vi.clearAllMocks()
   authState.isAdmin = true
   authState.isSubAdmin = false
   localStorage.clear()
   sessionStorage.clear()
   localStorage.setItem('auth_user', JSON.stringify({ id: 777 }))
-  list.mockResolvedValue({ items: rows, total: 60, pages: 3 })
+  list.mockResolvedValue({ scope_version: 'scope-v1', items: rows, total: 60, pages: 3 })
   wrapper = mountView()
   await flushPromises()
 })

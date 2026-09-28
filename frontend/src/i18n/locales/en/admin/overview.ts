@@ -756,6 +756,8 @@ export default {
           label: 'Usage records',
           description: 'View, filter and export usage, including rankings, dashboard aggregates and error details.'
         },
+        'admin.organization_usage': { label: 'Organization usage', description: 'View and export usage for authorized departments.' },
+        'admin.department_subscriptions': { label: 'Department subscriptions and quota resets', description: 'View and reset quotas for authorized departments, without assigning subscriptions.' },
         'admin.token_analysis': {
           label: 'Token analysis',
           description: 'View token statistics, projects, requests, inputs and index status.'

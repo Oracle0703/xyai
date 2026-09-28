@@ -39,6 +39,7 @@ func RegisterAdminRoutes(
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)
+		registerDepartmentRoutes(admin, h)
 
 		// 分组管理
 		registerGroupRoutes(admin, h)
@@ -726,9 +727,9 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		subscriptions.PUT("/self-reset-policy", h.SubscriptionSelfReset.SetPolicy)
 		subscriptions.GET("/self-reset-events", h.SubscriptionSelfReset.ListEvents)
 		subscriptions.GET("", h.Admin.Subscription.List)
-		subscriptions.GET("/search-groups", h.Admin.Usage.SearchGroups)
+		subscriptions.GET("/search-groups", h.Admin.Department.SubscriptionGroups)
 		subscriptions.GET("/assignable-groups", h.Admin.Group.SubscriptionAssignmentGroups)
-		subscriptions.GET("/search-users", h.Admin.User.SearchSubscriptionAssignmentUsers)
+		subscriptions.GET("/search-users", h.Admin.Department.SubscriptionUsers)
 		subscriptions.POST("/reset-daily-filtered", h.Admin.Subscription.ResetDailyFiltered)
 		subscriptions.GET("/:id", h.Admin.Subscription.GetByID)
 		subscriptions.GET("/:id/progress", h.Admin.Subscription.GetProgress)

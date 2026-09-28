@@ -52,6 +52,7 @@
             type="checkbox"
             :value="permission.code"
             :data-admin-permission="permission.code"
+            @change="enforceSubscriptionPermissionChoice(permission.code)"
             class="mt-1"
           />
           <span>
@@ -126,8 +127,8 @@ const loadPermissionCatalog = async () => {
     const catalog = await adminAPI.users.getPermissionCatalog()
     adminPermissionOptions.value = catalog.map((item) => ({
       code: item.code,
-      labelKey: `admin.users.permissions.${item.code}.label`,
-      descriptionKey: `admin.users.permissions.${item.code}.description`,
+      labelKey: `admin.users.permissions[${JSON.stringify(item.code)}].label`,
+      descriptionKey: `admin.users.permissions[${JSON.stringify(item.code)}].description`,
     }))
   } catch {
     adminPermissionOptions.value = []
@@ -136,6 +137,12 @@ const loadPermissionCatalog = async () => {
   } finally {
     permissionsLoading.value = false
   }
+}
+
+function enforceSubscriptionPermissionChoice(permission: AdminPermission) {
+  if (!form.admin_permissions.includes(permission)) return
+  const opposite = permission === 'admin.subscriptions' ? 'admin.department_subscriptions' : permission === 'admin.department_subscriptions' ? 'admin.subscriptions' : null
+  if (opposite) form.admin_permissions = form.admin_permissions.filter(value => value !== opposite)
 }
 
 const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as UserRole, admin_permissions: [] as AdminPermission[], balance: '', concurrency: 1, rpm_limit: 0 })

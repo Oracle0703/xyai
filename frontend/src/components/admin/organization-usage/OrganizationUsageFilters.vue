@@ -31,7 +31,7 @@
       </button>
     </div>
 
-    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <label v-if="modelValue.mode === 'month'" class="space-y-1.5">
         <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.month') }}</span>
         <input
@@ -62,7 +62,7 @@
         </span>
       </label>
 
-      <div v-else class="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-1">
+      <div v-else class="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-2">
         <label class="space-y-1.5">
           <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.startDate') }}</span>
           <input
@@ -95,8 +95,18 @@
           :model-value="modelValue.organization"
           :options="organizationOptions"
           :searchable="false"
-          @update:model-value="patch({ organization: $event as OrganizationUsageOrganizationFilter })"
+          @update:model-value="patch({ organization: $event as OrganizationUsageOrganizationFilter, department_id: 'all' })"
+          :disabled="scope != null && !scope.unrestricted && scope.organizations.length === 1"
         />
+      </label>
+
+      <label class="space-y-1.5">
+        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.departments.department') }}</span>
+        <Select :model-value="modelValue.department_id ?? 'all'" :options="departmentOptions" :disabled="modelValue.organization === 'all' || (scope != null && !scope.unrestricted && scope.departments.length === 1)" @update:model-value="patch({ department_id: String($event) })" />
+      </label>
+      <label class="space-y-1.5">
+        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.departments.platform') }}</span>
+        <Select :model-value="modelValue.platform ?? 'all'" :options="platformOptions" @update:model-value="patch({ platform: String($event) })" />
       </label>
 
       <label class="space-y-1.5 xl:col-span-2">
@@ -143,6 +153,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import type { DepartmentScope } from '@/api/admin/departments'
 import type { OrganizationUsageOrganizationFilter, OrganizationUsageRange } from '@/api/admin/organizationUsage'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
@@ -155,6 +166,8 @@ import {
 } from '@/utils/organizationUsageReport'
 
 export interface OrganizationUsageFilterDraft {
+  department_id?: string
+  platform?: string
   mode: OrganizationUsageReportMode
   month: string
   weekAnchor: string
@@ -169,6 +182,7 @@ const props = defineProps<{
   loading: boolean
   exporting: boolean
   exportDisabled?: boolean
+  scope?: DepartmentScope | null
 }>()
 
 const emit = defineEmits<{
@@ -188,12 +202,24 @@ const modes = computed(() => ([
   { value: 'custom' as const, label: t('admin.organizationUsage.filters.custom') }
 ]))
 
-const organizationOptions = computed(() => ([
-  { value: 'all', label: t('admin.organizationUsage.organizations.all') },
-  { value: 'xunyou', label: formatOrganizationUsageOrganization('xunyou') },
-  { value: 'wsdashi', label: formatOrganizationUsageOrganization('wsdashi') },
-  { value: 'other', label: t('admin.organizationUsage.organizations.other') }
-]))
+const organizationOptions = computed(() => {
+  const allowed = props.scope?.organizations ?? ['xunyou', 'wsdashi', 'other']
+  return [{ value: 'all', label: t('admin.organizationUsage.organizations.all') }, ...allowed.map(value => ({ value, label: formatOrganizationUsageOrganization(value, t('admin.organizationUsage.organizations.other')) }))]
+})
+const departmentOptions = computed(() => {
+  const options = [{ value: 'all', label: t('admin.departments.allDepartments') }]
+  if (props.modelValue.organization === 'all') return options
+  for (const department of props.scope?.departments ?? []) {
+    if (department.organization_key === props.modelValue.organization) options.push({ value: String(department.id), label: department.name })
+  }
+  if (props.scope?.unrestricted) options.push({ value: 'unassigned', label: t('admin.departments.unassigned') })
+  return options
+})
+const platformOptions = computed(() => [
+  { value: 'all', label: t('admin.departments.allPlatforms') },
+  ...[['openai', 'OpenAI'], ['anthropic', 'Anthropic'], ['gemini', 'Gemini'], ['antigravity', 'Antigravity'], ['grok', 'Grok'], ['kimi', 'Kimi'], ['zhipu', 'Zhipu'], ['deepseek', 'DeepSeek'], ['minimax', 'MiniMax'], ['opencode_go', 'OpenCode Go'], ['kiro', 'Kiro']].map(([value, label]) => ({ value, label })),
+  { value: 'unknown', label: t('admin.departments.unknownPlatform') }
+])
 
 const weekRange = computed(() => {
   const anchor = props.modelValue.weekAnchor

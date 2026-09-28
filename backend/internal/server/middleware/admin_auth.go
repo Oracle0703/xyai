@@ -150,6 +150,7 @@ func validateAdminAPIKey(
 	c.Set(string(ContextKeyUserRole), admin.Role)
 	c.Set(ContextKeyAuthEmail, admin.Email)
 	c.Set("auth_method", "admin_api_key")
+	c.Request = c.Request.WithContext(service.WithDepartmentAdminAPIKey(c.Request.Context(), admin.ID))
 	return true
 }
 
@@ -219,6 +220,7 @@ func validateJWTForAdmin(
 	c.Set(ContextKeyAuthEmail, user.Email)
 	c.Set(ContextKeySessionID, claims.SessionID)
 	c.Set("auth_method", "jwt")
+	c.Request = c.Request.WithContext(service.WithDepartmentActor(c.Request.Context(), user.ID))
 
 	return true
 }

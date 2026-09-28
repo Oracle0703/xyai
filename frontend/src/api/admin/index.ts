@@ -5,6 +5,7 @@
 
 import dashboardAPI from './dashboard'
 import usersAPI from './users'
+import departmentsAPI from './departments'
 import groupsAPI from './groups'
 import accountsAPI from './accounts'
 import proxiesAPI from './proxies'
@@ -48,6 +49,7 @@ import pluginsAPI from './plugins'
 export const adminAPI = {
   dashboard: dashboardAPI,
   users: usersAPI,
+  departments: departmentsAPI,
   groups: groupsAPI,
   accounts: accountsAPI,
   proxies: proxiesAPI,

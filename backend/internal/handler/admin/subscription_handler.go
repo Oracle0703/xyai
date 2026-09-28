@@ -32,6 +32,7 @@ func toResponsePagination(p *pagination.PaginationResult) *response.PaginationRe
 // SubscriptionHandler handles admin subscription management
 type SubscriptionHandler struct {
 	subscriptionService subscriptionHandlerService
+	departments         *service.DepartmentService
 }
 
 type subscriptionHandlerService interface {
@@ -51,8 +52,13 @@ type subscriptionHandlerService interface {
 }
 
 // NewSubscriptionHandler creates a new admin subscription handler
-func NewSubscriptionHandler(subscriptionService *service.SubscriptionService) *SubscriptionHandler {
-	return newSubscriptionHandler(subscriptionService)
+func NewSubscriptionHandler(subscriptionService *service.SubscriptionService, departments *service.DepartmentService) *SubscriptionHandler {
+	if departments == nil {
+		departments = service.NewDepartmentService(nil)
+	}
+	h := newSubscriptionHandler(subscriptionService)
+	h.departments = departments
+	return h
 }
 
 func newSubscriptionHandler(subscriptionService subscriptionHandlerService) *SubscriptionHandler {
@@ -85,6 +91,10 @@ type AdjustSubscriptionRequest struct {
 // List handles listing all subscriptions with pagination and filters
 // GET /api/v1/admin/subscriptions
 func (h *SubscriptionHandler) List(c *gin.Context) {
+	if (h.departments != nil) != (service.DepartmentActorID(c.Request.Context()) > 0) {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	page, pageSize := response.ParsePagination(c)
 
 	userID, err := parseOptionalPositiveInt64(c.Query("user_id"), "user_id")
@@ -98,7 +108,8 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 		return
 	}
 
-	subscriptions, pagination, err := h.subscriptionService.ListAdmin(c.Request.Context(), page, pageSize, service.SubscriptionAdminFilter{
+	filter := service.SubscriptionAdminFilter{
+		DepartmentID: c.Query("department_id"), ScopeVersion: c.Query("scope_version"),
 		UserID:       userID,
 		GroupID:      groupID,
 		Status:       c.Query("status"),
@@ -106,7 +117,12 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 		Organization: c.Query("organization"),
 		SortBy:       c.DefaultQuery("sort_by", "created_at"),
 		SortOrder:    c.DefaultQuery("sort_order", "desc"),
-	})
+	}
+	var scopeVersion string
+	if h.departments != nil {
+		filter.ResolvedScopeVersion = &scopeVersion
+	}
+	subscriptions, pagination, err := h.subscriptionService.ListAdmin(c.Request.Context(), page, pageSize, filter)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -116,12 +132,20 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 	for i := range subscriptions {
 		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
 	}
+	if h.departments != nil && pagination != nil {
+		response.Success(c, gin.H{"items": out, "total": pagination.Total, "page": pagination.Page, "page_size": pagination.PageSize, "pages": pagination.Pages, "scope_version": scopeVersion})
+		return
+	}
 	response.PaginatedWithResult(c, out, toResponsePagination(pagination))
 }
 
 // GetByID handles getting a subscription by ID
 // GET /api/v1/admin/subscriptions/:id
 func (h *SubscriptionHandler) GetByID(c *gin.Context) {
+	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid subscription ID")
@@ -140,6 +164,10 @@ func (h *SubscriptionHandler) GetByID(c *gin.Context) {
 // GetProgress handles getting subscription usage progress
 // GET /api/v1/admin/subscriptions/:id/progress
 func (h *SubscriptionHandler) GetProgress(c *gin.Context) {
+	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid subscription ID")
@@ -148,7 +176,7 @@ func (h *SubscriptionHandler) GetProgress(c *gin.Context) {
 
 	progress, err := h.subscriptionService.GetSubscriptionProgress(c.Request.Context(), subscriptionID)
 	if err != nil {
-		response.NotFound(c, "Subscription not found")
+		response.ErrorFrom(c, err)
 		return
 	}
 
@@ -265,6 +293,8 @@ type ResetSubscriptionQuotaRequest struct {
 }
 
 type ResetDailyFilteredRequest struct {
+	DepartmentID string `json:"department_id"`
+	ScopeVersion string `json:"scope_version"`
 	Status       string `json:"status"`
 	UserID       *int64 `json:"user_id"`
 	GroupID      *int64 `json:"group_id"`
@@ -279,6 +309,10 @@ type ResetDailyFilteredResponse struct {
 // ResetDailyFiltered resets daily usage for every active subscription matching the supplied filters.
 // POST /api/v1/admin/subscriptions/reset-daily-filtered
 func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
+	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	var req *ResetDailyFilteredRequest
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
@@ -295,6 +329,7 @@ func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
 		return
 	}
 	filter, err := service.NormalizeSubscriptionAdminFilter(service.SubscriptionAdminFilter{
+		DepartmentID: req.DepartmentID, ScopeVersion: req.ScopeVersion,
 		Status:       req.Status,
 		UserID:       req.UserID,
 		GroupID:      req.GroupID,
@@ -305,6 +340,11 @@ func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	if err := h.prepareDepartmentReset(c, &filter); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
 	idempotencyKey, err := service.NormalizeIdempotencyKey(c.GetHeader("Idempotency-Key"))
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -327,6 +367,10 @@ func (h *SubscriptionHandler) ResetDailyFiltered(c *gin.Context) {
 // ResetQuota resets daily, weekly, and/or monthly usage for a subscription.
 // POST /api/v1/admin/subscriptions/:id/reset-quota
 func (h *SubscriptionHandler) ResetQuota(c *gin.Context) {
+	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid subscription ID")
@@ -389,6 +433,10 @@ func (h *SubscriptionHandler) Restore(c *gin.Context) {
 // ListByGroup handles listing subscriptions for a specific group
 // GET /api/v1/admin/groups/:id/subscriptions
 func (h *SubscriptionHandler) ListByGroup(c *gin.Context) {
+	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid group ID")
@@ -413,6 +461,10 @@ func (h *SubscriptionHandler) ListByGroup(c *gin.Context) {
 // ListByUser handles listing subscriptions for a specific user
 // GET /api/v1/admin/users/:id/subscriptions
 func (h *SubscriptionHandler) ListByUser(c *gin.Context) {
+	if h.departments != nil && service.DepartmentActorID(c.Request.Context()) <= 0 {
+		response.ErrorFrom(c, service.ErrDepartmentScopeDenied)
+		return
+	}
 	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "Invalid user ID")
@@ -461,4 +513,25 @@ func parseOptionalPositiveInt64(raw, field string) (*int64, error) {
 	}
 	_, validationErr := service.NormalizeSubscriptionAdminFilter(filter)
 	return nil, validationErr
+}
+
+// Scope is checked before idempotency replay as well as inside the write transaction.
+func (h *SubscriptionHandler) prepareDepartmentReset(c *gin.Context, filter *service.SubscriptionAdminFilter) error {
+	if h.departments == nil && service.DepartmentActorID(c.Request.Context()) == 0 {
+		return nil
+	}
+	if h.departments == nil {
+		return service.ErrDepartmentScopeDenied
+	}
+	scope, err := h.departments.QueryScope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions, filter.DepartmentQuery())
+	if err != nil {
+		return err
+	}
+	if (!scope.Unrestricted || filter.DepartmentID != "") && filter.ScopeVersion == "" {
+		return service.ErrDepartmentScopeChanged
+	}
+	if !scope.Unrestricted || filter.ScopeVersion != "" {
+		filter.ScopeVersion = scope.Version
+	}
+	return nil
 }

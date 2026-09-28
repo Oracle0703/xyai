@@ -100,7 +100,7 @@ func TestUserRepositoryCreateWithEmailAliasGuard(t *testing.T) {
 }
 
 func TestUserRepositoryCountUsersByEmailDomain(t *testing.T) {
-	repo, _ := newUserEntRepo(t)
+	repo, client := newUserEntRepo(t)
 	ctx := context.Background()
 
 	active := &service.User{
@@ -120,7 +120,9 @@ func TestUserRepositoryCountUsersByEmailDomain(t *testing.T) {
 		Status:       service.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, deleted))
-	require.NoError(t, repo.Delete(ctx, deleted.ID))
+	// This SQLite fixture tests domain counting. The PG admin deletion transaction
+	// (including access locks and grant cleanup) has separate integration coverage.
+	require.NoError(t, client.User.DeleteOneID(deleted.ID).Exec(ctx))
 
 	count, err := repo.CountUsersByEmailDomain(ctx, "custom.example")
 	require.NoError(t, err)

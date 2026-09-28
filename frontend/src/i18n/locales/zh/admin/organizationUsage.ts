@@ -39,18 +39,23 @@ export default {
     people: {
       title: '人员汇总',
       total: '共 {count} 人',
-      pageSize: '每页'
+      pageSize: '每页',
+      screenshot: '截图',
+      capturing: '截图中...',
+      screenshotHint: '下载当前页全部行和列的表格图片',
+      screenshotSuccess: '当前页人员汇总截图已下载。',
+      screenshotFailed: '截图失败，请重试。'
     },
     organizations: {
       all: '全部组织',
       other: '其他'
     },
     metrics: {
-      activeUsers: '注册人数',
+      activeUsers: '成员人数',
       usedUsers: '活跃人数',
       activeRate: '活跃率',
-      registeredUsersHelp: '所选报表范围内的注册用户数。',
-      activeUsersHelp: '所选报表周期内至少发起过一次请求的注册用户数。',
+      registeredUsersHelp: '当前范围内启用且未删除的成员数，包含零用量成员。',
+      activeUsersHelp: '所选周期及平台范围内至少有一条用量记录的成员数。',
       requests: '请求数',
       inputTokens: '输入 Token',
       outputTokens: '输出 Token',

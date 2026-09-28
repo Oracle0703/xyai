@@ -1,5 +1,18 @@
 # 数据与领域基线
 
+## 组织下的独立部门
+
+状态：2026-09-20 S1–S6/RV1–RV8 本机隔离验收完成。用户降级/软删除在同事务清其持有 grants 并审计，重新提权不复活；临时停用保留授权但拒绝访问，created_by 外键不变。报告 grant 可与显式全站订阅权限共存，部门/全站订阅权限仍互斥。
+
+成员创建时间上界备选未启用：全部报表面按当前 active/未删除成员集合统计；全站新增 active 成员可使旧查询失效。目录、用户授权、实际查询三个版本分别为 catalog_version、admin_access_version、scope_version，均非新增持久化字段。
+
+- migration `239_departments.sql` 新增 `departments`、`department_access_grants`、`users.department_id` (nullable FK) 和 `department_version`。部门固定属于 `xunyou / wsdashi / other` 之一；组织内名称 trim 后大小写不敏感唯一，跨组织可同名，组织不可变。
+- 首版一级部门、一人一个当前部门；未分配为 NULL。停用保留成员和已有授权，可查询、移出和重置，不能新增成员或新授权。成员批量操作最多 200 个显式 ID，以原部门及版本 CAS，整批成功或回滚；不修改订阅与 API Key。
+- 数据库 trigger 兜底组织一致性、跨组织邮箱变更清归属和部门版本递增；`240_department_email_change_audit.sql` 在同一事务记录清归属审计。已经应用的 migration 不可改写。调整 `audit_logs` 结构需复验 migration 240 的邮箱变更审计断言；审计失败不能吞掉。
+- 报表按当前 active 且未删除成员、当前邮箱组织与部门归属；调岗会重分类历史，不能当作财务历史账本。平台只限制用量，不缩减成员总人数；跨平台活跃人数去重。
+- 普通分组优先取分组平台、缺失时回退账号；Composite 按实际账号平台，软删除关联仍参与历史归因，未知归入 `unknown`。平台配置不是日志快照，修改后可改变历史分类。
+- API 兼容保留 `active_users` 为成员数、`used_users` 为选区内有记录人数；`applied_filters.attribution=current_membership` 明示口径。`as_of` 固定用量时间上界，`scope_version` 检测当前范围变化，两者都不冻结数据库历史。
+
 ## 0.2.7 合并增量
 
 - 新增 `backend/migrations/238b_content_moderation_engine_meta.sql`，为 `content_moderation_logs` 追加可空 `engine_meta JSONB`，保存 engine/model/rules_version/skipped_images；旧行与旧应用写入仍可为空。无 Ent schema 改动，既有迁移不改写。
@@ -347,7 +360,7 @@ Token Analysis 选中用户趋势口径:
 组织用量报表口径:
 
 - 完整设计见 `docs/features/organization-usage-report-design-cn.md`。
-- 活跃用户是 `users.deleted_at IS NULL AND status='active'`, 角色同时包含 user/admin。组织按当前 `users.email` 的 `@` 后域名做大小写不敏感精确匹配: `xunyou.com -> xunyou`, `wsdashi.com -> wsdashi`, 其他域名及其子域名都归 `other`。
+- 活跃用户是 `users.deleted_at IS NULL AND status='active'`, 角色包含 user/admin/sub_admin。组织按当前 `users.email` 的 `@` 后域名做大小写不敏感精确匹配: `xunyou.com -> xunyou`, `wsdashi.com -> wsdashi`, 其他域名及其子域名都归 `other`。
 - 报表指标固定为 requests、input/output/cache creation/cache read tokens、total tokens 和 actual cost; total tokens 是四类 token 之和。`used_users` 表示选区内至少存在一条 usage log 的活跃用户。
 - 个人 peak 与团队 champion 都按 `total_tokens DESC, actual_cost DESC, requests DESC, user_id ASC` 选择; 个人同用户同指标周期再按 period start 保持确定性。没有 usage log 的用户 peak 为 null。
 - `as_of` 由 service 规范化为 UTC 并裁剪到不晚于服务器当前时间, 防止客户端时钟超前; 日期 end 只进一步限制 usage log 查询, 不改变响应中的 canonical `as_of`。它不是密码学签名, 也不回溯用户状态或邮箱; active user 和组织分类始终按查询时的当前 `users` 数据计算。

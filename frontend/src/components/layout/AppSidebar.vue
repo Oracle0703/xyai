@@ -1019,11 +1019,14 @@ const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems
 
 const subAdminNavItems = computed((): NavItem[] => {
 	const items: NavItem[] = []
-	if (authStore.hasAdminPermission('admin.subscriptions')) {
+	if (authStore.hasAdminPermission('admin.subscriptions') || authStore.hasAdminPermission('admin.department_subscriptions')) {
 		items.push({ path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon })
 	}
 	if (authStore.hasAdminPermission('admin.usage')) {
 		items.push({ path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon })
+	}
+	if (authStore.hasAdminPermission('admin.organization_usage')) {
+		items.push({ path: '/admin/organization-usage', label: t('nav.organizationUsage'), icon: BuildingOfficeIcon })
 	}
 	if (authStore.hasAdminPermission('admin.token_analysis')) {
 		items.push({ path: '/admin/token-analysis', label: t('nav.tokenAnalysis'), icon: CubeTransparentIcon })
@@ -1051,6 +1054,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: CpuChipIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/admin/departments', label: t('admin.departments.title'), icon: BuildingOfficeIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
     {
       path: '/admin/channels',

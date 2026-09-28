@@ -214,3 +214,7 @@ func TestAdminService_UpdateUser_DoesNotReturnPartialSuccessFromEmailIdentityRes
 	require.Empty(t, repo.replaceCalls)
 	require.Empty(t, repo.ensureCalls)
 }
+
+func (s *emailSyncRepoStub) GetByIDWithAdminAccess(ctx context.Context, id int64) (*User, error) {
+	return s.GetByID(ctx, id)
+}

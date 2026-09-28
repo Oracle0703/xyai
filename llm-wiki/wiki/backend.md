@@ -1,5 +1,21 @@
 # 后端知识基线
 
+
+## 部门管理与用量范围
+
+状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。合同与证据见 `docs/features/organization-department-usage-implementation-plan-cn.md` 和 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
+
+- `DepartmentHandler / DepartmentService / DepartmentRepository` 提供组织下一级部门、成员和负责人管理；路由 `internal/server/routes/department.go`。部门独立于 API 分组、订阅和计费。
+- 2026-09-21 复审精简：`UserRepository.GetByIDWithAdminAccess` 为必需接口，管理详情不回退普通读取；查询仓储统一完成规范化、范围鉴权及 ExpectedVersion 校验，SQL 成员集合直接用于报表，复用成员映射。授权只批量检查/锁定和插入新增部门，保留授权不重复锁部门。详见 `docs/features/organization-department-usage-code-review-cn.md`。同日只读实现审核见 `docs/features/organization-department-usage-implementation-audit-cn.md`，无越权回退全站；剩余进度 404 改写、组织用量分页溢出、SetAccess 省略字段不清 grant。
+
+- 管理用户详情经 `user_admin_access.go` 的 repeatable-read 事务返回角色/权限及 `admin_access_version`，不暴露在公开或嵌套浅层 DTO。通用权限修改与 department-scope 共用角色/权限/grant 摘要，在用户行锁下重读、校验并审计；降级/软删除原子清其持有 grants。
+- `/admin/usage/organization-report/scope`、`/admin/subscriptions/scope` 只返回目录 `catalog_version`，不装载成员。`department_query_scope.go` 按实际筛选构造授权 SQL 与 `scope_version`；包含选中 ID/邮箱/组织/部门/成员版本及部门标签，排除 username、排序和无关范围。
+- 部门列表在 SQL 过滤/count/分页，页内成员数与负责人批量查询，共 4 次 SQL；成员页 3 次。全站普通订阅 scope 仅读取 actor，管理员指定部门筛选仍有效。订阅列表版本直接取仓储结果，handler 不预先全量解析。
+- 报表在同一 repeatable-read 快照内解析实际范围并查询 Summary/Periods/Trend；物化 selected_users/period_aggregates/peak CTE，复用个人峰值提取 champion。零用量成员保留；SQL 内摘要备选未启用。
+- `department_subscription_read.go` 保证授权、分页与嵌套用户同快照；重置仅锁 actor 和实际候选成员，锁内重新鉴权，UPDATE 限定已锁集合，新候选触发范围变化。保留幂等 AtomicSuccess、重放鉴权和提交后缓存失效。
+- Admin API Key 保留独立标记的完整管理员语义。负责人 compact 选项走专用受限接口；无 grant 可读空目录，数据/重置拒绝，不能回退全站。
+- 订阅页 compact 选项合并口径（2026-09-28 合入 10209 分支）：`/admin/subscriptions/search-users`、`search-groups` 固定走 `DepartmentHandler.SubscriptionUsers/SubscriptionGroups`，完整管理员与 `admin.subscriptions` 为全站、`admin.department_subscriptions` 限授权部门；`/admin/subscriptions/assignable-groups` 走 `GroupHandler.SubscriptionAssignmentGroups`，仅全站订阅权限可用。`UserHandler.SearchSubscriptionAssignmentUsers` 未挂路由，不能替换 search-users，否则部门负责人可枚举全站用户。
+
 ## 0.2.8 合并增量
 
 - 固定上游提交 `a3eb7ef302961cba716dc78b39b93b60c467db0e` 引入 OpenCode Go 用量查询/管理端展示、OpenAI referral、Claude Code 版本同步、reasoning effort 计费与多项网关兼容测试；本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、quota flusher 与插件账号目录接线继续保留。
@@ -194,8 +210,8 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 管理端 `GET /api/v1/admin/audit-logs[/:id]` 查询 append-only 操作审计, `POST .../clear` 必须现场 TOTP; `POST /api/v1/admin/users/batch-limits` 批量覆盖 concurrency/RPM, `concurrency=0` 仍表示不限。
 - 管理端 `/api/v1/admin/prompt-audit` 提供 config 更新、节点 probe、runtime、事件列表/详情、单条/批量删除和带预览确认的筛选删除；路由受 admin auth 和全局 risk-control feature gate 约束。
 - 管理端 `GET/PUT /api/v1/admin/settings/panel-rate-limit` 读写 Panel API 限流的总开关、用户/重查询/public IP RPM 和管理员豁免；它是数据库运行时设置, 不是 YAML 配置组。
-- 管理端 `GET /api/v1/admin/subscriptions` 接受 `status,user_id,group_id,platform,organization,sort_by,sort_order`; `organization` 只允许 `xunyou` / `wsdashi`, 按未删除用户的邮箱域名大小写不敏感精确匹配 `xunyou.com` / `wsdashi.com`, 子域名和软删除用户不匹配。仓储在分页前按日剩余比例升序全局排序, 原 `sort_by` / `sort_order` 是比例相同时的次序, 最后以订阅 ID 升序稳定排序。
-- 管理端 `POST /api/v1/admin/subscriptions/reset-daily-filtered` 只接受单个 JSON object 和 `status,user_id,group_id,platform,organization`; 未知字段、`null`、尾随 JSON 及非法值均返回 400, 不能退化为空筛选。接口原子重置全部匹配分页中执行时仍 active、未删除且未过期订阅的日用量并返回 `reset_count`; 该静态路由必须注册在 `/:id` 之前。
+- 管理端 `GET /api/v1/admin/subscriptions` 接受 `status,user_id,group_id,platform,organization,department_id,scope_version,sort_by,sort_order`；组织支持 `xunyou / wsdashi / other`，省略或 `all` 为授权范围内全部；精确邮箱域名口径不变。部门过滤先于分页；日剩余比例升序仍为主序，原排序字段为次序，订阅 ID 为最终稳定排序。
+- 管理端 `POST /api/v1/admin/subscriptions/reset-daily-filtered` 只接受单个 JSON object 和 `status,user_id,group_id,platform,organization,department_id,scope_version`；未知字段、`null`、尾随 JSON 及非法值均返回 400。部门权限必须提供最近查询的范围版本，旧全站请求保持兼容。接口原子重置全部符合范围、active、未删除且未过期订阅的日用量并返回 `reset_count`；静态路由必须在 `/:id` 之前。
 - 通用 `PUT /api/v1/admin/settings` 会先保留原始 JSON field set, value-typed 字段若未出现在 payload 中则从 `SetMultiple` 更新集中删除, 留下数据库现值；显式发送 `false`、`0`、空字符串/数组仍是有效更新。pointer-typed 字段继续使用各自的 omitted merge/fail-closed 归一化。partial write 后进程缓存从数据库重读, 不能用请求 struct 的零值覆盖未发送字段。
 - 管理端 `/api/v1/admin/ops/ingress-rejections` 与 `/api/v1/admin/ops/ingress-rejections/health` 查询入口拒绝聚合与运行态, `/api/v1/admin/ops/auth-cache-invalidation/health` 汇总 outbox、Redis subscriber、DB lookup 和 invalid-auth limiter 健康信息。
 
@@ -232,12 +248,12 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 管理端组织用量报表:
 
 - 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-trend-chart-design-cn.md`。
-- `GET /api/v1/admin/usage/organization-report/summary` 返回组织概览、三组组织汇总、日/周/月 champions 和分页用户摘要; `GET .../periods` 返回有用量的 user-period 明细; `GET .../trend` 返回筛选范围内按 day/week/month 聚合、服务端补零且截止 `data_through` 的连续时间序列（无 user 维、不分页）。三者沿用 `/api/v1/admin` 的管理员认证与合规 guard。
+- `GET /api/v1/admin/usage/organization-report/summary` 返回当前授权及筛选内的概览、组织/部门/平台汇总、日/周/月 champions、分页成员及 `applied_filters/scope_version`；`GET .../periods` 返回带部门的 user-period 明细；`GET .../trend` 返回同范围补零且截止 `data_through` 的连续时间序列。三者沿用管理端认证与合规 guard，并支持 `admin.organization_usage` 的部门负责人。
 - 三层边界独立为 `OrganizationUsageRepository`、`OrganizationUsageService` 和 `admin.OrganizationUsageHandler`; SQL 实现在 `internal/repository/organization_usage_repo.go`, 不扩张 `UsageLogRepository` 或 `DashboardHandler`。
 - 日期合同是固定 `Asia/Shanghai` 的 `YYYY-MM-DD` 闭区间, service 转成 UTC 半开区间后查询; 最多 366 个自然日。SQL 先用原始 `usage_logs.created_at >= start AND created_at < end` 收敛, 再按北京时间分日/周/月桶; 周为周一到周日, 跨选区周期会裁剪起止日期并标记 `partial=true`。
 - 可选 `as_of` 必须是严格 RFC3339/RFC3339Nano; service 将其规范化为 UTC 并裁剪到不晚于服务端当前时间, 响应回显 canonical `as_of`。usage 查询上界再取 canonical `as_of` 与日期 end 的较早值, 早于范围起点时钳成空用量区间。该值不是密码学签名或服务端 snapshot id。
 - summary 从 active 且未删除用户出发 LEFT JOIN 范围用量, 因此保留零用量用户; periods 只返回存在用量的 user-period。组织、粒度、排序字段和排序方向均为严格 allowlist, 非法值返回 400。
-- PostgreSQL integration 与 30/90/366 天性能基线见 `backend/internal/repository/organization_usage_repo_integration_test.go`、`organization_usage_explain_integration_test.go` 和 `docs/features/organization-usage-report-performance-cn.md`。600 用户/219,600 logs 的 90 天 Summary items 曾因三个 peak CTE 对 `ranked_periods` 各循环扫描 600 次达到约 11 秒; 显式物化 peak 的诊断候选约 418 ms。现有时间索引不是该慢计划根因, 后续先修 peak 连接形状, 再减少导出分页重复查询。
+- PostgreSQL 正确性入口为 `organization_usage_repo_integration_test.go`、`organization_usage_department_integration_test.go`；当前性能入口为 `department_usage_performance_integration_test.go`。历史 90 天约 11 秒峰值慢计划已通过显式物化与复用聚合优化，新的 30/90/366 天实测见部门交付文档，不将测试机结果当作生产容量承诺。
 
 管理端选中用户用量趋势:
 
@@ -376,7 +392,7 @@ Grok/xAI 兼容:
 OpenAI 账号调度:
 
 - `gateway.openai_ws.scheduler_score_weights.reset` 是高级调度得分因子, 默认 `0` 关闭; 大于 0 时, 拥有未来 `SessionWindowEnd` 且剩余重置时间更短的账号得分更高。
-- `gateway.openai_ws.scheduler_score_weights.quota_headroom` 默认 `0` 关闭; 大于 0 时, 基于账号 `extra` 中 `codex_primary_used_percent` / `codex_7d_used_percent` 和 `codex_usage_updated_at` 计算剩余额度健康度, 快照缺失、过期或窗口已重置时使用中性分。
+- `gateway.openai_ws.scheduler_score_weights.quota_headroom` 默认 `0` 关闭；`openai_account_scheduler.go#openAIQuotaHeadroomFactor` 使用规范化的 7d 剩余比例（规范字段优先，历史 primary/secondary 按窗口长度归类），5h 信号存在且低于阈值时才额外折减；快照缺失、过期或周窗口已重置时用中性分。该项衡量相对剩余比例，不是不同套餐账号的绝对容量。候选打分将 Priority、Load、Queue、ErrorRate、TTFT、Reset、QuotaHeadroom 等加权相加，再做 TopK 与加权选择，不保证严格优先级分层或永远选余量最大；非加权粘性/不可迁移 continuation 可能提前选定账号。不得把调高此权重写成“不影响原优先级”。
 - `gateway.scheduling.prefer_soonest_reset` 默认 `false`; 开启后负载感知选择会先过滤出会话窗口最早重置的账号, 用于 use-it-or-lose-it 策略。没有活跃窗口时返回原候选集合, 不改变旧行为。
 - OpenAI Spark 影子账号使用 `parent_account_id + quota_dimension=spark`: 影子不持 OAuth 凭据, 运行时通过母账号 token 发起上游请求, 但独立读取 `codex_bengalfox`/spark 配额窗口。母账号 global 429 或过载不能连坐 spark 影子; 母账号凭据过期、临时摘除或非 OAuth 才会阻断影子调度。spark 模型当前只允许 `gpt-5.3-codex-spark` base, 默认 model_mapping 为恒等映射。
 

@@ -39,18 +39,23 @@ export default {
     people: {
       title: 'People summary',
       total: '{count} users',
-      pageSize: 'Rows'
+      pageSize: 'Rows',
+      screenshot: 'Screenshot',
+      capturing: 'Capturing...',
+      screenshotHint: 'Download a table image with all rows and columns on the current page',
+      screenshotSuccess: 'Current page people summary image downloaded.',
+      screenshotFailed: 'Screenshot failed. Please try again.'
     },
     organizations: {
       all: 'All organizations',
       other: 'Other'
     },
     metrics: {
-      activeUsers: 'Registered users',
+      activeUsers: 'Members',
       usedUsers: 'Active users',
       activeRate: 'Active rate',
-      registeredUsersHelp: 'Registered users in the selected report scope.',
-      activeUsersHelp: 'Registered users with at least one request in the selected report period.',
+      registeredUsersHelp: 'Currently enabled, non-deleted members in the selected scope, including members with no usage.',
+      activeUsersHelp: 'Members with at least one usage record in the selected period and platform.',
       requests: 'Requests',
       inputTokens: 'Input tokens',
       outputTokens: 'Output tokens',

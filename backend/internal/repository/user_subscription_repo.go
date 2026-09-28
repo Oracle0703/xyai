@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -65,7 +64,10 @@ func (r *userSubscriptionRepository) Create(ctx context.Context, sub *service.Us
 	return translatePersistenceError(err, nil, service.ErrSubscriptionAlreadyExists)
 }
 
-func (r *userSubscriptionRepository) GetByID(ctx context.Context, id int64) (*service.UserSubscription, error) {
+func (r *userSubscriptionRepository) getByID(ctx context.Context, id int64) (*service.UserSubscription, error) {
+	if err := r.checkDepartmentSubscription(ctx, id); err != nil {
+		return nil, err
+	}
 	client := clientFromContext(ctx, r.client)
 	m, err := client.UserSubscription.Query().
 		Where(usersubscription.IDEQ(id)).
@@ -186,7 +188,10 @@ func (r *userSubscriptionRepository) Restore(ctx context.Context, subscriptionID
 	return r.GetByID(ctx, subscriptionID)
 }
 
-func (r *userSubscriptionRepository) ListByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
+func (r *userSubscriptionRepository) listByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
+	if _, err := r.departmentSubscriptionIDs(ctx, service.SubscriptionAdminFilter{UserID: &userID}); err != nil {
+		return nil, err
+	}
 	client := clientFromContext(ctx, r.client)
 	subs, err := client.UserSubscription.Query().
 		Where(usersubscription.UserIDEQ(userID)).
@@ -216,9 +221,13 @@ func (r *userSubscriptionRepository) ListActiveByUserID(ctx context.Context, use
 	return userSubscriptionEntitiesToService(subs), nil
 }
 
-func (r *userSubscriptionRepository) ListByGroupID(ctx context.Context, groupID int64, params pagination.PaginationParams) ([]service.UserSubscription, *pagination.PaginationResult, error) {
+func (r *userSubscriptionRepository) listByGroupID(ctx context.Context, groupID int64, params pagination.PaginationParams) ([]service.UserSubscription, *pagination.PaginationResult, error) {
 	client := clientFromContext(ctx, r.client)
 	q := client.UserSubscription.Query().Where(usersubscription.GroupIDEQ(groupID))
+	q, scopeErr := r.applyDepartmentSubscriptionScope(ctx, q, service.SubscriptionAdminFilter{})
+	if scopeErr != nil {
+		return nil, nil, scopeErr
+	}
 
 	total, err := q.Clone().Count(ctx)
 	if err != nil {
@@ -337,7 +346,7 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 	return result, paginationResultFromTotal(int64(total), params), nil
 }
 
-func (r *userSubscriptionRepository) ListAdmin(
+func (r *userSubscriptionRepository) listAdmin(
 	ctx context.Context,
 	params pagination.PaginationParams,
 	filter service.SubscriptionAdminFilter,
@@ -350,6 +359,11 @@ func (r *userSubscriptionRepository) ListAdmin(
 		filter,
 		now,
 	)
+
+	q, scopeErr := r.applyDepartmentSubscriptionScope(ctx, q, filter)
+	if scopeErr != nil {
+		return nil, nil, scopeErr
+	}
 
 	total, err := q.Clone().Count(queryCtx)
 	if err != nil {
@@ -405,10 +419,12 @@ func applyUserSubscriptionAdminFilter(
 			user.DeletedAtIsNil(),
 			predicate.User(func(selector *entsql.Selector) {
 				selector.Where(entsql.P(func(builder *entsql.Builder) {
-					builder.WriteString("LOWER(SPLIT_PART(").
-						WriteString(selector.C(user.FieldEmail)).
-						WriteString(", '@', 2)) = ").
-						Arg(domain)
+					builder.WriteString("LOWER(SPLIT_PART(").WriteString(selector.C(user.FieldEmail)).WriteString(", '@', 2))")
+					if filter.Organization == service.OrganizationOther {
+						builder.WriteString(" NOT IN ('xunyou.com','wsdashi.com')")
+					} else {
+						builder.WriteString(" = ").Arg(domain)
+					}
 				}))
 			}),
 		))
@@ -549,6 +565,13 @@ func (r *userSubscriptionRepository) ActivateWindows(ctx context.Context, id int
 }
 
 func (r *userSubscriptionRepository) ResetUsageWindows(ctx context.Context, id int64, resetDaily, resetWeekly, resetMonthly bool, dailyStart, periodicStart time.Time) error {
+	ctx, _, owned, scopeErr := r.beginDepartmentSubscriptionWrite(ctx, service.SubscriptionAdminFilter{}, id, dailyStart)
+	if scopeErr != nil {
+		return scopeErr
+	}
+	if owned != nil {
+		defer func() { _ = owned.Rollback() }()
+	}
 	client := clientFromContext(ctx, r.client)
 	update := client.UserSubscription.UpdateOneID(id)
 	if resetDaily {
@@ -561,7 +584,22 @@ func (r *userSubscriptionRepository) ResetUsageWindows(ctx context.Context, id i
 		update.SetMonthlyUsageUsd(0).SetMonthlyWindowStart(periodicStart)
 	}
 	_, err := update.Save(ctx)
-	return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrSubscriptionNotFound, nil)
+	}
+	if service.DepartmentActorID(ctx) > 0 {
+		actor, err := departmentResetActor(ctx, client)
+		if err != nil {
+			return err
+		}
+		if err = departmentAudit(ctx, client, actor, "department.reset_quota", map[string]any{"subscription_id": id, "daily": resetDaily, "weekly": resetWeekly, "monthly": resetMonthly}); err != nil {
+			return err
+		}
+	}
+	if owned != nil {
+		return owned.Commit()
+	}
+	return nil
 }
 
 func (r *userSubscriptionRepository) ResetDailyUsage(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error {
@@ -615,35 +653,16 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 	now time.Time,
 	newWindowStart time.Time,
 ) ([]service.SubscriptionCacheKey, error) {
-	var predicates []string
-	args := make([]any, 0, 8)
-	addPredicate := func(format string, value any) {
-		args = append(args, value)
-		predicates = append(predicates, fmt.Sprintf(format, len(args)))
+	ctx, departmentIDs, owned, scopeErr := r.beginDepartmentSubscriptionWrite(ctx, filter, 0, now)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
+	if owned != nil {
+		defer func() { _ = owned.Rollback() }()
 	}
 
-	predicates = append(predicates,
-		"us.deleted_at IS NULL",
-		"u.deleted_at IS NULL",
-		"g.deleted_at IS NULL",
-		"us.status = 'active'",
-	)
-	addPredicate("us.expires_at > $%d", now)
-	if filter.UserID != nil {
-		addPredicate("us.user_id = $%d", *filter.UserID)
-	}
-	if filter.GroupID != nil {
-		addPredicate("us.group_id = $%d", *filter.GroupID)
-	}
-	if filter.Platform != "" {
-		addPredicate("g.platform = $%d", filter.Platform)
-	}
-	if filter.Organization != "" {
-		addPredicate("LOWER(SPLIT_PART(u.email, '@', 2)) = $%d", subscriptionOrganizationDomain(filter.Organization))
-	}
-	if filter.Status != "" {
-		addPredicate("us.status = $%d", filter.Status)
-	}
+	predicates := dailyResetPredicates(filter, now, departmentIDs)
+	args := predicates.args
 
 	args = append(args, newWindowStart)
 	windowArg := len(args)
@@ -664,7 +683,7 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 		FROM candidates c
 		WHERE us.id = c.id
 		RETURNING us.user_id, us.group_id
-	`, strings.Join(predicates, " AND "), windowArg, updatedAtArg)
+	`, predicates.where(), windowArg, updatedAtArg)
 
 	client := clientFromContext(ctx, r.client)
 	rows, err := client.QueryContext(ctx, query, args...)
@@ -689,6 +708,22 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	_ = rows.Close()
+	if service.DepartmentActorID(ctx) > 0 {
+		actor, err := departmentResetActor(ctx, client)
+		if err != nil {
+			return nil, err
+		}
+		if err = departmentAudit(ctx, client, actor, "department.reset_daily_filtered", map[string]any{"filter": filter, "reset_count": len(keys)}); err != nil {
+			return nil, err
+		}
+	}
+	if owned != nil {
+		if err := owned.Commit(); err != nil {
+			return nil, err
+		}
+	}
+
 	return keys, nil
 }
 

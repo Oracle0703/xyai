@@ -1,0 +1,127 @@
+[
+  {
+    "method": "GET",
+    "path": "/admin/departments",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "path": "/admin/users",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "path": "/admin/usage",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "path": "/admin/subscriptions/3",
+    "status": 403
+  },
+  {
+    "method": "POST",
+    "path": "/admin/subscriptions/assign",
+    "status": 403
+  },
+  {
+    "method": "POST",
+    "path": "/admin/subscriptions/1/extend",
+    "status": 403
+  },
+  {
+    "method": "POST",
+    "path": "/admin/subscriptions/1/revoke",
+    "status": 403
+  },
+  {
+    "method": "POST",
+    "path": "/admin/subscriptions/1/restore",
+    "status": 403
+  },
+  {
+    "method": "DELETE",
+    "path": "/admin/subscriptions/1",
+    "status": 403
+  },
+  {
+    "method": "POST",
+    "path": "/admin/subscriptions/bulk-action",
+    "status": 403
+  },
+  {
+    "method": "POST",
+    "path": "/admin/subscriptions/3/reset-quota",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "path": "/admin/usage/organization-report/summary?start_date=2026-09-01&end_date=2026-09-30&organization=wsdashi",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "path": "/admin/usage/organization-report/periods?start_date=2026-09-01&end_date=2026-09-30&organization=xunyou&department_id=999999&granularity=day",
+    "status": 403
+  },
+  {
+    "method": "GET",
+    "path": "/admin/usage/organization-report/trend?start_date=2026-09-01&end_date=2026-09-30&organization=xunyou&department_id=999999&granularity=day",
+    "status": 403
+  },
+  {
+    "check": "all defaults remain within authorized department",
+    "tokens": 72,
+    "cost": 6,
+    "members": 2,
+    "used_users": 1
+  },
+  {
+    "check": "idempotent replay does not reset later usage; foreign quota and history unchanged",
+    "snapshot": {
+      "member_cost": 6,
+      "member_usage_count": 3,
+      "subscriptions": [
+        {
+          "daily": 0,
+          "email": "member.one@xunyou.com",
+          "id": 1,
+          "monthly": 5,
+          "weekly": 4
+        },
+        {
+          "daily": 0,
+          "email": "member.zero@xunyou.com",
+          "id": 2,
+          "monthly": 9,
+          "weekly": 8
+        },
+        {
+          "daily": 7,
+          "email": "member.other@wsdashi.com",
+          "id": 3,
+          "monthly": 9,
+          "weekly": 8
+        },
+        {
+          "daily": 0,
+          "email": "member.one@xunyou.com",
+          "id": 4,
+          "monthly": 5,
+          "weekly": 4
+        },
+        {
+          "daily": 1,
+          "email": "member.one@xunyou.com",
+          "id": 5,
+          "monthly": 5,
+          "weekly": 4
+        }
+      ]
+    }
+  },
+  {
+    "check": "revoked scope blocks reads and idempotent replay",
+    "status": 403
+  }
+]
