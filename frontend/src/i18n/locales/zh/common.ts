@@ -215,6 +215,8 @@ export default {
     channelPricing: '渠道定价',
     channelMonitor: '渠道监控',
     channelStatus: '渠道状态',
+    gptQuota: 'GPT 账号额度',
+    gptQuotaDisplay: 'GPT 额度展示',
     requestIntercept: '请求拦截',
     tokenAnalysis: 'Token 分析',
     promptMetrics: 'Prompt 指标',

@@ -89,6 +89,21 @@ describe('AppSidebar navigation entries', () => {
     expect(componentSource).toContain("{ path: '/affiliate', label: t('nav.affiliate'), icon: ShareIcon")
   })
 
+  it('shows the GPT quota admin entry only in the full-admin menu', () => {
+    const subAdminItems = componentSource.slice(
+      componentSource.indexOf('const subAdminNavItems'),
+      componentSource.indexOf('// Custom menu items filtered by visibility'),
+    )
+    const subAdminTemplate = componentSource.slice(
+      componentSource.indexOf('v-else-if="isSubAdmin"'),
+      componentSource.indexOf('v-for="item in subAdminNavItems"'),
+    )
+    expect(subAdminItems).not.toContain('/admin/gpt-quota')
+    expect(subAdminTemplate).not.toContain('adminNavItems')
+    expect(componentSource).toContain("{ path: '/admin/gpt-quota', label: t('nav.gptQuotaDisplay'), icon: SignalIcon }")
+    expect(componentSource).toContain("{ path: '/gpt-quota', label: t('nav.gptQuota'), icon: SignalIcon, featureFlag: flagGPTQuota }")
+  })
+
   it('renders a permission-filtered management section for sub-admins', () => {
     expect(componentSource).toContain('v-else-if="isSubAdmin"')
     expect(componentSource).toContain("t('nav.adminFeatures')")

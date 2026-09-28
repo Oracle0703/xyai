@@ -216,6 +216,17 @@ func ProvideOpenAIQuotaService(
 	return service
 }
 
+// ProvideGPTQuotaDisplayService 启动 GPT 账号额度展示的定时采集循环（展示关闭时不访问上游）。
+func ProvideGPTQuotaDisplayService(repo GPTQuotaDisplayRepository, accountRepo AccountRepository, quota *OpenAIQuotaService, locks LeaderLockCache, db *sql.DB) *GPTQuotaDisplayService {
+	var fetcher gptQuotaUsageFetcher
+	if quota != nil {
+		fetcher = quota
+	}
+	svc := NewGPTQuotaDisplayService(repo, accountRepo, fetcher, locks, db)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpenAIQuotaAutoResetService 启动账号级自动用卡队列与补偿扫描。
 func ProvideOpenAIQuotaAutoResetService(
 	accountRepo AccountRepository,
@@ -940,6 +951,7 @@ var ProviderSet = wire.NewSet(
 	ProvideGrokTokenProvider,
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
+	ProvideGPTQuotaDisplayService,
 	ProvideOpenAIQuotaAutoResetService,
 	ProvideGrokQuotaService,
 	ProvideCNProviderQuotaService,

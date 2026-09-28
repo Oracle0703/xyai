@@ -16,4 +16,12 @@ describe('sub-admin route permission metadata', () => {
       adminPermission: permission,
     })
   })
+
+  it('keeps the GPT quota display admin page full-admin only', () => {
+    const route = router.getRoutes().find((item) => item.name === 'AdminGPTQuotaDisplay')
+
+    // 无 adminPermission 时，路由守卫会把子管理员重定向到其授权落地页。
+    expect(route?.meta).toMatchObject({ requiresAuth: true, requiresAdmin: true })
+    expect(route?.meta.adminPermission).toBeUndefined()
+  })
 })

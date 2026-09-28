@@ -335,6 +335,12 @@ API 模块分布:
 - `UsageView.vue` 和 CSV 导出同时展示 requested/model、`upstream_model`、`upstream_response_model` 及 mismatch。`upstream_model_mismatch` 筛选是 true/false/不筛选三态; 记录值为 `null` 时展示空白/未观测, 不得归入 false 的“一致”集合。Dashboard trend/models/groups 请求要传递同一筛选值。
 - 注册和待完成 OAuth 邮箱页从 public settings 读取 `registration_email_suffix_whitelist` 与 `registration_email_domain_quota_enabled`。额度开启时前端可放行非白名单邮箱提交给后端做权威计数; 后端返回 `EMAIL_DOMAIN_REGISTRATION_LIMIT` 时统一映射为主域额度文案, 不在浏览器端猜测当前账户数。
 
+## GPT 账号额度展示 UI
+
+- 用户页 `/gpt-quota` 为 `views/user/GPTQuotaView.vue` + `components/user/GPTQuotaColumn.vue`：`md` 以上左迅游右速宝，窄屏单列迅游在前；15 分钟只读轮询，隐藏标签页暂停、恢复可见且间隔已到才补读，卸载时清定时器并 abort 请求；重置倒计时本地 30 秒刷新，到点只显示"已到重置时间，待更新"，不改剩余比例。
+- 管理页 `/admin/gpt-quota` 为 `views/admin/GPTQuotaDisplayView.vue`：已选条目（含失去资格条目，可直接移除）、别名、单条刷新、候选分页搜索、全量刷新与批次计数；保存携带 `expected_version`，409 提示重新读取。批次轮询只刷新服务端条目状态和计数，不覆盖未保存编辑，也不更新编辑基线 `version`（否则会绕过乐观锁）。
+- 菜单开关不走 public settings / `featureFlags.ts`：`composables/useGPTQuotaVisibility.ts` 调 `/gpt-quota/status`，opt-in（未加载或失败隐藏），用户页读取和管理员保存后同步。文案在 `i18n/locales/{zh,en}/gptQuota.ts`，导航键 `nav.gptQuota` / `nav.gptQuotaDisplay`。
+
 ## Grok 与 Codex 管理端 UI
 
 - Grok 平台已加入前端 platform 类型: `frontend/src/types/index.ts`, `frontend/src/api/admin/settings.ts`, `frontend/src/api/admin/users.ts`, `frontend/src/utils/platformColors.ts`, `PlatformIcon.vue`, `PlatformTypeBadge.vue`。
