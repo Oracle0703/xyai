@@ -1,6 +1,6 @@
 <template>
-  <section class="space-y-3" :data-testid="`gpt-quota-column-${groupKey}`">
-    <header class="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white/80 px-4 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-800/80">
+  <section class="space-y-2.5" :data-testid="`gpt-quota-column-${groupKey}`">
+    <header class="flex items-center justify-between rounded-xl border border-gray-200/80 bg-white/80 px-3.5 py-2.5 shadow-sm dark:border-dark-700 dark:bg-dark-800/80">
       <div class="flex items-center gap-2.5">
         <span class="h-2.5 w-2.5 rounded-full" :class="groupKey === 'xunyou' ? 'bg-sky-500' : 'bg-violet-500'" />
         <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ title }}</h2>
@@ -12,7 +12,7 @@
       {{ t('gptQuota.emptyGroup') }}
     </div>
 
-    <article v-for="item in items" :key="item.id" class="group rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-800/80 dark:hover:border-primary-800" data-testid="gpt-quota-card">
+    <article v-for="item in items" :key="item.id" class="group rounded-xl border border-gray-200/80 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-800/80 dark:hover:border-primary-800" data-testid="gpt-quota-card">
       <div class="flex items-center justify-between gap-2">
         <strong class="truncate text-sm font-semibold text-gray-900 dark:text-white" :title="item.display_name">
           {{ item.display_name }}
@@ -20,19 +20,21 @@
         <span v-if="item.stale" class="badge badge-warning shrink-0">{{ t('gptQuota.stale') }}</span>
       </div>
 
-      <p v-if="!item.sampled_at" class="mt-3 text-sm text-gray-500 dark:text-dark-400">{{ t('gptQuota.noData') }}</p>
+      <p v-if="!item.sampled_at" class="mt-2.5 text-sm text-gray-500 dark:text-dark-400">{{ t('gptQuota.noData') }}</p>
       <template v-else>
-        <div v-for="row in windowRows(item)" :key="row.key" class="mt-3">
-          <div class="flex items-center justify-between text-sm">
-            <span class="text-gray-600 dark:text-dark-300">{{ row.label }}</span>
-            <span class="font-medium tabular-nums text-gray-900 dark:text-white">{{ row.value }}</span>
+        <div class="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+          <div v-for="row in windowRows(item)" :key="row.key" class="rounded-lg bg-gray-50/90 px-3 py-2 dark:bg-dark-900/50">
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span class="text-gray-600 dark:text-dark-300">{{ row.label }}</span>
+              <span class="font-semibold tabular-nums text-gray-900 dark:text-white">{{ row.value }}</span>
+            </div>
+            <div v-if="row.window" class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-200/80 dark:bg-dark-700">
+              <div class="h-full rounded-full transition-all" :class="barClass(row.window.remaining_percent)" :style="{ width: `${row.window.remaining_percent}%` }" />
+            </div>
+            <p v-if="row.window" class="mt-1 truncate text-[11px] text-gray-500 dark:text-dark-400" :title="row.resetTitle">{{ row.reset }}</p>
           </div>
-          <div v-if="row.window" class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
-            <div class="h-full rounded-full transition-all" :class="barClass(row.window.remaining_percent)" :style="{ width: `${row.window.remaining_percent}%` }" />
-          </div>
-          <p v-if="row.window" class="mt-1 text-xs text-gray-500 dark:text-dark-400" :title="row.resetTitle">{{ row.reset }}</p>
         </div>
-        <p class="mt-3 text-xs text-gray-400 dark:text-dark-500">
+        <p class="mt-2.5 text-[11px] text-gray-400 dark:text-dark-500">
           {{ t('gptQuota.sampledAt', { time: formatDateTimeToMinute(item.sampled_at) }) }}
         </p>
       </template>
