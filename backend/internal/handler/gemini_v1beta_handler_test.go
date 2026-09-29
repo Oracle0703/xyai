@@ -224,7 +224,7 @@ func TestGeminiConcurrencyErrorStatus_CacheFailureIsServiceUnavailable(t *testin
 	c, _ := gin.CreateTestContext(rec)
 	err := service.NewConcurrencyCacheError("user", errors.New("redis down"))
 
-	googleConcurrencyError(c, err)
+	googleConcurrencyError(c, err, "user")
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }

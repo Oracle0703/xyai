@@ -1,5 +1,12 @@
 # 运维, 配置与验证基线
 
+## 0.2.9 合并与验证基线
+
+- 本轮 default 全量、前端 lint/typecheck/373 files・2810 tests/build、normal/embed build、tidy 和增量 lint（0 issues）通过。unit 的 service 包被本地 main 已有 `ptrFloat` 重复测试声明阻塞；integration 退出 0 但有 18 个显式 skip 及 Docker 缺失的 repository 整包跳过，不是完整集成验收。
+- 固定上游 `9a62841fd124d026cf3694fcf9b79e98addcdbdc`，分支 `feature/hy/10211_merge_sub2api_209`，第一父为本地 `main@7373dc2674be8266cd048b7a79e0c184650a3f8b`；保持未提交合并状态，等待审核。
+- 三份 `deploy/docker-compose*.yml` 将 Redis command 改为 exec 数组，密码仍取 `REDIS_PASSWORD`；setup 新写配置不再生成已废弃 `rate_limit` 默认节，不主动修改现有配置。
+- 验证沿用 repo-local Go cache、每组 fresh GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git 的 `usr/bin` 以满足 `sh`；结果和环境边界见 `docs/delivery/2026-09-29-sub2api-v0.2.9-sync/review.md`。本轮无 schema/provider 变化，不重生成 Ent/Wire。
+
 ## 部门功能验证与上线
 
 状态：2026-09-20 S1–S6/RV1–RV8 本机隔离验收完成。Go default/unit、11 组真实 PG、前端 329 files / 2,459 tests、lint/typecheck/build、normal/embed build 通过。旧日志与首次失败保留，证据见部门验收表。RV3-O/RV4-O 未启用。
@@ -16,7 +23,7 @@
 
 - 本地 `main@abd369d942b55a1a3314f386b51269cdf8210ec8` 创建 `feature/hy/10210_merge_sub2api_208`，固定上游 `main@a3eb7ef302961cba716dc78b39b93b60c467db0e`，`VERSION=0.2.8`，merge base=`fbb9006adef852c46f0c7f18b0a8a740722cfac7`。普通 merge 仅有 `.gitignore`、`backend/cmd/server/wire_gen.go` 两个文本冲突；Wire 保留本地 provider 链并接入 OpenCode Go/Claude Code 服务。
 - `go test ./...` 编译与绝大多数包通过；3 个 `backup_pg_dumper` 用例因 Windows PATH 缺少 `sh.exe` 失败，属于环境/上游测试边界，本轮不改。前端 `pnpm run lint:check`、`pnpm run typecheck`、`pnpm run test:run` 通过，Vitest 364 files / 2718 tests。
-- 当前保持 `MERGE_HEAD`，不提交、不推送；只解决冲突及必要的重复 provider 合并，不修复上游自身问题。
+- 0.2.8 当轮仅解决冲突及必要的重复 provider 合并，不修复上游自身问题；该目标现已包含在本地 main 历史中。
 
 ## 0.2.7 合并与验证基线
 
@@ -497,7 +504,7 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - systemd: `deploy/sub2api.service`, `deploy/sub2api-datamanagementd.service`。
 - 安装脚本: `deploy/install.sh`, `deploy/docker-deploy.sh`, `deploy/install-datamanagementd.sh`。
 - Caddy 示例: `deploy/Caddyfile`; 只负责 TLS/反向代理, 不负责静态资源 immutable 分类, 该规则由 embedded backend 按 filename fingerprint 判定。
-- Edge 基线见 `deploy/EDGE_SECURITY.md`; bundled Caddyfile 以直连 Caddy 为前提, CDN 前置时必须改用精确 trusted proxy CIDR 与 `{client_ip}`。Dockerfile 使用宿主架构 Go 交叉编译目标镜像, Apple Silicon 构建 amd64 不再依赖 QEMU 执行 Go；`deploy/docker-compose.yml` 的 Redis 多行 command 每行必须保留续行反斜杠, 否则持久化参数不会传给 `redis-server`。
+- Edge 基线见 `deploy/EDGE_SECURITY.md`; bundled Caddyfile 以直连 Caddy 为前提, CDN 前置时必须改用精确 trusted proxy CIDR 与 `{client_ip}`。Dockerfile 使用宿主架构 Go 交叉编译目标镜像, Apple Silicon 构建 amd64 不再依赖 QEMU 执行 Go；三份 `deploy/docker-compose*.yml` 的 Redis command 已改为 exec 数组，直接传递持久化参数与 `REDIS_PASSWORD`，不再依赖 shell 续行。
 
 ## 常见维护陷阱
 

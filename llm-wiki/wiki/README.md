@@ -7,9 +7,9 @@
 - 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
 - 2026-09-21 代码精简与复审见 `docs/features/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
 - 同日实现审核见 `docs/features/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
-- 未推送、部署或合回 main；创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
+- 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
-更新时间: 2026-09-28
+更新时间: 2026-09-29
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -20,7 +20,9 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
-- 2026-09-28 从本地 `main@abd369d942b55a1a3314f386b51269cdf8210ec8` 创建 `feature/hy/10210_merge_sub2api_208`，固定合入 `Wei-Shaw/sub2api main@a3eb7ef302961cba716dc78b39b93b60c467db0e`（`VERSION=0.2.8`，merge base=`fbb9006adef852c46f0c7f18b0a8a740722cfac7`）。上游增量 222 commits、439 paths（+25657/-1573）；仅 `.gitignore` 与 `backend/cmd/server/wire_gen.go` 发生文本冲突。冲突保留本地 features、组织用量、Token Analysis、并发预设、插件目录接线等能力，并接入上游 OpenCode Go 用量与 Claude Code 版本同步；重叠的 `ProvidePluginManager` 仅保留一个等价 provider。当前 `MERGE_HEAD` 固定为目标 SHA，未 commit、未 push，等待审核；上游 `backup_pg_dumper` 的 3 个测试因 Windows 缺少 `sh.exe` 失败，未修复。前端 lint/typecheck/Vitest 全部通过（364 files / 2718 tests）。详见 `docs/features/sub2api -merage-list.md`。
+- 2026-09-29 从本地 `main@7373dc2674be8266cd048b7a79e0c184650a3f8b` 创建 `feature/hy/10211_merge_sub2api_209`，固定合入 `Wei-Shaw/sub2api main@9a62841fd124d026cf3694fcf9b79e98addcdbdc`（`VERSION=0.2.9`，merge base=`a3eb7ef302961cba716dc78b39b93b60c467db0e`）。70 commits / 117 paths，仅 Gemini 并发处理和并发测试两个文本冲突；采用上游统一映射并保留本地缓存故障 503，适配一个本地测试调用。12 个双方修改路径已核对，保留本地独有功能；本轮仅解决冲突，不修上游 bug。合并提交待审核，验证见 `docs/delivery/2026-09-29-sub2api-v0.2.9-sync/review.md`。
+
+- 2026-09-28 从本地 `main@abd369d942b55a1a3314f386b51269cdf8210ec8` 创建 `feature/hy/10210_merge_sub2api_208`，固定合入 `Wei-Shaw/sub2api main@a3eb7ef302961cba716dc78b39b93b60c467db0e`（`VERSION=0.2.8`，merge base=`fbb9006adef852c46f0c7f18b0a8a740722cfac7`）。上游增量 222 commits、439 paths（+25657/-1573）；仅 `.gitignore` 与 `backend/cmd/server/wire_gen.go` 发生文本冲突。冲突保留本地 features、组织用量、Token Analysis、并发预设、插件目录接线等能力，并接入上游 OpenCode Go 用量与 Claude Code 版本同步；重叠的 `ProvidePluginManager` 仅保留一个等价 provider。该轮 merge commit 为 `253496336`，已包含在本地 main 历史中；当轮上游 `backup_pg_dumper` 的 3 个测试因 Windows 缺少 `sh.exe` 失败，未修复。前端 lint/typecheck/Vitest 全部通过（364 files / 2718 tests）。详见 `docs/features/sub2api -merage-list.md`。
 
 - 2026-09-20 从本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 创建 `feature/hy/10207_merge_sub2api_207`，固定合入 `Wei-Shaw/sub2api main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`（`0.2.7`）。上游重写历史，共同祖先退至 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`；按用户确认移除已撤下的 Codex ticket，保留 25 个 feature 文档和本地独有能力。合入 Seedance、TypeSafe 独立引擎、插件 HostService/KV/账号目录及网关兼容更新；解决 VERSION、ticket 移除和 Prompt Risk 抽取接口冲突，不修复上游自身问题。当前 `MERGE_HEAD` 固定为目标，等待提交前审核；详见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。
 

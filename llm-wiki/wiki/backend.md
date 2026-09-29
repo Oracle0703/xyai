@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.2.9 网关同步合同
+
+- Gemini 并发错误统一走 `concurrencyErrorResponse(err, slotType)`：沿用上游取消 499、真实并发/队列耗尽 429；本地 `ConcurrencyCacheError` 的脱敏 503 映射继续保留。`service.ParseGeminiModelActionPath` 仍为本地统一路径解析入口。
+- `group_model_allowlist.go` 支持任意位置 `*`、忽略大小写、整串匹配；passthrough OpenAI 账号参与默认模型补全。列表仅枚举可确定的模式交集，不能把列表缺项直接判定为不可请求。
+- Codex WebSocket `client_metadata.x-codex-window-id`（或 turn metadata 的 `window_id`）变化时删除旧 `previous_response_id` 并停止推断旧窗口续接锚点；仅在成功 turn 后记住新窗口 ID。
+- HTTP OAuth Responses 仅剔除 legacy `responses=experimental` beta，保留 multi-agent 等独立 beta；Chat → Responses 的 role item 显式带 `type=message`，保留本地 cache key、previous response、流式生命周期字段及第三方参数过滤。
+- OpenCode Zen/Go 的 DeepSeek 模型复用 reasoning placeholder 逻辑；Anthropic → Responses 支持 block-start 工具输入恢复与 thinking disabled 映射；Responses → Chat 补充空 final text 恢复。以上直接同步固定上游实现，本轮不做额外缺陷修补。
+
 
 ## 部门管理与用量范围
 

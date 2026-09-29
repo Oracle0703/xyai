@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.9 前端同步合同
+
+- 分组模型白名单允许任意位置的 `*`（例如 `gpt-*-codex`）；前端校验与提示随 `groupModelAllowlist.ts` / 后端 glob 合同同步。
+- 模型广场展示视频倍率；账号用量条在 idle 状态也展示 reset 倒计时；分组 RPM/倍率弹窗清理异步请求状态。
+- Codex 使用说明在 Windows 也使用 `~/` 模型目录路径；CC Switch 导出保留 provider 根端点并规范 usage `/v1` 路径。本地组织/部门报表、Token Analysis 和权限入口不受此次上游 UI 改动影响。
+
 
 ## 部门管理与负责人入口
 

@@ -2035,3 +2035,22 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 本地 features | 相对本地 main 的 `docs/features/` 无删除或改动；RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织用量、子管理员、并发预设、quota flusher 等继续保留。 |
 | 验证结果 | `git diff --check` 通过；前端 lint/typecheck/Vitest 通过（364 files、2718 tests）；Go 全量编译及绝大多数测试通过，仅 `backup_pg_dumper` 3 个用例因 Windows 缺少 `sh.exe` 失败。 |
 | 交付状态 | 仅解决冲突和必要重复定义，未 commit、未 push、未创建 PR、未部署；等待用户审核后再决定 commit。 |
+
+
+## 2026-09-29 v0.2.9 exact-SHA merge awaiting review
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 / 工作分支 | 2026-09-29 / `feature/hy/10211_merge_sub2api_209` |
+| 本地 main / 第一父 | `7373dc2674be8266cd048b7a79e0c184650a3f8b` |
+| 上游分支 / 第二父 | `Wei-Shaw/sub2api main` / `9a62841fd124d026cf3694fcf9b79e98addcdbdc`，`VERSION=0.2.9` |
+| 共同祖先 / 增量 | `a3eb7ef302961cba716dc78b39b93b60c467db0e`；70 commits、117 paths、+3133/-378 |
+| 合并提交 | 尚未创建；`MERGE_HEAD` 固定为目标 SHA，等待审核 |
+| 冲突文件 | `backend/internal/handler/concurrency_error_response_test.go`、`backend/internal/handler/gemini_v1beta_handler.go` |
+| 处理方式 | 保留双方测试 import；Gemini 重叠并发处理采用上游统一映射及 slotType 参数，保留本地缓存故障脱敏 503 和统一路径解析；`gemini_v1beta_handler_test.go` 仅补调用参数。12 个双方修改路径已做语义核对，不修复上游自身 bug。 |
+| 本地功能 | 36 个 tracked features 文件/资源保留，105 个仅上游路径逐 blob 等于目标；保留归档/拦截、Prompt Metrics/Risk、组织/部门、Token Analysis、子管理员、自助重置、GPT 额度展示、并发预设、quota flusher 和兼容参数/计费扩展。 |
+| 验证结果 | default、专项、normal/embed build、tidy、增量 lint 0 issues、前端 lint/typecheck/build 与 373 files / 2810 tests 通过；unit 因本地 main 已有两个 ptrFloat 测试 helper 重复声明导致 service 编译失败；integration 退出 0 但 18 个显式 skip，repository 因 Docker 不可用整包跳过。未将其表述为全绿。 |
+| 文档与图谱 | 更新 README/backend/frontend/data/security/ops，刷新 wiki 图谱；完整证据见 `docs/delivery/2026-09-29-sub2api-v0.2.9-sync/review.md`。 |
+| 交付状态 | 未 commit、未 push、未创建 PR、未部署，等待提交前人工审核。 |
+
+历史状态补记：上一条 0.2.8 记录中的待审核合并，实际已由 `253496336` 创建 merge commit 并包含在当前本地 main 中；本次仅追加事实，不改写历史台账条目。
