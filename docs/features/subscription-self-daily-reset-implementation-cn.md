@@ -176,11 +176,13 @@ SELECT quota_date, organization, count(DISTINCT subscription_id) AS subscription
        sum(daily_usage_usd_before) AS usd_cleared
   FROM subscription_self_reset_events GROUP BY 1, 2 ORDER BY 1 DESC, 2 LIMIT 21;
 
--- 历史表与状态表当天计数应一致：有结果说明写入不同步
-SELECT u.subscription_id, u.used_count, count(e.id) AS events
+-- 历史表与状态表计数应一致：有结果说明写入不同步（多为仍有实例跑旧版本）
+-- 按 242 应用时间过滤，不用 CURRENT_DATE：数据库会话时区可能不是服务时区，且 242 之前的重置本来就没有历史
+SELECT u.subscription_id, u.quota_date, u.used_count, count(e.id) AS events
   FROM subscription_self_daily_reset_usage u
   LEFT JOIN subscription_self_reset_events e ON e.subscription_id = u.subscription_id AND e.quota_date = u.quota_date
- WHERE u.quota_date = CURRENT_DATE GROUP BY 1, 2 HAVING u.used_count <> count(e.id);
+ WHERE u.updated_at >= (SELECT applied_at FROM schema_migrations WHERE filename = '242_subscription_self_reset_events.sql')
+ GROUP BY 1, 2, 3 HAVING u.used_count <> count(e.id);
 
 -- 超过上限的计数：各组织上限都是 1 时应无结果；上限改过就把 1 换成最大上限
 SELECT * FROM subscription_self_daily_reset_usage

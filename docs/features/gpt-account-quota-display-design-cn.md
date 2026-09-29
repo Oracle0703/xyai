@@ -238,7 +238,7 @@
 | 仓储 | `backend/internal/repository/gpt_quota_display_repo.go` |
 | Handler 与路由 | `backend/internal/handler/gpt_quota_display_handler.go`；`backend/internal/server/routes/user.go`、`admin.go` |
 | Wire | `ProvideGPTQuotaDisplayService` 构造时 `Start()`；`provideCleanup` 调用 `Stop()` |
-| 前端 | `frontend/src/api/gptQuotaDisplay.ts`、`views/user/GPTQuotaView.vue`、`components/user/GPTQuotaColumn.vue`、`views/admin/GPTQuotaDisplayView.vue`、`composables/useGPTQuotaVisibility.ts`、`i18n/locales/{zh,en}/gptQuota.ts` |
+| 前端 | `frontend/src/api/gptQuotaDisplay.ts`、`views/user/GPTQuotaView.vue`、`components/user/GPTQuotaColumn.vue`、`views/admin/GPTQuotaDisplayView.vue`、`components/admin/gpt-quota/GPTQuotaAccountPickerDialog.vue`、`composables/useGPTQuotaVisibility.ts`、`i18n/locales/{zh,en}/gptQuota.ts` |
 
 ### 13.2 最终接口
 
@@ -263,6 +263,7 @@
 - **默认展示名**：前缀加原样编号（`c-01`）；无编号时为前缀加 `#条目ID`，避免多张卡片同名。别名先去首尾空白再校验，另拒绝含 `sk-`、UUID 片段或 20 位以上连续字母数字的内容。
 - **排序**：迅游固定在速宝之前（用户页、管理页已选列表、候选列表一致）；同组内有编号的按数值升序（`c-002` 在 `c-10` 前），无编号的排在后面，再按规范化名称和账号 ID。
 - **保存**：管理页的批次进度轮询只刷新条目状态和计数，不更新编辑基线的 `version`，避免本地未保存修改绕过乐观锁。新增条目必须通过资格与前缀校验。已保存但后来失去资格（删除、改为 PAT/shadow、改名）的条目可以保留或移除，不挡保存；用户侧和采集仍排除这些条目。
+- **选择账号**（2026-09-29 调整）：候选账号从页面右栏改为“选择账号”弹窗勾选。打开时默认勾选当前本地选择（含未保存新增），勾选草稿跨分页/搜索保留，取消或关闭即丢弃；不合格候选不能勾选，已选但失去资格的可以取消；候选接口只返回未删除的 OpenAI OAuth 账号，因此弹窗顶部“已选”区列出全部勾选项，已删除或改类型的账号也能在此取消。候选加载失败时清空当前条目并显示错误与重试，不展示与页码/搜索不一致的旧结果。弹窗“保存”只更新本地选择并关闭，点击“保存配置”才提交；本次移除后又勾回的已保存账号恢复服务端别名。
 - **过期**：取最近一个已过 5 分钟宽限的计划时点 S，`sampled_at` 早于 S 减 60 秒（冷却提前量）即 stale；夜间不因时间流逝变成过期。从未成功采集时 `sampled_at` 为 null，前端显示"暂无数据"。
 - **时区**：排程、过期判断与"下次计划采集"固定使用 Asia/Shanghai（缺少 tzdata 时回落 UTC+8），不再跟随全局 `timezone` 配置，避免部署为 UTC 时采集时段偏移。
 - **排程**：每 30 秒检查一次。顺序为：读取已选条目 → 以检查并设置的方式原子占用本实例批次 → 条件领取槽位 → 执行批次。读取失败、手动批次执行中或领取失败都不消耗槽位（领取失败时释放占用并恢复上一批次统计），在槽位有效期内下次检查重试；定时批次占用后，同实例的手动全量刷新返回 409，避免"槽位已领取但批次未执行"。槽位只在该时点到下一时点之间有效（18:00 末槽宽限 5 分钟），所以重启只补最近一个到期槽位。开启展示或修改间隔时，保存事务把 `last_slot_at` 抬到保存时刻（只进不退），当前已过的槽位不会被隐式补跑，等待下一计划时点。批次并发 3，单批上限 25 分钟，leader lock TTL 30 分钟；每次派发前重读开关，关闭展示后不再派发新请求；批次结束时若已跨过下一槽位，直接领取该槽位并记录 skipped 日志，不补跑。
