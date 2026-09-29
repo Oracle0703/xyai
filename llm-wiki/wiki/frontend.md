@@ -355,7 +355,7 @@ API 模块分布:
 ## GPT 账号额度展示 UI
 
 - 用户页 `/gpt-quota` 为 `views/user/GPTQuotaView.vue` + `components/user/GPTQuotaColumn.vue`：`md` 以上左迅游右速宝，窄屏单列迅游在前；15 分钟只读轮询，隐藏标签页暂停、恢复可见且间隔已到才补读，卸载时清定时器并 abort 请求；重置倒计时本地 30 秒刷新，到点只显示"已到重置时间，待更新"，不改剩余比例。
-- 管理页 `/admin/gpt-quota` 为 `views/admin/GPTQuotaDisplayView.vue`：已选条目（含失去资格条目，可直接移除）、别名、单条刷新、候选分页搜索、全量刷新与批次计数；保存携带 `expected_version`，409 提示重新读取。批次轮询只刷新服务端条目状态和计数，不覆盖未保存编辑，也不更新编辑基线 `version`（否则会绕过乐观锁）。
+- 管理页 `/admin/gpt-quota` 为 `views/admin/GPTQuotaDisplayView.vue`：已选条目（含失去资格条目，可直接移除）、别名、单条刷新、全量刷新与批次计数；候选账号在 `components/admin/gpt-quota/GPTQuotaAccountPickerDialog.vue` 弹窗中分页搜索勾选，打开时默认勾选当前本地选择（含未保存新增），顶部“已选”区列出全部勾选项（含已删除/非 OpenAI OAuth 等候选接口不返回的账号）可直接取消；勾选草稿跨页保留、取消即丢弃；每次打开清空旧列表，加载失败清空条目并显示错误与重试（保留总数和当前页），加载中禁用勾选；弹窗“保存”只改本地选择，点“保存配置”才提交，勾回本次移除的已保存账号恢复服务端别名；保存携带 `expected_version`，409 提示重新读取。批次轮询只刷新服务端条目状态和计数，不覆盖未保存编辑，也不更新编辑基线 `version`（否则会绕过乐观锁）。
 - 菜单开关不走 public settings / `featureFlags.ts`：`composables/useGPTQuotaVisibility.ts` 调 `/gpt-quota/status`，opt-in（未加载或失败隐藏），用户页读取和管理员保存后同步。文案在 `i18n/locales/{zh,en}/gptQuota.ts`，导航键 `nav.gptQuota` / `nav.gptQuotaDisplay`。
 
 ## Grok 与 Codex 管理端 UI

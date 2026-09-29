@@ -1,20 +1,24 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <header class="flex flex-wrap items-start justify-between gap-3">
+    <div class="space-y-6 pb-8">
+      <header class="relative overflow-hidden rounded-3xl border border-primary-100 bg-gradient-to-br from-primary-50 via-white to-indigo-50 p-6 shadow-sm dark:border-primary-900/40 dark:from-primary-950/40 dark:via-dark-900 dark:to-indigo-950/30 sm:p-8">
+        <div class="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary-300/20 blur-3xl dark:bg-primary-500/10" />
+        <div class="relative flex flex-wrap items-start justify-between gap-4">
         <div class="space-y-1">
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('gptQuota.admin.title') }}</h1>
-          <p class="text-sm text-gray-600 dark:text-dark-300">{{ t('gptQuota.admin.description') }}</p>
+          <div class="inline-flex items-center gap-2 rounded-full bg-primary-100/80 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">GPT · ADMIN</div>
+          <h1 class="pt-1 text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">{{ t('gptQuota.admin.title') }}</h1>
+          <p class="max-w-2xl text-sm leading-6 text-gray-600 dark:text-dark-300">{{ t('gptQuota.admin.description') }}</p>
         </div>
-        <div class="flex gap-2">
-          <button class="btn btn-secondary btn-sm" :disabled="loading" @click="reloadAll">{{ t('gptQuota.admin.reload') }}</button>
-          <button class="btn btn-secondary btn-sm" :disabled="refreshingAll || batch?.running || !serverConfig?.enabled" data-testid="gpt-quota-refresh-all" @click="refreshAll">
+        <div class="relative flex gap-2">
+          <button class="btn btn-secondary btn-sm shadow-sm" :disabled="loading" @click="reloadAll">{{ t('gptQuota.admin.reload') }}</button>
+          <button class="btn btn-primary btn-sm shadow-sm" :disabled="refreshingAll || batch?.running || !serverConfig?.enabled" data-testid="gpt-quota-refresh-all" @click="refreshAll">
             {{ t('gptQuota.admin.refreshAll') }}
           </button>
         </div>
+        </div>
       </header>
 
-      <section class="card space-y-4 p-5">
+      <section class="card space-y-4 border-primary-100 p-5 shadow-sm dark:border-primary-900/40 sm:p-6">
         <div class="flex flex-wrap items-center justify-between gap-4">
           <label class="flex items-center gap-3">
             <Toggle v-model="enabled" />
@@ -46,8 +50,13 @@
         </div>
       </section>
 
-      <section class="card space-y-3 p-5">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('gptQuota.admin.selectedTitle', { count: selections.length }) }}</h2>
+      <section class="card space-y-3 p-5 shadow-sm sm:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('gptQuota.admin.selectedTitle', { count: selections.length }) }}</h2>
+          <button class="btn btn-secondary btn-sm" :disabled="loading || !serverConfig" data-testid="gpt-quota-pick" @click="pickerOpen = true">
+            {{ t('gptQuota.admin.pickAccounts') }}
+          </button>
+        </div>
         <p class="input-hint">{{ t('gptQuota.admin.aliasHint') }}</p>
         <p v-if="!selections.length" class="py-4 text-sm text-gray-500 dark:text-dark-400">{{ t('gptQuota.admin.selectedEmpty') }}</p>
         <div v-else class="overflow-x-auto">
@@ -111,44 +120,13 @@
           </table>
         </div>
       </section>
-
-      <section class="card space-y-3 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('gptQuota.admin.candidatesTitle') }}</h2>
-            <p class="input-hint">{{ t('gptQuota.admin.candidatesHint') }}</p>
-          </div>
-          <input v-model="search" class="input w-64 py-1.5 text-sm" :placeholder="t('gptQuota.admin.searchPlaceholder')" @keyup.enter="searchCandidates" />
-        </div>
-        <ul class="divide-y divide-gray-100 dark:divide-dark-700">
-          <li v-for="candidate in candidates.items" :key="candidate.account_id" class="flex items-center justify-between gap-3 py-2">
-            <div class="min-w-0">
-              <div class="truncate text-sm text-gray-900 dark:text-white">{{ candidate.account_name }}</div>
-              <div class="mt-0.5 flex gap-1">
-                <span v-if="candidate.group" class="badge badge-gray">{{ t(`gptQuota.groups.${candidate.group}`) }}</span>
-                <span v-if="!candidate.eligible" class="badge badge-danger">{{ reasonLabel(candidate.reason) }}</span>
-              </div>
-            </div>
-            <button
-              class="btn btn-secondary btn-sm shrink-0"
-              :disabled="!candidate.eligible || isSelected(candidate.account_id)"
-              data-testid="gpt-quota-add"
-              @click="addCandidate(candidate)"
-            >
-              {{ isSelected(candidate.account_id) ? t('gptQuota.admin.added') : t('gptQuota.admin.add') }}
-            </button>
-          </li>
-        </ul>
-        <Pagination
-          v-if="candidates.total > candidatePageSize"
-          :total="candidates.total"
-          :page="candidatePage"
-          :page-size="candidatePageSize"
-          :show-page-size-selector="false"
-          @update:page="changeCandidatePage"
-        />
-      </section>
     </div>
+    <GPTQuotaAccountPickerDialog
+      :show="pickerOpen"
+      :selected="pickerSelected"
+      @close="pickerOpen = false"
+      @confirm="applyPicked"
+    />
   </AppLayout>
 </template>
 
@@ -157,17 +135,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Toggle from '@/components/common/Toggle.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import GPTQuotaAccountPickerDialog from '@/components/admin/gpt-quota/GPTQuotaAccountPickerDialog.vue'
 import {
   getAdminGPTQuota,
-  listGPTQuotaCandidates,
   refreshAllGPTQuota,
   refreshGPTQuotaEntry,
   saveGPTQuotaConfig,
   type GPTQuotaAdminEntry,
   type GPTQuotaBatchStatus,
   type GPTQuotaCandidate,
-  type GPTQuotaCandidatePage,
   type GPTQuotaConfig,
   type GPTQuotaGroupKey,
   type GPTQuotaSchedule,
@@ -201,11 +177,7 @@ const enabled = ref(false)
 const interval = ref(30)
 const selections = ref<GPTQuotaSelection[]>([])
 const addedMeta = ref<Record<number, GPTQuotaCandidate>>({})
-
-const search = ref('')
-const candidatePage = ref(1)
-const candidatePageSize = 20
-const candidates = ref<GPTQuotaCandidatePage>({ items: [], total: 0, page: 1, page_size: candidatePageSize })
+const pickerOpen = ref(false)
 
 let batchTimer: number | undefined
 let disposed = false
@@ -248,6 +220,11 @@ const selectionRows = computed<SelectionRow[]>(() =>
   }),
 )
 
+// 弹窗已选区需要展示所有已选账号（含已删除等不在候选列表里的），沿用表格行的名称与资格。
+const pickerSelected = computed<GPTQuotaCandidate[]>(() =>
+  selectionRows.value.map((row) => ({ account_id: row.account_id, account_name: row.account_name, group: row.group, eligible: row.eligible, reason: row.reason, selected: true })),
+)
+
 const dirty = computed(() => {
   if (!serverConfig.value) return false
   if (enabled.value !== serverConfig.value.enabled || interval.value !== serverConfig.value.interval_minutes) return true
@@ -277,14 +254,10 @@ function applyAdminView(resetEdits: boolean) {
   })
 }
 
-async function loadCandidates() {
-  candidates.value = await listGPTQuotaCandidates({ search: search.value.trim() || undefined, page: candidatePage.value, page_size: candidatePageSize })
-}
-
 async function reloadAll() {
   loading.value = true
   try {
-    await Promise.all([applyAdminView(true), loadCandidates()])
+    await applyAdminView(true)
   } catch (err) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
   } finally {
@@ -292,24 +265,13 @@ async function reloadAll() {
   }
 }
 
-function searchCandidates() {
-  candidatePage.value = 1
-  void loadCandidates().catch((err) => appStore.showError(extractApiErrorMessage(err, t('common.error'))))
-}
-
-function changeCandidatePage(page: number) {
-  candidatePage.value = page
-  void loadCandidates().catch((err) => appStore.showError(extractApiErrorMessage(err, t('common.error'))))
-}
-
-function isSelected(accountId: number) {
-  return selections.value.some((selection) => selection.account_id === accountId)
-}
-
-function addCandidate(candidate: GPTQuotaCandidate) {
-  if (!candidate.eligible || isSelected(candidate.account_id)) return
-  addedMeta.value = { ...addedMeta.value, [candidate.account_id]: candidate }
-  selections.value = [...selections.value, { account_id: candidate.account_id, display_name: '' }]
+// 弹窗勾选结果只更新本地选择，点击“保存配置”才提交。保留账号沿用已编辑的展示名；
+// 本次移除后又勾回的已保存账号恢复服务端展示名。
+function applyPicked(ids: number[], meta: Record<number, GPTQuotaCandidate>) {
+  const current = new Map(selections.value.map((selection) => [selection.account_id, selection]))
+  selections.value = ids.map((id) => current.get(id) ?? { account_id: id, display_name: entryByAccount.value.get(id)?.display_name ?? '' })
+  addedMeta.value = { ...addedMeta.value, ...meta }
+  pickerOpen.value = false
 }
 
 // 已失去资格的条目也能直接移除，避免挡住保存。
@@ -330,7 +292,7 @@ async function save() {
     setGPTQuotaVisibility(result.config.enabled)
     appStore.showSuccess(t('gptQuota.admin.saved'))
     for (const warning of result.warnings ?? []) appStore.showError(t(`gptQuota.admin.warnings.${warning}`))
-    await Promise.all([applyAdminView(true), loadCandidates()])
+    await applyAdminView(true)
   } catch (err) {
     appStore.showError(extractApiErrorMessage(err, t('common.error'), { GPT_QUOTA_CONFIG_CONFLICT: t('gptQuota.admin.conflict') }))
   } finally {
