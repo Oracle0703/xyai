@@ -42,6 +42,11 @@ var cursorResponsesUnsupportedFields = []string{
 // (c) 解析后的计费模型是推理模型;(d) 客户端没通过 reasoning_effort / reasoning.effort /
 // 模型名后缀指定过 effort。任一不满足返回原 body。
 func applyDefaultOpenAIReasoningEffort(body []byte, account *Account, defaultMappedModel, configEffort string) []byte {
+	// "none" is an explicit opt-out for the site-wide default. It must not be
+	// injected into requests that did not opt into a reasoning effort.
+	if strings.EqualFold(strings.TrimSpace(configEffort), "none") {
+		return body
+	}
 	def := normalizeOpenAIReasoningEffort(configEffort)
 	if def == "" {
 		return body

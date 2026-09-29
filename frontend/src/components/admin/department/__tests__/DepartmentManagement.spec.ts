@@ -168,17 +168,47 @@ describe('department administration', () => {
     wrapper.unmount()
   })
 
-  it('preserves other department grants and requires explicit replacement of global subscription access', async () => {
+  it('does not revive dormant grants and requires explicit replacement of global subscription access', async () => {
     const wrapper = mount(DepartmentAccessDialog, { props: { show: true, department }, global: { stubs } })
     await flushPromises()
     await wrapper.get('select').setValue('99')
     await flushPromises()
-    expect(wrapper.get('[data-testid="save-department-access"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="save-department-access"]').attributes('disabled')).toBeUndefined()
+    const currentGrant = wrapper.findAll('label').find(label => label.text().includes('admin.departments.allowDepartment'))!
+    await currentGrant.get('input').setValue(true)
+    const resetPermission = wrapper.findAll('label').find(label => label.text().includes('admin.departments.resetPermission'))!
+    await resetPermission.get('input').setValue(true)
     const replacement = wrapper.findAll('label').find(label => label.text().includes('admin.departments.replaceGlobal'))!
+    expect(wrapper.get('[data-testid="save-department-access"]').attributes('disabled')).toBeDefined()
     await replacement.get('input').setValue(true)
     await wrapper.get('[data-testid="save-department-access"]').trigger('click')
     await flushPromises()
-    expect(api.setAccess).toHaveBeenCalledWith(99, { department_ids: [7, 8], report: true, reset_quota: true, replace_global_subscriptions: true, expected_version: 'grant-v1' })
+    expect(api.setAccess).toHaveBeenCalledWith(99, { department_ids: [7], report: false, reset_quota: true, replace_global_subscriptions: true, expected_version: 'grant-v1' })
+    wrapper.unmount()
+  })
+
+  it('preselects the current department so a new manager is not left without scope', async () => {
+    const wrapper = mount(DepartmentAccessDialog, { props: { show: true, department }, global: { stubs } })
+    await flushPromises()
+    await wrapper.get('select').setValue('99')
+    await flushPromises()
+    const reportPermission = wrapper.findAll('label').find(label => label.text().includes('admin.departments.reportPermission'))!
+    await reportPermission.get('input').setValue(true)
+    await wrapper.get('[data-testid="save-department-access"]').trigger('click')
+    await flushPromises()
+    expect(api.setAccess).toHaveBeenCalledWith(99, { department_ids: [7], report: true, reset_quota: false, replace_global_subscriptions: false, expected_version: 'grant-v1' })
+    wrapper.unmount()
+  })
+
+  it('preserves the live department scope of an existing manager', async () => {
+    api.getAccess.mockResolvedValueOnce({ user_id: 99, department_ids: [8], permissions: ['admin.organization_usage'], version: 'live-v1' })
+    const wrapper = mount(DepartmentAccessDialog, { props: { show: true, department }, global: { stubs } })
+    await flushPromises()
+    await wrapper.get('select').setValue('99')
+    await flushPromises()
+    await wrapper.get('[data-testid="save-department-access"]').trigger('click')
+    await flushPromises()
+    expect(api.setAccess).toHaveBeenCalledWith(99, { department_ids: [7, 8], report: true, reset_quota: false, replace_global_subscriptions: false, expected_version: 'live-v1' })
     wrapper.unmount()
   })
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -97,6 +98,7 @@ func TestOrganizationUsageServiceSummary_RejectsInvalidQueryValues(t *testing.T)
 		{name: "sort order", query: OrganizationUsageSummaryQuery{StartDate: "2026-01-01", EndDate: "2026-01-01", SortOrder: "sideways"}},
 		{name: "page", query: OrganizationUsageSummaryQuery{StartDate: "2026-01-01", EndDate: "2026-01-01", Page: -1}},
 		{name: "page size", query: OrganizationUsageSummaryQuery{StartDate: "2026-01-01", EndDate: "2026-01-01", PageSize: 1001}},
+		{name: "page offset overflow", query: OrganizationUsageSummaryQuery{StartDate: "2026-01-01", EndDate: "2026-01-01", Page: math.MaxInt, PageSize: 1000}},
 	}
 
 	svc := NewOrganizationUsageService(&organizationUsageRepositoryStub{})

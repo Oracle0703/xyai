@@ -902,7 +902,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { departmentsAPI, type DepartmentScope } from '@/api/admin/departments'
 import { formatOrganizationUsageOrganization } from '@/utils/organizations'
-import { departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
+import { departmentErrorCode, departmentErrorKey, departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
@@ -1600,7 +1600,12 @@ const handleAssignSubscription = async () => {
     closeAssignModal()
     loadSubscriptions()
   } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToAssign'))
+    const assignErrorKeys: Record<string, string> = {
+      SUBSCRIPTION_SELF_ASSIGN_DENIED: 'admin.subscriptions.selfAssignDenied',
+      GROUP_NOT_ACTIVE: 'admin.subscriptions.groupNotActive'
+    }
+    const knownKey = assignErrorKeys[departmentErrorCode(error) ?? '']
+    appStore.showError(knownKey ? t(knownKey) : error.response?.data?.detail || t('admin.subscriptions.failedToAssign'))
     console.error('Error assigning subscription:', error)
   } finally {
     submitting.value = false
@@ -1718,12 +1723,25 @@ const confirmResetQuota = async () => {
     closeResetQuotaConfirm()
     await loadSubscriptions()
   } catch (error: any) {
+    if (isResetScopeFailure(error)) {
+      // The member left the authorized scope or access was revoked: drop the
+      // stale confirmation and reload so the list path clears protected data.
+      closeResetQuotaConfirm()
+      appStore.showError(t(departmentErrorKey(error)))
+      void loadSubscriptions()
+      return
+    }
     appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToResetQuota'))
     console.error('Error resetting quota:', error)
   } finally {
     resettingQuota.value = false
   }
 }
+
+// 403 means access was lost; 409 means the queried scope changed. Neither can
+// succeed by retrying the same snapshot, unlike transient network failures.
+const isResetScopeFailure = (error: unknown) =>
+  departmentErrorStatus(error) === 403 || isDepartmentScopeChanged(error)
 
 const createResetDailyFilteredIdempotencyKey = () => {
   const requestID = globalThis.crypto?.randomUUID?.()
@@ -1770,6 +1788,15 @@ const confirmResetDailyFiltered = async () => {
     resetDailyFilteredIdempotencyKey.value = null
     await loadSubscriptions()
   } catch (error) {
+    if (isResetScopeFailure(error)) {
+      // A new query must build a fresh snapshot and idempotency key.
+      showResetDailyFilteredConfirm.value = false
+      resetDailyFilteredSnapshot.value = null
+      resetDailyFilteredIdempotencyKey.value = null
+      appStore.showError(t(departmentErrorKey(error)))
+      void loadSubscriptions()
+      return
+    }
     appStore.showError(t('admin.subscriptions.bulkResetDailyFailed'))
     console.error('Error resetting filtered daily quotas:', error)
   } finally {

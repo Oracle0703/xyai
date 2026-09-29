@@ -633,7 +633,7 @@ export default {
       permissions: {
         'admin.subscriptions': {
           label: '订阅管理',
-          description: '查看订阅，并可重置全部配额或仅重置日限。'
+          description: '查看和管理全站订阅，可分配、续期及重置全部配额或仅重置日限。'
         },
         'admin.usage': {
           label: '使用记录',

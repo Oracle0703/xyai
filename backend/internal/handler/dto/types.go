@@ -788,6 +788,56 @@ type AdminUserSubscription struct {
 	AssignedByUser *User `json:"assigned_by_user,omitempty"`
 }
 
+// SubAdminUserSummary is the least-privilege user projection returned to
+// sub-admins; balances, recharge totals and notification settings stay hidden.
+type SubAdminUserSummary struct {
+	ID       int64  `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Status   string `json:"status"`
+}
+
+// SubAdminGroupSummary keeps only the fields the subscription page needs to
+// label the group and draw quota progress.
+type SubAdminGroupSummary struct {
+	ID               int64    `json:"id"`
+	Name             string   `json:"name"`
+	Platform         string   `json:"platform"`
+	Status           string   `json:"status"`
+	SubscriptionType string   `json:"subscription_type"`
+	RateMultiplier   float64  `json:"rate_multiplier"`
+	DailyLimitUSD    *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD   *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD  *float64 `json:"monthly_limit_usd"`
+}
+
+// SubAdminUserSubscription omits assignment metadata and full user/group
+// projections for sub-admins (global or department scoped).
+type SubAdminUserSubscription struct {
+	ID      int64 `json:"id"`
+	UserID  int64 `json:"user_id"`
+	GroupID int64 `json:"group_id"`
+
+	StartsAt  time.Time `json:"starts_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Status    string    `json:"status"`
+
+	DailyWindowStart   *time.Time `json:"daily_window_start"`
+	WeeklyWindowStart  *time.Time `json:"weekly_window_start"`
+	MonthlyWindowStart *time.Time `json:"monthly_window_start"`
+
+	DailyUsageUSD   float64 `json:"daily_usage_usd"`
+	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
+	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
+
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+
+	User  *SubAdminUserSummary  `json:"user,omitempty"`
+	Group *SubAdminGroupSummary `json:"group,omitempty"`
+}
+
 type BulkAssignResult struct {
 	SuccessCount  int                     `json:"success_count"`
 	CreatedCount  int                     `json:"created_count"`

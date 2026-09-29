@@ -374,6 +374,18 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		if err != nil {
 			return err
 		}
+		// Grants without a department permission are dormant; clear them (including
+		// ones left before this rule existed) so re-enabling a permission later
+		// cannot resurrect old departments.
+		if updated.Role == service.RoleSubAdmin && !hasDepartmentScopedPermission(after.Permissions) && len(after.DepartmentIDs) > 0 {
+			if err := clearUserDepartmentGrants(txCtx, txClient, accessActor, after, "department_permissions_removed"); err != nil {
+				return err
+			}
+			// Reload so the returned version and audit reflect the cleared grants.
+			if after, err = loadAdminAccess(txCtx, txClient, userIn.ID); err != nil {
+				return err
+			}
+		}
 		userIn.AdminAccessVersion = after.Version
 		if accessBefore.Version != after.Version {
 			if err := departmentAudit(txCtx, txClient, accessActor, "department.user_access_changed", map[string]any{"before": accessBefore, "after": after, "before_role": accessBefore.Role, "after_role": after.Role}); err != nil {

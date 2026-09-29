@@ -891,6 +891,34 @@ func UserSubscriptionFromServiceAdmin(sub *service.UserSubscription) *AdminUserS
 	}
 }
 
+// SubAdminUserSubscriptionFromService builds the least-privilege projection
+// returned to sub-admins.
+func SubAdminUserSubscriptionFromService(sub *service.UserSubscription) *SubAdminUserSubscription {
+	if sub == nil {
+		return nil
+	}
+	out := &SubAdminUserSubscription{
+		ID: sub.ID, UserID: sub.UserID, GroupID: sub.GroupID,
+		StartsAt: sub.StartsAt, ExpiresAt: sub.ExpiresAt, Status: sub.Status,
+		DailyWindowStart: sub.DailyWindowStart, WeeklyWindowStart: sub.WeeklyWindowStart,
+		MonthlyWindowStart: sub.MonthlyWindowStart,
+		DailyUsageUSD:      sub.DailyUsageUSD, WeeklyUsageUSD: sub.WeeklyUsageUSD,
+		MonthlyUsageUSD: sub.MonthlyUsageUSD, CreatedAt: sub.CreatedAt,
+		UpdatedAt: sub.UpdatedAt, RevokedAt: sub.DeletedAt,
+	}
+	if sub.User != nil {
+		out.User = &SubAdminUserSummary{ID: sub.User.ID, Email: sub.User.Email, Username: sub.User.Username, Status: sub.User.Status}
+	}
+	if g := sub.Group; g != nil {
+		out.Group = &SubAdminGroupSummary{
+			ID: g.ID, Name: g.Name, Platform: g.Platform, Status: g.Status,
+			SubscriptionType: g.SubscriptionType, RateMultiplier: g.RateMultiplier,
+			DailyLimitUSD: g.DailyLimitUSD, WeeklyLimitUSD: g.WeeklyLimitUSD, MonthlyLimitUSD: g.MonthlyLimitUSD,
+		}
+	}
+	return out
+}
+
 func userSubscriptionFromServiceBase(sub *service.UserSubscription) UserSubscription {
 	return UserSubscription{
 		ID:                 sub.ID,

@@ -750,7 +750,7 @@ export default {
       permissions: {
         'admin.subscriptions': {
           label: 'Subscription management',
-          description: 'View subscriptions and reset all or daily quotas.'
+          description: 'View and manage all subscriptions, including assignment, renewal, and quota resets.'
         },
         'admin.usage': {
           label: 'Usage records',

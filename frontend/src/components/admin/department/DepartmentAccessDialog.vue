@@ -50,6 +50,7 @@ let accessController: AbortController | null = null
 const userOptions = computed(() => [{ value: '', label: t('admin.departments.selectManager') }, ...candidates.value.map(user => ({ value: String(user.id), label: user.email }))])
 const alreadyGranted = computed(() => !!props.department && !!access.value?.department_ids.includes(props.department.id))
 const hasGlobalSubscriptions = computed(() => access.value?.permissions.includes('admin.subscriptions') ?? false)
+const hasDepartmentPermission = computed(() => access.value?.permissions.includes('admin.organization_usage') || access.value?.permissions.includes('admin.department_subscriptions') || false)
 const otherPermissionLabels = computed(() => {
   const labels: string[] = []
   if (access.value?.permissions.includes('admin.usage')) labels.push(t('nav.usage'))
@@ -88,9 +89,10 @@ async function loadAccess() {
     const result = await departmentsAPI.getAccess(Number(selectedUserID.value), signal)
     if (signal.aborted) return
     access.value = result
-    const hasDepartmentPermission = result.permissions.includes('admin.organization_usage') || result.permissions.includes('admin.department_subscriptions')
-    report.value = hasDepartmentPermission ? result.permissions.includes('admin.organization_usage') : true
-    resetQuota.value = hasDepartmentPermission ? result.permissions.includes('admin.department_subscriptions') : true
+    report.value = result.permissions.includes('admin.organization_usage')
+    resetQuota.value = result.permissions.includes('admin.department_subscriptions')
+    // The dialog was opened for this department, so it stays preselected; the
+    // permissions themselves remain an explicit choice.
     grantCurrent.value = alreadyGranted.value || props.department?.status === 'active'
   } catch {
     if (!signal.aborted) error.value = t('admin.departments.failed')
@@ -101,7 +103,9 @@ async function save() {
   saving.value = true
   error.value = ''
   const selected = access.value
-  const departmentIDs = new Set(selected.department_ids)
+  // Only a live department scope is preserved; grants left on an account without
+  // department permissions are dormant and must not be revived by this save.
+  const departmentIDs = new Set(hasDepartmentPermission.value ? selected.department_ids : [])
   if (grantCurrent.value) departmentIDs.add(props.department.id)
   else departmentIDs.delete(props.department.id)
   try {

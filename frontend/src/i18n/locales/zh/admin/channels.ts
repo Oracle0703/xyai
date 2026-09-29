@@ -873,6 +873,8 @@ export default {
       subscriptionRestored: '订阅已恢复',
       failedToLoad: '加载订阅列表失败',
       failedToAssign: '分配订阅失败',
+      selfAssignDenied: '子管理员不能给自己分配订阅',
+      groupNotActive: '该分组已停用，不能分配订阅',
       failedToAdjust: '调整订阅失败',
       failedToRevoke: '撤销订阅失败',
       failedToRestore: '恢复订阅失败',

@@ -229,18 +229,18 @@ func TestNormalizeGPTQuotaUsage(t *testing.T) {
 		primary, secondary  *OpenAIRateLimitWindow
 		wantFive, wantSeven *float64
 	}{
-		{"normal", w(25, 18000, 60, 0), w(40, 604800, 60, 0), ptrFloat(75), ptrFloat(60)},
-		{"swapped positions", w(40, 604800, 60, 0), w(25, 18000, 60, 0), ptrFloat(75), ptrFloat(60)},
-		{"zero used is full", w(0, 18000, 60, 0), nil, ptrFloat(100), nil},
-		{"hundred used", w(100, 18000, 60, 0), nil, ptrFloat(0), nil},
-		{"over hundred clamps", w(130, 18000, 60, 0), nil, ptrFloat(0), nil},
-		{"negative used invalid", w(-1, 18000, 60, 0), w(10, 604800, 60, 0), nil, ptrFloat(90)},
+		{"normal", w(25, 18000, 60, 0), w(40, 604800, 60, 0), ptrQuotaFloat(75), ptrQuotaFloat(60)},
+		{"swapped positions", w(40, 604800, 60, 0), w(25, 18000, 60, 0), ptrQuotaFloat(75), ptrQuotaFloat(60)},
+		{"zero used is full", w(0, 18000, 60, 0), nil, ptrQuotaFloat(100), nil},
+		{"hundred used", w(100, 18000, 60, 0), nil, ptrQuotaFloat(0), nil},
+		{"over hundred clamps", w(130, 18000, 60, 0), nil, ptrQuotaFloat(0), nil},
+		{"negative used invalid", w(-1, 18000, 60, 0), w(10, 604800, 60, 0), nil, ptrQuotaFloat(90)},
 		{"nan invalid", w(math.NaN(), 18000, 60, 0), nil, nil, nil},
 		{"inf invalid", w(math.Inf(1), 18000, 60, 0), nil, nil, nil},
 		{"same category both unavailable", w(10, 18000, 60, 0), w(20, 3600, 60, 0), nil, nil},
-		{"unknown length ignored", w(10, 0, 60, 0), w(20, 604800, 60, 0), nil, ptrFloat(80)},
-		{"six hour boundary", w(10, 21600, 60, 0), w(20, 21601, 60, 0), ptrFloat(90), ptrFloat(80)},
-		{"one decimal", w(33.333, 18000, 60, 0), nil, ptrFloat(66.7), nil},
+		{"unknown length ignored", w(10, 0, 60, 0), w(20, 604800, 60, 0), nil, ptrQuotaFloat(80)},
+		{"six hour boundary", w(10, 21600, 60, 0), w(20, 21601, 60, 0), ptrQuotaFloat(90), ptrQuotaFloat(80)},
+		{"one decimal", w(33.333, 18000, 60, 0), nil, ptrQuotaFloat(66.7), nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -284,7 +284,7 @@ func TestNormalizeGPTQuotaUsageResetTime(t *testing.T) {
 	require.Nil(t, millis.ResetAt, "millisecond timestamps are out of range")
 }
 
-func ptrFloat(v float64) *float64 { return &v }
+func ptrQuotaFloat(v float64) *float64 { return &v }
 
 func assertGPTQuotaRemaining(t *testing.T, label string, want *float64, got *GPTQuotaWindow) {
 	t.Helper()

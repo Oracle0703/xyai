@@ -76,3 +76,33 @@ func TestDepartmentSubscriptionPermissionNeverGrantsAssignment(t *testing.T) {
 	_, err := NormalizeAdminPermissions(RoleSubAdmin, []string{AdminPermissionSubscriptions, AdminPermissionDepartmentSubscriptions})
 	require.ErrorContains(t, err, "mutually exclusive")
 }
+
+type departmentAccessRecorder struct {
+	DepartmentRepository
+	input DepartmentAccessInput
+}
+
+func (r *departmentAccessRecorder) SetAccess(_ context.Context, _ int64, in DepartmentAccessInput) (*DepartmentAccess, error) {
+	r.input = in
+	return &DepartmentAccess{}, nil
+}
+
+func TestDepartmentSetAccessUsesReplacementSetSemantics(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   DepartmentAccessInput
+		want []int64
+	}{
+		// A nil slice would bind SQL NULL and delete nothing.
+		{"omitted ids clear grants", DepartmentAccessInput{Report: true}, []int64{}},
+		{"no department permission clears grants", DepartmentAccessInput{DepartmentIDs: []int64{7}}, []int64{}},
+		{"ids are sorted", DepartmentAccessInput{DepartmentIDs: []int64{8, 7}, ResetQuota: true}, []int64{7, 8}},
+	} {
+		r := &departmentAccessRecorder{}
+		tc.in.ExpectedVersion = "v1"
+		_, err := NewDepartmentService(r).SetAccess(context.Background(), 9, tc.in)
+		require.NoError(t, err, tc.name)
+		require.NotNil(t, r.input.DepartmentIDs, tc.name)
+		require.Equal(t, tc.want, r.input.DepartmentIDs, tc.name)
+	}
+}

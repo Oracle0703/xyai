@@ -142,7 +142,7 @@ func TestAssignSubscriptionDoesNotReactivateRowSuspendedAfterStaleRead(t *testin
 		stale:   UserSubscription{ID: 27, UserID: 31, GroupID: 33, ExpiresAt: now.Add(-time.Hour), Status: SubscriptionStatusExpired},
 		current: current,
 	}
-	svc := NewSubscriptionService(&subscriptionGroupRepoStub{group: &Group{ID: 33, SubscriptionType: SubscriptionTypeSubscription}}, repo, nil, nil, nil)
+	svc := NewSubscriptionService(&subscriptionGroupRepoStub{group: &Group{ID: 33, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive}}, repo, nil, nil, nil)
 	svc.now = func() time.Time { return now }
 
 	sub, reused, err := svc.assignSubscriptionWithReuse(context.Background(), &AssignSubscriptionInput{

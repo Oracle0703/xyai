@@ -50,7 +50,7 @@ func (h *GroupHandler) SubscriptionAssignmentGroups(c *gin.Context) {
 	}
 	result := make([]groupOption, 0, len(groups))
 	for _, group := range groups {
-		if !group.IsSubscriptionType() {
+		if !group.IsSubscriptionType() || !group.IsActive() {
 			continue
 		}
 		result = append(result, groupOption{

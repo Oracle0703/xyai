@@ -371,6 +371,14 @@ func (s *DepartmentService) SetAccess(ctx context.Context, userID int64, in Depa
 	if userID <= 0 || len(in.DepartmentIDs) > 200 {
 		return nil, ErrDepartmentInvalid
 	}
+	if in.DepartmentIDs == nil {
+		in.DepartmentIDs = []int64{}
+	}
+	// Without either department-scoped permission there is no live department
+	// scope. Clear grants atomically so a later re-enable cannot resurrect it.
+	if !in.Report && !in.ResetQuota {
+		in.DepartmentIDs = []int64{}
+	}
 	seen := make(map[int64]bool)
 	for _, id := range in.DepartmentIDs {
 		if id <= 0 || seen[id] {

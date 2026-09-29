@@ -12,7 +12,7 @@
 - `/admin/usage/organization-report/scope`、`/admin/subscriptions/scope` 只返回目录 `catalog_version`，不装载成员。`department_query_scope.go` 按实际筛选构造授权 SQL 与 `scope_version`；包含选中 ID/邮箱/组织/部门/成员版本及部门标签，排除 username、排序和无关范围。
 - 部门列表在 SQL 过滤/count/分页，页内成员数与负责人批量查询，共 4 次 SQL；成员页 3 次。全站普通订阅 scope 仅读取 actor，管理员指定部门筛选仍有效。订阅列表版本直接取仓储结果，handler 不预先全量解析。
 - 报表在同一 repeatable-read 快照内解析实际范围并查询 Summary/Periods/Trend；物化 selected_users/period_aggregates/peak CTE，复用个人峰值提取 champion。零用量成员保留；SQL 内摘要备选未启用。
-- `department_subscription_read.go` 保证授权、分页与嵌套用户同快照；重置仅锁 actor 和实际候选成员，锁内重新鉴权，UPDATE 限定已锁集合，新候选触发范围变化。保留幂等 AtomicSuccess、重放鉴权和提交后缓存失效。
+- `department_subscription_read.go` 保证授权、分页与嵌套用户同快照；重置仅锁 actor 和实际候选成员，锁内重新鉴权，UPDATE 限定已锁集合；锁前查询后才出现的新候选会被冻结跳过（仍返回 200，不报 409，与设计 §6.1 文字不一致，见 2026-09-28 设计落地审核 P3-5）。保留幂等 AtomicSuccess、重放鉴权和提交后缓存失效。
 - Admin API Key 保留独立标记的完整管理员语义。负责人 compact 选项走专用受限接口；无 grant 可读空目录，数据/重置拒绝，不能回退全站。
 - 订阅页 compact 选项合并口径（2026-09-28 合入 10209 分支）：`/admin/subscriptions/search-users`、`search-groups` 固定走 `DepartmentHandler.SubscriptionUsers/SubscriptionGroups`，完整管理员与 `admin.subscriptions` 为全站、`admin.department_subscriptions` 限授权部门；`/admin/subscriptions/assignable-groups` 走 `GroupHandler.SubscriptionAssignmentGroups`，仅全站订阅权限可用。`UserHandler.SearchSubscriptionAssignmentUsers` 未挂路由，不能替换 search-users，否则部门负责人可枚举全站用户。
 
@@ -226,9 +226,9 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 - 用户角色为 `admin`、`sub_admin`、`user`; 权限码与路由白名单集中在 `backend/internal/service/admin_permission.go`。
 - `AdminAuth` 对 `admin` 和 Admin API Key 全量放行; `sub_admin` 每次请求从数据库加载最新角色、状态、TokenVersion 和 `admin_permissions`, 再按 HTTP 方法 + Gin `FullPath()` 精确匹配。未登记路由返回 `403 ADMIN_PERMISSION_DENIED`。
-- 固定权限为 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
-- `admin.subscriptions` 允许查看、单人/批量分配（`POST /admin/subscriptions/assign`、`bulk-assign`）、单项配额重置和筛选日限重置；分配继续调用现有 SubscriptionService，并以登录操作者记录 `assigned_by`。重新分配已过期订阅沿用服务的续期语义；独立延期、撤销、恢复、删除及 `bulk-action` 接口仍拒绝子管理员。
-- 分配选项在 `handler/admin/subscription_assignment_options.go`：`GET /admin/subscriptions/search-users?q=` 按邮箱升序返回最多 30 个未删除用户的 `{id,email}`，空查询返回空数组；`GET /admin/subscriptions/assignable-groups` 从启用分组中过滤订阅类型，仅返回 `id,name,description,platform,rate_multiplier,subscription_type,status`。列表分组筛选仍走 `/admin/subscriptions/search-groups`；不得为弹窗放行完整 `/admin/users` 或 `/admin/groups/all`。
+- 固定权限为 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`、`admin.organization_usage`、`admin.department_subscriptions`（后两项为部门报表/部门订阅，共用 `department_access_grants`，部门订阅与全站订阅互斥）; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
+- `admin.subscriptions` 允许查看、单人/批量分配（`POST /admin/subscriptions/assign`、`bulk-assign`）、单项配额重置和筛选日限重置；分配继续调用现有 SubscriptionService，并以登录操作者记录 `assigned_by`。子管理员不能给自己分配（handler 返回 403 `SUBSCRIPTION_SELF_ASSIGN_DENIED`）；管理端 assign/bulk-assign 拒绝停用分组（`GROUP_NOT_ACTIVE`），兑换码、支付履约和默认订阅走 `AssignOrExtendSubscription`，不受此限制，避免已付款订单因分组停用履约失败。子管理员（全站或部门）的订阅响应一律使用 `dto.SubAdminUserSubscription` 精简投影（不含余额、充值、通知邮箱、assigned_by_user），bulk-assign 结果不返回订阅明细；完整管理员与 Admin API Key 保留完整 DTO；重新分配已过期订阅沿用服务的续期语义；独立延期、撤销、恢复、删除及 `bulk-action` 接口仍拒绝子管理员。
+- 分配用户搜索复用 `GET /admin/subscriptions/search-users?q=`，实际由 `DepartmentHandler.SubscriptionUsers` 提供：按 `u.id` 升序返回最多 30 个 active 未删除用户的 `{id,email,deleted}`，空查询返回前 30 个；全站订阅权限为全站范围，部门订阅权限限授权部门。`handler/admin/subscription_assignment_options.go` 中的 `SearchSubscriptionAssignmentUsers` 未挂路由（会列全站含停用用户），不得接入。`GET /admin/subscriptions/assignable-groups`（`GroupHandler.SubscriptionAssignmentGroups`）从启用分组中过滤订阅类型，仅返回 `id,name,description,platform,rate_multiplier,subscription_type,status`。列表分组筛选仍走 `/admin/subscriptions/search-groups`；不得为弹窗放行完整 `/admin/users` 或 `/admin/groups/all`。
 - 使用记录权限允许 usage、Dashboard 聚合/排行与 Ops 错误只读接口; 账号和分组筛选使用 `/admin/usage/search-accounts`、`search-groups` 的 `{id,name}` 响应。Token 分析权限只允许相关 GET 和选中用户趋势查询。
 - 0.1.161 新增的 `/admin/ops/ingress-rejections`、`/admin/ops/ingress-rejections/health` 与 `/admin/ops/auth-cache-invalidation/health` 不在 `admin.usage` 白名单，当前仅完整管理员可访问。它们包含入口拒绝身份维度和鉴权缓存安全运行态；未知路由默认拒绝是既有 fail-closed 合同，后续若向子管理员开放必须先做显式产品与最小权限评审。
 - backend mode 仅允许至少有一项权限的子管理员登录/刷新 token; 权限清空后不能继续保留 backend 会话。管理端合规查询/确认是所有已认证子管理员的公共白名单, 不代表业务管理权限。

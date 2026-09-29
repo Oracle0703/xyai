@@ -35,6 +35,20 @@ type SubscriptionHandler struct {
 	departments         *service.DepartmentService
 }
 
+func isSubAdminRequest(c *gin.Context) bool {
+	role, ok := middleware2.GetUserRoleFromContext(c)
+	return ok && role == service.RoleSubAdmin
+}
+
+// subscriptionResponse returns the least-privilege projection to sub-admins;
+// full admins and the Admin API Key keep assignment metadata and full DTOs.
+func subscriptionResponse(c *gin.Context, sub *service.UserSubscription) any {
+	if isSubAdminRequest(c) {
+		return dto.SubAdminUserSubscriptionFromService(sub)
+	}
+	return dto.UserSubscriptionFromServiceAdmin(sub)
+}
+
 type subscriptionHandlerService interface {
 	ListAdmin(ctx context.Context, page, pageSize int, filter service.SubscriptionAdminFilter) ([]service.UserSubscription, *pagination.PaginationResult, error)
 	GetByID(ctx context.Context, id int64) (*service.UserSubscription, error)
@@ -128,9 +142,9 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 		return
 	}
 
-	out := make([]dto.AdminUserSubscription, 0, len(subscriptions))
+	out := make([]any, 0, len(subscriptions))
 	for i := range subscriptions {
-		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
+		out = append(out, subscriptionResponse(c, &subscriptions[i]))
 	}
 	if h.departments != nil && pagination != nil {
 		response.Success(c, gin.H{"items": out, "total": pagination.Total, "page": pagination.Page, "page_size": pagination.PageSize, "pages": pagination.Pages, "scope_version": scopeVersion})
@@ -158,7 +172,7 @@ func (h *SubscriptionHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UserSubscriptionFromServiceAdmin(subscription))
+	response.Success(c, subscriptionResponse(c, subscription))
 }
 
 // GetProgress handles getting subscription usage progress
@@ -194,6 +208,10 @@ func (h *SubscriptionHandler) Assign(c *gin.Context) {
 
 	// Get admin user ID from context
 	adminID := getAdminIDFromContext(c)
+	if isSubAdminRequest(c) && req.UserID == adminID {
+		response.ErrorFrom(c, service.ErrSubscriptionSelfAssignDenied)
+		return
+	}
 
 	subscription, err := h.subscriptionService.AssignSubscription(c.Request.Context(), &service.AssignSubscriptionInput{
 		UserID:       req.UserID,
@@ -207,7 +225,7 @@ func (h *SubscriptionHandler) Assign(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UserSubscriptionFromServiceAdmin(subscription))
+	response.Success(c, subscriptionResponse(c, subscription))
 }
 
 // BulkAssign handles bulk assigning subscriptions to multiple users
@@ -221,6 +239,14 @@ func (h *SubscriptionHandler) BulkAssign(c *gin.Context) {
 
 	// Get admin user ID from context
 	adminID := getAdminIDFromContext(c)
+	if isSubAdminRequest(c) {
+		for _, userID := range req.UserIDs {
+			if userID == adminID {
+				response.ErrorFrom(c, service.ErrSubscriptionSelfAssignDenied)
+				return
+			}
+		}
+	}
 
 	result, err := h.subscriptionService.BulkAssignSubscription(c.Request.Context(), &service.BulkAssignSubscriptionInput{
 		UserIDs:      req.UserIDs,
@@ -234,7 +260,11 @@ func (h *SubscriptionHandler) BulkAssign(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.BulkAssignResultFromService(result))
+	out := dto.BulkAssignResultFromService(result)
+	if out != nil && isSubAdminRequest(c) {
+		out.Subscriptions = []dto.AdminUserSubscription{}
+	}
+	response.Success(c, out)
 }
 
 // BulkAction applies one operation to selected subscriptions, returning each outcome.
@@ -390,7 +420,7 @@ func (h *SubscriptionHandler) ResetQuota(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, dto.UserSubscriptionFromServiceAdmin(sub))
+	response.Success(c, subscriptionResponse(c, sub))
 }
 
 // Revoke handles revoking a subscription.
@@ -427,7 +457,7 @@ func (h *SubscriptionHandler) Restore(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UserSubscriptionFromServiceAdmin(subscription))
+	response.Success(c, subscriptionResponse(c, subscription))
 }
 
 // ListByGroup handles listing subscriptions for a specific group
@@ -451,9 +481,9 @@ func (h *SubscriptionHandler) ListByGroup(c *gin.Context) {
 		return
 	}
 
-	out := make([]dto.AdminUserSubscription, 0, len(subscriptions))
+	out := make([]any, 0, len(subscriptions))
 	for i := range subscriptions {
-		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
+		out = append(out, subscriptionResponse(c, &subscriptions[i]))
 	}
 	response.PaginatedWithResult(c, out, toResponsePagination(pagination))
 }
@@ -477,9 +507,9 @@ func (h *SubscriptionHandler) ListByUser(c *gin.Context) {
 		return
 	}
 
-	out := make([]dto.AdminUserSubscription, 0, len(subscriptions))
+	out := make([]any, 0, len(subscriptions))
 	for i := range subscriptions {
-		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
+		out = append(out, subscriptionResponse(c, &subscriptions[i]))
 	}
 	response.Success(c, out)
 }

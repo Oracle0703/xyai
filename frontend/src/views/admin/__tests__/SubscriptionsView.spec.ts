@@ -536,6 +536,40 @@ describe('admin SubscriptionsView quota reset actions', () => {
     wrapper.unmount()
   })
 
+  it('drops a stale bulk reset snapshot on 409 and reloads the list', async () => {
+    useDepartmentLeader()
+    resetDailyFiltered.mockRejectedValueOnce({ status: 409, reason: 'REPORT_SCOPE_CHANGED' })
+    const wrapper = await mountView()
+    const listCalls = listSubscriptions.mock.calls.length
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(showError).toHaveBeenCalledWith('admin.departments.scopeChanged')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+    expect(listSubscriptions.mock.calls.length).toBe(listCalls + 1)
+    // Reopening builds a new snapshot and idempotency key instead of replaying.
+    resetDailyFiltered.mockResolvedValueOnce({ reset_count: 1 })
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(resetDailyFiltered.mock.calls[1][1]).not.toBe(resetDailyFiltered.mock.calls[0][1])
+    wrapper.unmount()
+  })
+
+  it('closes a single reset on 403 and reloads so protected rows are cleared', async () => {
+    useDepartmentLeader()
+    resetQuota.mockRejectedValueOnce({ status: 403, reason: 'DEPARTMENT_SCOPE_DENIED' })
+    const wrapper = await mountView()
+    listSubscriptions.mockRejectedValueOnce({ status: 403, code: 'DEPARTMENT_SCOPE_DENIED' })
+    await findButtonByText(wrapper, 'admin.subscriptions.resetQuota').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(showError).toHaveBeenCalledWith('admin.departments.scopeDenied')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+    expect(wrapper.getComponent(DataTableStub).props('data')).toEqual([])
+    wrapper.unmount()
+  })
+
   it('clears subscriptions and disables reset when the server returns a normalized 403', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     useDepartmentLeader()

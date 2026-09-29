@@ -873,6 +873,8 @@ export default {
       subscriptionRestored: 'Subscription restored successfully',
       failedToLoad: 'Failed to load subscriptions',
       failedToAssign: 'Failed to assign subscription',
+      selfAssignDenied: 'Sub-admins cannot assign subscriptions to themselves',
+      groupNotActive: 'This group is disabled and cannot be assigned',
       failedToAdjust: 'Failed to adjust subscription',
       failedToRevoke: 'Failed to revoke subscription',
       failedToRestore: 'Failed to restore subscription',

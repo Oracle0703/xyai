@@ -284,7 +284,7 @@ func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscri
 func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {
 	start := time.Now().Add(-time.Hour)
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	subRepo.seed(&UserSubscription{
@@ -314,7 +314,7 @@ func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {
 func TestAssignSubscriptionDoesNotReactivateFutureSuspendedSubscription(t *testing.T) {
 	start := time.Now().Add(-time.Hour)
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	subRepo.seed(&UserSubscription{
@@ -349,7 +349,7 @@ func TestAssignSubscriptionDoesNotReactivatePastExpirySuspendedSubscription(t *t
 	expiresAt := start.AddDate(0, 0, 30)
 	windowStart := startOfDay(start)
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	subRepo.seed(&UserSubscription{
@@ -393,7 +393,7 @@ func TestAssignSubscriptionDoesNotReactivatePastExpirySuspendedSubscription(t *t
 
 func TestAssignSubscriptionRenewsExpiredSemanticMatch(t *testing.T) {
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	oldStart := time.Now().Add(-time.Hour)
@@ -442,7 +442,7 @@ func TestAssignSubscriptionRenewsExpiredSemanticMatch(t *testing.T) {
 
 func TestAssignSubscriptionRenewsExpiredAndAppendsDifferentNotes(t *testing.T) {
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	oldStart := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
@@ -471,7 +471,7 @@ func TestAssignSubscriptionRenewsExpiredAndAppendsDifferentNotes(t *testing.T) {
 func TestAssignSubscriptionConflictWhenSemanticsMismatch(t *testing.T) {
 	start := time.Now().Add(-time.Hour)
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	subRepo.seed(&UserSubscription{
@@ -499,7 +499,7 @@ func TestAssignSubscriptionConflictWhenSemanticsMismatch(t *testing.T) {
 func TestBulkAssignSubscriptionCreatedReusedAndConflict(t *testing.T) {
 	start := time.Now().Add(-time.Hour)
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	// user 1: 语义一致，可 reused
@@ -544,7 +544,7 @@ func TestBulkAssignSubscriptionCreatedReusedAndConflict(t *testing.T) {
 
 func TestBulkAssignSubscriptionRenewsExpiredSemanticMatch(t *testing.T) {
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	oldStart := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
@@ -590,7 +590,7 @@ func TestBulkAssignSubscriptionRenewsExpiredSemanticMatch(t *testing.T) {
 
 func TestAssignSubscriptionKeepsWorkingWhenIdempotencyStoreUnavailable(t *testing.T) {
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	SetDefaultIdempotencyCoordinator(NewIdempotencyCoordinator(failingIdempotencyRepo{}, DefaultIdempotencyConfig()))

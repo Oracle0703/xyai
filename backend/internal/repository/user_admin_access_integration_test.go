@@ -112,3 +112,87 @@ func TestUserAdminAccessIntegration_StaleEditorAndLifecycle(t *testing.T) {
 	require.NoError(t, integrationDB.QueryRow(`SELECT deleted_at IS NOT NULL FROM users WHERE id=$1`, leader.ID).Scan(&deleted))
 	require.True(t, deleted, "deletion remains soft")
 }
+
+func TestUserAdminAccessIntegration_RemovingDepartmentPermissionsClearsGrants(t *testing.T) {
+	ctx := context.Background()
+	prefix := organizationUsageIntegrationPrefix("access_drop")
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+	admin, _ := organizationUsageIntegrationUser(t, prefix+"admin@example.com", service.StatusActive)
+	leader, _ := organizationUsageIntegrationUser(t, prefix+"leader@xunyou.com", service.StatusActive)
+	_, err := integrationDB.Exec(`UPDATE users SET role='admin' WHERE id=$1`, admin.ID)
+	require.NoError(t, err)
+	_, err = integrationDB.Exec(`UPDATE users SET role='sub_admin',admin_permissions='["admin.organization_usage"]' WHERE id=$1`, leader.ID)
+	require.NoError(t, err)
+	adminCtx := service.WithDepartmentActor(ctx, admin.ID)
+	departments := service.NewDepartmentService(NewDepartmentRepository(integrationDB))
+	dept, err := departments.Save(adminCtx, 0, service.DepartmentSaveInput{Organization: service.OrganizationXunyou, Name: prefix})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, e := integrationDB.Exec(`DELETE FROM department_access_grants WHERE department_id=$1`, dept.ID)
+		require.NoError(t, e)
+		_, e = integrationDB.Exec(`DELETE FROM departments WHERE id=$1`, dept.ID)
+		require.NoError(t, e)
+		_, e = integrationDB.Exec(`DELETE FROM audit_logs WHERE actor_user_id=ANY($1)`, pq.Array([]int64{admin.ID, leader.ID}))
+		require.NoError(t, e)
+	})
+	repo, ok := NewUserRepository(integrationEntClient, integrationDB).(*userRepository)
+	require.True(t, ok)
+	grantCount := func() int {
+		var n int
+		require.NoError(t, integrationDB.QueryRow(`SELECT count(*) FROM department_access_grants WHERE user_id=$1`, leader.ID).Scan(&n))
+		return n
+	}
+	grant := func() *service.DepartmentAccess {
+		access, e := departments.GetAccess(adminCtx, leader.ID)
+		require.NoError(t, e)
+		access, e = departments.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{Report: true, DepartmentIDs: []int64{dept.ID}, ExpectedVersion: access.Version})
+		require.NoError(t, e)
+		require.Equal(t, 1, grantCount())
+		return access
+	}
+
+	// User edit drops both department permissions: grants go with them and the
+	// returned version matches the cleared state, so the next save is not a 409.
+	grant()
+	editor, err := repo.GetByIDWithAdminAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	editor.AdminPermissions = []string{service.AdminPermissionSubscriptions}
+	require.NoError(t, repo.Update(adminCtx, editor, service.UserUpdateFields{AdminPermissions: true, ExpectedAdminAccessVersion: editor.AdminAccessVersion}))
+	require.Zero(t, grantCount())
+	current, err := departments.GetAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	require.Equal(t, current.Version, editor.AdminAccessVersion)
+	editor.AdminPermissions = []string{service.AdminPermissionOrganizationUsage}
+	require.NoError(t, repo.Update(adminCtx, editor, service.UserUpdateFields{AdminPermissions: true, ExpectedAdminAccessVersion: editor.AdminAccessVersion}))
+	current, err = departments.GetAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	require.Empty(t, current.DepartmentIDs, "re-enabling a permission must not resurrect grants")
+
+	// A dormant grant left on an account without department permissions (legacy
+	// data) is cleared by the next permission edit instead of being revived.
+	_, err = integrationDB.Exec(`INSERT INTO department_access_grants(user_id,department_id,created_by) VALUES($1,$2,$3)`, leader.ID, dept.ID, admin.ID)
+	require.NoError(t, err)
+	_, err = integrationDB.Exec(`UPDATE users SET admin_permissions='["admin.subscriptions"]' WHERE id=$1`, leader.ID)
+	require.NoError(t, err)
+	editor, err = repo.GetByIDWithAdminAccess(adminCtx, leader.ID)
+	require.NoError(t, err)
+	editor.AdminPermissions = []string{service.AdminPermissionSubscriptions, service.AdminPermissionUsage}
+	require.NoError(t, repo.Update(adminCtx, editor, service.UserUpdateFields{AdminPermissions: true, ExpectedAdminAccessVersion: editor.AdminAccessVersion}))
+	require.Zero(t, grantCount())
+	_, err = integrationDB.Exec(`UPDATE users SET admin_permissions='["admin.organization_usage"]' WHERE id=$1`, leader.ID)
+	require.NoError(t, err)
+
+	// SetAccess with both permissions off clears even the listed departments.
+	access := grant()
+	_, err = departments.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: []int64{dept.ID}, ExpectedVersion: access.Version})
+	require.NoError(t, err)
+	require.Zero(t, grantCount())
+
+	// An omitted department_ids is an empty replacement set, not SQL NULL.
+	_, err = integrationDB.Exec(`UPDATE users SET admin_permissions='["admin.organization_usage"]' WHERE id=$1`, leader.ID)
+	require.NoError(t, err)
+	access = grant()
+	_, err = departments.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{Report: true, ExpectedVersion: access.Version})
+	require.NoError(t, err)
+	require.Zero(t, grantCount())
+}

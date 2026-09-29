@@ -707,6 +707,8 @@ describe('OrganizationUsageView', () => {
       end_date: '2026-07-31',
       organization: 'all',
       department_id: 'all', platform: 'all', scope_version: 'scope-v1',
+      // The export must reuse the displayed snapshot instead of a fresh "now".
+      as_of: SNAPSHOT_AS_OF,
       sort_by: 'total_tokens',
       sort_order: 'desc'
     }), expect.objectContaining({ signal: expect.any(AbortSignal), onProgress: expect.any(Function) }))

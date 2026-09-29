@@ -7,7 +7,9 @@
 - 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
 - 2026-09-21 代码精简与复审见 `docs/features/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
 - 同日实现审核见 `docs/features/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
-- 未推送、部署或合回 main；创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
+- 2026-09-28 设计落地审核见 `docs/features/organization-department-usage-design-implementation-audit-cn.md`：主体合同已落地、无越权；4 项 P2（部门模式订阅响应含完整用户财务字段、休眠 grant 可复活、10208 后全站订阅权限含分配而文案未更新、导出未沿用页面 as_of）、21 项 P3，上轮 3 项遗留仍未修；`main` 的 `-tags=unit` 因 `ptrFloat` 重复定义编译失败。
+- 2026-09-29 对比裁决与修复终审见 `docs/features/feature-10207-release-audit-adjudication-cn.md`：`ptrFloat`、`none` 注入、精简投影（按 sub_admin 角色）、授权生命周期、自我分配、管理端停用分组（不影响兑换/支付履约）、导出 as_of、重置 403/409 已修并有测试；本机 `go test -tags=unit ./...`、PG 16/16、前端全量 Vitest 通过。未提交/推送，CI 集成测试转绿前维持 NO-GO；GPT 额度真实上游验收只阻断功能开启。
+- 已合入 `main`（`273b76c35`）并推送 `github/main`；部署状态以运维记录为准。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
 更新时间: 2026-09-28
 

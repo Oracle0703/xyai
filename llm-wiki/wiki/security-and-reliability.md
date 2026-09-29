@@ -6,7 +6,8 @@
 
 状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
-- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/features/organization-department-usage-implementation-audit-cn.md`。
+- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed。
+- 2026-09-29 授权生命周期闭合：`SetAccess` 把省略的 `department_ids` 视为空替换集（不再绑 SQL NULL），`report` 与 `reset_quota` 都为 false 时清空 grants；不变式：`sub_admin` 不持有任何部门权限时不得保留 grants，任一权限编辑都会在同事务内清掉残留（含上线前遗留的休眠 grant）并重读 `admin_access_version`。授权弹窗只在账号已持有部门权限时保留其他部门授权，休眠 grant 不会因重新勾选而复活。真实 PG 见 `TestUserAdminAccessIntegration_RemovingDepartmentPermissionsClearsGrants`。
 
 - `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
 - 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。

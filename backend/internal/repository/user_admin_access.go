@@ -71,3 +71,12 @@ func clearUserDepartmentGrants(ctx context.Context, q sqlExecutor, actor *servic
 		"user_id": access.UserID, "department_ids": access.DepartmentIDs, "reason": reason,
 	})
 }
+
+func hasDepartmentScopedPermission(permissions []string) bool {
+	for _, permission := range permissions {
+		if permission == service.AdminPermissionOrganizationUsage || permission == service.AdminPermissionDepartmentSubscriptions {
+			return true
+		}
+	}
+	return false
+}

@@ -12,7 +12,7 @@
         v-model="draft"
         :loading="loading || scopeLoading"
         :exporting="exporting"
-        :export-disabled="hasPendingFilters || loading || scopeLoading || !canViewScope"
+        :export-disabled="hasPendingFilters || loading || scopeLoading || !canViewScope || !snapshotAsOf"
         @apply="applyFilters"
         @reset="resetFilters"
         @export="exportReport"
@@ -518,7 +518,7 @@ function isCapacityError(error: unknown) {
 }
 
 async function exportReport() {
-  if (exporting.value || hasPendingFilters.value || !canViewScope.value || scopeLoading.value || loading.value) return
+  if (exporting.value || hasPendingFilters.value || !canViewScope.value || scopeLoading.value || loading.value || !snapshotAsOf.value) return
   const controller = new AbortController()
   exportController = controller
   userCanceledExport = false
@@ -532,6 +532,7 @@ async function exportReport() {
   })
 
   const { page: _page, page_size: _pageSize, ...query } = currentQuery()
+  if (snapshotAsOf.value) query.as_of = snapshotAsOf.value
   try {
     const data = await adminAPI.organizationUsage.fetchAll(query, {
       signal: controller.signal,
