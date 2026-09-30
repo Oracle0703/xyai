@@ -113,9 +113,9 @@ Sub2API 是一个**单进程 Go 服务**，同时承担两种角色：
 
 | 维度 | 约定 |
 | --- | --- |
-| 合并方向 | 定期以固定 SHA 合入 `Wei-Shaw/sub2api main`，记录追加到 `docs/features/sub2api -merage-list.md`（只追加） |
+| 合并方向 | 定期以固定 SHA 合入 `Wei-Shaw/sub2api main`，记录追加到 `docs/upstream-sync/merge-log.md`（只追加） |
 | 重叠能力 | 采用上游实现，不修上游自身缺陷（只记录到 `docs/features/technical-debt-board-cn.md`） |
-| 本地独有能力 | 必须保留，清单见第 16 章与 `docs/upstream-merge-playbook.md` |
+| 本地独有能力 | 必须保留，清单见第 16 章与 `docs/upstream-sync/playbook.md` |
 
 ---
 
@@ -1085,7 +1085,7 @@ flowchart TB
 
 ## 16. 上游合并纪律与本地独有能力
 
-流程（详见 `docs/upstream-merge-playbook.md`）：工作树干净 → `git fetch` → 独立分支以**固定上游 SHA** merge（不凭感觉跟 HEAD）→ 冲突按语义并集（不整块 ours/theirs）→ Wire 冲突改 provider 源再 generate → 第 17 章验证 → **追加** `docs/features/sub2api -merage-list.md` → 更新 wiki 与 `tools\refresh-understand-wiki.cmd`。
+流程（详见 `docs/upstream-sync/playbook.md`）：工作树干净 → `git fetch` → 独立分支以**固定上游 SHA** merge（不凭感觉跟 HEAD）→ 冲突按语义并集（不整块 ours/theirs）→ Wire 冲突改 provider 源再 generate → 第 17 章验证 → **追加** `docs/upstream-sync/merge-log.md` → 更新 wiki 与 `tools\refresh-understand-wiki.cmd`。
 
 必须保留的本地能力（合并时对照）：
 

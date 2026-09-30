@@ -130,4 +130,4 @@
 
 本轮业务代码净减少 156 行，移除重复查询校验、内存二次筛选、保留授权重复锁/插入、旧并行趋势状态和无版本导出/用户详情回退；保留并发权限、幂等和原子审计。Go default/unit 全量、12 组真实 PG、前端 331 files / 2,480 tests、最后导出专项 54 项、lint/typecheck/build 和 normal/embed 已通过。新增授权锁范围、请求迟到、错误传播、参数边界及导出快照反例。
 
-源码、锁保留理由、精确验证边界及本机日志见[代码审核报告](../../features/organization-department-usage-code-review-cn.md)。未重新执行浏览器验收，旧截图/HTTP 证据不冒充本轮结果；本轮未提交、推送或部署。
+源码、锁保留理由、精确验证边界及本机日志见[代码审核报告](../../reviews/organization-department-usage-code-review-cn.md)。未重新执行浏览器验收，旧截图/HTTP 证据不冒充本轮结果；本轮未提交、推送或部署。

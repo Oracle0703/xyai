@@ -207,7 +207,7 @@ SELECT status, error_reason, count(*) FROM idempotency_records
 | 事务存在性断言在 service 和 repo 里重复了三处 | 只保留 `Reset` 入口一处 |
 | Scope 按用户隔离没有测试锁住 | Scope 抽成 `service.SubscriptionSelfResetIdempotencyScope`，handler 和集成测试共用。集成测试新增：另一用户使用同一个键能成功执行，不会回放 |
 | 组织按邮箱域名判定，而注册邮箱验证可以关闭 | 不改代码。写入 `llm-wiki/wiki/security-and-reliability.md` 的运维约束 |
-| `ProvidePluginManager` 与上游手改的 `wire_gen.go` 分叉 | 写入 `docs/features/sub2api -merage-list.md` 的合并检查项 |
+| `ProvidePluginManager` 与上游手改的 `wire_gen.go` 分叉 | 写入 `docs/upstream-sync/merge-log.md` 的合并检查项 |
 
 复验结果：
 

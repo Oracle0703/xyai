@@ -18,6 +18,7 @@
 
 - [[ops]]
 - 人类完整手册: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`
+- 仓库文档目录索引: `docs/README.md`
 
 ## 数据与领域
 

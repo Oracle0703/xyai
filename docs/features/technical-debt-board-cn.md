@@ -45,7 +45,7 @@
 | 源码标记 | `backend/**/*.go` 排除 `ent/`、`wire_gen.go` | `TODO`/`FIXME`/`HACK`、显式 `t.Skip` |
 | 体量 | `backend/internal`、`frontend/src` | 行数 ≥1000 的非测试 Go；前端 >50KB SFC |
 | 迁移 | `backend/migrations/*.sql` | 数字前缀冲突分组 |
-| 文档 | `docs/features/sub2api -merage-list.md`、`llm-wiki/wiki/*`、performance/design 文 | 「只记录不修」、已知风险 |
+| 文档 | `docs/upstream-sync/merge-log.md`、`llm-wiki/wiki/*`、performance/design 文 | 「只记录不修」、已知风险 |
 | CI | `.github/workflows/backend-ci.yml`、根/`backend` Makefile | lint 全量、前端 critical-only |
 | 定点读码 | `image_storage.go` download、`organization_usage_repo.go` SQL、Live billing、DTO contract | 确认是否仍存在 |
 
@@ -241,7 +241,7 @@
 | | |
 | --- | --- |
 | 本地热点能力 | RequestArchive/RequestIntercept；Prompt Metrics/Risk/judge；Token Analysis；组织用量；子管理员；compatible cache usage；默认 reasoning effort；并发 preset；quota flusher |
-| 证据 | `llm-wiki/wiki/README.md` 每轮同步；`docs/upstream-merge-playbook.md`；merge-list |
+| 证据 | `llm-wiki/wiki/README.md` 每轮同步；`docs/upstream-sync/playbook.md`；merge-list |
 | 影响 | 每轮 Wire/gateway 顺序/settings 省略字段语义复核；人日高 |
 | 缓解 | 冲突热点清单；本地能力模块边界；合并 PR 零还债（已有纪律） |
 | 关闭 | 不追求 done；合并成本显著下降可标 mitigated |
@@ -457,11 +457,11 @@ Sprint F — 功能洞与杂项
 
 | 文档 | 用途 |
 | --- | --- |
-| `docs/features/sub2api -merage-list.md` | 上游合并与只记不修 |
+| `docs/upstream-sync/merge-log.md` | 上游合并与只记不修 |
 | `docs/features/golangci-lint-debt-cleanup-plan-cn.md` | lint 明细 |
 | `docs/features/organization-usage-report-performance-cn.md` | TD-025 基线 |
 | `docs/ASYNC_IMAGE_TASKS.md` | 异步图/TD-033 |
-| `docs/upstream-merge-playbook.md` | 合并纪律 |
+| `docs/upstream-sync/playbook.md` | 合并纪律 |
 | `llm-wiki/wiki/data-and-domain.md` | migration 风险 |
 | `llm-wiki/wiki/security-and-reliability.md` | 网关/审核/first-output |
 | `llm-wiki/wiki/ops.md` | 验证命令、Windows 锁、CI 相关 |

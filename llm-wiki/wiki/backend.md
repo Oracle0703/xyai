@@ -23,7 +23,7 @@
 状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。合同与证据见 `docs/features/organization-department-usage-implementation-plan-cn.md` 和 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
 
 - `DepartmentHandler / DepartmentService / DepartmentRepository` 提供组织下一级部门、成员和负责人管理；路由 `internal/server/routes/department.go`。部门独立于 API 分组、订阅和计费。
-- 2026-09-21 复审精简：`UserRepository.GetByIDWithAdminAccess` 为必需接口，管理详情不回退普通读取；查询仓储统一完成规范化、范围鉴权及 ExpectedVersion 校验，SQL 成员集合直接用于报表，复用成员映射。授权只批量检查/锁定和插入新增部门，保留授权不重复锁部门。详见 `docs/features/organization-department-usage-code-review-cn.md`。同日只读实现审核见 `docs/features/organization-department-usage-implementation-audit-cn.md`，无越权回退全站；剩余进度 404 改写、组织用量分页溢出、SetAccess 省略字段不清 grant。
+- 2026-09-21 复审精简：`UserRepository.GetByIDWithAdminAccess` 为必需接口，管理详情不回退普通读取；查询仓储统一完成规范化、范围鉴权及 ExpectedVersion 校验，SQL 成员集合直接用于报表，复用成员映射。授权只批量检查/锁定和插入新增部门，保留授权不重复锁部门。详见 `docs/reviews/organization-department-usage-code-review-cn.md`。同日只读实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`，无越权回退全站；剩余进度 404 改写、组织用量分页溢出、SetAccess 省略字段不清 grant。
 
 - 管理用户详情经 `user_admin_access.go` 的 repeatable-read 事务返回角色/权限及 `admin_access_version`，不暴露在公开或嵌套浅层 DTO。通用权限修改与 department-scope 共用角色/权限/grant 摘要，在用户行锁下重读、校验并审计；降级/软删除原子清其持有 grants。
 - `/admin/usage/organization-report/scope`、`/admin/subscriptions/scope` 只返回目录 `catalog_version`，不装载成员。`department_query_scope.go` 按实际筛选构造授权 SQL 与 `scope_version`；包含选中 ID/邮箱/组织/部门/成员版本及部门标签，排除 username、排序和无关范围。

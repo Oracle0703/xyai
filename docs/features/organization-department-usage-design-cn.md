@@ -4,7 +4,7 @@
 
 实现位于 `feature/hy/10207_department_usage`。本文记录已实现合同；成员创建时间上界与 SQL 内摘要两个备选未启用。另一任务的人员截图/Excel 调整不计入本次验收及提交。
 
-配套文档：[实施方案](organization-department-usage-implementation-plan-cn.md)、[第二轮审核](organization-department-usage-design-review-cn.md)、[验收清单](../delivery/2026-09-19-department-usage/acceptance.md)、[既有性能记录](../delivery/2026-09-19-department-usage/performance.md)。历史实施证据见第 15 节，原始工作量预算见第 12 节。
+配套文档：[实施方案](organization-department-usage-implementation-plan-cn.md)、[第二轮审核](../reviews/organization-department-usage-design-review-cn.md)、[验收清单](../delivery/2026-09-19-department-usage/acceptance.md)、[既有性能记录](../delivery/2026-09-19-department-usage/performance.md)。历史实施证据见第 15 节，原始工作量预算见第 12 节。
 
 ## 1. 方案摘要
 

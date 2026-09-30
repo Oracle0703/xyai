@@ -49,9 +49,12 @@
 
 ## 功能文档与审核归档
 
+- 目录入口 `docs/README.md`：各目录用途、新文档放置规则、不可移动文件和路径迁移表。
 - `docs/features/` 保存功能设计、技术说明与实现交付记录，不存放 review、audit 或审核裁决报告。
-- 审核原文放在 `docs/reviews/`；阶段交付已有 `docs/delivery/` 目录的可随交付归档。已采纳结论更新到对应设计正文，未采纳意见不得写成已实现行为。
-- 2026-09-23 迁移索引：`docs/reviews/features-review-archive-index.md`。历史报告保留当时证据；合并台账仅追加路径迁移说明，不改写既有条目。
+- 功能审核原文放 `docs/reviews/`；功能验收、性能、截图放 `docs/delivery/<日期>-<主题>/`。已采纳结论更新到对应设计正文，未采纳意见不得写成已实现行为。
+- 上游同步材料统一放 `docs/upstream-sync/`：台账 `merge-log.md`（只追加）、流程 `playbook.md`、每轮 `<YYYY-MM-DD>-v<版本>/review.md`。
+- `docs/` 根目录只放上游自带文档和本地总手册；`docs/legal/` 被前端打包和 Dockerfile 引用。被 SQL migration 注释引用的设计文档不能移动（migration 有 checksum 校验）。
+- 迁移记录：2026-09-23 见 `docs/reviews/features-review-archive-index.md`，2026-09-30 见 `docs/README.md`。历史报告保留当时证据，只修相对链接；合并台账仅追加路径迁移说明，不改写既有条目。
 
 ## 推荐写法
 

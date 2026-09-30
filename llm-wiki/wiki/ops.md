@@ -4,9 +4,9 @@
 
 - 本轮 default 全量、前端 374 files / 2828 tests、lint/typecheck/build、Go normal/embed、tidy 和最终增量 lint 通过。unit 保留 main 既有 ptrFloat 重复声明阻塞；integration 一次 cyber snapshot 1 秒时序失败（同标签复跑 3/3 通过），另有 18 个显式 skip 和 repository Docker 整包跳过，不是全绿/完整集成验收。
 
-- 第一父为本地 `main@bdf31e87223058200c614a807e24169e12bb31ea`，分支 `feature/hy/10213_merge_sub2api_210`，固定合入 `Wei-Shaw/sub2api main@a60a29549f488a854966aaec9541abbe006cac22`。远端 main 已前进，本轮不跟随更晚提交；保持 MERGE_HEAD 等待人工 commit 审核。
+- 第一父为本地 `main@bdf31e87223058200c614a807e24169e12bb31ea`，分支 `feature/hy/10213_merge_sub2api_210`，固定合入 `Wei-Shaw/sub2api main@a60a29549f488a854966aaec9541abbe006cac22`。远端 main 已前进，本轮不跟随更晚提交。合并已由 `87abb8a89` 提交并合入本地 main（`github/main` 已包含）。
 - 15 个文本冲突、37 个双方修改路径；无 schema/migration 变化，不生成 Ent。Wire 连续生成两次一致，保留插件目录接线；剔除仅由 Wire 工具产生的 go.sum 附加 checksum。
-- Windows 验证沿用 repo-local cache、fresh GOTMPDIR、`-p 1 -count=1` 和测试进程 Git `usr/bin` PATH。完整命令、结果和未执行集成前提见 `docs/delivery/2026-09-30-sub2api-v0.2.10-sync/review.md`；未把基线/上游失败修复混入合并。
+- Windows 验证沿用 repo-local cache、fresh GOTMPDIR、`-p 1 -count=1` 和测试进程 Git `usr/bin` PATH。完整命令、结果和未执行集成前提见 `docs/upstream-sync/2026-09-30-v0.2.10/review.md`；未把基线/上游失败修复混入合并。
 
 
 ## 0.2.9 合并与验证基线
@@ -14,7 +14,7 @@
 - 本轮 default 全量、前端 lint/typecheck/373 files・2810 tests/build、normal/embed build、tidy 和增量 lint（0 issues）通过。unit 的 service 包被本地 main 已有 `ptrFloat` 重复测试声明阻塞；integration 退出 0 但有 18 个显式 skip 及 Docker 缺失的 repository 整包跳过，不是完整集成验收。
 - 固定上游 `9a62841fd124d026cf3694fcf9b79e98addcdbdc`，分支 `feature/hy/10211_merge_sub2api_209`，第一父为本地 `main@7373dc2674be8266cd048b7a79e0c184650a3f8b`；该轮已由 `bdf31e87223058200c614a807e24169e12bb31ea` 提交并合入本地 main。
 - 三份 `deploy/docker-compose*.yml` 将 Redis command 改为 exec 数组，密码仍取 `REDIS_PASSWORD`；setup 新写配置不再生成已废弃 `rate_limit` 默认节，不主动修改现有配置。
-- 验证沿用 repo-local Go cache、每组 fresh GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git 的 `usr/bin` 以满足 `sh`；结果和环境边界见 `docs/delivery/2026-09-29-sub2api-v0.2.9-sync/review.md`。本轮无 schema/provider 变化，不重生成 Ent/Wire。
+- 验证沿用 repo-local Go cache、每组 fresh GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git 的 `usr/bin` 以满足 `sh`；结果和环境边界见 `docs/upstream-sync/2026-09-29-v0.2.9/review.md`。本轮无 schema/provider 变化，不重生成 Ent/Wire。
 
 ## 部门功能验证与上线
 
@@ -39,7 +39,7 @@
 - 本地 `main@de5a3e383cd8eb197c1a83f12a71fb04d9e4e049` 为第一父，分支 `feature/hy/10207_merge_sub2api_207`，固定上游 `main@fbb9006adef852c46f0c7f18b0a8a740722cfac7`，`VERSION=0.2.7`；共同祖先为 `efe9aab1e4ec89a42ba45e8dac20e882c5409a6a`。上游曾强制更新历史，普通 merge 会保留已撤下的 0.2.6 ticket；本轮按用户明确选择同步移除。
 - `gateway.openai_codex_ticket` / `GATEWAY_OPENAI_CODEX_TICKET_*`、后台票据开关/代理和 harvester 已移除；普通 Codex turn-state 机制仍在。旧配置/数据库值不由本轮主动清理，下方 0.2.6 ticket 配置仅供历史追溯。
 - Go 1.27.0 和前端 package/lockfile 不变；采用已有 pnpm 9 依赖。Wire 重生成后必须核对目标上游已有 `pluginManager.SetAccountDirectory(openAIGatewayService)`：上游源图缺少这条接线，生成器会删除它。本轮保留目标行为并登记问题，不修复源图。
-- 验证使用仓库 `.gocache`、每命令独立 GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git `usr/bin`；完整 default/unit/integration、前端 Vitest、lint/typecheck/build 与已知失败归属见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。退出 0 但因 Docker/凭据缺失而 skip 的测试不算完整执行覆盖。
+- 验证使用仓库 `.gocache`、每命令独立 GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git `usr/bin`；完整 default/unit/integration、前端 Vitest、lint/typecheck/build 与已知失败归属见 `docs/upstream-sync/2026-09-20-v0.2.7/review.md`。退出 0 但因 Docker/凭据缺失而 skip 的测试不算完整执行覆盖。
 
 - 本轮 default、专项、normal/embed build、tidy、增量 lint、前端 lint/typecheck/build 通过；unit 留有第一父 auth/me golden 与 Ollama CAS，Vitest 留有第一父 Pinia 6 失败。integration 在 `CI=true` 下因 Docker 不可用使 repository 包失败，另有 18 个显式 skip；未把退出码或跳过视为全量覆盖。
 
@@ -49,7 +49,7 @@
 - 新增 `gateway.openai_codex_ticket` 配置：`enabled=false`、`target_length=292`、`ttl_seconds=3600`、`refresh_before_seconds=600`、`harvest_proxy_url=""`、`harvest_probe_interval_seconds=6`、`harvest_attempt_timeout_seconds=25`、`fail_closed=true`，models 默认 `gpt-6-astra` / `gpt-5.6-sol`。环境变量使用 `GATEWAY_OPENAI_CODEX_TICKET_*`；后台总开关与代理设置优先于 YAML/env，读取缓存 5 秒；后台代理输入留空保存表示保持已有值。
 - Go 保持 1.27.0，gRPC 升至 1.83.2，并沿上游同步 x/*、OpenTelemetry 等依赖；本地直接引用的 `golang.org/x/sys` / `golang.org/x/text` 继续列为直接依赖，但采用上游版本。Wire provider 变化已连续生成两次并核对一致；本轮无 Ent schema 变化，无需重建 Ent。生成工具临时增加的 checksum 不属于业务依赖，生成后恢复目标 `go.sum`。
 - Windows 验证可仅在测试进程 PATH 加入现有 Git for Windows 的 `usr/bin`，满足 `backup_pg_dumper` 测试硬编码的 `sh` 依赖；不用修改生产实现或测试。`golangci-lint` 使用仓库缓存中与 CI 相同的 v2.13.0/Go 1.27 二进制，避免默认旧 v2.9.0 拒绝加载。
-- 本轮测试结果与基线归属见 `docs/delivery/2026-09-18-sub2api-v0.2.6-sync/review.md`；完整测试存在失败时不得将交付表述为全绿。
+- 本轮测试结果与基线归属见 `docs/upstream-sync/2026-09-18-v0.2.6/review.md`；完整测试存在失败时不得将交付表述为全绿。
 - 2026-09-19 Claude 独立复审为 GO（仅冲突合并范围，非 commit/上线授权），结果及上游 F1/F2、未确认 F3 见同目录 `claude-review-result.md`。Claude 报告聚焦 Go、普通 build、前端 3 files / 92 tests 通过，其余完整验证沿用 09-18；GPT 本轮仅核对源码/索引并记录文档，没有重跑这些测试。Ollama CAS 在两轮精确三次复跑中均未转绿，flaky 标签仅有 0.2.5 台账历史支撑，不降低风险；17 个显式 skip 和 repository 整包 Docker 跳过仍未补齐。
 
 给人读的完整架构、配置、部署、值班与改代码手册见 `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`。本页保持 AI 可快速扫描的命令、配置组和约束；手册写操作步骤。
@@ -530,7 +530,7 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - 后端在 `backend/` 按本页 Go 缓存入口运行 `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler ./internal/server/middleware ./internal/server/routes -run 'SubscriptionSelfReset|AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|BackendModeUserGuard|SubscriptionBulkActionRoutes'`。
 - 隔离 PostgreSQL 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后执行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run SubscriptionSelfReset`。覆盖并发、单连接池、回滚、DATE、组织一致性及两个服务实例缓存回读；缓存测试用 miniredis TCP/PubSub，不代表生产 Redis 集群故障验证。勿对业务库运行迁移测试。既没有 Docker 也没有设置该 DSN 时，`TestMain` 会打印 `docker is not available; skipping integration tests` 并返回 `ok`，必须加 `-v` 确认三个用例 `--- PASS`。main 上 CI 的单测步骤当前失败，集成步骤不会执行，CI 不能替代这一步。上线后的 SQL 验证步骤见交付记录「上线与 PostgreSQL 验证」。
 - 前端 `pnpm --dir frontend exec vitest run src/views/user/__tests__/SubscriptionsView.selfReset.spec.ts src/composables/__tests__/useSubscriptionSelfReset.spec.ts src/components/admin/subscription/__tests__/SubscriptionSelfResetPolicyDialog.spec.ts`，并运行既有管理订阅用例、locale 完整性、typecheck 与 ESLint。
-- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-implementation-cn.md`。实现审核见 `docs/features/subscription-self-daily-reset-implementation-review-cn.md`。
+- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-implementation-cn.md`。实现审核见 `docs/reviews/subscription-self-daily-reset-implementation-review-cn.md`。
 
 ## 上游历史分支合并注意事项
 

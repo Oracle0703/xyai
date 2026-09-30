@@ -33,7 +33,7 @@
 - 跟随固定上游移除 Codex ticket 设置字段、账号状态展示与类型；原有归档设置、本地 OpenAI-compatible preset 和子管理员权限保留。
 - 账号创建、编辑与批量编辑支持显式 `seedance` 能力；默认仍为 chat/embeddings，空选项不隐式启用 Seedance。相关合同集中在 `components/account/README.md`。
 - `RiskControlView.vue` 增加 OpenAI / TypeSafe 引擎选择，分别维护 URL/model/keys/proxy/thresholds，测试 key 使用当前草稿引擎；本地 `PromptRiskPanel`、独立保存与风险结果筛选继续保留。
-- `PluginsView.vue` 和 API client 增加只读状态通道；竖屏移动端顶栏保留模型广场图标入口。完整 Vitest 的第一父失败与本轮验证见 `docs/delivery/2026-09-20-sub2api-v0.2.7-sync/review.md`。
+- `PluginsView.vue` 和 API client 增加只读状态通道；竖屏移动端顶栏保留模型广场图标入口。完整 Vitest 的第一父失败与本轮验证见 `docs/upstream-sync/2026-09-20-v0.2.7/review.md`。
 
 ## 0.2.6 合并增量
 
@@ -256,7 +256,7 @@ API 模块分布:
 
 订阅管理:
 
-- 用户订阅自助日重置已实现：用户页在续费后显示“重置（N）”，每订阅独立计次，组织默认上限 1；用尽显示 0 并禁用。日卡、零用量、无日限或不可用订阅不能自助，管理端原重置不限次。设计见 `docs/features/subscription-self-daily-reset-design-cn.md`，交付证据见 `docs/features/subscription-self-daily-reset-implementation-cn.md`，实现审核见 `docs/features/subscription-self-daily-reset-implementation-review-cn.md`。审核问题已于 2026-09-23 修复，见交付记录“审核后修复”。
+- 用户订阅自助日重置已实现：用户页在续费后显示“重置（N）”，每订阅独立计次，组织默认上限 1；用尽显示 0 并禁用。日卡、零用量、无日限或不可用订阅不能自助，管理端原重置不限次。设计见 `docs/features/subscription-self-daily-reset-design-cn.md`，交付证据见 `docs/features/subscription-self-daily-reset-implementation-cn.md`，实现审核见 `docs/reviews/subscription-self-daily-reset-implementation-review-cn.md`。审核问题已于 2026-09-23 修复，见交付记录“审核后修复”。
 - `useSubscriptionSelfReset.ts` 的 refresh 同时读次数状态和页面列表。刷新期间保留上一份状态，不闪成“—”；只有状态请求失败才清空状态、禁用按钮并显示“状态暂不可用”。列表失败由 `loadSubscriptions` 自己提示 `failedToLoad`，不连带丢弃状态。全局 store 只在重置成功后强制刷新；失败时提示并在下一次 refresh 补刷，切回标签页平时不刷新它。旧响应按代次丢弃，按钮只认 can_reset。
 - 操作键首次提交用 getRandomValues 生成，提交前按订阅记入内存和按用户隔离的 sessionStorage（写入失败退回内存，不拒绝提交）。未知结果、401/408/429、处理中/退避都保留原键原日期，并遵守 Retry-After；关闭弹窗或刷新页面后再次打开同一订阅仍沿用原键并提示结果未确认。只有成功或确定性失败才删除，日期变化后作废。不能靠 NO_USAGE 兜底：上限 ≥2 且原请求已提交后又有新用量时，新键会再清零、再扣一次。未确认的键不锁其他订阅。
 - 管理订阅页“自助重置设置”只对完整管理员显示；独立 `SubscriptionSelfResetPolicyDialog.vue` 配置三类组织的 0–100 整数、以及 `rollout=off/admin/all`。默认 `admin` 只开放完整管理员，验证后切为 `all`，异常时可切回 `off`。用户页对 `ROLLOUT_DISABLED` 或尚未加载成功的状态不渲染按钮和提示行，灰度期间普通用户看不到该功能。读取失败时显示空白输入框，不填默认值，可重试，也可填满三项后保存覆盖损坏或缺失的配置。

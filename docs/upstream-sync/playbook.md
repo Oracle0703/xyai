@@ -20,11 +20,19 @@
 | --- | --- |
 | 确认工作树 | `git status --short --branch`，若有无关改动先说明，不要覆盖。 |
 | 更新远端 | `git fetch --all --prune` |
-| 建合并分支 | `git checkout main && git checkout -b codex/merge-upstream-sub2api-YYYY-MM-DD` |
-| 合并上游 | `git merge upstream/main` |
+| 建合并分支 | `git checkout main && git checkout -b feature/hy/<需求号>_merge_sub2api_<版本>`，例如 `feature/hy/10213_merge_sub2api_210` |
+| 合并上游 | 记录 `upstream/main` 当前 SHA，`git merge <固定 SHA>`；合并期间上游前进也不跟随 |
 | 解决冲突 | 按本文档的本地能力和高风险文件逐项检查。 |
 | 验证 | 后端测试、前端测试/构建、关键接口/页面冒烟。 |
 | 合回 main | 验证通过后再合并或提交 PR，不要直接强推。 |
+
+## 记录位置
+
+| 产出 | 位置 |
+| --- | --- |
+| 合并台账（只追加） | `docs/upstream-sync/merge-log.md` |
+| 本轮审核与验证报告 | `docs/upstream-sync/<YYYY-MM-DD>-v<版本>/review.md` |
+| 独立复审（如有） | 同目录 `claude-review-request.md`、`claude-review-result.md` |
 
 ## 本地长期维护能力
 
@@ -88,12 +96,12 @@
 ## 给服务器 Codex 的可复制提示
 
 ```text
-请按仓库内 docs/upstream-merge-playbook.md 合并源仓库 Wei-Shaw/sub2api 的最新 main。
+请按仓库内 docs/upstream-sync/playbook.md 合并源仓库 Wei-Shaw/sub2api 的最新 main。
 
 要求：
 1. 先只读检查 git status、remote、当前分支、最近提交和未跟踪文件。
-2. fetch --all --prune 后，从当前 main 创建临时合并分支。
-3. merge upstream/main，如有冲突，禁止无脑 ours/theirs，必须逐文件说明双方改动和融合理由。
+2. fetch --all --prune 后，从当前 main 创建 feature/hy/<需求号>_merge_sub2api_<版本> 分支。
+3. 固定 upstream/main 当前 SHA 后 merge 该 SHA，如有冲突，禁止无脑 ours/theirs，必须逐文件说明双方改动和融合理由。
 4. 必须保留本地能力：token 分析、生图工具、用户并发方案、Redis 7+ 要求、并发错误分类、OpenAI Responses/Chat 兼容、大请求 role=tool 压缩、空响应兜底。
 5. 不要提交 fixtures/、report/、runtime-report* 或生产请求样本。
 6. 合并后运行后端重点测试、前端测试和前端构建；如无法运行，说明原因。

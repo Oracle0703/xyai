@@ -2092,3 +2092,13 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 - `frontend/src/views/admin/DashboardView.vue`
 
 本条仅追加记录，不改写历史条目。上一轮 0.2.9 已由 `bdf31e87223058200c614a807e24169e12bb31ea` 提交并进入本地 main；本轮尚未 commit/push/PR/部署。
+
+## 2026-09-30 文档目录整理路径迁移说明（非上游合并）
+
+本次仅整理 `docs/` 目录，未执行上游合并。本台账由 `docs/features/sub2api -merage-list.md` 迁至 `docs/upstream-sync/merge-log.md`，既有条目保持原样，其中的旧路径按以下规则查找：
+
+- `docs/delivery/<日期>-sub2api-v<版本>-sync/`（含 `2026-07-14-sync-sub2api-v0-1-155/`）→ `docs/upstream-sync/<日期>-v<版本>/`
+- `docs/reviews/` 下的上游合并审核（含 09-23 迁入的 `sub2api-v0.1.135/146-merge-review-cn.md`）→ `docs/upstream-sync/reviews/` 同名文件
+- `docs/upstream-merge-playbook.md` → `docs/upstream-sync/playbook.md`
+
+2026-09-20 条目引用的 `review.md` 曾在后续功能分支合并中丢失，已从 `d120d499e` 恢复到 `docs/upstream-sync/2026-09-20-v0.2.7/review.md`。完整映射见 `docs/README.md`。本条仅追加，不改写历史条目。

@@ -7,7 +7,7 @@
 | 文档 | 用途 |
 | --- | --- |
 | [设计文档](organization-department-usage-design-cn.md) | 业务边界、目标接口及一致性合同 |
-| [第二轮审核](organization-department-usage-design-review-cn.md) | 原始发现与建议，保留审核方记录 |
+| [第二轮审核](../reviews/organization-department-usage-design-review-cn.md) | 原始发现与建议，保留审核方记录 |
 | [验收清单](../delivery/2026-09-19-department-usage/acceptance.md) | 旧基线证据与本轮 RV1–RV8 结果分别记录 |
 | [性能基线](../delivery/2026-09-19-department-usage/performance.md) | 保留旧基线及本轮同数据复测、管理员接口前后比较 |
 

@@ -20,7 +20,7 @@
 
 状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
-- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/features/organization-department-usage-implementation-audit-cn.md`。
+- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`。
 
 - `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
 - 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。
@@ -257,7 +257,7 @@ Grok OAuth session 与密码授权:
 - 方案复核补充：历史受限/新用户会低估需求；七天样本清理、角色和账号范围变动必须更新策略版本；一个账号失效先剔除其可信供给，整体状态过期才对高用量保守拒绝。保底超过可用容量时明示资源不足，不自动压低保底；恢复需独立的新鲜快照，重复读同版本不算多次观测。其它模型余量、共享凭证和池外消耗不能被漏计或重复承诺。
 - 账号数、累计周额度和瞬时并发是不同维度。保底触停应使用同口径、去重且符合目标模型范围的有效周余量；配置并发/实际占用衡量瞬时服务压力，不能乘入周额度或代替真实吞吐。`ConcurrencyService.AcquireAccountSlot` 的 `maxConcurrency<=0` 表示不限制，不可把 0 当作零容量求和；`Account.EffectiveLoadFactor` 可能覆盖评分分母，实际抢槽/等待仍使用账号 `Concurrency`。`GroupCapacityService` 的容量汇总是观测值，共享账号跨组会重叠，不能把多个组的汇总再直接相加。
 - 保底余额并不保证并发可用：高用量组可在未触额度线时占满共享槽位。最少源码改动的隔离方式是配置普通组专用账号，并同时验证其周额度与并发能力；方案二保留原路由，只新增动态额度准入，不能宣称已预留普通组并发。若要共享账号并硬预留普通组并发，需新增组/池级原子槽位与租约释放、超时、重试及 WS 逐轮合同，属于独立容量控制范围，工作量高于单纯触停。
-- 独立设计需求见 `docs/features/shared-compute-pool-independent-design-brief-cn.md`。2026-09-22 对 Claude 旧稿的复评及源文件 hash 见 `docs/features/shared-compute-pool-claude-revision-review-cn.md`：角色百分比政策不等价于 `U7×1.05`，增大已用比例阈值 T 会减少名义保留。用户授权后已修订同路径 HTML 的文档与演示；这不代表后端角色 gate 已实现。
+- 独立设计需求见 `docs/features/shared-compute-pool-independent-design-brief-cn.md`。2026-09-22 对 Claude 旧稿的复评及源文件 hash 见 `docs/reviews/shared-compute-pool-claude-revision-review-cn.md`：角色百分比政策不等价于 `U7×1.05`，增大已用比例阈值 T 会减少名义保留。用户授权后已修订同路径 HTML 的文档与演示；这不代表后端角色 gate 已实现。
 - 2026-09-22 HTML 当前版：四方案按 82/69/71/83 条件性规划分比较，第四为修正设计目标（旧稿复评 74），投入 3–5 人日。第四明确原账号规则与额外角色检查取交集，高用量未知/过期/待重置确认时不放行；后台查询必须经过较新快照写回并对调度可见，首期按已确认 OpenAI 周池及约定文本 HTTP/WS 范围。演示为四方案各自的三账号数组，容量 500/300/200，账号分别重置、数据时效独立，包含偏斜消耗第五场景和 T 调节；同一快照不重复增加恢复观测。原规则豁免或用卡不自动绕过角色门，未知单次输出仍可能越线。真实计量、并发保障和多平台覆盖仍未验收。
 - `backend/internal/service/scheduler_snapshot_service.go`
 - `backend/internal/repository/scheduler_cache.go`, `scheduler_outbox_repo.go`

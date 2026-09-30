@@ -153,17 +153,14 @@ backend/cmd/server/server
 deploy/docker-compose.override.yml
 vite.config.js
 docs/*
+# 本地文档目录整体跟踪, 结构见 docs/README.md
+!docs/README.md
 !docs/features/
 !docs/reviews/
-docs/reviews/*
-!docs/reviews/2026-07-13-organization-usage-report-review.md
-!docs/reviews/2026-07-27-organization-usage-trend-chart-code-review.md
-!docs/reviews/2026-07-27-organization-usage-trend-chart-review-triage.md
-!docs/reviews/2026-07-27-organization-usage-trend-chart-self-review.md
+!docs/delivery/
+!docs/upstream-sync/
 !docs/superpowers/
-!docs/superpowers/**
-!docs/upstream-merge-playbook.md
-!docs/ANTIGRAVITY_ATTRIBUTION_429.md
+!docs/安装与操作手册.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

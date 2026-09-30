@@ -32,7 +32,7 @@
 
 ## 上游合并记录规则
 
-每次与远程仓库 `Wei-Shaw/sub2api` (`https://github.com/Wei-Shaw/sub2api`) 合并后, 必须把本次合并记录追加写入 `docs/features/sub2api -merage-list.md`。
+每次与远程仓库 `Wei-Shaw/sub2api` (`https://github.com/Wei-Shaw/sub2api`) 合并后, 必须把本次合并记录追加写入 `docs/upstream-sync/merge-log.md`。
 
 - 该文件是追加型记录, 只能新增条目, 不可以直接覆盖、清空或删除已有记录。
 - 记录至少包含合并日期、工作分支、上游分支、上游提交、合并提交、冲突文件、处理方式和验证结果。
