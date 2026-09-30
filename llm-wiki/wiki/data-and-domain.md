@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.2.10 数据与计费合同
+
+- 本轮无 Ent schema、SQL migration 或 Go/frontend 依赖变更。风控白名单使用既有 settings 存储；Claude 重置次数查询不引入本地余额/次数扣减。
+- Sonnet 5.5 fallback 价格：输入 2、输出 10、5m cache-write 2.5、1h cache-write 4、cache-read 0.2 USD/MTok；Bedrock 默认映射使用 global inference，均来自固定上游。
+- 用户趋势同时返回 tokens/cost/actual_cost；metric 影响未筛选用户时的 Top 排名，选人查询继续返回指定用户、保持本地时区桶与范围合同。本地组织/部门统计及订阅自助重置保持独立。
+
+
 ## 0.2.9 计费与额度同步合同
 
 - 渠道图片输入/输出价格为 nil 时继承目录价格，显式值（含 0）覆盖；显式图片输出 0 表示免费，不回退文本输出价。入口 `model_pricing_resolver.go`。

@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.2.10 风控与网关边界
+
+- 上游 `cyber_policy_user_allowlist` 保存平台用户 ID；上游内容审计和 cyber session 对命中用户保留日志但不执行本地惩罚，不能突破上游拒绝。`cyber_log_only` / `risk_control_log_only` 日志不计入后续自动封禁。
+- 本地 Prompt Risk / LLM judge 仍是独立前置阶段，先于上游内容审计白名单处理；其原有 allowlist/判断合同保留，不能将新白名单解释为绕过本地全部风控。独立 Prompt Audit coordinator、请求拦截和权限链也未被替换。
+- 内容审计运行态同时保留 `allowlistedUsers` 与本地 `promptRiskConfig`/hash；本地热更新风险总开关或 Prompt Risk 配置时不得丢失白名单快照。违规 SQL 同时排除本地 `prompt_risk_%` 和上游 log-only 模式。
+- Composite WS 仍先检查客户端模型白名单，再解析路由/映射，保留本地安全审计注入；重叠调度归属与协议处理采用固定上游实现。
+
+
 ## 0.2.9 网关边界
 
 - 客户端取消采用上游 499 归类；已提交响应或已开始流式输出时不改写已提交 HTTP 状态，不向断开连接追加错误帧。取消不得触发账号故障隔离或多余 failover。

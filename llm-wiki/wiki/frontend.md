@@ -1,5 +1,12 @@
 # 前端知识基线
 
+## 0.2.10 前端同步合同
+
+- 管理首页最近使用 Top 12 支持 Token / 实际消费切换，采用上游 `metric` 请求和图表格式化，保留本地有限数值保护、消费榜和旧请求序号隔离。API client 的 `user_ids` 筛选继续供本地选人趋势使用。
+- Claude 账号显示按需查询的重置次数/冷却/到期状态；不替代本地 GPT 账号额度页。账号模型白名单阻止覆盖已有非等值映射；Claude Code-only 分组仅展示支持的客户端说明。
+- 设置页新增风控白名单用户选择器，API 保存 `cyber_policy_user_allowlist`；本地 Prompt Risk 独立配置不被合并删除，具体适用边界见 [[security-and-reliability]]。
+
+
 ## 0.2.9 前端同步合同
 
 - 分组模型白名单允许任意位置的 `*`（例如 `gpt-*-codex`）；前端校验与提示随 `groupModelAllowlist.ts` / 后端 glob 合同同步。

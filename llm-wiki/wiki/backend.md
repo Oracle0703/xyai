@@ -1,5 +1,14 @@
 # 后端知识基线
 
+## 0.2.10 合并合同
+
+- 固定上游 `a60a29549f488a854966aaec9541abbe006cac22`；Wire 接入 `ClaudeResetCreditService` 和 OpenAI WS 的 `CompositeRouteResolver`，保留本地组织/部门、Prompt Metrics、Token Analysis、并发预设、归档/拦截及插件账号目录接线。
+- 用户趋势查询贯穿 handler/cache/service/repository，同时接受本地 `user_ids` 与上游 `metric=tokens|actual_cost`。选中用户沿原范围/时区校验，忽略 limit；未选用户按上游指定指标选择 Top 用户。缓存键包含用户集合和 metric；snapshot-v2 仍请求 tokens。
+- Claude 重置次数通过 `GET /api/v1/admin/accounts/:id/claude/reset-credits` 按需只读查询，返回脱敏状态，不消费重置次数；本地 GPT 额度快照展示是独立功能，继续保留。
+- Composite WS 使用首帧客户端模型解析路由，并在映射阶段应用上游模型；组白名单仍先于路由映射。本地 security audit coordinator 和 RequestArchive/RequestIntercept 不被替换。
+- Sonnet 5.5、Anthropic tool name 单次重写、流式 usage 和 Antigravity 首内容前 keepalive 直接采用目标上游代码，本轮不额外修复上游 bug。
+
+
 ## 0.2.9 网关同步合同
 
 - Gemini 并发错误统一走 `concurrencyErrorResponse(err, slotType)`：沿用上游取消 499、真实并发/队列耗尽 429；本地 `ConcurrencyCacheError` 的脱敏 503 映射继续保留。`service.ParseGeminiModelActionPath` 仍为本地统一路径解析入口。

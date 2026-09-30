@@ -1,9 +1,18 @@
 # 运维, 配置与验证基线
 
+## 0.2.10 同步与验证入口
+
+- 本轮 default 全量、前端 374 files / 2828 tests、lint/typecheck/build、Go normal/embed、tidy 和最终增量 lint 通过。unit 保留 main 既有 ptrFloat 重复声明阻塞；integration 一次 cyber snapshot 1 秒时序失败（同标签复跑 3/3 通过），另有 18 个显式 skip 和 repository Docker 整包跳过，不是全绿/完整集成验收。
+
+- 第一父为本地 `main@bdf31e87223058200c614a807e24169e12bb31ea`，分支 `feature/hy/10213_merge_sub2api_210`，固定合入 `Wei-Shaw/sub2api main@a60a29549f488a854966aaec9541abbe006cac22`。远端 main 已前进，本轮不跟随更晚提交；保持 MERGE_HEAD 等待人工 commit 审核。
+- 15 个文本冲突、37 个双方修改路径；无 schema/migration 变化，不生成 Ent。Wire 连续生成两次一致，保留插件目录接线；剔除仅由 Wire 工具产生的 go.sum 附加 checksum。
+- Windows 验证沿用 repo-local cache、fresh GOTMPDIR、`-p 1 -count=1` 和测试进程 Git `usr/bin` PATH。完整命令、结果和未执行集成前提见 `docs/delivery/2026-09-30-sub2api-v0.2.10-sync/review.md`；未把基线/上游失败修复混入合并。
+
+
 ## 0.2.9 合并与验证基线
 
 - 本轮 default 全量、前端 lint/typecheck/373 files・2810 tests/build、normal/embed build、tidy 和增量 lint（0 issues）通过。unit 的 service 包被本地 main 已有 `ptrFloat` 重复测试声明阻塞；integration 退出 0 但有 18 个显式 skip 及 Docker 缺失的 repository 整包跳过，不是完整集成验收。
-- 固定上游 `9a62841fd124d026cf3694fcf9b79e98addcdbdc`，分支 `feature/hy/10211_merge_sub2api_209`，第一父为本地 `main@7373dc2674be8266cd048b7a79e0c184650a3f8b`；保持未提交合并状态，等待审核。
+- 固定上游 `9a62841fd124d026cf3694fcf9b79e98addcdbdc`，分支 `feature/hy/10211_merge_sub2api_209`，第一父为本地 `main@7373dc2674be8266cd048b7a79e0c184650a3f8b`；该轮已由 `bdf31e87223058200c614a807e24169e12bb31ea` 提交并合入本地 main。
 - 三份 `deploy/docker-compose*.yml` 将 Redis command 改为 exec 数组，密码仍取 `REDIS_PASSWORD`；setup 新写配置不再生成已废弃 `rate_limit` 默认节，不主动修改现有配置。
 - 验证沿用 repo-local Go cache、每组 fresh GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git 的 `usr/bin` 以满足 `sh`；结果和环境边界见 `docs/delivery/2026-09-29-sub2api-v0.2.9-sync/review.md`。本轮无 schema/provider 变化，不重生成 Ent/Wire。
 

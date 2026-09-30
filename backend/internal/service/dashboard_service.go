@@ -392,8 +392,8 @@ func (s *DashboardService) GetAPIKeyUsageTrend(ctx context.Context, startTime, e
 	return trend, nil
 }
 
-func (s *DashboardService) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, userIDs []int64, limit int) ([]usagestats.UserUsageTrendPoint, error) {
-	trend, err := s.usageRepo.GetUserUsageTrend(ctx, startTime, endTime, granularity, userIDs, limit)
+func (s *DashboardService) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, userIDs []int64, limit int, metric string) ([]usagestats.UserUsageTrendPoint, error) {
+	trend, err := s.usageRepo.GetUserUsageTrend(ctx, startTime, endTime, granularity, userIDs, limit, metric)
 	if err != nil {
 		return nil, fmt.Errorf("get user usage trend: %w", err)
 	}

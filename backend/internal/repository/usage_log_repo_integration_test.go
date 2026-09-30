@@ -1577,7 +1577,7 @@ func (s *UsageLogRepoSuite) TestGetUserUsageTrend() {
 	startTime := base.Add(-1 * time.Hour)
 	endTime := base.Add(48 * time.Hour)
 
-	trend, err := s.repo.GetUserUsageTrend(s.ctx, startTime, endTime, "day", nil, 10)
+	trend, err := s.repo.GetUserUsageTrend(s.ctx, startTime, endTime, "day", nil, 10, "tokens")
 	s.Require().NoError(err, "GetUserUsageTrend")
 	s.Require().GreaterOrEqual(len(trend), 2)
 }
@@ -1630,6 +1630,7 @@ func (s *UsageLogRepoSuite) TestGetUserUsageTrend_SelectedUsers_DailyShanghaiBuc
 		"day",
 		[]int64{selectedB.ID, selectedA.ID},
 		0,
+		"tokens",
 	)
 	s.Require().NoError(err)
 	s.Require().Len(trend, 3)
@@ -1679,13 +1680,34 @@ func (s *UsageLogRepoSuite) TestGetUserUsageTrend_SelectedUsers_HourlyShanghaiBu
 		s.Require().NoError(err)
 	}
 
-	trend, err := s.repo.GetUserUsageTrend(s.ctx, start, end, "hour", []int64{selected.ID}, 0)
+	trend, err := s.repo.GetUserUsageTrend(s.ctx, start, end, "hour", []int64{selected.ID}, 0, "tokens")
 	s.Require().NoError(err)
 	s.Require().Len(trend, 2)
 	s.Require().Equal("2026-07-01 00:00", trend[0].Date)
 	s.Require().Equal(int64(30), trend[0].Tokens)
 	s.Require().Equal("2026-07-01 23:00", trend[1].Date)
 	s.Require().Equal(int64(70), trend[1].Tokens)
+}
+
+func (s *UsageLogRepoSuite) TestGetUserUsageTrend_SelectsTopByMetric() {
+	highTokens := mustCreateUser(s.T(), s.client, &service.User{Email: "tokens@test.com"})
+	highSpend := mustCreateUser(s.T(), s.client, &service.User{Email: "spend@test.com"})
+	tokenKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: highTokens.ID, Key: "sk-trend-tokens", Name: "tokens"})
+	spendKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: highSpend.ID, Key: "sk-trend-spend", Name: "spend"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-trend-metric"})
+	at := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
+	s.createUsageLog(highTokens, tokenKey, account, 1000, 0, 0.1, at)
+	s.createUsageLog(highSpend, spendKey, account, 10, 0, 5, at)
+	start, end := at.Add(-time.Hour), at.Add(time.Hour)
+	tokens, err := s.repo.GetUserUsageTrend(s.ctx, start, end, "day", nil, 1, "tokens")
+	s.Require().NoError(err)
+	s.Require().Len(tokens, 1)
+	s.Require().Equal(highTokens.ID, tokens[0].UserID)
+	spend, err := s.repo.GetUserUsageTrend(s.ctx, start, end, "day", nil, 1, "actual_cost")
+	s.Require().NoError(err)
+	s.Require().Len(spend, 1)
+	s.Require().Equal(highSpend.ID, spend[0].UserID)
+	s.Require().Equal(5.0, spend[0].ActualCost)
 }
 
 // --- GetAPIKeyUsageTrend ---

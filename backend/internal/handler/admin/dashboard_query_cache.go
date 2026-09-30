@@ -53,6 +53,7 @@ type dashboardEntityTrendCacheKey struct {
 	EndTime     string `json:"end_time"`
 	Granularity string `json:"granularity"`
 	Limit       int    `json:"limit"`
+	Metric      string `json:"metric,omitempty"`
 }
 
 type dashboardUserTrendCacheKey struct {
@@ -61,6 +62,7 @@ type dashboardUserTrendCacheKey struct {
 	Granularity string  `json:"granularity"`
 	Limit       int     `json:"limit"`
 	UserIDs     []int64 `json:"user_ids,omitempty"`
+	Metric      string  `json:"metric,omitempty"`
 }
 
 func cacheStatusValue(hit bool) string {
@@ -221,7 +223,7 @@ func (h *DashboardHandler) getAPIKeyUsageTrendCached(ctx context.Context, startT
 	return trend, hit, err
 }
 
-func (h *DashboardHandler) getUserUsageTrendCached(ctx context.Context, startTime, endTime time.Time, granularity string, userIDs []int64, limit int) ([]usagestats.UserUsageTrendPoint, bool, error) {
+func (h *DashboardHandler) getUserUsageTrendCached(ctx context.Context, startTime, endTime time.Time, granularity string, userIDs []int64, limit int, metric string) ([]usagestats.UserUsageTrendPoint, bool, error) {
 	keyUserIDs := append([]int64(nil), userIDs...)
 	loaderUserIDs := append([]int64(nil), userIDs...)
 	if len(keyUserIDs) > 0 {
@@ -233,9 +235,10 @@ func (h *DashboardHandler) getUserUsageTrendCached(ctx context.Context, startTim
 		Granularity: granularity,
 		Limit:       limit,
 		UserIDs:     keyUserIDs,
+		Metric:      metric,
 	})
 	entry, hit, err := dashboardUsersTrendCache.GetOrLoad(key, func() (any, error) {
-		return h.dashboardService.GetUserUsageTrend(ctx, startTime, endTime, granularity, loaderUserIDs, limit)
+		return h.dashboardService.GetUserUsageTrend(ctx, startTime, endTime, granularity, loaderUserIDs, limit, metric)
 	})
 	if err != nil {
 		return nil, hit, err

@@ -2054,3 +2054,41 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 交付状态 | 未 commit、未 push、未创建 PR、未部署，等待提交前人工审核。 |
 
 历史状态补记：上一条 0.2.8 记录中的待审核合并，实际已由 `253496336` 创建 merge commit 并包含在当前本地 main 中；本次仅追加事实，不改写历史台账条目。
+
+
+## 2026-09-30 — 固定合并上游 0.2.10（待 commit 审核）
+
+| 项目 | 记录 |
+| --- | --- |
+| 工作分支 | `feature/hy/10213_merge_sub2api_210` |
+| 本地基线 | `main@bdf31e87223058200c614a807e24169e12bb31ea` |
+| 上游分支 | `Wei-Shaw/sub2api main` |
+| 上游提交 | `a60a29549f488a854966aaec9541abbe006cac22`，VERSION `0.2.10`；未合入更晚 upstream/main |
+| 共同祖先 | `9a62841fd124d026cf3694fcf9b79e98addcdbdc` |
+| 合并提交 | 尚未创建；MERGE_HEAD 固定上述目标，等待人工审核 |
+| 上游增量 | 33 commits / 118 paths，+3759/-332；15 个文本冲突，37 个双方修改路径 |
+| 处理方式 | 趋势接口同时保留本地 user_ids 和上游 metric；内容审计保留 Prompt Risk 前置阶段并接入上游 allowlist/log-only，热更新保留白名单；Wire 从合并源图生成并保留本地 provider；其他重叠协议/调度实现采用上游，仅解决冲突，不修上游 bug |
+| 本地功能 | 保留 36 个既有 features 文件/资源；RequestArchive/Intercept、Prompt Metrics/Risk/Audit、Token Analysis、组织/部门、子管理员、自助重置、GPT 额度、并发预设及 quota flusher 保留；81 个仅上游路径与指定目标一致 |
+| 验证通过 | Go default 全量、4 包专项及 2 包交叉合同、Wire 两次生成一致、tidy、normal/embed build、最终增量 lint 0 issues；前端 lint/typecheck/374 files・2828 tests/build；wiki 图谱刷新 READY（AllowDirtyWiki） |
+| 验证边界 | unit service 包被本地 main 已有 ptrFloat 重复声明阻塞；integration 出现一次 cyber snapshot 刷新测试 1 秒超时，相同标签复跑 3/3 通过；Docker/Redis/PG/外部服务等前提不足的跳过不计通过。完整结果见审核报告 |
+| 审核报告 | `docs/delivery/2026-09-30-sub2api-v0.2.10-sync/review.md` |
+
+冲突文件（仓库相对路径）：
+
+- `backend/cmd/server/wire_gen.go`
+- `backend/internal/handler/admin/dashboard_handler.go`
+- `backend/internal/handler/admin/dashboard_handler_cache_test.go`
+- `backend/internal/handler/admin/dashboard_query_cache.go`
+- `backend/internal/handler/admin/dashboard_snapshot_v2_handler.go`
+- `backend/internal/repository/content_moderation_repo.go`
+- `backend/internal/repository/usage_log_repo_integration_test.go`
+- `backend/internal/repository/usage_log_repo_trend.go`
+- `backend/internal/server/api_contract_test.go`
+- `backend/internal/service/account_usage_service.go`
+- `backend/internal/service/account_usage_service_batch_test.go`
+- `backend/internal/service/content_moderation.go`
+- `backend/internal/service/dashboard_service.go`
+- `frontend/src/api/admin/dashboard.ts`
+- `frontend/src/views/admin/DashboardView.vue`
+
+本条仅追加记录，不改写历史条目。上一轮 0.2.9 已由 `bdf31e87223058200c614a807e24169e12bb31ea` 提交并进入本地 main；本轮尚未 commit/push/PR/部署。

@@ -50,6 +50,7 @@ func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrend(
 	granularity string,
 	userIDs []int64,
 	limit int,
+	metric string,
 ) ([]usagestats.UserUsageTrendPoint, error) {
 	r.usersTrendCalls.Add(1)
 	r.lastUsersTrendLimit.Store(int32(limit))
@@ -132,6 +133,22 @@ func TestDashboardHandler_GetUserUsageTrend_UsesCache(t *testing.T) {
 	require.Equal(t, int32(1), repo.usersTrendCalls.Load())
 	require.Empty(t, repo.selectedUserIDs())
 	require.Equal(t, int32(8), repo.lastUsersTrendLimit.Load())
+	for _, tc := range []struct {
+		metric, cache string
+		calls         int32
+	}{
+		{"actual_cost", "miss", 2},
+		{"actual_cost", "hit", 2},
+		{"tokens", "hit", 2},
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/users-trend?start_date=2026-03-01&end_date=2026-03-07&granularity=day&limit=8&metric="+tc.metric, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, tc.cache, rec.Header().Get("X-Snapshot-Cache"))
+		require.Equal(t, tc.calls, repo.usersTrendCalls.Load())
+	}
+
 }
 
 func TestDashboardHandler_GetUserUsageTrend_SelectedUsersValidation(t *testing.T) {
@@ -208,4 +225,16 @@ func TestDashboardHandler_GetUserUsageTrend_SelectedUsersCacheCanonicalization(t
 	require.Equal(t, "miss", third.Header().Get("X-Snapshot-Cache"))
 	require.Equal(t, int32(2), repo.usersTrendCalls.Load())
 	require.Equal(t, []int64{7, 9}, repo.selectedUserIDs())
+
+	fourth := request(base + "&user_ids=8,7&metric=actual_cost")
+	require.Equal(t, http.StatusOK, fourth.Code)
+	require.Equal(t, "miss", fourth.Header().Get("X-Snapshot-Cache"))
+	require.Equal(t, int32(3), repo.usersTrendCalls.Load())
+	require.Equal(t, []int64{7, 8}, repo.selectedUserIDs())
+	require.Equal(t, int32(0), repo.lastUsersTrendLimit.Load())
+
+	fifth := request(base + "&user_ids=7,8&metric=actual_cost&limit=99")
+	require.Equal(t, http.StatusOK, fifth.Code)
+	require.Equal(t, "hit", fifth.Header().Get("X-Snapshot-Cache"))
+	require.Equal(t, int32(3), repo.usersTrendCalls.Load())
 }

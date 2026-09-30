@@ -236,6 +236,7 @@ export async function getApiKeyUsageTrend(
 export interface UserTrendParams extends TrendParams {
   limit?: number
   user_ids?: number[]
+  metric?: 'tokens' | 'actual_cost'
 }
 
 export interface UserTrendResponse {
