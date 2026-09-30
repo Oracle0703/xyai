@@ -1,5 +1,20 @@
 # 后端知识基线
 
+## OpenAI 请求时区与语言
+
+- 2026-09-30 二轮复核：在途旧读取覆盖与部分保存回读失败保留旧缓存已通过 CAS/失效机制修复。剩余边界：`getGatewayForwardingSettingsCached` 三次 CAS 冲突后、没有有效快照时仍返回被拒绝的 `loaded.result()`，可能让当前请求在保存关闭后继续改写；开启灰度前需对重试耗尽设置关闭降级。默认全关路径不受影响。
+
+- 生效合同：全局 `enable_openai_request_timezone_rewrite`（settings 表，默认 `false`）与账号 `extra.openai_request_timezone_rewrite_enabled`（仅 JSON `true` 算开启）同时开启，且平台为 OpenAI。缺字段、null、非法值一律关闭；关闭时 `applyOpenAIRequestLocale` 直接返回原 body，不解析、不改写、不碰任何请求头。
+- 默认关闭与默认目标时区是两件事：目标时区 `extra.openai_request_timezone` 缺省为 `America/Los_Angeles`（白名单校验，自动处理 PST/PDT），只在开关开启后使用；关闭账号开关时保留已选时区。
+- 优先级：全局关 > 账号关 > 账号目标时区 > 默认美西。Spark 影子不读自身 extra，开关和时区都取 `prepareCodexAccountIdentitySource` 为本次 attempt 暂存的母账号（按 `ParentAccountID` 校验，未暂存则不改写）。
+- 入口统一走 `OpenAIGatewayService.applyOpenAIRequestLocale`：`Forward`（普通/透传/compact，位于 `prepareCodexAccountIdentitySource` 之后）、WS ingress `parseClientPayload`（ctx_pool/shared/dedicated/http_bridge 每轮）、`openai_ws_v2_passthrough_adapter.go` 首帧与后续帧 filter（仅 `response.create`）。只改写用户输入中结构化 `environment_context` 的 `timezone` 与 Web Search `user_location.timezone`；`/v1/chat/completions`、`/v1/messages` 转换路径不改写。
+- 全局开关与其它网关转发开关共用 `gatewayForwardingCache` 快照：保存的实例立即刷新，其它实例最迟 60 秒（`gatewayForwardingCacheTTL`，从读库开始计时，慢读不会延长）；读取失败 fail-closed（不改写）并缓存 5 秒后重试。快照用 `CompareAndSwap` 发布，读库期间若保存/失效替换了快照，旧读取结果丢弃并重读，`singleflight.Forget` 之前已在途的读取不能再覆盖刚保存的值；部分更新写库成功但回读失败时 `invalidateGatewayForwardingSettings` 使快照失效，下一请求重读（再失败即 fail-closed）。回归见 `setting_gateway_forwarding_cache_test.go`。账号开关为关时不读 settings。WS 每个 `response.create` 都重新判断全局开关，已有连接最迟 60 秒停止改写、不断开；账号开关/时区与影子的母账号在连接建立（或 failover 重选）时确定，改动对新连接生效。
+- 写入校验 `ValidateOpenAIRequestTimezoneExtra(platform, shadow, extra)`：开关必须是布尔且只有 OpenAI 可为 `true`（`INVALID_OPENAI_REQUEST_TIMEZONE_REWRITE`），时区须在白名单（`INVALID_OPENAI_REQUEST_TIMEZONE`），影子写入任一非 null 值拒绝（`OPENAI_REQUEST_TIMEZONE_MANAGED_BY_PARENT`，null 用于清理）。覆盖 Create/Duplicate/Import/Update/UpdateAccountExtra；BulkUpdate 先校验值，再要求全部目标为 OpenAI 且影子不写非 null，任一失败整批 400 不写入（`OPENAI_BULK_TARGET_INVALID`）。
+- 紧急关闭：管理端 系统设置 → 网关 → “OpenAI 请求时区改写（全局）”关闭并保存（等价 `PUT /api/v1/admin/settings` `{"enable_openai_request_timezone_rewrite": false}`），无需重启；单账号可在编辑弹窗关闭开关。
+- 日志：Debug 级 `openai request timezone normalization`，只记账号 ID、transport、enabled、reason（`global_disabled`/`account_disabled`/`settings_unavailable`/`parent_unavailable`/`replaced`/`rewrite_failed` 等）和计数，不记客户端时区值或正文。任一写入失败整体回退原 body。
+- `Accept-Language` 已由现有 OpenAI HTTP/WS header 白名单透传；API Key 账号的既有 `header_overrides` 可显式覆盖。本功能不注入或修改语言头。
+- 验证：`go test ./internal/service -run 'Test(OpenAIRequest|RewriteOpenAIRequest|NormalizeOpenAIRequest|ApplyOpenAIRequestLocale|ForwardOpenAIRequestLocale|OpenAIWSPassthroughRequestLocale|OpenAIWSCtxPoolRequestLocale|BulkUpdateAccountsOpenAIRequestTimezone|UpdateAccountExtraOpenAIRequestTimezone)' -count=1`；设置 PUT 省略保留见 `go test -tags=unit ./internal/handler/admin -run TestOpenAIRequestTimezoneRewriteGlobalSetting`。真实上游（Codex CLI 当前格式、compact、web_search user_location、prompt cache）尚未验收。
+
 ## 0.2.9 网关同步合同
 
 - Gemini 并发错误统一走 `concurrencyErrorResponse(err, slotType)`：沿用上游取消 499、真实并发/队列耗尽 429；本地 `ConcurrencyCacheError` 的脱敏 503 映射继续保留。`service.ParseGeminiModelActionPath` 仍为本地统一路径解析入口。

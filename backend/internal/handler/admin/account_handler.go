@@ -1009,6 +1009,14 @@ func (h *AccountHandler) CheckMixedChannel(c *gin.Context) {
 	response.Success(c, gin.H{"has_risk": false})
 }
 
+// GetOpenAIRequestTimezones returns the allowlisted per-account request timezones.
+func (h *AccountHandler) GetOpenAIRequestTimezones(c *gin.Context) {
+	response.Success(c, gin.H{
+		"default":   service.DefaultOpenAIRequestTimezone,
+		"timezones": service.OpenAIRequestTimezoneOptions(),
+	})
+}
+
 // Create handles creating a new account
 // POST /api/v1/admin/accounts
 func (h *AccountHandler) Create(c *gin.Context) {

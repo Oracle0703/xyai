@@ -3102,6 +3102,14 @@
         </div>
       </div>
 
+      <OpenAIRequestTimezoneField
+        v-if="form.platform === 'openai'"
+        :enabled="openAIRequestTimezoneRewriteEnabled"
+        :timezone="openAIRequestTimezone"
+        @update:enabled="setOpenAIRequestTimezoneRewriteEnabled"
+        @update:timezone="setOpenAIRequestTimezone"
+      />
+
       <!-- OpenAI Codex namespace 工具摊平（兼容开关，仅 OAuth） -->
       <div
         v-if="form.platform === 'openai' && form.type === 'oauth'"
@@ -3952,6 +3960,7 @@ import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
 import CnBaseUrlPresets from '@/components/account/CnBaseUrlPresets.vue'
 import OpenCodeGoProtocolRulesEditor from '@/components/account/OpenCodeGoProtocolRulesEditor.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
+import OpenAIRequestTimezoneField from '@/components/account/OpenAIRequestTimezoneField.vue'
 import { allSelectedGroupsEnableLongContextPricing } from '@/components/account/longContextBilling'
 import {
   applyAntigravityProjectID,
@@ -4445,6 +4454,18 @@ const applyGrokOAuthUpstreamConfig = (credentials: Record<string, unknown>) => {
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
+// 请求时区改写默认关闭；未被管理员调整时不写入 extra，避免 Codex 重导入覆盖已有账号配置。
+const openAIRequestTimezoneRewriteEnabled = ref(false)
+const openAIRequestTimezone = ref('America/Los_Angeles')
+const openAIRequestTimezoneTouched = ref(false)
+const setOpenAIRequestTimezoneRewriteEnabled = (value: boolean) => {
+  openAIRequestTimezoneRewriteEnabled.value = value
+  openAIRequestTimezoneTouched.value = true
+}
+const setOpenAIRequestTimezone = (value: string) => {
+  openAIRequestTimezone.value = value
+  openAIRequestTimezoneTouched.value = true
+}
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
@@ -5383,6 +5404,9 @@ const resetForm = () => {
   interceptWarmupRequests.value = false
   autoPauseOnExpired.value = true
   openaiPassthroughEnabled.value = false
+  openAIRequestTimezoneRewriteEnabled.value = false
+  openAIRequestTimezone.value = 'America/Los_Angeles'
+  openAIRequestTimezoneTouched.value = false
   openaiFlattenNamespacesEnabled.value = false
   openAILongContextBillingEnabled.value = false
   openAILongContextBillingTouched.value = false
@@ -5454,6 +5478,10 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   }
 
   const extra: Record<string, unknown> = { ...(base || {}) }
+  if (openAIRequestTimezoneTouched.value) {
+    extra.openai_request_timezone_rewrite_enabled = openAIRequestTimezoneRewriteEnabled.value
+    extra.openai_request_timezone = openAIRequestTimezone.value || 'America/Los_Angeles'
+  }
   if (accountCategory.value === 'oauth-based') {
     extra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
     extra.openai_oauth_responses_websockets_v2_enabled = isOpenAIWSModeEnabled(openaiOAuthResponsesWebSocketV2Mode.value)

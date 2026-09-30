@@ -64,7 +64,10 @@ type cachedGatewayForwardingSettings struct {
 	anthropicCacheTTL1hInjection     bool
 	rewriteMessageCacheControl       bool
 	clientDatelineNormalization      bool
-	expiresAt                        int64 // unix nano
+	openAIRequestTimezoneRewrite     bool
+	// loadFailed marks the short-lived fallback stored after a settings read error.
+	loadFailed bool
+	expiresAt  int64 // unix nano
 }
 
 var gatewayForwardingCache atomic.Value // *cachedGatewayForwardingSettings
@@ -848,124 +851,141 @@ type gatewayForwardingSettingsResult struct {
 	openAITTFTMode                                                                        string
 	fp, mp, cch, claudeOAuthSystemPromptInjection, cacheTTL1h, rewriteMessageCacheControl bool
 	clientDatelineNormalization                                                           bool
+	openAIRequestTimezoneRewrite, loadFailed                                              bool
 	claudeOAuthSystemPrompt, claudeOAuthSystemPromptBlocks                                string
 }
 
+func (c *cachedGatewayForwardingSettings) result() gatewayForwardingSettingsResult {
+	return gatewayForwardingSettingsResult{
+		openAITTFTMode:                   c.openAITTFTMode,
+		fp:                               c.fingerprintUnification,
+		mp:                               c.metadataPassthrough,
+		cch:                              c.cchSigning,
+		claudeOAuthSystemPromptInjection: c.claudeOAuthSystemPromptInjection,
+		claudeOAuthSystemPrompt:          c.claudeOAuthSystemPrompt,
+		claudeOAuthSystemPromptBlocks:    c.claudeOAuthSystemPromptBlocks,
+		cacheTTL1h:                       c.anthropicCacheTTL1hInjection,
+		rewriteMessageCacheControl:       c.rewriteMessageCacheControl,
+		clientDatelineNormalization:      c.clientDatelineNormalization,
+		openAIRequestTimezoneRewrite:     c.openAIRequestTimezoneRewrite,
+		loadFailed:                       c.loadFailed,
+	}
+}
+
+func unexpiredGatewayForwardingSettings(value any) *cachedGatewayForwardingSettings {
+	if cached, ok := value.(*cachedGatewayForwardingSettings); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
+		return cached
+	}
+	return nil
+}
+
+// gatewayForwardingLoadAttempts bounds how often one load re-reads storage after
+// a settings save replaced the snapshot while it was reading.
+const gatewayForwardingLoadAttempts = 3
+
 func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context) gatewayForwardingSettingsResult {
-	if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
-		if time.Now().UnixNano() < cached.expiresAt {
-			return gatewayForwardingSettingsResult{
-				openAITTFTMode:                   cached.openAITTFTMode,
-				fp:                               cached.fingerprintUnification,
-				mp:                               cached.metadataPassthrough,
-				cch:                              cached.cchSigning,
-				claudeOAuthSystemPromptInjection: cached.claudeOAuthSystemPromptInjection,
-				claudeOAuthSystemPrompt:          cached.claudeOAuthSystemPrompt,
-				claudeOAuthSystemPromptBlocks:    cached.claudeOAuthSystemPromptBlocks,
-				cacheTTL1h:                       cached.anthropicCacheTTL1hInjection,
-				rewriteMessageCacheControl:       cached.rewriteMessageCacheControl,
-				clientDatelineNormalization:      cached.clientDatelineNormalization,
-			}
-		}
+	if cached := unexpiredGatewayForwardingSettings(gatewayForwardingCache.Load()); cached != nil {
+		return cached.result()
 	}
 	val, _, _ := gatewayForwardingSF.Do("gateway_forwarding", func() (any, error) {
-		if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
-			if time.Now().UnixNano() < cached.expiresAt {
-				return gatewayForwardingSettingsResult{
-					openAITTFTMode:                   cached.openAITTFTMode,
-					fp:                               cached.fingerprintUnification,
-					mp:                               cached.metadataPassthrough,
-					cch:                              cached.cchSigning,
-					claudeOAuthSystemPromptInjection: cached.claudeOAuthSystemPromptInjection,
-					claudeOAuthSystemPrompt:          cached.claudeOAuthSystemPrompt,
-					claudeOAuthSystemPromptBlocks:    cached.claudeOAuthSystemPromptBlocks,
-					cacheTTL1h:                       cached.anthropicCacheTTL1hInjection,
-					rewriteMessageCacheControl:       cached.rewriteMessageCacheControl,
-					clientDatelineNormalization:      cached.clientDatelineNormalization,
-				}, nil
+		var loaded *cachedGatewayForwardingSettings
+		for attempt := 0; attempt < gatewayForwardingLoadAttempts; attempt++ {
+			observed := gatewayForwardingCache.Load()
+			if cached := unexpiredGatewayForwardingSettings(observed); cached != nil {
+				return cached.result(), nil
+			}
+			loaded = s.loadGatewayForwardingSettings(ctx)
+			// Publish only if nothing replaced the snapshot during the read. A save or
+			// invalidation that landed meanwhile is newer than what was just read, and
+			// singleflight.Forget does not stop this in-flight read from finishing.
+			if gatewayForwardingCache.CompareAndSwap(observed, loaded) {
+				return loaded.result(), nil
 			}
 		}
-		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayForwardingDBTimeout)
-		defer cancel()
-		values, err := s.settingRepo.GetMultiple(dbCtx, []string{
-			SettingKeyOpenAITTFTMode,
-			SettingKeyEnableFingerprintUnification,
-			SettingKeyEnableMetadataPassthrough,
-			SettingKeyEnableCCHSigning,
-			SettingKeyEnableClaudeOAuthSystemPromptInjection,
-			SettingKeyClaudeOAuthSystemPrompt,
-			SettingKeyClaudeOAuthSystemPromptBlocks,
-			SettingKeyEnableAnthropicCacheTTL1hInjection,
-			SettingKeyRewriteMessageCacheControl,
-			SettingKeyEnableClientDatelineNormalization,
-		})
-		if err != nil {
-			slog.Warn("failed to get gateway forwarding settings", "error", err)
-			gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-				openAITTFTMode:                   OpenAITTFTModeSemantic,
-				fingerprintUnification:           true,
-				metadataPassthrough:              false,
-				cchSigning:                       false,
-				claudeOAuthSystemPromptInjection: true,
-				anthropicCacheTTL1hInjection:     false,
-				rewriteMessageCacheControl:       s.defaultRewriteMessageCacheControl(),
-				clientDatelineNormalization:      true,
-				expiresAt:                        time.Now().Add(gatewayForwardingErrorTTL).UnixNano(),
-			})
-			return gatewayForwardingSettingsResult{openAITTFTMode: OpenAITTFTModeSemantic, fp: true, claudeOAuthSystemPromptInjection: true, rewriteMessageCacheControl: s.defaultRewriteMessageCacheControl(), clientDatelineNormalization: true}, nil
+		if cached := unexpiredGatewayForwardingSettings(gatewayForwardingCache.Load()); cached != nil {
+			return cached.result(), nil
 		}
-		ttftMode := normalizeOpenAITTFTMode(values[SettingKeyOpenAITTFTMode])
-		fp := true
-		if v, ok := values[SettingKeyEnableFingerprintUnification]; ok && v != "" {
-			fp = v == "true"
-		}
-		mp := values[SettingKeyEnableMetadataPassthrough] == "true"
-		cch := values[SettingKeyEnableCCHSigning] == "true"
-		systemPromptInjection := true
-		if v, ok := values[SettingKeyEnableClaudeOAuthSystemPromptInjection]; ok && v != "" {
-			systemPromptInjection = v == "true"
-		}
-		systemPrompt := values[SettingKeyClaudeOAuthSystemPrompt]
-		systemPromptBlocks := values[SettingKeyClaudeOAuthSystemPromptBlocks]
-		cacheTTL1h := values[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
-		rewriteMessageCacheControl := s.defaultRewriteMessageCacheControl()
-		if v, ok := values[SettingKeyRewriteMessageCacheControl]; ok && v != "" {
-			rewriteMessageCacheControl = v == "true"
-		}
-		clientDatelineNormalization := true
-		if v, ok := values[SettingKeyEnableClientDatelineNormalization]; ok && v != "" {
-			clientDatelineNormalization = v == "true"
-		}
-		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-			openAITTFTMode:                   ttftMode,
-			fingerprintUnification:           fp,
-			metadataPassthrough:              mp,
-			cchSigning:                       cch,
-			claudeOAuthSystemPromptInjection: systemPromptInjection,
-			claudeOAuthSystemPrompt:          systemPrompt,
-			claudeOAuthSystemPromptBlocks:    systemPromptBlocks,
-			anthropicCacheTTL1hInjection:     cacheTTL1h,
-			rewriteMessageCacheControl:       rewriteMessageCacheControl,
-			clientDatelineNormalization:      clientDatelineNormalization,
-			expiresAt:                        time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
-		})
-		return gatewayForwardingSettingsResult{
-			openAITTFTMode:                   ttftMode,
-			fp:                               fp,
-			mp:                               mp,
-			cch:                              cch,
-			claudeOAuthSystemPromptInjection: systemPromptInjection,
-			claudeOAuthSystemPrompt:          systemPrompt,
-			claudeOAuthSystemPromptBlocks:    systemPromptBlocks,
-			cacheTTL1h:                       cacheTTL1h,
-			rewriteMessageCacheControl:       rewriteMessageCacheControl,
-			clientDatelineNormalization:      clientDatelineNormalization,
-		}, nil
+		return loaded.result(), nil
 	})
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
 		return r
 	}
-	return gatewayForwardingSettingsResult{fp: true, claudeOAuthSystemPromptInjection: true, clientDatelineNormalization: true}
+	return gatewayForwardingSettingsResult{fp: true, claudeOAuthSystemPromptInjection: true, clientDatelineNormalization: true, loadFailed: true}
+}
+
+// loadGatewayForwardingSettings reads the snapshot from storage. Its expiry is
+// anchored at the start of the read, so a value read just before a save on
+// another node lives at most gatewayForwardingCacheTTL past that save. A read
+// error yields the short-lived fallback, which keeps opt-in rewrites off.
+func (s *SettingService) loadGatewayForwardingSettings(ctx context.Context) *cachedGatewayForwardingSettings {
+	readStartedAt := time.Now()
+	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayForwardingDBTimeout)
+	defer cancel()
+	values, err := s.settingRepo.GetMultiple(dbCtx, []string{
+		SettingKeyOpenAITTFTMode,
+		SettingKeyEnableFingerprintUnification,
+		SettingKeyEnableMetadataPassthrough,
+		SettingKeyEnableCCHSigning,
+		SettingKeyEnableClaudeOAuthSystemPromptInjection,
+		SettingKeyClaudeOAuthSystemPrompt,
+		SettingKeyClaudeOAuthSystemPromptBlocks,
+		SettingKeyEnableAnthropicCacheTTL1hInjection,
+		SettingKeyRewriteMessageCacheControl,
+		SettingKeyEnableClientDatelineNormalization,
+		SettingKeyEnableOpenAIRequestTimezoneRewrite,
+	})
+	if err != nil {
+		slog.Warn("failed to get gateway forwarding settings", "error", err)
+		return &cachedGatewayForwardingSettings{
+			openAITTFTMode:                   OpenAITTFTModeSemantic,
+			fingerprintUnification:           true,
+			metadataPassthrough:              false,
+			cchSigning:                       false,
+			claudeOAuthSystemPromptInjection: true,
+			anthropicCacheTTL1hInjection:     false,
+			rewriteMessageCacheControl:       s.defaultRewriteMessageCacheControl(),
+			clientDatelineNormalization:      true,
+			loadFailed:                       true,
+			expiresAt:                        readStartedAt.Add(gatewayForwardingErrorTTL).UnixNano(),
+		}
+	}
+	fp := true
+	if v, ok := values[SettingKeyEnableFingerprintUnification]; ok && v != "" {
+		fp = v == "true"
+	}
+	systemPromptInjection := true
+	if v, ok := values[SettingKeyEnableClaudeOAuthSystemPromptInjection]; ok && v != "" {
+		systemPromptInjection = v == "true"
+	}
+	rewriteMessageCacheControl := s.defaultRewriteMessageCacheControl()
+	if v, ok := values[SettingKeyRewriteMessageCacheControl]; ok && v != "" {
+		rewriteMessageCacheControl = v == "true"
+	}
+	clientDatelineNormalization := true
+	if v, ok := values[SettingKeyEnableClientDatelineNormalization]; ok && v != "" {
+		clientDatelineNormalization = v == "true"
+	}
+	return &cachedGatewayForwardingSettings{
+		openAITTFTMode:                   normalizeOpenAITTFTMode(values[SettingKeyOpenAITTFTMode]),
+		fingerprintUnification:           fp,
+		metadataPassthrough:              values[SettingKeyEnableMetadataPassthrough] == "true",
+		cchSigning:                       values[SettingKeyEnableCCHSigning] == "true",
+		claudeOAuthSystemPromptInjection: systemPromptInjection,
+		claudeOAuthSystemPrompt:          values[SettingKeyClaudeOAuthSystemPrompt],
+		claudeOAuthSystemPromptBlocks:    values[SettingKeyClaudeOAuthSystemPromptBlocks],
+		anthropicCacheTTL1hInjection:     values[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true",
+		rewriteMessageCacheControl:       rewriteMessageCacheControl,
+		clientDatelineNormalization:      clientDatelineNormalization,
+		openAIRequestTimezoneRewrite:     values[SettingKeyEnableOpenAIRequestTimezoneRewrite] == "true",
+		expiresAt:                        readStartedAt.Add(gatewayForwardingCacheTTL).UnixNano(),
+	}
+}
+
+// invalidateGatewayForwardingSettings expires the snapshot so the next request
+// reads storage. Used when a write landed but the snapshot could not be rebuilt.
+func invalidateGatewayForwardingSettings() {
+	gatewayForwardingSF.Forget("gateway_forwarding")
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 }
 
 // GetOpenAITTFTMode 返回 Responses first_token_ms 的统计口径。
@@ -995,6 +1015,15 @@ func (s *SettingService) IsRewriteMessageCacheControlEnabled(ctx context.Context
 // 的客户端 dateline 归一化。默认开启。
 func (s *SettingService) IsClientDatelineNormalizationEnabled(ctx context.Context) bool {
 	return s.getGatewayForwardingSettingsCached(ctx).clientDatelineNormalization
+}
+
+// OpenAIRequestTimezoneRewriteState 返回 OpenAI 请求时区改写全局开关。读取与其它网关
+// 转发开关共用进程内快照：保存所在实例立即刷新，其它实例最迟 gatewayForwardingCacheTTL
+// 后生效。读取失败时 unavailable=true 且 enabled 恒为 false（fail-closed，持续
+// gatewayForwardingErrorTTL 后重试），调用方应原样转发请求。
+func (s *SettingService) OpenAIRequestTimezoneRewriteState(ctx context.Context) (enabled, unavailable bool) {
+	result := s.getGatewayForwardingSettingsCached(ctx)
+	return result.openAIRequestTimezoneRewrite && !result.loadFailed, result.loadFailed
 }
 
 // GetClaudeOAuthSystemPromptInjectionSettings returns the Claude OAuth mimic

@@ -688,6 +688,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if err := validateOpenAIWSBearerToken(account, token); err != nil {
 		return err
 	}
+	// The first frame is written upstream directly and never passes the per-frame
+	// filter below, so it is normalized here exactly once.
+	if firstType := strings.TrimSpace(gjson.GetBytes(firstClientMessage, "type").String()); firstType == "" || firstType == "response.create" {
+		firstClientMessage = s.applyOpenAIRequestLocale(ctx, c, account, firstClientMessage, "ws")
+	}
 	if isOpenAIResponsesLiteWebSocketPayload(firstClientMessage) {
 		liteFirstMessage, _, liteErr := normalizeOpenAIResponsesLitePayloadForAccount(firstClientMessage, account)
 		if liteErr != nil {
@@ -998,6 +1003,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			responsesLite := isResponseCreate && isOpenAIResponsesLiteWebSocketPayload(payload)
 			if isResponseCreate {
+				payload = s.applyOpenAIRequestLocale(ctx, c, account, payload, "ws")
 				if normalized, compatibilityChanged, normalizeErr := normalizeOpenAIResponsesWebSocketCompatibilityBody(payload, account, responsesLite); normalizeErr != nil {
 					return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", normalizeErr)
 				} else if compatibilityChanged {

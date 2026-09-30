@@ -320,6 +320,9 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 	if err != nil {
 		return nil, fmt.Errorf("normalize duplicate account extra: %w", err)
 	}
+	if err := ValidateOpenAIRequestTimezoneExtra(input.Platform, false, accountExtra); err != nil {
+		return nil, err
+	}
 	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
 		return nil, err
 	}
@@ -480,6 +483,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	if err != nil {
 		return nil, err
 	}
+	if err := ValidateOpenAIRequestTimezoneExtra(input.Platform, false, accountExtra); err != nil {
+		return nil, err
+	}
 	accountExtra, err = normalizeGrokMediaEligibilityExtra(input.Platform, accountExtra)
 	if err != nil {
 		return nil, err
@@ -595,6 +601,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			return nil, err
 		}
 		if err := ValidateUpstreamRequestIDHeaderExtra(normalizedExtra); err != nil {
+			return nil, err
+		}
+		if err := ValidateOpenAIRequestTimezoneExtra(account.Platform, account.IsShadow(), normalizedExtra); err != nil {
 			return nil, err
 		}
 	}
@@ -936,6 +945,17 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 			return err
 		}
 		if err := ValidateOpenAILongContextBillingExtra(account.Platform, updates); err != nil {
+			return err
+		}
+	}
+	_, hasTimezone := updates[openAIRequestTimezoneExtraKey]
+	_, hasTimezoneRewrite := updates[openAIRequestTimezoneRewriteEnabledExtraKey]
+	if hasTimezone || hasTimezoneRewrite {
+		account, err := s.accountRepo.GetByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := ValidateOpenAIRequestTimezoneExtra(account.Platform, account.IsShadow(), updates); err != nil {
 			return err
 		}
 	}

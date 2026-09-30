@@ -45,6 +45,10 @@ vi.mock('@/api/admin', () => ({
       checkMixedChannelRisk: vi.fn().mockResolvedValue({ has_risk: false }),
       importCodexSession: importCodexSessionMock,
       createOpenAICodexPAT: createOpenAICodexPATMock,
+      getOpenAIRequestTimezones: vi.fn().mockResolvedValue({
+        default: 'America/Los_Angeles',
+        timezones: ['America/Los_Angeles', 'Asia/Tokyo'],
+      }),
     },
     settings: {
       getWebSearchEmulationConfig: vi.fn().mockResolvedValue({ enabled: false, providers: [] }),
@@ -710,5 +714,73 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     await flushPromises()
 
     expect(createOpenAICodexPATMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBe(false)
+  })
+})
+
+describe('CreateAccountModal OpenAI request timezone rewrite', () => {
+  const toggleSelector = '[data-testid="openai-request-timezone-rewrite-toggle"]'
+
+  beforeEach(() => {
+    authIsSimpleMode.value = true
+    createAccountMock.mockReset().mockResolvedValue({ id: 42, platform: 'openai', type: 'apikey' })
+    probeUpstreamBillingMock.mockReset().mockResolvedValue({})
+    importCodexSessionMock.mockReset().mockResolvedValue({
+      created: 1,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+      warnings: [],
+    })
+  })
+
+  it('defaults off and omits both settings when the admin does not touch them', async () => {
+    const wrapper = await submitApiKeyAccount('openai')
+
+    expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('false')
+    const extra = createAccountMock.mock.calls[0]?.[0]?.extra
+    expect(extra).not.toHaveProperty('openai_request_timezone_rewrite_enabled')
+    expect(extra).not.toHaveProperty('openai_request_timezone')
+  })
+
+  it('sends the explicit switch with the default Los Angeles timezone once enabled', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('openai account')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get(toggleSelector).trigger('click')
+    expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('true')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    const extra = createAccountMock.mock.calls[0]?.[0]?.extra
+    expect(extra?.openai_request_timezone_rewrite_enabled).toBe(true)
+    expect(extra?.openai_request_timezone).toBe('America/Los_Angeles')
+  })
+
+  it('leaves existing Codex re-import targets untouched unless the admin adjusts the switch', async () => {
+    const wrapper = await openCodexImportStep()
+    await wrapper.get('[data-testid="import-codex-session"]').trigger('click')
+    await flushPromises()
+
+    const extra = importCodexSessionMock.mock.calls[0]?.[0]?.extra
+    expect(extra).not.toHaveProperty('openai_request_timezone_rewrite_enabled')
+    expect(extra).not.toHaveProperty('openai_request_timezone')
+  })
+
+  it('sends explicit settings for Codex import after the switch is toggled back off', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await wrapper.get(toggleSelector).trigger('click')
+    await wrapper.get(toggleSelector).trigger('click')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Codex import')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await wrapper.get('[data-testid="import-codex-session"]').trigger('click')
+    await flushPromises()
+
+    const extra = importCodexSessionMock.mock.calls[0]?.[0]?.extra
+    expect(extra?.openai_request_timezone_rewrite_enabled).toBe(false)
+    expect(extra?.openai_request_timezone).toBe('America/Los_Angeles')
   })
 })

@@ -20,6 +20,7 @@
 | `OAuthAuthorizationFlow.vue` | OAuth 授权输入和状态复用 |
 | `UpstreamBillingRateCell.vue` | 全部 API Key 平台账号的自动探测状态、倍率快照、下次 probe、stale 状态和手动 probe |
 | `GrokBaseUrlPresets.vue` / `HeaderOverrideEditor.vue` | Grok 上游地址 preset 与自定义请求头编辑 |
+| `OpenAIRequestTimezoneField.vue` | OpenAI 账号“启用请求时区改写”开关（默认关）与目标时区白名单选择（默认 `America/Los_Angeles`，关闭时禁用但保留）；仅在用户操作时 emit，未调整不写 extra；Spark 影子显示母账号管理提示。需同时开启系统设置的全局开关才生效 |
 
 ## API Key 创建契约
 

@@ -253,6 +253,7 @@ type UpdateSettingsRequest struct {
 	EnableAnthropicCacheTTL1hInjection     *bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
 	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
 	EnableClientDatelineNormalization      *bool   `json:"enable_client_dateline_normalization"`
+	EnableOpenAIRequestTimezoneRewrite     *bool   `json:"enable_openai_request_timezone_rewrite"`
 	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   *string `json:"openai_codex_user_agent"`
 	OpenAICodexClientVersion               *string `json:"openai_codex_client_version"`
@@ -1753,6 +1754,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableClientDatelineNormalization
 		}(),
+		EnableOpenAIRequestTimezoneRewrite: func() bool {
+			if req.EnableOpenAIRequestTimezoneRewrite != nil {
+				return *req.EnableOpenAIRequestTimezoneRewrite
+			}
+			return previousSettings.EnableOpenAIRequestTimezoneRewrite
+		}(),
 		AntigravityUserAgentVersion: func() string {
 			if req.AntigravityUserAgentVersion != nil {
 				return *req.AntigravityUserAgentVersion
@@ -2331,6 +2338,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
 		RewriteMessageCacheControl:                             updatedSettings.RewriteMessageCacheControl,
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
+		EnableOpenAIRequestTimezoneRewrite:                     updatedSettings.EnableOpenAIRequestTimezoneRewrite,
 		AntigravityUserAgentVersion:                            updatedSettings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                                   updatedSettings.OpenAICodexUserAgent,
 		OpenAICodexClientVersion:                               updatedSettings.OpenAICodexClientVersion,

@@ -93,6 +93,10 @@ func (s *SettingService) refreshCachedSettingsAfterWrite(ctx context.Context, se
 	stored, err := s.GetAllSettings(ctx)
 	if err != nil {
 		slog.Warn("refresh cached settings after partial update failed", "error", err)
+		// The write already landed, so pre-write values must not keep serving:
+		// expiring the gateway snapshot makes the next request read storage, and a
+		// failing read there falls back with opt-in rewrites switched off.
+		invalidateGatewayForwardingSettings()
 		return
 	}
 	s.refreshCachedSettings(stored)
@@ -481,6 +485,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
 	updates[SettingKeyRewriteMessageCacheControl] = strconv.FormatBool(settings.RewriteMessageCacheControl)
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
+	updates[SettingKeyEnableOpenAIRequestTimezoneRewrite] = strconv.FormatBool(settings.EnableOpenAIRequestTimezoneRewrite)
 	updates[SettingKeyAntigravityUserAgentVersion] = antigravity.NormalizeUserAgentVersion(settings.AntigravityUserAgentVersion)
 	updates[SettingKeyOpenAICodexUserAgent] = strings.TrimSpace(settings.OpenAICodexUserAgent)
 	updates[SettingKeyOpenAICodexClientVersion] = NormalizeCodexClientVersion(settings.OpenAICodexClientVersion)
@@ -726,6 +731,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		anthropicCacheTTL1hInjection:     settings.EnableAnthropicCacheTTL1hInjection,
 		rewriteMessageCacheControl:       settings.RewriteMessageCacheControl,
 		clientDatelineNormalization:      settings.EnableClientDatelineNormalization,
+		openAIRequestTimezoneRewrite:     settings.EnableOpenAIRequestTimezoneRewrite,
 		expiresAt:                        time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 	})
 	s.antigravityUAVersionSF.Forget("antigravity_user_agent_version")

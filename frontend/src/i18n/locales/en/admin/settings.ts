@@ -542,6 +542,8 @@ export default {
         rewriteMessageCacheControlHint: 'Default off: preserve client cache_control on message content blocks. When enabled, client breakpoints are stripped and proxy breakpoints are injected for clients that do not manage caching themselves.',
         clientDatelineNormalization: 'Client Dateline Normalization',
         clientDatelineNormalizationHint: 'Default on. Rewrites the "Today\'s date is …" sentence in Anthropic OAuth/Setup Token requests back to a canonical ASCII apostrophe and hyphen date format, erasing steganographic fingerprint bits some clients inject when they detect a non-official base URL. Applies to system prompts and <system-reminder> blocks only; API-Key accounts are unaffected.',
+        openAIRequestTimezoneRewrite: 'OpenAI Request Timezone Rewrite (Global)',
+        openAIRequestTimezoneRewriteHint: 'Default off. OpenAI requests have the timezone in environment context and Web Search rewritten only when this switch and the account\'s "Enable request timezone rewrite" are both on. Turning it off is the emergency stop: immediate on the instance that saves it, within 60 seconds on other instances.',
         antigravityUserAgentVersion: 'Antigravity UA Version',
         antigravityUserAgentVersionPlaceholder: '1.23.2',
         antigravityUserAgentVersionHint: 'Leave empty to use ANTIGRAVITY_USER_AGENT_VERSION or the built-in default 1.23.2; when set, the admin setting takes precedence.',

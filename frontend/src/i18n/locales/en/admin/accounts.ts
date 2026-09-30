@@ -615,6 +615,12 @@ export default {
       // OpenAI specific hints
       openai: {
         baseUrlHint: 'Leave default for official OpenAI API',
+        requestTimezoneRewrite: 'Enable request timezone rewrite',
+        requestTimezoneRewriteDesc: 'Off by default. Takes effect only when the global switch in System Settings is also on; while off, the chosen timezone is kept and requests are forwarded unchanged.',
+        requestTimezoneManagedByParent: 'Spark shadow accounts follow the parent account\'s request timezone settings; manage them on the parent account.',
+        requestTimezone: 'Target timezone',
+        requestTimezoneDesc: 'Only rewrites the timezone fields in environment context and Web Search; ordinary text and client dates are preserved.',
+        requestTimezoneLoadFailed: 'Failed to load timezones; only the current value is shown.',
         apiKeyHint: 'Your OpenAI API Key',
         compatibleProvider: 'OpenAI-compatible provider',
         compatibleProviderHint:

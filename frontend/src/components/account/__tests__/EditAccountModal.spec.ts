@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 const { updateAccountMock, checkMixedChannelRiskMock, authIsSimpleMode } = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
@@ -28,7 +28,11 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       update: updateAccountMock,
-      checkMixedChannelRisk: checkMixedChannelRiskMock
+      checkMixedChannelRisk: checkMixedChannelRiskMock,
+      getOpenAIRequestTimezones: vi.fn().mockResolvedValue({
+        default: 'America/Los_Angeles',
+        timezones: ['America/Los_Angeles', 'Asia/Tokyo']
+      })
     },
     settings: {
       getWebSearchEmulationConfig: vi.fn().mockResolvedValue({ enabled: false, providers: [] }),
@@ -1710,5 +1714,63 @@ describe('EditAccountModal OpenAI 自动使用重置卡', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
     expect(updateAccountMock).not.toHaveBeenCalled()
     wrapper.unmount()
+  })
+})
+
+describe('EditAccountModal OpenAI request timezone rewrite', () => {
+  const toggleSelector = '[data-testid="openai-request-timezone-rewrite-toggle"]'
+
+  async function submitWith(account: any, prepare?: (wrapper: ReturnType<typeof mountModal>) => Promise<void>) {
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    await flushPromises()
+    await prepare?.(wrapper)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    return { wrapper, extra: updateAccountMock.mock.calls[0]?.[1]?.extra }
+  }
+
+  it('keeps existing settings when the admin does not touch them', async () => {
+    const account = buildAccount()
+    account.extra = { openai_request_timezone_rewrite_enabled: true, openai_request_timezone: 'Asia/Tokyo' }
+    const { wrapper, extra } = await submitWith(account)
+
+    expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('true')
+    expect(extra?.openai_request_timezone_rewrite_enabled).toBe(true)
+    expect(extra?.openai_request_timezone).toBe('Asia/Tokyo')
+  })
+
+  it('does not materialize defaults for accounts without the settings', async () => {
+    const { wrapper, extra } = await submitWith(buildAccount())
+
+    expect(wrapper.get(toggleSelector).attributes('aria-checked')).toBe('false')
+    expect(wrapper.get('[data-testid="openai-request-timezone-select"]').attributes('disabled')).toBeDefined()
+    expect(extra).not.toHaveProperty('openai_request_timezone_rewrite_enabled')
+    expect(extra).not.toHaveProperty('openai_request_timezone')
+  })
+
+  it('keeps the chosen timezone when the switch is turned off', async () => {
+    const account = buildAccount()
+    account.extra = { openai_request_timezone_rewrite_enabled: true, openai_request_timezone: 'Asia/Tokyo' }
+    const { extra } = await submitWith(account, async wrapper => {
+      await wrapper.get(toggleSelector).trigger('click')
+      expect(wrapper.get('[data-testid="openai-request-timezone-select"]').attributes('disabled')).toBeDefined()
+    })
+
+    expect(extra?.openai_request_timezone_rewrite_enabled).toBe(false)
+    expect(extra?.openai_request_timezone).toBe('Asia/Tokyo')
+  })
+
+  it('shows the parent-managed notice for Spark shadows and drops stale independent values', async () => {
+    const account = buildOpenAISparkShadowAccount()
+    account.extra = { ...account.extra, openai_request_timezone_rewrite_enabled: true, openai_request_timezone: 'Asia/Tokyo' }
+    const { wrapper, extra } = await submitWith(account)
+
+    expect(wrapper.find('[data-testid="openai-request-timezone-managed-by-parent"]').exists()).toBe(true)
+    expect(wrapper.find(toggleSelector).exists()).toBe(false)
+    expect(extra).not.toHaveProperty('openai_request_timezone_rewrite_enabled')
+    expect(extra).not.toHaveProperty('openai_request_timezone')
   })
 })

@@ -733,6 +733,12 @@ export default {
       // OpenAI specific hints
       openai: {
         baseUrlHint: '留空使用官方 OpenAI API',
+        requestTimezoneRewrite: '启用请求时区改写',
+        requestTimezoneRewriteDesc: '默认关闭。需同时开启系统设置中的全局开关才会生效；关闭时保留已选时区，请求原样转发。',
+        requestTimezoneManagedByParent: 'Spark 影子账号跟随母账号的请求时区设置，请在母账号中管理。',
+        requestTimezone: '目标时区',
+        requestTimezoneDesc: '仅改写环境上下文和 Web Search 中的时区字段；普通对话文本和客户端日期保持不变。',
+        requestTimezoneLoadFailed: '时区列表加载失败，仅显示当前值。',
         apiKeyHint: '您的 OpenAI API Key',
         compatibleProvider: 'OpenAI 兼容服务商',
         compatibleProviderHint: '火山方舟、Qwen 等按 OpenAI 兼容协议接入，后台仍作为 OpenAI 平台账号调度。',

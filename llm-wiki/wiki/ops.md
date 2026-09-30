@@ -506,6 +506,17 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - Caddy 示例: `deploy/Caddyfile`; 只负责 TLS/反向代理, 不负责静态资源 immutable 分类, 该规则由 embedded backend 按 filename fingerprint 判定。
 - Edge 基线见 `deploy/EDGE_SECURITY.md`; bundled Caddyfile 以直连 Caddy 为前提, CDN 前置时必须改用精确 trusted proxy CIDR 与 `{client_ip}`。Dockerfile 使用宿主架构 Go 交叉编译目标镜像, Apple Silicon 构建 amd64 不再依赖 QEMU 执行 Go；三份 `deploy/docker-compose*.yml` 的 Redis command 已改为 exec 数组，直接传递持久化参数与 `REDIS_PASSWORD`，不再依赖 shell 续行。
 
+## OpenAI 请求时区改写上线与回退
+
+- 2026-09-30 二轮复核门禁：CAS/回读失败失效修复已通过专项；仍需修复三次 CAS 冲突耗尽后返回旧开启结果的降级分支，才放行开启灰度。默认全关部署属于条件 GO，发布仍须处理既有 CI 门禁；详见 backend 页。
+
+- 部署后默认不改写任何请求：全局 `enable_openai_request_timezone_rewrite` 与账号 `extra.openai_request_timezone_rewrite_enabled` 均缺省关闭，无需数据迁移。
+- 验证顺序：先只在生产专用 OpenAI 账号编辑弹窗开启账号开关（可选目标时区，默认 `America/Los_Angeles`），再在 系统设置 → 网关 打开全局开关；其它账号保持关闭即不受影响。
+- 紧急关闭：关闭全局开关并保存（`PUT /api/v1/admin/settings` `{"enable_openai_request_timezone_rewrite": false}`）。保存所在实例立即生效，其它实例最迟 60 秒；已有 WS 连接在下一个 `response.create` 起按同一时限停止改写，不需要重启或断连。
+- 灰度隔离：开启账号开关的专用账号应放在只有验收 API Key 使用的独立分组，否则同组调度到它的正式流量也会被改写；若该账号有 Spark 影子，影子跟随母账号生效，需确认影子不在共享分组。
+- 观察：`config.yaml` 的 `log.level` 会被数据库运行时日志配置覆盖；临时排查用 `PUT /api/v1/admin/ops/runtime/logging`（`level: debug`，热生效，全局生效，结束后改回 `info`），看 `openai request timezone normalization` 的 `reason`（`account_disabled`/`global_disabled`/`settings_unavailable`/`replaced` 等）、`request_id`、计数；日志不含客户端时区值或正文。
+- 本地整栈演练（嵌入式 PG + 本地 Redis + 假 OpenAI 上游，不调用真实模型）脚本在 `E:/tmp/e2e-tz`（`tz_rehearsal.py`、`tz_rehearsal_chat.py`），非仓库文件。假上游需对 Responses 能力探测返回 `function_call`，否则 API Key 账号会被标记为不支持 Responses 而改走 Chat Completions。
+
 ## 常见维护陷阱
 
 - `frontend/package.json` 改依赖后必须更新并提交 `frontend/pnpm-lock.yaml`。

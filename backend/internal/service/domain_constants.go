@@ -699,6 +699,10 @@ const (
 	// 在检测到非官方 base URL 时注入的 3 bit 隐写指纹。仅适用于 Anthropic OAuth/SetupToken
 	// 账号；API Key 账号不受影响。
 	SettingKeyEnableClientDatelineNormalization = "enable_client_dateline_normalization"
+	// SettingKeyEnableOpenAIRequestTimezoneRewrite 是否允许 OpenAI 请求时区改写（默认 false）。
+	// 全局总开关：只有它与账号 extra.openai_request_timezone_rewrite_enabled 同时为 true 时，
+	// 才改写结构化 environment_context 与 Web Search user_location 的 timezone。
+	SettingKeyEnableOpenAIRequestTimezoneRewrite = "enable_openai_request_timezone_rewrite"
 	// SettingKeyRewriteMessageCacheControl 是否改写 messages[*].content[*].cache_control（默认 false）
 	SettingKeyRewriteMessageCacheControl = "rewrite_message_cache_control"
 	// SettingKeyAntigravityUserAgentVersion Antigravity 上游 User-Agent 版本号（空值使用环境变量/默认值）

@@ -1,5 +1,12 @@
 # 前端知识基线
 
+## OpenAI 请求时区
+
+- `CreateAccountModal.vue`、`EditAccountModal.vue` 对 OpenAI 账号显示 `OpenAIRequestTimezoneField.vue`：“启用请求时区改写”开关默认关闭，目标时区选择器随开关禁用但保留已选值（默认 `America/Los_Angeles`），白名单来自 `GET /api/v1/admin/accounts/openai-request-timezones`，后端再次校验。
+- 组件只在用户操作时 emit；弹窗记录 touched，只有管理员调整过才写 `extra.openai_request_timezone_rewrite_enabled` 与 `extra.openai_request_timezone`。未调整时新建不写字段（即关闭）、编辑保留 extra 现值、Codex 重导入不覆盖已有账号。
+- Spark 影子账号只显示“请在母账号中管理”，提交时删除残留的两个字段（后端拒绝影子写入非 null 值）。
+- 全局开关在系统设置 Gateway 标签页 `enable_openai_request_timezone_rewrite`（默认关闭），GET/PUT 与 `SettingsView.vue` form/payload 三端同步。
+
 ## 0.2.9 前端同步合同
 
 - 分组模型白名单允许任意位置的 `*`（例如 `gpt-*-codex`）；前端校验与提示随 `groupModelAllowlist.ts` / 后端 glob 合同同步。

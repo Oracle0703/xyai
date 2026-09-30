@@ -535,6 +535,8 @@ export default {
         rewriteMessageCacheControlHint: '默认关闭，保留客户端在 messages 内容块中的 cache_control。开启后会清除客户端断点并注入代理断点，适合不自行管理缓存策略的客户端。',
         clientDatelineNormalization: '客户端 dateline 归一化',
         clientDatelineNormalizationHint: '默认开启。将 Anthropic OAuth/Setup Token 请求体中 "Today\'s date is …" 语句里的撇号与日期分隔符还原为 ASCII 撇号 + 短横线 (2026-07-01) 的规范形态，抹除某些客户端在检测到非官方 base URL 时注入的隐写指纹位。仅作用于 system prompt 与 <system-reminder> 块内，API Key 账号不受影响。',
+        openAIRequestTimezoneRewrite: 'OpenAI 请求时区改写（全局）',
+        openAIRequestTimezoneRewriteHint: '默认关闭。仅当本开关与账号的“启用请求时区改写”同时开启时，才改写 OpenAI 请求中环境上下文和 Web Search 的时区；关闭即紧急停用，保存的实例立即生效，其它实例最迟 60 秒生效。',
         antigravityUserAgentVersion: 'Antigravity UA 版本',
         antigravityUserAgentVersionPlaceholder: '1.23.2',
         antigravityUserAgentVersionHint: '留空时使用 ANTIGRAVITY_USER_AGENT_VERSION 或内置默认值 1.23.2；填写后后台设置优先。',

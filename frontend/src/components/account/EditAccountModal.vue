@@ -1769,6 +1769,15 @@
         </div>
       </div>
 
+      <OpenAIRequestTimezoneField
+        v-if="account?.platform === 'openai'"
+        :enabled="openAIRequestTimezoneRewriteEnabled"
+        :timezone="openAIRequestTimezone"
+        :managed-by-parent="isSparkShadow"
+        @update:enabled="setOpenAIRequestTimezoneRewriteEnabled"
+        @update:timezone="setOpenAIRequestTimezone"
+      />
+
       <!-- OpenAI Codex namespace 工具摊平（兼容开关，仅 OAuth） -->
       <div
         v-if="account?.platform === 'openai' && account?.type === 'oauth'"
@@ -3141,6 +3150,7 @@ import GrokBaseUrlPresets from '@/components/account/GrokBaseUrlPresets.vue'
 import CnBaseUrlPresets from '@/components/account/CnBaseUrlPresets.vue'
 import OpenCodeGoProtocolRulesEditor from '@/components/account/OpenCodeGoProtocolRulesEditor.vue'
 import HeaderOverrideEditor from '@/components/account/HeaderOverrideEditor.vue'
+import OpenAIRequestTimezoneField from '@/components/account/OpenAIRequestTimezoneField.vue'
 import OllamaCloudUsageSettings from '@/components/account/OllamaCloudUsageSettings.vue'
 import {
   applyAntigravityProjectID,
@@ -3682,6 +3692,18 @@ const customBaseUrl = ref('')
 
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
+// 请求时区改写：只有管理员调整过才写回，未调整时保留 extra 现值（缺字段即关闭）。
+const openAIRequestTimezoneRewriteEnabled = ref(false)
+const openAIRequestTimezone = ref('America/Los_Angeles')
+const openAIRequestTimezoneTouched = ref(false)
+const setOpenAIRequestTimezoneRewriteEnabled = (value: boolean) => {
+  openAIRequestTimezoneRewriteEnabled.value = value
+  openAIRequestTimezoneTouched.value = true
+}
+const setOpenAIRequestTimezone = (value: string) => {
+  openAIRequestTimezone.value = value
+  openAIRequestTimezoneTouched.value = true
+}
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
@@ -4188,6 +4210,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   webSearchEmulationMode.value = 'default'
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'setup-token' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
+    openAIRequestTimezoneRewriteEnabled.value = extra?.openai_request_timezone_rewrite_enabled === true
+    openAIRequestTimezone.value = typeof extra?.openai_request_timezone === 'string' && extra.openai_request_timezone.trim()
+      ? extra.openai_request_timezone
+      : 'America/Los_Angeles'
+    openAIRequestTimezoneTouched.value = false
     openaiFlattenNamespacesEnabled.value =
       newAccount.type === 'oauth' && extra?.openai_responses_flatten_namespaces === true
     const longContextBillingValue = extra?.openai_long_context_billing_enabled
@@ -5676,6 +5703,14 @@ const handleSubmit = async () => {
       } else {
         delete newExtra.openai_passthrough
         delete newExtra.openai_oauth_passthrough
+      }
+      if (isSparkShadow.value) {
+        // Spark 影子账号跟随母账号配置；清理可能残留的独立值（后端拒绝影子写入）。
+        delete newExtra.openai_request_timezone_rewrite_enabled
+        delete newExtra.openai_request_timezone
+      } else if (openAIRequestTimezoneTouched.value) {
+        newExtra.openai_request_timezone_rewrite_enabled = openAIRequestTimezoneRewriteEnabled.value
+        newExtra.openai_request_timezone = openAIRequestTimezone.value || 'America/Los_Angeles'
       }
       // 缺省即保留 namespace，不写空值，避免 extra 里堆积默认项
       if (props.account.type === 'oauth' && openaiFlattenNamespacesEnabled.value) {
