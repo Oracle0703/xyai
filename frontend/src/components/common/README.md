@@ -1,5 +1,9 @@
 # Common Components
 
+## 0.2.11 计划展示
+
+- `PlatformTypeBadge.vue` 复用 `utils/planType.ts` 的 OpenAI 订阅档位映射，使用 Pro 100/200/500、Business、Edu、Enterprise 等当前标签；展示不参与权限/调度。
+
 ## 0.2.6 合并增量
 
 - `BaseDialog.vue` 将标题 ID 计数放到模块作用域，多个实例拥有不同 ID；`Pagination.vue` 将数字输入转为字符串后解析；`ProxySelector.vue` 批量测试复用单项 in-flight guard。对应验证为 `BaseDialog.ids.spec.ts`、`Pagination.jump.spec.ts`、`ProxySelector.testing.spec.ts`。

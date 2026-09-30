@@ -1,5 +1,10 @@
 # Account Components
 
+## 0.2.11 同步
+
+- `ClaudeResetCreditsCell.vue` 在查询到可用次数后显示确认兑换流程，提交幂等键并刷新脱敏 outcome；`AccountUsageCell.vue` 刷新关联用量。重置不替代本地 GPT 额度展示。
+- `credentialsBuilder.ts` 复用 `utils/planType.ts` 的当前计划列表和标签，保留已存别名及未知值；Pro 显示 100/200/500 档位。
+
 ## 0.2.7 合并增量
 
 - 创建、编辑、批量编辑账号支持显式选择 `seedance`，默认仍为 chat/embeddings；不能因 capability 数量为 2 就错误删除包含 Seedance 的配置。

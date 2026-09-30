@@ -2102,3 +2102,24 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 - `docs/upstream-merge-playbook.md` → `docs/upstream-sync/playbook.md`
 
 2026-09-20 条目引用的 `review.md` 曾在后续功能分支合并中丢失，已从 `d120d499e` 恢复到 `docs/upstream-sync/2026-09-20-v0.2.7/review.md`。完整映射见 `docs/README.md`。本条仅追加，不改写历史条目。
+
+
+## 2026-09-30 - Sub2API 0.2.11 固定提交合并（待审核）
+
+| 项目 | 结果 |
+| --- | --- |
+| 工作分支 | `feature/hy/10214_merge_sub2api_211` |
+| 本地基线 | `main@ba53ec78d557ba2aa08efa5e28f2dde869b011da` |
+| 上游分支 | `Wei-Shaw/sub2api main` |
+| 上游提交 | `42bc7f6cffe24bcb471608e48e66b4a0afa1f882`（VERSION=0.2.11） |
+| 共同祖先 / 增量 | `a60a29549f488a854966aaec9541abbe006cac22`；23 commits / 90 paths |
+| 合并提交 | 尚未创建，保留 MERGE_HEAD，等待用户 commit 前审核 |
+| 冲突文件 | `backend/cmd/server/wire_gen.go`；`backend/internal/service/openai_gateway_responses_chat_fallback.go` |
+| 处理方式 | Wire 从联合 provider 源图生成；保留本地接线、兼容参数过滤/缓存，并合入上游 Claude 重置接线与 GPT-6.1 Sol 校验；19 个双方修改路径逐项复核，29 个 features 文件保持不变；不修上游 bug |
+| 后端验证 | default 通过；unit 因第一父 ptrFloat 重复声明导致 service 包不能编译（其余 59 包通过）；integration 退出 0，但有 18 个显式 skip 及 Docker 缺失的 repository 整包跳过 |
+| 其他验证 | Wire 两次一致、tidy、normal/embed build、增量 lint（0 issues）、前端 lint/typecheck/374 files・2871 tests/build 通过；Wiki 图谱刷新并通过 AllowDirtyWiki 检查 |
+| 证据 | `docs/upstream-sync/2026-09-30-v0.2.11/review.md`；本机日志 `backend/.gocache/merge211-*.log` |
+
+本轮未 commit/push/PR/部署，不把 unit 阻塞或集成跳过等同全绿。
+
+补充（2026-09-30 提交前复核）：以 `-overlay` 临时绕过第一父 `ptrFloat` 重复声明补跑 unit，service 包仅 `TestApplyDefaultOpenAIReasoningEffort/config_none_normalizes_to_empty_->_disabled` 失败，第一父同样复现，非本次合并引入；其余 unit 包通过。详见 review.md「提交前复核补充」。

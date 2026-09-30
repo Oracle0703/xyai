@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.11 前端同步合同
+
+- `ClaudeResetCreditsCell.vue` 增加显式确认的重置按钮，先查询可用次数，再通过 `api/admin/claudeResetCredits.ts` 提交带幂等键的兑换，展示脱敏 outcome 并刷新；不替代本地订阅重置和 GPT 额度展示。
+- `UseKeyModal.vue` 的 Codex/Codex WS 配置默认使用 provider 内 `model_catalog_url`（网关 `/v1/models`）；可选本地 `model_catalog_json`，预览响应超过 1 MiB 时切换为文件。预览请求带 `client_version`，认证保留既有模板方式。
+- `utils/planType.ts` 统一当前 OpenAI plan 标签和选项（Pro 100/200/500、Business/Edu/Enterprise 等）；账号组件与 `PlatformTypeBadge` 共用此映射。OpenCode 配置与模型白名单增加 GPT-6.1 Sol。
+
 ## 0.2.10 前端同步合同
 
 - 管理首页最近使用 Top 12 支持 Token / 实际消费切换，采用上游 `metric` 请求和图表格式化，保留本地有限数值保护、消费榜和旧请求序号隔离。API client 的 `user_ids` 筛选继续供本地选人趋势使用。

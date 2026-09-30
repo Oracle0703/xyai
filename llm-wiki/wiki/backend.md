@@ -1,5 +1,12 @@
 # 后端知识基线
 
+## 0.2.11 合并合同
+
+- 固定上游 `42bc7f6cffe24bcb471608e48e66b4a0afa1f882`；余额在途预留入口为 `backend/internal/handler/gateway_inflight_reservation.go`，估算/生命周期在 `service/billing_inflight_reservation.go`，Redis 原子预留在 `repository/billing_inflight_cache.go`。HTTP 请求 context 与 WS 会话 context 向异步计费任务传递预留引用，handler 结束停止续期，最后一个引用归还后释放。
+- Claude 手动重置新增 `POST /api/v1/admin/accounts/:id/claude/reset-credits/redeem`；`ProvideClaudeResetCreditService` 注入既有幂等协调器和 Redis leader lock。保留本地订阅自助重置、GPT 额度展示、组织/部门、Prompt Metrics/Risk、Token Analysis、并发预设及插件目录接线。
+- Claude Code-only 分组的 Chat/Responses 入口在配置 fallback group 时交给既有调度降级，不再直接 403；无 fallback 仍拒绝。
+- GPT-6.1 Sol 使用上游模型元数据、别名、计划档位与定价。映射后的兼容入口拒绝显式 none/minimal/disabled thinking；Chat-only 回退拒绝该模型工具调用。本地 Responses→Chat 参数过滤、reasoning 缓存和默认 effort 继续保留。
+
 ## 0.2.10 合并合同
 
 - 固定上游 `a60a29549f488a854966aaec9541abbe006cac22`；Wire 接入 `ClaudeResetCreditService` 和 OpenAI WS 的 `CompositeRouteResolver`，保留本地组织/部门、Prompt Metrics、Token Analysis、并发预设、归档/拦截及插件账号目录接线。

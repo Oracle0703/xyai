@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.2.11 限流、重置与兼容边界
+
+- API Key 创建默认每用户最多 200 个未删除 Key、每小时 60 次；0 关闭对应限制。数据库计数错误拒绝，Redis 创建次数计数失败 fail-open；保持上游实现，本轮不额外加锁或修复其并发边界。
+- 余额在途预留默认开启，Redis 故障默认 fail-open；未定价默认放行，`fail_closed_on_unpriced=true` 时拒绝。预留不是实际扣费；handler 与计费任务通过引用计数延后释放，handler 返回后不再续期，卡住的计费任务最多保留到 TTL。
+- Claude 重置要求幂等键、账号和上游组织两级 90 秒租约及持久组织 fence；服务端重新查询并选择 grant，客户端不能指定。未知结果 fence 为 24 小时，明确 unavailable 为 15 分钟，操作记录 TTL 为 365 天；缺少幂等/锁依赖时拒绝。接口复用 admin 鉴权/审计/合规链，不扩大本地子管理员白名单。
+- GPT-6.1 Sol 的工具/effort 拒绝按映射后模型执行；本地默认 effort 和第三方参数过滤保留，上游新增校验保持生效。
+
 ## 0.2.10 风控与网关边界
 
 - 上游 `cyber_policy_user_allowlist` 保存平台用户 ID；上游内容审计和 cyber session 对命中用户保留日志但不执行本地惩罚，不能突破上游拒绝。`cyber_log_only` / `risk_control_log_only` 日志不计入后续自动封禁。

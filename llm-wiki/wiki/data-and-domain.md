@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.2.11 数据与计费合同
+
+- 无 Ent schema、SQL migration 或业务依赖变更。Claude 重置复用 `idempotency_records` 存储操作结果和 organization fence；不存 token/grant 明文。账号查询与服务端 grant 选择仍独立于本地订阅日限重置。
+- 余额预留使用 Redis `billing:inflight:{uid}` ZSET 与 `billing:inflight_amt:{uid}` HASH；按用户合计估算额，清除过期预留后，无在途预留的首请求沿旧余额检查放行，后续请求要求余额减在途额足够。订阅模式跳过；不等价于账本冻结或严格防透支保证。
+- 估算遵循渠道/分组/模型定价及倍率，未定价别名尝试账单 fallback 模型；异步计费完成余额缓存扣减后归还引用，过期预留不复活。GPT-6.1 Sol 与 Astra Ultrafast 定价/能力沿固定上游。
+- API Key 创建上限按未删除 Key 计数；一小时创建计数独立于自定义 Key 错误计数，删除/状态变更不返还次数。计数在数据库 Create 之前增加，不能将其描述为仅统计成功创建。
+
 ## 0.2.10 数据与计费合同
 
 - 本轮无 Ent schema、SQL migration 或 Go/frontend 依赖变更。风控白名单使用既有 settings 存储；Claude 重置次数查询不引入本地余额/次数扣减。

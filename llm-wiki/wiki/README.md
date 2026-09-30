@@ -20,6 +20,8 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
+- 2026-09-30 从本地 `main@ba53ec78d557ba2aa08efa5e28f2dde869b011da` 创建 `feature/hy/10214_merge_sub2api_211`，固定合入 `Wei-Shaw/sub2api main@42bc7f6cffe24bcb471608e48e66b4a0afa1f882`（`0.2.11`，merge base=`a60a29549f488a854966aaec9541abbe006cac22`）。23 commits / 90 paths；2 个文本冲突与 19 个双方修改路径按三方合同处理。本地独有功能继续保留，重叠行为采用上游，不修上游 bug；当前未提交，审核和验证见 `docs/upstream-sync/2026-09-30-v0.2.11/review.md`。
+
 - 2026-09-30 从本地 `main@bdf31e87223058200c614a807e24169e12bb31ea` 创建 `feature/hy/10213_merge_sub2api_210`，固定合入 `Wei-Shaw/sub2api main@a60a29549f488a854966aaec9541abbe006cac22`（`VERSION=0.2.10`，merge base=`9a62841fd124d026cf3694fcf9b79e98addcdbdc`）。33 commits / 118 paths；15 个文本冲突与 37 个双方修改路径按三方合同合并，保留本地独有功能，重叠行为采用上游，不修上游 bug。已由 `87abb8a89` 提交并合入本地 main（`github/main` 已包含），验证与裁决见 `docs/upstream-sync/2026-09-30-v0.2.10/review.md`。
 
 - 2026-09-29 从本地 `main@7373dc2674be8266cd048b7a79e0c184650a3f8b` 创建 `feature/hy/10211_merge_sub2api_209`，固定合入 `Wei-Shaw/sub2api main@9a62841fd124d026cf3694fcf9b79e98addcdbdc`（`VERSION=0.2.9`，merge base=`a3eb7ef302961cba716dc78b39b93b60c467db0e`）。70 commits / 117 paths，仅 Gemini 并发处理和并发测试两个文本冲突；采用上游统一映射并保留本地缓存故障 503，适配一个本地测试调用。12 个双方修改路径已核对，保留本地独有功能；本轮仅解决冲突，不修上游 bug。已由 `bdf31e872` 提交并合入本地 main，历史验证见 `docs/upstream-sync/2026-09-29-v0.2.9/review.md`。

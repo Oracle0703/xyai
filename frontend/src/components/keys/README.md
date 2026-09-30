@@ -1,5 +1,10 @@
 # Key Components
 
+## 0.2.11 Codex 模型目录
+
+- Codex 和 Codex WS 默认输出 provider 内 `model_catalog_url` 指向网关 `/v1/models`；用户可选文件模式，使用顶层 `model_catalog_json`。预览使用带 `client_version` 的认证请求，原始响应超过 1 MiB 时自动采用文件模式。
+- OpenCode 模型清单增加 GPT-6.1 Sol，context 1,050,000 / output 128,000，effort 提供 low/medium/high/xhigh/max。
+
 本目录维护 API Key 的创建、编辑和使用指引。`UseKeyModal.vue` 根据分组平台生成客户端配置，配置内容必须使用当前网关地址和当前 API Key，不得写入固定凭据。
 
 ## `UseKeyModal.vue`
@@ -23,9 +28,9 @@
 
 ## Codex 认证模式
 
-- 普通 Codex 模板保留本地 `model_provider = "xunyou"` / `[model_providers.xunyou]`; WebSocket v2 模板使用 `OpenAI` provider，并设置 `supports_websockets = true`。
+- 普通 Codex 与 WebSocket v2 模板均使用 `OpenAI` provider；WebSocket 模板设置 `supports_websockets = true`。
 - Legacy Login 输出 `requires_openai_auth = true`。API Key Mode 输出 `requires_openai_auth = false` 和 `x-openai-actor-authorization = "local-image-extension"`; 两种模式都生成 `auth.json`。
-- provider 选择器测试必须分别按普通模板的 `xunyou` 和 WebSocket 模板的 `supports_websockets = true` 定位，不能假设两个模板使用同一 provider 名。
+- provider 选择器测试按 `OpenAI` 定位，并以 `supports_websockets = true` 区分 WebSocket 模板。
 
 ## Claude/OpenCode 模型清单
 

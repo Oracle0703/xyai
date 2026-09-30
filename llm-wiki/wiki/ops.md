@@ -1,5 +1,12 @@
 # 运维, 配置与验证基线
 
+## 0.2.11 配置与验证入口
+
+- 分支 `feature/hy/10214_merge_sub2api_211` 从本地 `main@ba53ec78d557ba2aa08efa5e28f2dde869b011da` 创建，固定合入 `Wei-Shaw/sub2api main@42bc7f6cffe24bcb471608e48e66b4a0afa1f882`，保持未提交等待审核。结果见 `docs/upstream-sync/2026-09-30-v0.2.11/review.md`。
+- `api_key_create.max_active_per_user=200`、`max_per_user_per_hour=60`，0 表示不限，不允许负值。
+- `billing.inflight_reservation` 默认：`enabled=true`、`ttl_seconds=900`、`default_max_tokens=8192`、`max_output_tokens=128000`、`max_input_tokens=200000`、`max_reservation_usd=0`（不封顶）、`fail_closed_on_unpriced=false`。配置/环境变量读取沿既有 Viper 规则；部署示例同步，不主动修改现有运行配置。
+- Wire provider 变化后连续生成两次，核对本地接线并移除工具附加的 go.sum checksum；无 schema 变化，不生成 Ent。Windows 测试使用 repo-local cache、独立 GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git `usr/bin`。
+
 ## 0.2.10 同步与验证入口
 
 - 本轮 default 全量、前端 374 files / 2828 tests、lint/typecheck/build、Go normal/embed、tidy 和最终增量 lint 通过。unit 保留 main 既有 ptrFloat 重复声明阻塞；integration 一次 cyber snapshot 1 秒时序失败（同标签复跑 3/3 通过），另有 18 个显式 skip 和 repository Docker 整包跳过，不是全绿/完整集成验收。
