@@ -2123,3 +2123,20 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 本轮未 commit/push/PR/部署，不把 unit 阻塞或集成跳过等同全绿。
 
 补充（2026-09-30 提交前复核）：以 `-overlay` 临时绕过第一父 `ptrFloat` 重复声明补跑 unit，service 包仅 `TestApplyDefaultOpenAIReasoningEffort/config_none_normalizes_to_empty_->_disabled` 失败，第一父同样复现，非本次合并引入；其余 unit 包通过。详见 review.md「提交前复核补充」。
+
+## 2026-10-03 - Sub2API 0.2.13 固定提交合并（待审核）
+
+| 项目 | 结果 |
+| --- | --- |
+| 合并日期 / 工作分支 | 2026-10-03 / `feature/hy/10215_merge_sub2api_213` |
+| 本地 main / 第一父 | `244b058680aa56b613a7cb0862e262ed028661ef` |
+| 上游分支 / 第二父 | `Wei-Shaw/sub2api main` / `b8dece9000c68815a5b867ca5a1e6f236e173905`，`VERSION=0.2.13` |
+| 共同祖先 / 增量 | `42bc7f6cffe24bcb471608e48e66b4a0afa1f882`；39 commits、157 paths、`+6027/-314` |
+| 合并提交 | 尚未创建；`MERGE_HEAD` 固定上述上游 SHA，等待用户审核 |
+| 冲突文件 | `backend/internal/handler/auth_oauth_pending_flow_test.go`、`backend/internal/handler/user_handler_test.go`、`backend/internal/service/auth_service_email_bind_test.go` |
+| 处理方式 | 三处测试冲突均保留本地 `GetByIDWithAdminAccess` 适配，并并入上游 EmailCache 原子尝试/密码重置 token 桩方法；未修改冲突之外的业务逻辑。 |
+| 本地功能 | 29 个 `docs/features` 文件及 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织/部门、子管理员、并发预设和 quota flusher 等独有能力保留；重叠能力采用上游。 |
+| 验证结果 | Go default 通过（54 包、15 skip），integration 退出 0（54 包、19 skip，Docker/Prompt Audit DSN 前提缺失）；unit 受第一父 `ptrFloat` 重复声明阻塞（其余 59 包通过）。Go normal/embed build、tidy、Ent/Wire 生成、golangci-lint 2.13（0 issues）、前端 lint/typecheck/build 通过；锁定 Axios 1.20.0 后 Vitest 重跑仍为 375/376 files、2894/2897 tests 通过，3 个目标上游旧平台断言失败，未修改。 |
+| 交付状态 | 未 commit、未 push、未创建 PR、未部署；等待人工审核。 |
+
+上一轮 0.2.11 已由 `244b058680aa56b613a7cb0862e262ed028661ef` 创建 merge commit 并进入本地 main。本条仅追加历史状态事实，不改写已有条目。本轮审核报告：`docs/upstream-sync/2026-10-03-v0.2.13/review.md`。

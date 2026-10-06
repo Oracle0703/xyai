@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.2.13 数据与计费合同
+
+- `payment_orders` 新增 `bonus_amount`（migration `241_add_payment_order_bonus_amount.sql`），由充值优惠阶梯计算并写入订单快照。API 字段 `payment_recharge_bonus_tiers/mode/notice` 对应 settings 键 `RECHARGE_BONUS_TIERS/MODE/NOTICE`；余额订单 `amount` 含赠金、`bonus_amount` 为免费部分、`pay_amount` 为实付，邀请返利排除赠金，订阅订单不参与。迁移只能追加，不能修改已应用文件。
+- TypeSafe 平台新增 `241_add_typesafe_platform.sql`，同步 user platform quota/check 约束、账号/分组平台枚举、System One usage 解析和 billing probe；解析不到合法 model/usage 时仍保留已完成上游响应，避免把审计字段当成响应成功条件。
+- 邮箱验证码尝试计数使用 cache 原子递增，密码重置 token 只保存哈希并单次消费；订单公开校验限流与退款/履约审计沿既有合同。
+- 异步计费结算前 API Key 被删除时，仅跳过 Key 自身额度/限速计数，其余用户/订阅/账号结算继续；见 `backend/internal/repository/usage_billing_repo.go`。两份新增 `241_add_*.sql` 与本地 `241_subscription_self_daily_reset.sql` 按完整文件名区分，保留原名。
+
 ## 0.2.11 数据与计费合同
 
 - 无 Ent schema、SQL migration 或业务依赖变更。Claude 重置复用 `idempotency_records` 存储操作结果和 organization fence；不存 token/grant 明文。账号查询与服务端 grant 选择仍独立于本地订阅日限重置。

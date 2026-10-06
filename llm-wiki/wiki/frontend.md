@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.13 前端同步合同
+
+- `CreateAccountModal.vue`、平台类型和模型白名单接入 TypeSafe/Jev System One；TypeSafe 使用 `https://api.typesafe.ai`、`ts-...` key 占位和 `jev-latest` 白名单，平台切换时保持本地 OpenAI-compatible preset 等旧状态隔离。
+- 管理设置新增充值优惠阶梯编辑器，支持按档位 bonus/discount 模式和促销提示；加载时归一化，提交前清洗空行，不能把草稿行直接写入 API。
+- API Key/账户和支付页面同步上游排序、优先级快捷调整、Axios 1.20.0 及 locale 文案变化；重叠实现采用上游，本地组织/部门、Token Analysis、Prompt Risk 和权限入口继续保留。
+
 ## 0.2.11 前端同步合同
 
 - `ClaudeResetCreditsCell.vue` 增加显式确认的重置按钮，先查询可用次数，再通过 `api/admin/claudeResetCredits.ts` 提交带幂等键的兑换，展示脱敏 outcome 并刷新；不替代本地订阅重置和 GPT 额度展示。

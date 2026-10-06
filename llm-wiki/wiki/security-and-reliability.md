@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.2.13 安全与可靠性合同
+
+- TypeSafe System One 只接受 JSON 文本并挂载 `text_max_body_size`；路由挂在 `/v1` 组上，经过 API Key、分组、端点归一化和上游内容审计。
+- 已知缺口（TypeSafe 短期不启用，暂不修）：本地独有能力未覆盖 `/v1/systemone`。`prompt_risk_input.go` 无 `typesafe_systemone` 分支（Prompt Risk 静默放行）；`request_archive.go`、`request_intercept.go` 路径白名单不含该端点（不归档、Token Analysis 不可见、拦截规则不生效；拦截默认回写 Anthropic 格式，不能只加路径）；Prompt Metrics 抽不到文本即丢弃；`subscription_admin_filter.go`、`organization_usage_department.go` 及 `OrganizationUsageFilters.vue` 平台白名单不含 `typesafe`。启用 TypeSafe 账号/分组前必须先补齐。
+- 邮箱验证码失败次数通过 Redis Lua 原子递增；密码重置 token 只存 SHA-256 哈希并原子单次消费。`POST /api/v1/payment/public/orders/verify` 每客户端 IP 每分钟 20 次，Redis 故障沿上游 fail-open；resume-token resolve 仍独立。Antigravity 上游错误响应先脱敏后返回。
+- 本轮仅解决合并冲突并采用固定上游重叠实现；上游新增安全策略、依赖升级和潜在缺陷不在本轮修复范围，验证报告需单独记录环境边界。
+
 ## 0.2.11 限流、重置与兼容边界
 
 - API Key 创建默认每用户最多 200 个未删除 Key、每小时 60 次；0 关闭对应限制。数据库计数错误拒绝，Redis 创建次数计数失败 fail-open；保持上游实现，本轮不额外加锁或修复其并发边界。

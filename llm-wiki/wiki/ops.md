@@ -1,8 +1,15 @@
 # 运维, 配置与验证基线
 
+## 0.2.13 配置与验证入口
+
+- 分支 `feature/hy/10215_merge_sub2api_213` 从 `main@244b058680aa56b613a7cb0862e262ed028661ef` 创建，固定合入上游 `b8dece9000c68815a5b867ca5a1e6f236e173905`（`VERSION=0.2.13`），保持未提交等待审核。上游增量 39 commits / 157 paths，3 个文本冲突，33 个双方修改路径。
+- 本轮涉及 Ent schema/migration、网关端点和前后端依赖；需核对 Ent 生成物、migration 241、Wire/路由编译、Go default/unit/integration 边界，以及前端 lint/typecheck/Vitest/build。Windows 测试沿用 repo-local cache、独立 GOTMPDIR、`-p 1 -count=1` 和 Git `usr/bin` PATH。
+- 本轮只解决冲突，不修复上游 bug；完整冲突裁决、blob 审计、测试结果和未覆盖前提写入 `docs/upstream-sync/2026-10-03-v0.2.13/review.md`。
+- default、Ent/Wire 无漂移、tidy、normal/embed、增量 lint 2.13、前端 lint/typecheck/build 通过。锁定 Axios 1.20.0 后 Vitest 为 2894/2897（目标上游旧 5 平台断言 3 项失败）；unit service 保留第一父重复 `ptrFloat` 编译阻塞；integration 退出 0 但有 19 个显式 skip 及 repository 的 Docker 整包跳过，不能视为完整集成通过。
+
 ## 0.2.11 配置与验证入口
 
-- 分支 `feature/hy/10214_merge_sub2api_211` 从本地 `main@ba53ec78d557ba2aa08efa5e28f2dde869b011da` 创建，固定合入 `Wei-Shaw/sub2api main@42bc7f6cffe24bcb471608e48e66b4a0afa1f882`，保持未提交等待审核。结果见 `docs/upstream-sync/2026-09-30-v0.2.11/review.md`。
+- 分支 `feature/hy/10214_merge_sub2api_211` 从本地 `main@ba53ec78d557ba2aa08efa5e28f2dde869b011da` 创建，固定合入 `Wei-Shaw/sub2api main@42bc7f6cffe24bcb471608e48e66b4a0afa1f882`，已由 `244b058680aa56b613a7cb0862e262ed028661ef` 提交并进入本地 main。历史结果见 `docs/upstream-sync/2026-09-30-v0.2.11/review.md`。
 - `api_key_create.max_active_per_user=200`、`max_per_user_per_hour=60`，0 表示不限，不允许负值。
 - `billing.inflight_reservation` 默认：`enabled=true`、`ttl_seconds=900`、`default_max_tokens=8192`、`max_output_tokens=128000`、`max_input_tokens=200000`、`max_reservation_usd=0`（不封顶）、`fail_closed_on_unpriced=false`。配置/环境变量读取沿既有 Viper 规则；部署示例同步，不主动修改现有运行配置。
 - Wire provider 变化后连续生成两次，核对本地接线并移除工具附加的 go.sum checksum；无 schema 变化，不生成 Ent。Windows 测试使用 repo-local cache、独立 GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git `usr/bin`。

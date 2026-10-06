@@ -1,5 +1,12 @@
 # 后端知识基线
 
+## 0.2.13 合并合同
+
+- 固定上游 `b8dece9000c68815a5b867ca5a1e6f236e173905`；TypeSafe Jev System One 使用独立 `/v1/systemone` 端点、文本 body limit、模型/usage 宽松解析和 `typesafe` 平台路由，不能混入 OpenAI-compatible `/messages` 分流。平台常量、端点归一化、内容审计 profile、模型错误透传、配额/计费和前端账号能力需保持同步。
+- 支付订单 Ent 增加 `bonus_amount` 字段并追加 migration 241；充值优惠阶梯支持 bonus/discount 模式，履约和退款继续沿现有订单/审计事务。已应用 migration 不改写。
+- API Key 列表支持按 group 名称排序；邮箱验证码尝试次数改用 cache 原子递增，密码重置 token 使用哈希单次消费。公开订单校验增加限流，Antigravity 上游错误体继续先脱敏。以上采用固定上游实现，本轮不额外修复其余上游问题。
+- 保留本地 RequestArchive/RequestIntercept、Prompt Metrics/Risk、Token Analysis、组织/部门权限、子管理员、并发预设、quota flusher、OpenAI-compatible 适配等独有能力；冲突测试桩同时保留本地 `GetByIDWithAdminAccess` 与上游 EmailCache 原子方法。
+
 ## 0.2.11 合并合同
 
 - 固定上游 `42bc7f6cffe24bcb471608e48e66b4a0afa1f882`；余额在途预留入口为 `backend/internal/handler/gateway_inflight_reservation.go`，估算/生命周期在 `service/billing_inflight_reservation.go`，Redis 原子预留在 `repository/billing_inflight_cache.go`。HTTP 请求 context 与 WS 会话 context 向异步计费任务传递预留引用，handler 结束停止续期，最后一个引用归还后释放。
