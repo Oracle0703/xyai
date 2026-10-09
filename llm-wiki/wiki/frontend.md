@@ -1,5 +1,12 @@
 # 前端知识基线
 
+## 0.2.15 平台清单与账号表单
+
+- `constants/platformCatalog.ts` 读取随应用发布的内置 JSON，平台选项、配额平台、展示名和多协议账号表单从清单派生；`AccountPlatform` 允许后端新登记值，服务端仍负责合法性校验。
+- Create/Edit 账号表单使用 provider profile 的模式/协议/端点；OpenCode、Command Code 支持按模型协议集合，Cline 使用通用 API Key 表单。模型白名单、账号用量与定价模型同步按平台能力显示；本地 OpenAI-compatible preset 的 UI、reset、payload 保留。
+- 默认额度和用户配额改用全部具体平台；Codex remote model catalog 配置增加 `features.api_key_model_discovery=true`。用量表显示输出 TPS、长上下文提示并保留显式零倍率。
+- Vue 升至锁定的 3.5.43，source-map-js override 升级；对话框 Escape 只关闭最上层，disabled 下拉收起，迟到请求与卸载计时器采用上游处理。本地组织/部门筛选的新平台适配边界见 [[security-and-reliability]]。
+
 ## 0.2.13 前端同步合同
 
 - `CreateAccountModal.vue`、平台类型和模型白名单接入 TypeSafe/Jev System One；TypeSafe 使用 `https://api.typesafe.ai`、`ts-...` key 占位和 `jev-latest` 白名单，平台切换时保持本地 OpenAI-compatible preset 等旧状态隔离。

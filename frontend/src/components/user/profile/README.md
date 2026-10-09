@@ -1,5 +1,10 @@
 # User Profile Components
 
+## 0.2.15 草稿与计时器
+
+- Profile 轮询不覆盖同一用户正在编辑的资料或邮箱验证码草稿；切换用户和成功保存后重置对应草稿。
+- `ProfileBalanceNotifyCard.vue` 的邮箱通知验证计时器在卸载后不再启动。回归见 `ProfileEditForm.draft.spec.ts`、`ProfileIdentityBindingsSection.spec.ts`、`ProfileBalanceNotifyCard.spec.ts`。
+
 ## 0.2.6 合并增量
 
 - `TotpSetupModal.vue` 的六个输入显式绑定 `code[index]`，验证失败重置状态时同步清空 DOM；设置/禁用流程统一用 `extractApiErrorMessage` 展示规范化错误。验证为 `Totp.errors.spec.ts` 与 `TotpSetupModal.inputs.spec.ts`。

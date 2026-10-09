@@ -2140,3 +2140,26 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 交付状态 | 未 commit、未 push、未创建 PR、未部署；等待人工审核。 |
 
 上一轮 0.2.11 已由 `244b058680aa56b613a7cb0862e262ed028661ef` 创建 merge commit 并进入本地 main。本条仅追加历史状态事实，不改写已有条目。本轮审核报告：`docs/upstream-sync/2026-10-03-v0.2.13/review.md`。
+
+
+## 2026-10-09 - Sub2API 0.2.15 固定提交合并（待审核）
+
+| 项目 | 结果 |
+| --- | --- |
+| 合并日期 / 工作分支 | 2026-10-09 / `feature/hy/10216_merge_sub2api_215` |
+| 本地 main / 第一父 | `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` |
+| 上游分支 / 固定提交 | `Wei-Shaw/sub2api main` / `3a6fd1c9db07203ca308aaba69e502bc1f35b307`（VERSION=0.2.15） |
+| 共同祖先 / 增量 | `b8dece9000c68815a5b867ca5a1e6f236e173905`；154 commits / 301 paths / +20051/-1402 |
+| 合并提交 | 尚未创建；保留精确 MERGE_HEAD，等待用户 commit 前审核 |
+| 冲突文件 | `backend/go.mod`、`frontend/src/api/admin/users.ts` |
+| 处理方式 | Go 采用上游 Go 1.27.2/x/* 版本并保留本地 x/sys、x/text 直接依赖；用户 API 合并上游平台清单与本地角色/权限类型 import。31 个双方修改路径核对完成，29 个非文本冲突路径的增量与上游一致；270 个上游独有 blob 一致，685 个本地独有路径在文档更新前无变化。 |
+| 本地功能 | 29 个 tracked features 文件无改写/删除；归档/拦截、Prompt Metrics/Risk、Token Analysis、组织/部门、子管理员、订阅自助重置、GPT 额度展示、并发预设、quota flusher 与 compatible preset/默认 effort 等保留。重叠实现采用上游，不修上游 bug。 |
+| 后端验证 | default 54 包通过（15 skip）；原 integration 退出 0（54 包、19 skip、Docker 仓储整包跳过），补跑隔离 PG18.1 专项 35 顶层 / 45 PASS（含子用例）且 0 skip，覆盖 migration 242、平台校验、Ops TPS 与本地部门/额度，测试库已停止。 |
+| 单测边界 | 正式 unit 被 main 既有 ptrFloat 重复声明阻塞；首次 Ent 共享目录竞争独立复验通过。overlay 补跑 service，保留既有默认 effort none 断言失败和上游 Command Code catalog 用例波动（单独复跑通过），未修改仓库测试或代码。 |
+| 其它验证 | Ent/Wire 两轮无漂移，normal/embed、lint 2.14（0 issues）、frontend frozen install/lint/typecheck/401 files・3101 tests/build 通过；tidy -diff 只报告上游 18 行旧 checksum，未清理。部署静态检查 4 项与 shell syntax 通过；Apple stat 与 Compose 缺 Docker 为环境边界。 |
+| 文档 | wiki、组件 README、Wiki 图谱已更新；详见 `docs/upstream-sync/2026-10-09-v0.2.15/review.md`，本机日志 `backend/.gocache/merge215-*.log`。 |
+| 交付状态 | 未 commit、未 push、未创建 PR、未合回 main、未部署，等待审核；Redis/Docker 全量与生产浏览器未验收。 |
+
+上一轮 0.2.13 已由 `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建 merge commit 并进入本地 main。本条仅追加，不改写已有台账或历史审核报告。
+
+提交前复核补充：指定上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307` 的原始源码执行 Command Code catalog 用例 `-count=3` 得到 2 pass / 1 fail，与合并结果首次失败位置一致；确认目标上游测试波动，未修复。默认 effort none 的相关函数和测试与第一父一致。

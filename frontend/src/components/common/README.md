@@ -1,5 +1,10 @@
 # Common Components
 
+## 0.2.15 状态与平台展示
+
+- `PlatformIcon.vue` 支持 Command Code/Cline；`Select.vue`、`ProxySelector.vue` 变为 disabled 时收起已打开菜单。`BaseDialog.vue` 的 Escape 只关闭最上层对话框。
+- 公告已读失败保留详情，不显示成功；回归入口为 `disabledSelectors.spec.ts`、`BaseDialog.escape.spec.ts`、`AnnouncementBell.spec.ts`。
+
 ## 0.2.11 计划展示
 
 - `PlatformTypeBadge.vue` 复用 `utils/planType.ts` 的 OpenAI 订阅档位映射，使用 Pro 100/200/500、Business、Edu、Enterprise 等当前标签；展示不参与权限/调度。

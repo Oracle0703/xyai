@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.2.15 平台与协议合同
+
+- 固定上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307`；`backend/internal/domain/platforms.go` 统一具体平台、网关族和 Composite 回退顺序，新增 `command_code` / `cline`。分组、额度、路由目标和调度快照从清单派生；渠道监控等需要具体实现的能力仍显式登记。
+- `backend/internal/service/provider_profile.go` 集中多协议供应商模式、默认端点、协议规则与 Responses 路径；账号 credentials 覆盖默认值。三个文本入口共享 `backend/internal/service/upstream_protocol_routing.go`：按模型路由时显式协议优先，规则/上游模型目录给出协议集合，支持入站协议则直通；adaptive 按供应商端点能力回退 Chat Completions。`backend/internal/service/model_protocol_catalog.go` 的缓存按账号隔离。
+- `backend/internal/service/platform_catalog.go` 构建前端内置清单；`TestFrontendBuiltinPlatformCatalogInSync` 校验 `frontend/src/constants/platformCatalog.builtin.json`，随前后端共同发布，无运行时清单 API。
+- WS 后续 turn 经认证缓存重取同 Key、同分组、同平台/订阅类型的分组定价，利润门和计费共用快照，失败回退建连快照；用户、Key 额度和订阅仍使用建连快照。
+- OAuth 重放 `web_search_call` 时补声明 hosted tool；Responses Lite 使用 `additional_tools`，compact 不改写。协议桥保留 developer、旧 function_call 配对、refusal 和 thinking signature。保留本地归档/拦截、Prompt Metrics/Risk、Token Analysis、组织/部门、子管理员、并发预设和 quota flusher；只解决冲突，不额外修上游问题。
+
 ## 0.2.13 合并合同
 
 - 固定上游 `b8dece9000c68815a5b867ca5a1e6f236e173905`；TypeSafe Jev System One 使用独立 `/v1/systemone` 端点、文本 body limit、模型/usage 宽松解析和 `typesafe` 平台路由，不能混入 OpenAI-compatible `/messages` 分流。平台常量、端点归一化、内容审计 profile、模型错误透传、配额/计费和前端账号能力需保持同步。

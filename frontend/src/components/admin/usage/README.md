@@ -1,5 +1,10 @@
 # 管理端用量组件
 
+## 0.2.15 同步
+
+- `UsageTable.vue` 显示输出 TPS、长上下文提示，倍率使用 `??` 保留显式 0；速率由 `utils/latencyHealth.ts` 计算。
+- `UsageCleanupDialog.vue` 关闭/卸载/新请求时使旧任务列表响应失效；轮询结果只能更新当前请求。验证为 `UsageTable.spec.ts` 和 `UsageCleanupDialog.spec.ts`，清理权限仍仅完整管理员。
+
 本目录维护管理端用量筛选、统计卡片、明细表、排行、导出进度和清理确认。子管理员只拥有只读 usage 能力, `allowCleanup=false` 时不得渲染清理入口。
 
 ## 主要合同

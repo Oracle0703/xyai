@@ -1,5 +1,9 @@
 # Key Components
 
+## 0.2.15 Codex remote 模型目录
+
+- 选择 remote model catalog 时，Codex/Codex WS 配置追加 `features.api_key_model_discovery=true`；文件模式保持已有配置，验证见 `UseKeyModal.spec.ts`。
+
 ## 0.2.11 Codex 模型目录
 
 - Codex 和 Codex WS 默认输出 provider 内 `model_catalog_url` 指向网关 `/v1/models`；用户可选文件模式，使用顶层 `model_catalog_json`。预览使用带 `client_version` 的认证请求，原始响应超过 1 MiB 时自动采用文件模式。

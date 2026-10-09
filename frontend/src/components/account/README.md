@@ -1,5 +1,11 @@
 # Account Components
 
+## 0.2.15 平台清单与协议
+
+- Create/Edit 和 `credentialsBuilder.ts` 从 `constants/platformCatalog` 的内置 provider profile 读取模式、协议和端点；新增 Command Code/Cline 通用表单。本地 OpenAI-compatible preset 的显隐、reset 和 payload 继续保留。
+- `OpenCodeGoProtocolRulesEditor.vue` 支持首选协议和额外支持协议；按模型分流的规则/上游目录支持入站协议时同协议直通。上游目录仅对 profile 声明的供应商生效；目录不可用时沿上游默认 Chat Completions。
+- 用量展示区分套餐和钱包，模型同步按平台能力显示。验证覆盖 `credentialsBuilder.platformCatalog.spec.ts`、Create/Edit、AccountUsageCell 和 ModelWhitelistSelector；清单与后端由 `TestFrontendBuiltinPlatformCatalogInSync` 校验。
+
 ## 0.2.11 同步
 
 - `ClaudeResetCreditsCell.vue` 在查询到可用次数后显示确认兑换流程，提交幂等键并刷新脱敏 outcome；`AccountUsageCell.vue` 刷新关联用量。重置不替代本地 GPT 额度展示。
@@ -41,9 +47,9 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 
 ## CN provider 原生 Responses
 
-- `credentialsBuilder.ts#cnSupportsNativeResponses` 是创建/编辑表单的统一能力判定：DeepSeek 和 Kimi 可选 `responses`，Zhipu 不可选。
+- `credentialsBuilder.ts#cnSupportsNativeResponses` 从当前平台/模式的 profile 判断原生端点；DeepSeek、Kimi 和 MiniMax 可选 `responses`，Zhipu 不可选。
 - Kimi PayG 默认 Responses base 为 `https://api.moonshot.cn/v1`，Coding Plan 为 `https://api.kimi.com/coding/v1`；端点路径由后端追加 `/responses`。
-- adaptive 模式下 DeepSeek/Kimi 会按 Responses 入站使用原生端点，Zhipu 仍回落 Chat Completions 转换链。修改协议选项、base URL 或 reset 逻辑时同步 `credentialsBuilder.cnAdaptive.spec.ts`、`CreateAccountModal.spec.ts` 和 `EditAccountModal.spec.ts`。
+- adaptive 模式下是否直通 Responses 由当前平台/模式的 profile 决定；Zhipu 无该端点，回落 Chat Completions 转换链。修改协议选项、base URL 或 reset 逻辑时同步 `credentialsBuilder.cnAdaptive.spec.ts`、`CreateAccountModal.spec.ts` 和 `EditAccountModal.spec.ts`。
 - `AccountUsageCell.vue` 与 `AccountStatusIndicator.vue` 已将 `claude-fable-5-1` 纳入 Antigravity Claude 用量和状态展示，不应回退到 Fable 5 的模糊标签。
 
 ## 编辑与凭据规则
@@ -94,7 +100,7 @@ OpenAI-compatible provider preset 是本地功能，不能在上游合并时被�
 
 ### OpenCode Go/Zen
 
-- `CreateAccountModal.vue` / `EditAccountModal.vue` 使用 `credentialsBuilder.ts` 的 `OpenCodeAccountMode`、`OpenCodeGoProtocolRule` 管理账号模式与按模型协议；规则未命中沿上游默认 Chat Completions。Zen 按量和 Go 订阅不能共用错误的 base URL。
+- `CreateAccountModal.vue` / `EditAccountModal.vue` 使用 `credentialsBuilder.ts` 的 `OpenCodeAccountMode`、`OpenCodeGoProtocolRule` 管理账号模式与按模型协议；规则未命中时 profile 声明的供应商先查上游模型目录，目录不可用才回退 Chat Completions。Zen 按量和 Go 订阅不能共用错误的 base URL。
 - OpenAI-compatible provider preset 仅在 `platform=openai` API Key 表单显示；OpenCode 的 adaptive base URL 条件使用 `isMultiProtocolPlatform`，但不能删除本地 preset 的 UI、reset 和最终提交状态。
 - `OpenCodeGoProtocolRulesEditor.vue` 的模型规则与账号 credentials 互为同一合同，改变一侧时运行 `CreateAccountModal.spec.ts`、`EditAccountModal.spec.ts` 与 `credentialsBuilder.spec.ts`。
 

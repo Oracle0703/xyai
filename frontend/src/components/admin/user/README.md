@@ -1,5 +1,7 @@
 # 用户管理弹窗
 
+- 0.2.15：`UserPlatformQuotaModal.vue` 使用 `platformQuotaPlatforms()` 从内置清单构建额度行，包含 Command Code/Cline；`BulkEditUserModal.vue` 通过 `extractApiErrorMessage` 展示后端规范错误。本地角色、权限目录、部门归属和 CAS 合同继续独立保留。
+
 - `UserCreateModal.vue`、`UserEditModal.vue` 从服务端权限目录生成子管理员权限选项；`admin.subscriptions` 与 `admin.department_subscriptions` 互斥选择，后端仍独立验证。
 - 部门报表与部门订阅权限分别授权；仅勾选权限不会自动获得全站或部门数据，需在部门管理页维护负责人部门集合。
 - 用户页部门归属通过 `../department/DepartmentAssignmentDialog.vue` 单独维护，提交显式成员 ID、旧部门和版本；不混入普通用户编辑或已有分组/订阅写入。

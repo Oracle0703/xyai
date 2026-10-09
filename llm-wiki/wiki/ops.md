@@ -1,8 +1,17 @@
 # 运维, 配置与验证基线
 
+## 0.2.15 配置与验证入口
+
+- 分支 `feature/hy/10216_merge_sub2api_215` 从本地 `main@cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建，固定合入上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307`（0.2.15）；154 commits / 301 paths，2 个文本冲突、31 个双方修改路径。保持未提交等待用户审核；报告 `docs/upstream-sync/2026-10-09-v0.2.15/review.md`。
+- Go/CI/Docker builder 升到 `1.27.2`，CI golangci-lint 改为 `v2.14.0`；Vue/锁文件同步更新。Windows 沿用 repo-local cache、独立 GOTMPDIR、`-p 1 -count=1` 和 Git `usr/bin` PATH；不使用旧 lint exporter 验证新工具链。
+- 本轮 Ent schema 和 migration 242 变更，需核对 Ent/Wire 生成漂移、迁移和平台清单回归；执行 default/unit/integration、tidy、normal/embed、增量 lint 及前端 frozen install/lint/typecheck/Vitest/build。退出码、显式 skip 和数据库前提分别记录，不把缺 Docker/DSN 的跳过称为完整集成通过。
+- 新安装 `ADMIN_EMAIL` 留空时生成随机登录名，与自动密码一起仅首次日志输出；明确配置须通过邮箱/密码验证。已有部署不重新生成管理员。
+- 本轮 default 54 包通过（15 skip），前端 401 files / 3101 tests、lint/typecheck/build（1148 modules）、Ent/Wire 两轮无漂移、normal/embed 和 lint 2.14（0 issues）通过。原 integration 退出 0，但有 19 skip 和 Docker 仓储整包跳过；随后新建隔离 PG18.1 补跑 migration 242/平台写入、Ops TPS、本地部门/额度相关回归，35 个顶层用例 / 45 条 PASS（含子用例），0 skip；测试库已停止，Redis/Docker 完整集成仍未覆盖。
+- unit 正式命令仍受 main 既有 `ptrFloat` 重复声明阻塞；Ent 首次共享目录竞争独立复验通过。临时 overlay 补跑 service 时仍有 main 既有默认 effort none 断言失败，以及上游 Command Code 目录用例时序波动（单独复跑通过；指定上游原始源码 count=3 为 2 pass / 1 fail，确认不是合并引入）。`tidy -diff` 仅报告上游 go.sum 的 18 行旧 checksum；以上不修复，详见本轮报告。
+
 ## 0.2.13 配置与验证入口
 
-- 分支 `feature/hy/10215_merge_sub2api_213` 从 `main@244b058680aa56b613a7cb0862e262ed028661ef` 创建，固定合入上游 `b8dece9000c68815a5b867ca5a1e6f236e173905`（`VERSION=0.2.13`），保持未提交等待审核。上游增量 39 commits / 157 paths，3 个文本冲突，33 个双方修改路径。
+- 分支 `feature/hy/10215_merge_sub2api_213` 从 `main@244b058680aa56b613a7cb0862e262ed028661ef` 创建，固定合入上游 `b8dece9000c68815a5b867ca5a1e6f236e173905`（`VERSION=0.2.13`），已由 `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 提交并进入本地 main。上游增量 39 commits / 157 paths，3 个文本冲突，33 个双方修改路径。
 - 本轮涉及 Ent schema/migration、网关端点和前后端依赖；需核对 Ent 生成物、migration 241、Wire/路由编译、Go default/unit/integration 边界，以及前端 lint/typecheck/Vitest/build。Windows 测试沿用 repo-local cache、独立 GOTMPDIR、`-p 1 -count=1` 和 Git `usr/bin` PATH。
 - 本轮只解决冲突，不修复上游 bug；完整冲突裁决、blob 审计、测试结果和未覆盖前提写入 `docs/upstream-sync/2026-10-03-v0.2.13/review.md`。
 - default、Ent/Wire 无漂移、tidy、normal/embed、增量 lint 2.13、前端 lint/typecheck/build 通过。锁定 Axios 1.20.0 后 Vitest 为 2894/2897（目标上游旧 5 平台断言 3 项失败）；unit service 保留第一父重复 `ptrFloat` 编译阻塞；integration 退出 0 但有 19 个显式 skip 及 repository 的 Docker 整包跳过，不能视为完整集成通过。
@@ -106,7 +115,7 @@
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
 - `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
-- `backend/go.mod` 声明 Go `1.27.0`; backend CI、security scan 和 release workflow 均校验 `go1.27.0`，根、backend、deploy Dockerfile builder 也统一为 `golang:1.27.0-alpine`。
+- `backend/go.mod` 声明 Go `1.27.2`; backend CI、security scan 和 release workflow 均校验 `go1.27.2`，根、backend、deploy Dockerfile builder 也统一为 `golang:1.27.2-alpine`；CI lint 使用 v2.14.0。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - 0.1.168 的 Wire 图还必须包含 `NewPasskeySessionStore`、`NewOptionalJWTAuthMiddleware` 与 Passkey service/handler；冲突处理应修改 provider source 后重新生成, 不直接手改 `wire_gen.go`。`deploy/config.example.yaml` 新增默认关闭的 `webauthn` 配置, 生产启用时必须显式提供 RP ID 和 HTTPS origins。
@@ -439,7 +448,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端单元测试: `make test-unit`
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
-- golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.13`, working-directory `backend`
+- golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.14.0`, working-directory `backend`
 - Go 版本校验: `go1.27.0`
 
 `.github/workflows/security-scan.yml`:

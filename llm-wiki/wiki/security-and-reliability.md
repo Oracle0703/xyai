@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 0.2.15 安全与本地能力边界
+
+- migration 242 移除两类平台 CHECK 后，以应用层平台清单校验为边界；渠道监控 provider CHECK 不变，不能把“登记平台”当成“所有专属能力均支持”。
+- EasyPay 通知参数使用固定允许集合，未知字段拒绝；初始化仅在实际创建首个管理员时生成随机登录邮箱/密码，显式邮箱须合法、密码 8–72 bytes，不改变已有账号。
+- WS 后续 turn 仅刷新满足同 Key/分组/平台/订阅类型条件的计费分组；获取失败或归属变化使用建连快照，不代表逐 turn 完整重新鉴权。本地 Prompt Risk、RequestArchive/Intercept 和权限链仍独立保留。
+- 本地订阅管理和组织/部门用量的显式平台筛选未随上游清单自动扩展到 `typesafe`、`command_code`、`cline`；组织用量下拉也未显示这些新平台。TypeSafe `/v1/systemone` 的既有归档/拦截/Prompt Risk/Prompt Metrics 缺口继续保留。此轮只记录，不扩展适配或修复上游 bug；详细证据见 `docs/upstream-sync/2026-10-09-v0.2.15/review.md`。
+
 ## 0.2.13 安全与可靠性合同
 
 - TypeSafe System One 只接受 JSON 文本并挂载 `text_max_body_size`；路由挂在 `/v1` 组上，经过 API Key、分组、端点归一化和上游内容审计。

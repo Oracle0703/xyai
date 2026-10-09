@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.2.15 平台校验与 migration 242
+
+- 新增 `backend/migrations/242_drop_platform_check_constraints.sql`，移除 `user_platform_quotas.platform` 与 `composite_model_routes.target_platform` 的数据库 CHECK；合法平台由 domain 清单、service/admin 输入、repository/Ent 校验负责。渠道监控 provider CHECK 保留；未知平台及 composite 不能作为具体平台写入这两类记录。
+- `backend/ent/schema/user_platform_quota.go` 和 `backend/ent/schema/composite_model_route.go` 校验统一调用 `domain.IsConcretePlatform`；需运行 Ent 生成并核对生成物。既有迁移完整文件名和内容不改写，本地订阅自助重置迁移继续保留。
+- Command Code/Cline 用量与钱包冷却采用上游 `command_code_usage.go` / `cline_usage.go` 合同；WS 分组定价按 turn 重取，不能将其描述为连接内全部授权/额度重新鉴权。
+- EasyPay 通知只接受固定参数集合，拒绝订单创建字段和未知字段；支付恢复沿既有查询协调路径。不为上游问题加入本地补丁。
+
 ## 0.2.13 数据与计费合同
 
 - `payment_orders` 新增 `bonus_amount`（migration `241_add_payment_order_bonus_amount.sql`），由充值优惠阶梯计算并写入订单快照。API 字段 `payment_recharge_bonus_tiers/mode/notice` 对应 settings 键 `RECHARGE_BONUS_TIERS/MODE/NOTICE`；余额订单 `amount` 含赠金、`bonus_amount` 为免费部分、`pay_amount` 为实付，邀请返利排除赠金，订阅订单不参与。迁移只能追加，不能修改已应用文件。
