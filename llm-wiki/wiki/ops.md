@@ -1,8 +1,18 @@
 # 运维, 配置与验证基线
 
+## 0.2.17 配置与验证入口
+
+- 同轮追加 PR #8139 固定 head `e068c3d02ff8664c1142d5f7c51a05a82f75ad3d` 的 3 文件增量；无冲突、无 schema/依赖/前端变更。叠加后流式/首输出/WS 专项 130 个顶层用例 × 3 轮通过，normal/embed 与增量 lint（0 issues）通过。service unit overlay 8438 顶层 PASS、仅 effort none 旧断言失败；default 受影响 3 包中的 OAuth 刷新时序用例首次失败，代码三方同 blob，聚焦 10/10 通过，原失败保留。其余验证沿用下述 0.2.17 阶段证据；最终结果见本轮 review，不宣称全绿。
+
+- 从本地 `main@ded494b6dbcd6841818e494d0f694d8a96dd2b90` 创建 `feature/hy/10217_merge_sub2api_217`，固定合入上游 `b0a02a3304a0a78cdd003ddda1dd23ba02c03084`（0.2.17）；127 commits / 332 paths，4 个文本冲突、45 个双方修改路径。合并保持未提交，审核入口 `docs/upstream-sync/2026-10-19-v0.2.17/review.md`。
+- 新增 `gateway.min_output_tokens` 默认 128，配置校验最低 16；控制 Chat/Anthropic 转 Responses 的最小 max_output_tokens。`gateway.gemini_cached_content_max_ttl_seconds` 默认 86400，非正数由缓存服务回退 86400；示例配置同步。
+- Go 仍为 1.27.2，前后端依赖清单/锁文件未变。本轮 schema/provider 改动，需生成 Ent/Wire并复验无漂移；Windows 使用 repo-local cache、每命令 fresh GOTMPDIR、Git usr/bin PATH、`-p 1 -count=1`。Go default/unit/integration、前端全量、build、tidy 与增量 lint 分别记录，不能用跳过数据库测试替代真实验收。
+- 本轮 Ent/Wire 两轮无漂移，default 54 包、前端 411 files / 3178 tests、lint/typecheck/build（1152 modules）、normal/embed build 和增量 lint（0 issues）通过；隔离 PG18.1 专项 30 顶层 / 76 PASS、0 skip，测试库已停止。正式 unit 59 包通过，但 service 受既有 ptrFloat 重复声明阻塞；overlay 补跑仅复现默认 effort none 旧断言与 Command Code 时序波动，原始上游 count=3 为 2 pass / 1 fail。tidy 仅有既有 18 行旧 checksum 差异，以上不修；完整 integration 与显式 skip 边界以审核报告为准。
+- 上次 0.2.15 已由 `ded494b6dbcd6841818e494d0f694d8a96dd2b90` 提交并进入本地 main；下方历史测试结果仅描述当轮证据，本轮以 0.2.17 审核报告为准。
+
 ## 0.2.15 配置与验证入口
 
-- 分支 `feature/hy/10216_merge_sub2api_215` 从本地 `main@cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建，固定合入上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307`（0.2.15）；154 commits / 301 paths，2 个文本冲突、31 个双方修改路径。保持未提交等待用户审核；报告 `docs/upstream-sync/2026-10-09-v0.2.15/review.md`。
+- 分支 `feature/hy/10216_merge_sub2api_215` 从本地 `main@cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建，固定合入上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307`（0.2.15）；154 commits / 301 paths，2 个文本冲突、31 个双方修改路径。已由 `ded494b6dbcd6841818e494d0f694d8a96dd2b90` 提交并进入本地 main；历史报告 `docs/upstream-sync/2026-10-09-v0.2.15/review.md`。
 - Go/CI/Docker builder 升到 `1.27.2`，CI golangci-lint 改为 `v2.14.0`；Vue/锁文件同步更新。Windows 沿用 repo-local cache、独立 GOTMPDIR、`-p 1 -count=1` 和 Git `usr/bin` PATH；不使用旧 lint exporter 验证新工具链。
 - 本轮 Ent schema 和 migration 242 变更，需核对 Ent/Wire 生成漂移、迁移和平台清单回归；执行 default/unit/integration、tidy、normal/embed、增量 lint 及前端 frozen install/lint/typecheck/Vitest/build。退出码、显式 skip 和数据库前提分别记录，不把缺 Docker/DSN 的跳过称为完整集成通过。
 - 新安装 `ADMIN_EMAIL` 留空时生成随机登录名，与自动密码一起仅首次日志输出；明确配置须通过邮箱/密码验证。已有部署不重新生成管理员。
@@ -449,7 +459,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.14.0`, working-directory `backend`
-- Go 版本校验: `go1.27.0`
+- Go 版本校验: `go1.27.2`
 
 `.github/workflows/security-scan.yml`:
 

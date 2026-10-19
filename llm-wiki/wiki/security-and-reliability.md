@@ -1,5 +1,14 @@
 # 安全与可靠性基线
 
+## 0.2.17 路由与新增入口边界
+
+- PR #8139 只扩大精确元数据事件允许集合（`response.queued`、`response.metadata`）；未知事件仍保守视为输出，已有文本、tool arguments 或 encrypted reasoning 的重放边界不放宽，原重试预算和调度规则不变。回归入口：`openai_capacity_shed_test.go`、`openai_ws_http_bridge_test.go`、`openai_first_output_timeout_test.go`，核对元数据后可重试与语义输出后禁止重放。
+
+- Composite 含 OpenAI OAuth 且跨平台路由歧义时直接拒绝，避免凭据进入错误协议管线；Codex 导入按 workspace 隔离，账号临时不可调度规则支持 scope，均采用固定上游实现。
+- `/v1beta/models/*modelAction` 保留本地 guard→requestIntercept→handler 顺序；Gemini 并发缓存故障继续返回脱敏 503，并接受上游 Ops 分类。
+- 新增 `/v1beta/cachedContents` 沿上游 API Key/group gate、资源所有权和计费合同。创建调用既有 `checkSecurityAudit`；本地 request archive 和 Prompt Metrics 的路径白名单不包含 cachedContents，路由未额外挂 requestIntercept，因此不能宣称新增缓存 CRUD 已覆盖本地归档/Token Analysis/拦截/Prompt Metrics。本轮保持上游新入口，不扩展本地功能范围。
+- 现有 TypeSafe/new-platform 本地覆盖缺口保持原状；0.2.17 部分只解决文本与必要兼容冲突，额外合入用户指定 PR #8139；其他上游/第一父既有问题不修复。验证及归属见 `docs/upstream-sync/2026-10-19-v0.2.17/review.md`。
+
 ## 0.2.15 安全与本地能力边界
 
 - migration 242 移除两类平台 CHECK 后，以应用层平台清单校验为边界；渠道监控 provider CHECK 不变，不能把“登记平台”当成“所有专属能力均支持”。

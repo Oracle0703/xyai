@@ -1,5 +1,13 @@
 # 数据与领域基线
 
+## 0.2.17 分组译文、缓存与支付
+
+- 追加 `242_group_i18n.sql`（groups.i18n JSONB），与既有 `242_drop_platform_check_constraints.sql`、`242_subscription_self_reset_events.sql` 按完整文件名区分；243 缓存迁移与本地 `243_gpt_quota_display.sql` 同样保留原名；旧迁移不改写。Ent group schema 与生成物随之更新。
+- 追加 `243_gemini_cached_contents.sql`、`244_gemini_cached_contents_channel_usage.sql`、`245_gemini_cached_contents_mutation_lease.sql`：保存 public ID、user/key/group/account 绑定、上游资源名/模型/有效期、创建时渠道计费快照与修改租约。该表使用 SQL repository，不新增对应 Ent entity。
+- 缓存创建收取输入 token 与整个有效期存储费用；延长沿用创建时渠道口径，通过修改意图和租约串行化，失败/过期租约恢复负责回滚上游有效期。真实 PostgreSQL 与外部 provider 的覆盖边界以本轮审核报告为准。
+- GPT-6.1 Sol 的 OAuth/Setup Token 订阅请求按最终出站模型豁免长上下文附加费；API Key 仍使用 API 价卡。Gemini 4 Argon 与缓存存储 fallback 定价采用目标上游。
+- EasyPay 成功通知在入账前追加上游查询确认；订单类型校验、Alipay 退款查询 pending、待确认退款扣款保留和 Stripe 本地订单 client secret 读取均沿上游实现，不混入额外支付修补。
+
 ## 0.2.15 平台校验与 migration 242
 
 - 新增 `backend/migrations/242_drop_platform_check_constraints.sql`，移除 `user_platform_quotas.platform` 与 `composite_model_routes.target_platform` 的数据库 CHECK；合法平台由 domain 清单、service/admin 输入、repository/Ent 校验负责。渠道监控 provider CHECK 保留；未知平台及 composite 不能作为具体平台写入这两类记录。

@@ -1,5 +1,15 @@
 # 后端知识基线
 
+## 0.2.17 Gemini 缓存与网关合同
+
+- 同轮叠加指定 PR #8139（`e068c3d02ff8664c1142d5f7c51a05a82f75ad3d`）。`service/openai_gateway_passthrough.go#openAIStreamEventIsMetadata` 将精确事件名 `response.queued`、`response.metadata` 与 created/in_progress/keepalive 一并归为输出前元数据；native SSE、passthrough、WS→HTTP bridge 共享分类，元数据后 overload 保留原重试/换号路径，不提前提交暂存输出或计入语义 TTFT。native 首输出 deadline 仍有效；不扩展 deadline 到其他 transport。
+
+- 固定上游 `b0a02a3304a0a78cdd003ddda1dd23ba02c03084`；`handler/gemini_cached_contents_handler.go` 提供 `/v1beta/cachedContents` 的 POST/GET 与 `/:cacheID` GET/PATCH/DELETE。入口要求 Gemini 非 Composite 分组；list/get 读取本地绑定，引用缓存的生成请求固定账号，不使用会话粘性或换号。
+- `service/gemini_cached_content.go`、`repository/gemini_cached_content_repo.go` 管理资源绑定与修改租约；`ProvideGeminiCachedContentService` 启动恢复循环，Wire cleanup 调用 Stop。本地 Prompt Metrics、Token Analysis、组织/部门、订阅自助重置、GPT 额度展示、并发预设及插件账号目录接线继续保留。
+- Gemini model-action 继续统一用本地 `ParseGeminiModelActionPath` 和路由 guard；上游 `googleErrorWithType` 负责 Ops 错误分类，并发错误仍通过 `concurrencyErrorResponse` 保留本地缓存故障 503。Composite→Antigravity Gemini 路由、Vertex API Key/模型目录、Gemini 4 Argon 与 thinking 兼容沿目标上游实现。
+- `domain/group_i18n.go` 定义分组展示译文；用户 DTO 按 Accept-Language 首选语言本地化，缺字段回退原值并去掉译文表；管理端保留原字段和译文供编辑，不改变分组唯一性、搜索和日志名称。
+- Responses 对象补 created_at；Chat→Responses 的字符串 input 拒绝回退、API Key `/messages` web_search 模拟、Haiku 5.5、GPT-5.5 订阅退休判断采用上游实现。本地默认 effort、compatible cache usage、参数过滤、大请求保护与空响应检查独立保留。0.2.17 合并仅解决冲突，额外修复仅限上述用户指定 PR #8139。
+
 ## 0.2.15 平台与协议合同
 
 - 固定上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307`；`backend/internal/domain/platforms.go` 统一具体平台、网关族和 Composite 回退顺序，新增 `command_code` / `cline`。分组、额度、路由目标和调度快照从清单派生；渠道监控等需要具体实现的能力仍显式登记。
@@ -92,7 +102,7 @@
 
 ## 技术栈与入口
 
-- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.27.0`。
+- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.27.2`。
 - HTTP 框架: Gin。
 - ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。
 - 依赖注入: Google Wire, 入口在 `backend/cmd/server/wire.go`, 生成文件 `wire_gen.go`。

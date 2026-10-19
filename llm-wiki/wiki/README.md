@@ -9,7 +9,7 @@
 - 同日实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
 - 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
-更新时间: 2026-10-09
+更新时间: 2026-10-19
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -20,7 +20,11 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 最近同步
 
-- 2026-10-09 从本地 `main@cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建 `feature/hy/10216_merge_sub2api_215`，固定合入 `Wei-Shaw/sub2api main@3a6fd1c9db07203ca308aaba69e502bc1f35b307`（`0.2.15`，merge base=`b8dece9000c68815a5b867ca5a1e6f236e173905`）。154 commits / 301 paths；2 个文本冲突、31 个双方修改路径按三方合同处理，29 个 `docs/features` 文件及本地独有功能保留，重叠实现采用上游，不修上游 bug。保持未提交等待审核，验证入口：`docs/upstream-sync/2026-10-09-v0.2.15/review.md`。
+- 同轮按用户指定叠加 PR [#8139](https://github.com/Wei-Shaw/sub2api/pull/8139) 的固定 head `e068c3d02ff8664c1142d5f7c51a05a82f75ad3d`；核验时 PR 仍 open，3 文件无冲突应用（+15/-1）。新增 `response.queued` / `response.metadata` 输出前分类，保持 overload 重试能力；当前仅纳入内容，MERGE_HEAD 仍是 0.2.17，未创建 PR 的合并父提交。统一审核见本轮 review。
+
+- 2026-10-19 从本地 `main@ded494b6dbcd6841818e494d0f694d8a96dd2b90` 创建 `feature/hy/10217_merge_sub2api_217`，固定合入 `Wei-Shaw/sub2api main@b0a02a3304a0a78cdd003ddda1dd23ba02c03084`（0.2.17，merge base=`3a6fd1c9db07203ca308aaba69e502bc1f35b307`）。127 commits / 332 paths；4 个文本冲突、45 个双方修改路径按三方合同处理，29 份本地功能文档保留。0.2.17 部分仅解决冲突，额外修复仅限用户指定 PR #8139；未提交等待审核，验证见 `docs/upstream-sync/2026-10-19-v0.2.17/review.md`。
+
+- 2026-10-09 从本地 `main@cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建 `feature/hy/10216_merge_sub2api_215`，固定合入 `Wei-Shaw/sub2api main@3a6fd1c9db07203ca308aaba69e502bc1f35b307`（`0.2.15`，merge base=`b8dece9000c68815a5b867ca5a1e6f236e173905`）。154 commits / 301 paths；2 个文本冲突、31 个双方修改路径按三方合同处理，29 个 `docs/features` 文件及本地独有功能保留，重叠实现采用上游，不修上游 bug。已由 `ded494b6dbcd6841818e494d0f694d8a96dd2b90` 提交并进入本地 main，历史验证入口：`docs/upstream-sync/2026-10-09-v0.2.15/review.md`。
 
 - 2026-10-03 从本地 `main@244b058680aa56b613a7cb0862e262ed028661ef` 创建 `feature/hy/10215_merge_sub2api_213`，固定合入 `Wei-Shaw/sub2api main@b8dece9000c68815a5b867ca5a1e6f236e173905`（`0.2.13`，merge base=`42bc7f6cffe24bcb471608e48e66b4a0afa1f882`）。上游增量 39 commits / 157 paths；3 个文本冲突与 33 个双方修改路径按三方合同处理，本地独有功能及 29 个 `docs/features` 文件保留，重叠行为采用上游，不修上游 bug。已由 `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 提交并进入本地 main；历史审核和验证见 `docs/upstream-sync/2026-10-03-v0.2.13/review.md`。
 

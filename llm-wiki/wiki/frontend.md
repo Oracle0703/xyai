@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.17 分组译文与 Gemini 账号
+
+- 管理分组新增 `components/admin/group/GroupI18nField.vue` 编辑名称/描述译文；用户侧分组显示遵循服务端 Accept-Language 本地化。管理编辑仍回传原始字段，不能把展示译文覆盖原名。
+- Gemini 创建/编辑支持 Agent Platform (Vertex) 的 API Key 认证、显式缓存说明、模型目录与 thinking 档位；第三方 API Key/Vertex 不套用 AI Studio 模拟额度。保留本地 OpenAI-compatible preset 与 payload/reset 合同。
+- 账号恢复内联筛选；分组倍率正数校验、RPM 迟到请求、Select 输入法键盘行为、监控自动刷新、Ops 本地时区/账号名和支付倒计时采用固定上游实现。前端 package/lockfile 相对上一轮无变化。
+
 ## 0.2.15 平台清单与账号表单
 
 - `constants/platformCatalog.ts` 读取随应用发布的内置 JSON，平台选项、配额平台、展示名和多协议账号表单从清单派生；`AccountPlatform` 允许后端新登记值，服务端仍负责合法性校验。

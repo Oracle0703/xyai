@@ -1,5 +1,9 @@
 # Common Components
 
+## 0.2.17 同步
+
+- GroupBadge 新增可选完整名称换行显示；LocaleSwitcher 更新语言切换，Select 在输入法组合输入期间保留键盘行为，平台 badge 适配 Vertex 名称。回归见 LocaleSwitcher.spec.ts、Select.ime.spec.ts。
+
 ## 0.2.15 状态与平台展示
 
 - `PlatformIcon.vue` 支持 Command Code/Cline；`Select.vue`、`ProxySelector.vue` 变为 disabled 时收起已打开菜单。`BaseDialog.vue` 的 Escape 只关闭最上层对话框。

@@ -1,5 +1,9 @@
 # Account Components
 
+## 0.2.17 同步
+
+- Gemini 账号支持 Agent Platform (Vertex) API Key、显式缓存说明、模型目录及 thinking；第三方/Vertex 不展示 AI Studio 模拟额度。本地 OpenAI-compatible preset 的显隐、reset 与提交保持。回归覆盖 Create/Edit、AccountUsageCell、UsageProgressBar、ModelWhitelistSelector。
+
 ## 0.2.15 平台清单与协议
 
 - Create/Edit 和 `credentialsBuilder.ts` 从 `constants/platformCatalog` 的内置 provider profile 读取模式、协议和端点；新增 Command Code/Cline 通用表单。本地 OpenAI-compatible preset 的显隐、reset 和 payload 继续保留。

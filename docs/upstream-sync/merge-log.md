@@ -2163,3 +2163,36 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 上一轮 0.2.13 已由 `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` 创建 merge commit 并进入本地 main。本条仅追加，不改写已有台账或历史审核报告。
 
 提交前复核补充：指定上游 `3a6fd1c9db07203ca308aaba69e502bc1f35b307` 的原始源码执行 Command Code catalog 用例 `-count=3` 得到 2 pass / 1 fail，与合并结果首次失败位置一致；确认目标上游测试波动，未修复。默认 effort none 的相关函数和测试与第一父一致。
+
+
+## 2026-10-19：Sub2API 0.2.17 固定提交合并（待审核）
+
+| 项目 | 记录 |
+| --- | --- |
+| 工作分支 / 本地基线 | `feature/hy/10217_merge_sub2api_217` / `main@ded494b6dbcd6841818e494d0f694d8a96dd2b90` |
+| 上游仓库 / 分支 / 提交 | `Wei-Shaw/sub2api` / `main` / `b0a02a3304a0a78cdd003ddda1dd23ba02c03084` |
+| 共同祖先 / 增量 | `3a6fd1c9db07203ca308aaba69e502bc1f35b307`；127 commits / 332 paths，版本 0.2.17 |
+| 合并提交 | 尚未创建；MERGE_HEAD 固定目标，未 commit / push，等待用户审核 |
+| 冲突文件 | `backend/cmd/server/wire_gen.go`、`backend/internal/handler/gemini_v1beta_handler.go`、`backend/internal/handler/gemini_v1beta_handler_test.go`、`backend/internal/server/routes/gateway.go` |
+| 处理方式 | 保留本地统一 Gemini 路径校验、缓存故障 503、归档/拦截链及测试，合入上游显式缓存/Ops 分类/Composite Gemini 路由；从源图生成 Wire 并保留全部本地接线。仅解决冲突，不修上游 bug。 |
+| 本地功能 / 三方审查 | 29 份 features 文档不变；287 个仅上游路径匹配目标，45 个双方修改路径核对完成，其中 41 个自动合并增删序列匹配上游；本地独有源码保留。 |
+| 验证通过 | Ent/Wire 两轮无漂移；default 54 包；前端 lint/typecheck、411 files / 3178 tests、build；normal/embed build；增量 lint 0 issues；独立 PG 30 顶层 / 76 PASS、0 skip，测试库已停止；wiki 图谱预提交检查通过。 |
+| 保留边界 | unit 59 包通过，service 因 main 既有 ptrFloat 重复声明不能编译；overlay 补跑复现 none 旧断言及 Command Code 波动（原始上游 count=3：2 pass / 1 fail）。tidy 仅既有 go.sum 18 行旧 checksum。完整 integration 退出 0，但有 Docker 整包跳过及显式 skip；详见报告，不视作完整集成验收。 |
+| Wiki / 审核报告 | 已更新六个 wiki 页面、四个组件 README 与 wiki 图谱；`docs/upstream-sync/2026-10-19-v0.2.17/review.md` |
+
+0.2.15 已由 `ded494b6dbcd6841818e494d0f694d8a96dd2b90` 提交并进入本地 main；此前台账与历史审核报告保留原文，本条只补充已确认状态。
+
+
+## 2026-10-19 / PR #8139 追加至 0.2.17 审核分支
+
+| 项目 | 记录 |
+| --- | --- |
+| 日期 / 工作分支 | 2026-10-19 / `feature/hy/10217_merge_sub2api_217` |
+| 上游仓库 / 分支 | `Wei-Shaw/sub2api` 的 `refs/pull/8139/head`；作者 `zenggang/my_sub2api:contribute/openai-preoutput-metadata-20261016`，PR base 为 `main` |
+| 上游提交 | PR head `e068c3d02ff8664c1142d5f7c51a05a82f75ad3d`；父提交 `455d317d6a87d8519a52c8769a0727824c403171` 已是指定 0.2.17 的祖先；核验时 PR open / 未合并 |
+| 合并提交 | 未创建，等待用户审核；HEAD/main 仍为 `ded494b6dbcd6841818e494d0f694d8a96dd2b90`，MERGE_HEAD 仍为 `b0a02a3304a0a78cdd003ddda1dd23ba02c03084`；本次为 PR 内容应用，不新增 PR 合并父链 |
+| 冲突文件 | 无冲突；仅改 `backend/internal/service/openai_gateway_passthrough.go`、`openai_capacity_shed_test.go`、`openai_ws_http_bridge_test.go` |
+| 处理方式 | 保存原 index tree/merge 元数据，以 `git apply --3way --index` 应用固定单提交 diff，+15/-1；生产文件只增加 queued/metadata 分类，两个测试 blob 与 PR 一致，本地独有功能继续保留 |
+| 验证通过 | 130 个顶层流式/首输出/WS 用例连续 3 轮（390 顶层 / 600 含子用例 PASS，0 skip）；normal/embed build、lint 0 issues；handler/routes 默认测试通过 |
+| 失败与边界 | service unit overlay 8438 顶层 PASS，effort none 旧断言失败；正式 unit 重复 ptrFloat 限制沿用前轮。default service 的 OAuth 刷新超时用例首败，代码与第一父/指定上游逐 blob 一致，单跑 10/10 通过；保留失败，不修复。前端/PG/集成/生成/tidy 沿用 0.2.17 阶段证据和缺口 |
+| 文档与交付 | wiki 稳定合同、图谱与 `docs/upstream-sync/2026-10-19-v0.2.17/review.md` 更新；0.2.17 + PR 内容共同等待提交前审核，未 commit/push/部署 |
