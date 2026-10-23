@@ -1,39 +1,25 @@
 <template>
-  <section class="border-b border-gray-200 py-5 dark:border-dark-700" data-testid="organization-usage-trend">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="min-w-0">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
-          {{ t('admin.organizationUsage.trend.title') }}
-        </h2>
-        <p v-if="asOfLabel" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-          {{ asOfLabel }}
-        </p>
-      </div>
-      <div class="flex flex-wrap items-center gap-1" role="group" :aria-label="t('admin.organizationUsage.trend.granularity')">
-        <button
-          v-for="option in granularityOptions"
-          :key="option.value"
-          type="button"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-          :class="granularity === option.value
-            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
-            : 'text-gray-600 hover:bg-gray-100 dark:text-dark-300 dark:hover:bg-dark-800'"
-          :data-testid="`trend-granularity-${option.value}`"
-          :aria-pressed="granularity === option.value"
-          :disabled="loading"
-          @click="emit('update:granularity', option.value)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
+  <section class="card p-4" data-testid="organization-usage-trend">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+        {{ t('admin.organizationUsage.trend.title') }}
+      </h3>
+      <OrganizationUsageSegmented
+        testid-prefix="trend-granularity-"
+        :model-value="granularity"
+        :options="granularityOptions"
+        :aria-label="t('admin.organizationUsage.trend.granularity')"
+        :disabled="loading"
+        @update:model-value="emit('update:granularity', $event)"
+      />
     </div>
 
-    <div v-if="loading" class="mt-4 flex h-64 items-center justify-center" data-testid="trend-loading">
+    <div v-if="loading" class="flex h-72 items-center justify-center" data-testid="trend-loading">
       <LoadingSpinner />
     </div>
     <div
       v-else-if="error"
-      class="mt-4 flex h-64 flex-col items-center justify-center gap-3 text-sm text-red-600 dark:text-red-400"
+      class="flex h-72 flex-col items-center justify-center gap-3 text-sm text-red-600 dark:text-red-400"
       data-testid="trend-error"
       role="alert"
     >
@@ -43,10 +29,10 @@
         {{ t('admin.organizationUsage.trend.retry') }}
       </button>
     </div>
-    <div v-else-if="!points.length" class="mt-4 flex h-64 items-center justify-center text-sm text-gray-500 dark:text-dark-400" data-testid="trend-empty">
+    <div v-else-if="!points.length" class="flex h-72 items-center justify-center text-sm text-gray-500 dark:text-dark-400" data-testid="trend-empty">
       {{ t('admin.organizationUsage.common.noData') }}
     </div>
-    <div v-else-if="chartData" class="mt-4 h-64" data-testid="trend-chart">
+    <div v-else-if="chartData" class="h-72" data-testid="trend-chart">
       <Line :data="chartData" :options="lineOptions" />
     </div>
   </section>
@@ -75,6 +61,8 @@ import type {
 } from '@/api/admin/organizationUsage'
 import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { formatDateTime } from '@/utils/format'
+import OrganizationUsageSegmented from './OrganizationUsageSegmented.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
@@ -114,16 +102,6 @@ const granularityOptions = computed(() => [
   { value: 'week' as const, label: t('admin.organizationUsage.trend.week') },
   { value: 'month' as const, label: t('admin.organizationUsage.trend.month') }
 ])
-
-const asOfLabel = computed(() => {
-  const asOf = props.range?.as_of
-  if (!asOf) return ''
-  try {
-    return t('admin.organizationUsage.trend.asOf', { value: new Date(asOf).toLocaleString() })
-  } catch {
-    return t('admin.organizationUsage.trend.asOf', { value: asOf })
-  }
-})
 
 const chartColors = computed(() => ({
   text: isDarkMode.value ? '#e5e7eb' : '#374151',
@@ -234,11 +212,7 @@ const lineOptions = computed(() => {
             const lines = [`${point.period_start} – ${point.period_end}`]
             if (point.partial) lines.push(t('admin.organizationUsage.common.partial'))
             if (asOf && index === points.length - 1) {
-              try {
-                lines.push(t('admin.organizationUsage.trend.asOf', { value: new Date(asOf).toLocaleString() }))
-              } catch {
-                lines.push(t('admin.organizationUsage.trend.asOf', { value: asOf }))
-              }
+              lines.push(t('admin.organizationUsage.trend.asOf', { value: formatDateTime(asOf) || asOf }))
             }
             return lines
           },

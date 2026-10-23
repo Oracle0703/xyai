@@ -76,9 +76,10 @@ export default {
       peakMonth: '个人月峰值'
     },
     champions: {
-      day: '团队日 Champion',
-      week: '团队周 Champion',
-      month: '团队月 Champion'
+      title: '团队用量冠军',
+      day: '单日冠军',
+      week: '单周冠军',
+      month: '单月冠军'
     },
     common: {
       noData: '无数据',

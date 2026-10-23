@@ -106,3 +106,29 @@ describe('OrganizationUsagePeopleTable screenshots', () => {
     wrapper.unmount()
   })
 })
+
+describe('OrganizationUsagePeopleTable layout', () => {
+  it('keeps loading and empty rows aligned with the rank column', async () => {
+    const wrapper = mountTable(0)
+    const headerCells = wrapper.findAll('thead th').length
+    expect(wrapper.get('[data-testid="people-empty"] td').attributes('colspan')).toBe(String(headerCells))
+
+    await wrapper.setProps({ loading: true })
+    for (const row of wrapper.findAll('[data-testid="people-loading"]')) {
+      expect(row.findAll('td')).toHaveLength(headerCells)
+    }
+  })
+
+  it('right-aligns numeric headers with their values and leads rows with rank and email', () => {
+    const wrapper = mountTable(1)
+    const headers = wrapper.findAll('thead th')
+    const requests = headers.find(header => header.find('[data-sort-key="requests"]').exists())!
+    expect(requests.classes()).toContain('org-usage-num')
+    expect(headers.find(header => header.find('[data-sort-key="email"]').exists())!.classes()).not.toContain('org-usage-num')
+    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+    expect(cells[0].text()).toBe('1')
+    expect(cells[1].text()).toBe('person100@example.com')
+    expect(cells[0].classes()).toContain('sticky')
+    expect(cells[1].classes()).toContain('sticky')
+  })
+})

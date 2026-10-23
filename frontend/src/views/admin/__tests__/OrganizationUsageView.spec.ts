@@ -321,8 +321,10 @@ describe('OrganizationUsageView', () => {
 
     const personEmail = wrapper.get('tbody [title="alice@xunyou.com"]')
     const personCells = personEmail.element.closest('tr')?.querySelectorAll('td')
+    // Rank and email lead the row and stay pinned while the metric columns scroll.
     expect(personCells?.[0]?.textContent?.trim()).toBe('1')
-    expect(personCells?.[1]?.textContent?.trim()).toBe('迅游')
+    expect(personCells?.[1]?.textContent?.trim()).toBe('alice@xunyou.com')
+    expect(personCells?.[2]?.textContent?.trim()).toBe('迅游')
 
     expect(xunyouButton.element.tagName).toBe('BUTTON')
     const organizationRow = xunyouButton.element.closest('tr')!

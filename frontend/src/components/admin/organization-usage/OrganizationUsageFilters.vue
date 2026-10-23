@@ -1,22 +1,14 @@
 <template>
-  <section class="border-b border-gray-200 pb-5 dark:border-dark-700" :aria-label="t('admin.organizationUsage.filters.title')">
+  <section class="card p-6" :aria-label="t('admin.organizationUsage.filters.title')">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-dark-700 dark:bg-dark-900">
-        <button
-          v-for="item in modes"
-          :key="item.value"
-          type="button"
-          :data-testid="`mode-${item.value}`"
-          class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-          :class="modelValue.mode === item.value
-            ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-700 dark:text-primary-400'
-            : 'text-gray-500 hover:text-gray-800 dark:text-dark-300 dark:hover:text-white'"
-          :aria-pressed="modelValue.mode === item.value"
-          @click="patch({ mode: item.value })"
-        >
-          {{ item.label }}
-        </button>
-      </div>
+      <OrganizationUsageSegmented
+        size="md"
+        testid-prefix="mode-"
+        :model-value="modelValue.mode"
+        :options="modes"
+        :aria-label="t('admin.organizationUsage.filters.title')"
+        @update:model-value="patch({ mode: $event })"
+      />
 
       <button
         type="button"
@@ -31,9 +23,9 @@
       </button>
     </div>
 
-    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <label v-if="modelValue.mode === 'month'" class="space-y-1.5">
-        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.month') }}</span>
+    <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <label v-if="modelValue.mode === 'month'" class="block">
+        <span class="input-label">{{ t('admin.organizationUsage.filters.month') }}</span>
         <input
           data-testid="month-input"
           type="month"
@@ -46,8 +38,8 @@
         />
       </label>
 
-      <label v-else-if="modelValue.mode === 'week'" class="space-y-1.5">
-        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.weekAnchor') }}</span>
+      <label v-else-if="modelValue.mode === 'week'" class="block">
+        <span class="input-label">{{ t('admin.organizationUsage.filters.weekAnchor') }}</span>
         <input
           type="date"
           required
@@ -57,14 +49,14 @@
           :value="modelValue.weekAnchor"
           @input="patch({ weekAnchor: ($event.target as HTMLInputElement).value })"
         />
-        <span v-if="weekRange" data-testid="week-range" class="block text-xs text-gray-500 dark:text-dark-400">
+        <span v-if="weekRange" data-testid="week-range" class="input-hint block">
           {{ weekRange.start_date }} - {{ weekRange.end_date }}
         </span>
       </label>
 
-      <div v-else class="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-2">
-        <label class="space-y-1.5">
-          <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.startDate') }}</span>
+      <div v-else class="grid grid-cols-2 gap-4 md:col-span-2 xl:col-span-2">
+        <label class="block">
+          <span class="input-label">{{ t('admin.organizationUsage.filters.startDate') }}</span>
           <input
             data-testid="custom-start"
             type="date"
@@ -75,8 +67,8 @@
             @input="patch({ customStart: ($event.target as HTMLInputElement).value })"
           />
         </label>
-        <label class="space-y-1.5">
-          <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.endDate') }}</span>
+        <label class="block">
+          <span class="input-label">{{ t('admin.organizationUsage.filters.endDate') }}</span>
           <input
             data-testid="custom-end"
             type="date"
@@ -89,28 +81,34 @@
         </label>
       </div>
 
-      <label class="space-y-1.5">
-        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.organization') }}</span>
+      <label class="block">
+        <span class="input-label">{{ t('admin.organizationUsage.filters.organization') }}</span>
         <Select
           :model-value="modelValue.organization"
           :options="organizationOptions"
           :searchable="false"
-          @update:model-value="patch({ organization: $event as OrganizationUsageOrganizationFilter, department_id: 'all' })"
           :disabled="scope != null && !scope.unrestricted && scope.organizations.length === 1"
+          @update:model-value="patch({ organization: $event as OrganizationUsageOrganizationFilter, department_id: 'all' })"
         />
       </label>
 
-      <label class="space-y-1.5">
-        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.departments.department') }}</span>
-        <Select :model-value="modelValue.department_id ?? 'all'" :options="departmentOptions" :disabled="modelValue.organization === 'all' || (scope != null && !scope.unrestricted && scope.departments.length === 1)" @update:model-value="patch({ department_id: String($event) })" />
+      <label class="block">
+        <span class="input-label">{{ t('admin.departments.department') }}</span>
+        <Select
+          :model-value="modelValue.department_id ?? 'all'"
+          :options="departmentOptions"
+          :disabled="modelValue.organization === 'all' || (scope != null && !scope.unrestricted && scope.departments.length === 1)"
+          @update:model-value="patch({ department_id: String($event) })"
+        />
       </label>
-      <label class="space-y-1.5">
-        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.departments.platform') }}</span>
+
+      <label class="block">
+        <span class="input-label">{{ t('admin.departments.platform') }}</span>
         <Select :model-value="modelValue.platform ?? 'all'" :options="platformOptions" @update:model-value="patch({ platform: String($event) })" />
       </label>
 
-      <label class="space-y-1.5 xl:col-span-2">
-        <span class="text-xs font-medium text-gray-600 dark:text-dark-300">{{ t('admin.organizationUsage.filters.email') }}</span>
+      <label class="block xl:col-span-2">
+        <span class="input-label">{{ t('admin.organizationUsage.filters.email') }}</span>
         <div class="relative">
           <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -142,7 +140,7 @@
       data-testid="date-error"
       role="alert"
       aria-live="polite"
-      class="mt-2 text-sm text-red-600 dark:text-red-400"
+      class="mt-3 text-sm text-red-600 dark:text-red-400"
     >
       {{ validationMessage }}
     </p>
@@ -157,6 +155,7 @@ import type { DepartmentScope } from '@/api/admin/departments'
 import type { OrganizationUsageOrganizationFilter, OrganizationUsageRange } from '@/api/admin/organizationUsage'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
+import OrganizationUsageSegmented from './OrganizationUsageSegmented.vue'
 import {
   formatOrganizationUsageOrganization,
   getMonthDateRange,

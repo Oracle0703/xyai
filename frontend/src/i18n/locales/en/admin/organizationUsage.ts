@@ -76,9 +76,10 @@ export default {
       peakMonth: 'Peak month'
     },
     champions: {
-      day: 'Team day champion',
-      week: 'Team week champion',
-      month: 'Team month champion'
+      title: 'Team usage champions',
+      day: 'Top day',
+      week: 'Top week',
+      month: 'Top month'
     },
     common: {
       noData: 'No data',

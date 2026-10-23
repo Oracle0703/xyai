@@ -4,14 +4,18 @@
 
 | 组件 | 职责 |
 | --- | --- |
-| `OrganizationUsageFilters.vue` | 北京时间周期、授权组织/部门、平台及邮箱筛选；组织变化清部门，未应用草稿时禁用导出 |
-| `OrganizationUsageOverview.vue` | 成员人数、活跃人数/率、请求、Token、费用和日周月 champion；`active_users` 为成员人数，`used_users` 为有记录人数 |
-| `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；总 Token 包含缓存创建/读取 |
+| `OrganizationUsageFilters.vue` | 北京时间周期、授权组织/部门、平台及邮箱筛选；组织变化清部门，未应用草稿时禁用导出。平台选项与后端白名单一致，不取平台注册表 |
+| `OrganizationUsageOverview.vue` | 6 张统计卡片（成员人数、活跃人数/率、请求、Token、费用）和团队用量冠军卡片；冠军卡片头展示报表区间、数据截至与归属口径。`active_users` 为成员人数，`used_users` 为有记录人数 |
+| `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；总 Token 包含缓存创建/读取；数据截至只在最后一个桶的 tooltip 中显示 |
 | `OrganizationUsageSummary.vue` | 仅渲染服务端返回的组织，不补范围外组织行；按钮提交原内部键 |
 | `OrganizationUsageBreakdowns.vue` | 同范围部门/平台汇总，平台活跃人数不能相加作为总人数 |
-| `OrganizationUsagePeopleTable.vue` | 带组织和部门的人员表，首列显示跨分页连续排名，服务端排序分页，保留宽表横向滚动；每页选择器前可下载当前页 PNG |
+| `OrganizationUsagePeopleTable.vue` | 人员表：排名、邮箱固定在左侧，其后组织、部门与指标；跨分页连续排名，服务端排序分页，数值列表头右对齐，宽表横向滚动；卡片头可下载当前页 PNG，每页条数用 `Pagination` 自带选择器 |
+| `OrganizationUsageSegmented.vue` | 报表周期与趋势粒度共用的分段按钮，样式同仪表盘图表切换 |
+| `organizationUsageTable.css` | `org-usage-table` 等类：表格沿用 `DataTable` 的表头、分隔线与悬停样式，卡片头/标题/行内链接统一 |
 
 组织内部键 `xunyou / wsdashi / other` 显示为迅游/速宝/其他，部门名称动态配置。平台筛选只过滤用量，零用量成员仍保留。
+
+页面布局与其他管理页一致：标题和描述由 `AppHeader` 按路由元信息显示，页面内不再重复；各区块用 `card` 承载，区块间距 `space-y-6`；统计卡片在 2xl 以下每行 3 张，避免 1280px 宽度截断数值。
 
 ## 页面请求与导出
 
@@ -27,3 +31,4 @@ PNG 截图仅包含当前页已渲染的表头与人员行，末页按实际行�
 
 - 2026-09-21 精简：Summary 建立快照后再启动 Trend，移除旧并行对齐函数及请求时间状态；人员续页不允许更换 as_of。导出必须取得完整 as_of/scope_version，并校验每页/Sheet 一致，删除缺字段继续导出的兼容兜底；保留取消、总行数和分页上限。
 - 2026-10-23 恢复并行：生产实测 Summary 约 5.2s、Trend 约 1.8s，串行使趋势约 7s 才出现。首个 Trend 与 Summary 并行，到达后按 Summary 快照校验，失配只重拉一次；`realignTrend` 与失败重试共用每周期一次的预算。
+- 2026-10-23 样式统一：去掉页内重复标题，筛选/概览/趋势/汇总/人员表改为卡片布局并对齐使用记录页；表格统一 DataTable 风格；修复人员表数值表头未右对齐、加载/空状态少一列；排名与邮箱固定在左侧。

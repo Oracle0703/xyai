@@ -1,11 +1,7 @@
 <template>
   <AppLayout>
-    <div class="mx-auto w-full max-w-[1800px] space-y-0" data-testid="organization-usage-view">
-      <header class="pb-5">
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ t('admin.organizationUsage.title') }}</h1>
-        <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('admin.organizationUsage.description') }}</p>
-      </header>
-
+    <!-- The page title and description come from AppHeader (route meta), like the other admin pages. -->
+    <div class="mx-auto w-full max-w-[1800px] space-y-6" data-testid="organization-usage-view">
       <OrganizationUsageFilters
         v-if="scope && canViewScope"
         :scope="scope"
@@ -18,7 +14,12 @@
         @export="exportReport"
       />
 
-      <div v-if="errorMessage" data-testid="load-error" class="my-5 flex items-center justify-between gap-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/10 dark:text-red-300" role="alert">
+      <div
+        v-if="errorMessage"
+        data-testid="load-error"
+        class="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/10 dark:text-red-300"
+        role="alert"
+      >
         <span>{{ errorMessage }}</span>
         <button type="button" data-testid="retry-load" class="btn btn-secondary shrink-0" @click="loadFullReport()">
           <Icon name="refresh" size="sm" class="mr-1.5" />
@@ -26,17 +27,22 @@
         </button>
       </div>
 
-      <p v-if="scopeLoading" class="py-6 text-sm text-gray-500">{{ t('admin.departments.loadingScope') }}</p>
-      <div v-else-if="scope && !canViewScope" class="flex items-center justify-between gap-3 py-6 text-sm">
-        <span>{{ t('admin.departments.noDepartmentScope') }}</span><button class="btn btn-secondary" @click="loadFullReport()">{{ t('admin.departments.refresh') }}</button>
+      <div v-if="scopeLoading" class="card flex items-center justify-center gap-3 p-10 text-sm text-gray-500 dark:text-dark-400">
+        <LoadingSpinner />
+        {{ t('admin.departments.loadingScope') }}
       </div>
-      <p v-if="scope && canViewScope" class="pt-3 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.departments.attribution') }}</p>
+      <div v-else-if="scope && !canViewScope" class="card flex flex-col items-center gap-4 p-10 text-center text-sm text-gray-600 dark:text-dark-300">
+        <Icon name="inbox" size="lg" class="text-gray-400 dark:text-dark-500" />
+        <span>{{ t('admin.departments.noDepartmentScope') }}</span>
+        <button type="button" class="btn btn-secondary" @click="loadFullReport()">{{ t('admin.departments.refresh') }}</button>
+      </div>
       <template v-if="!errorMessage && canViewScope && !scopeLoading">
         <OrganizationUsageOverview
           v-if="report && !loading"
           :overview="report.overview"
           :champions="report.champions"
           :range="report.range"
+          :attribution="t('admin.departments.attribution')"
         />
         <OrganizationUsageTrendChart
           :points="trendPoints"
@@ -54,7 +60,13 @@
           :selected-organization="applied.organization"
           @select="selectOrganization"
         />
-        <OrganizationUsageBreakdowns v-if="report && !loading" :departments="report.departments ?? []" :platforms="report.platforms ?? []" @department="selectDepartment" @platform="selectPlatform" />
+        <OrganizationUsageBreakdowns
+          v-if="report && !loading"
+          :departments="report.departments ?? []"
+          :platforms="report.platforms ?? []"
+          @department="selectDepartment"
+          @platform="selectPlatform"
+        />
         <OrganizationUsagePeopleTable
           :items="report?.items ?? []"
           :range="report?.range"
@@ -103,6 +115,7 @@ import type {
 } from '@/api/admin/organizationUsage'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import OrganizationUsageFilters, {
   type OrganizationUsageFilterDraft

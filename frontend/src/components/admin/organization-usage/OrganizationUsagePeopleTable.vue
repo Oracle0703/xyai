@@ -1,89 +1,88 @@
 <template>
-  <section class="pt-5">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.organizationUsage.people.title') }}</h2>
-        <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.organizationUsage.people.total', { count: pagination.total }) }}</p>
+  <section class="card overflow-hidden">
+    <div class="org-usage-card-header">
+      <div class="flex items-baseline gap-2">
+        <h3 class="org-usage-card-title">{{ t('admin.organizationUsage.people.title') }}</h3>
+        <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.organizationUsage.people.total', { count: pagination.total }) }}</span>
       </div>
-      <div class="flex items-center gap-3">
-        <button
-          type="button"
-          data-testid="people-screenshot"
-          class="btn btn-secondary btn-sm"
-          :disabled="loading || capturing || items.length === 0"
-          :aria-busy="capturing"
-          :title="t('admin.organizationUsage.people.screenshotHint')"
-          @click="downloadScreenshot"
-        >
-          <Icon name="download" size="sm" class="mr-1.5" />
-          {{ t(capturing ? 'admin.organizationUsage.people.capturing' : 'admin.organizationUsage.people.screenshot') }}
-        </button>
-        <label class="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
-          {{ t('admin.organizationUsage.people.pageSize') }}
-          <select
-            data-testid="people-page-size"
-            class="input h-9 w-20 py-1"
-            :value="pagination.page_size"
-            @change="emit('pageSize', Number(($event.target as HTMLSelectElement).value))"
-          >
-            <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
-          </select>
-        </label>
-      </div>
+      <button
+        type="button"
+        data-testid="people-screenshot"
+        class="btn btn-secondary btn-sm"
+        :disabled="loading || capturing || items.length === 0"
+        :aria-busy="capturing"
+        :title="t('admin.organizationUsage.people.screenshotHint')"
+        @click="downloadScreenshot"
+      >
+        <Icon name="download" size="sm" class="mr-1.5" />
+        {{ t(capturing ? 'admin.organizationUsage.people.capturing' : 'admin.organizationUsage.people.screenshot') }}
+      </button>
     </div>
 
-    <div class="mt-3 overflow-x-auto border-y border-gray-200 dark:border-dark-700">
-      <table ref="tableRef" class="min-w-[1620px] w-full border-collapse text-sm">
-        <thead class="bg-gray-50 text-left text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
+    <div class="overflow-x-auto">
+      <table ref="tableRef" class="org-usage-table org-usage-table--compact min-w-[1360px]">
+        <thead>
           <tr>
-            <th class="whitespace-nowrap px-3 py-2.5 font-medium">{{ t('admin.organizationUsage.columns.rank') }}</th>
-            <th v-for="column in columns" :key="column.key" class="whitespace-nowrap px-3 py-2.5 font-medium" :aria-sort="ariaSort(column)">
+            <th :class="[rankCellClass, 'bg-gray-50 text-center dark:bg-dark-800']">{{ t('admin.organizationUsage.columns.rank') }}</th>
+            <th
+              v-for="column in columns"
+              :key="column.key"
+              :class="[column.numeric ? 'org-usage-num' : '', column.key === 'email' ? [emailCellClass, 'bg-gray-50 dark:bg-dark-800'] : '']"
+              :aria-sort="ariaSort(column)"
+            >
               <button
                 v-if="column.sortable"
                 type="button"
                 :data-sort-key="column.sortKey"
-                class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-white"
+                class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
                 @click="emitSort(column.sortKey!)"
               >
                 {{ column.label }}
-                <span class="inline-flex w-3 flex-col text-[8px] leading-[7px]" aria-hidden="true">
-                  <span :class="sortBy === column.sortKey && sortOrder === 'asc' ? 'text-primary-500' : 'text-gray-300 dark:text-dark-600'">▲</span>
-                  <span :class="sortBy === column.sortKey && sortOrder === 'desc' ? 'text-primary-500' : 'text-gray-300 dark:text-dark-600'">▼</span>
+                <span class="inline-flex h-5 w-4 flex-col items-center justify-center" aria-hidden="true">
+                  <svg class="h-2.5 w-2.5" :class="sortIndicatorClass(column.sortKey!, 'asc')" fill="currentColor" viewBox="0 0 10 10">
+                    <path d="M5 2L1.5 6.5h7L5 2z" />
+                  </svg>
+                  <svg class="-mt-0.5 h-2.5 w-2.5" :class="sortIndicatorClass(column.sortKey!, 'desc')" fill="currentColor" viewBox="0 0 10 10">
+                    <path d="M5 8L1.5 3.5h7L5 8z" />
+                  </svg>
                 </span>
               </button>
               <span v-else>{{ column.label }}</span>
             </th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100 dark:divide-dark-800">
+        <tbody>
           <template v-if="loading">
             <tr v-for="index in 5" :key="index" data-testid="people-loading">
-              <td v-for="column in columns" :key="column.key" class="px-3 py-3">
-                <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700" />
+              <td :class="rankCellClass"><div class="mx-auto h-4 w-6 animate-pulse rounded bg-gray-200 dark:bg-dark-700" /></td>
+              <td v-for="column in columns" :key="column.key">
+                <div class="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-dark-700" :class="column.numeric ? 'ml-auto' : ''" />
               </td>
             </tr>
           </template>
           <tr v-else-if="items.length === 0" data-testid="people-empty">
-            <td :colspan="columns.length" class="px-3 py-12 text-center text-sm text-gray-500 dark:text-dark-400">
-              <Icon name="inbox" size="lg" class="mx-auto mb-2" />
+            <td :colspan="columns.length + 1" class="py-12 text-center text-sm text-gray-500 dark:text-dark-400">
+              <Icon name="inbox" size="lg" class="mx-auto mb-2 text-gray-400 dark:text-dark-500" />
               {{ t('admin.organizationUsage.common.noData') }}
             </td>
           </tr>
           <template v-else>
-            <tr v-for="(item, index) in items" :key="item.user_id" class="hover:bg-gray-50 dark:hover:bg-dark-800/70">
-              <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums">{{ (pagination.page - 1) * pagination.page_size + index + 1 }}</td>
-              <td class="whitespace-nowrap px-3 py-3">{{ organizationLabel(item.organization) }}</td>
-              <td class="whitespace-nowrap px-3 py-3">{{ item.department_name || t('admin.departments.unassigned') }}</td>
-              <td class="max-w-[240px] truncate px-3 py-3 font-medium text-gray-900 dark:text-white" :title="item.email">{{ item.email }}</td>
-              <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.requests) }}</td>
-              <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.input_tokens) }}</td>
-              <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.output_tokens) }}</td>
-              <td class="px-3 py-3 text-right tabular-nums">{{ formatNumber(item.cache_read_tokens) }}</td>
-              <td class="px-3 py-3 text-right font-medium tabular-nums">{{ formatNumber(item.total_tokens) }}</td>
-              <td class="px-3 py-3 text-right tabular-nums">${{ formatCostFixed(item.actual_cost) }}</td>
-              <td class="px-3 py-3"><PeakCell :period="item.peak_day" /></td>
-              <td class="px-3 py-3"><PeakCell :period="item.peak_week" /></td>
-              <td class="px-3 py-3"><PeakCell :period="item.peak_month" /></td>
+            <tr v-for="(item, index) in items" :key="item.user_id" class="group">
+              <td :class="[rankCellClass, stickyBodyClass, 'text-center tabular-nums text-gray-500 dark:text-dark-400']">
+                {{ (pagination.page - 1) * pagination.page_size + index + 1 }}
+              </td>
+              <td :class="[emailCellClass, stickyBodyClass, 'max-w-[240px] truncate font-medium']" :title="item.email">{{ item.email }}</td>
+              <td>{{ organizationLabel(item.organization) }}</td>
+              <td>{{ item.department_name || t('admin.departments.unassigned') }}</td>
+              <td class="org-usage-num">{{ formatNumber(item.requests) }}</td>
+              <td class="org-usage-num">{{ formatNumber(item.input_tokens) }}</td>
+              <td class="org-usage-num">{{ formatNumber(item.output_tokens) }}</td>
+              <td class="org-usage-num">{{ formatNumber(item.cache_read_tokens) }}</td>
+              <td class="org-usage-num font-semibold">{{ formatNumber(item.total_tokens) }}</td>
+              <td class="org-usage-num">${{ formatCostFixed(item.actual_cost) }}</td>
+              <td class="org-usage-num"><PeakCell :period="item.peak_day" /></td>
+              <td class="org-usage-num"><PeakCell :period="item.peak_week" /></td>
+              <td class="org-usage-num"><PeakCell :period="item.peak_month" /></td>
             </tr>
           </template>
         </tbody>
@@ -96,7 +95,6 @@
       :page-size="pagination.page_size"
       :total="pagination.total"
       :page-size-options="[20, 50, 100]"
-      :show-page-size-selector="false"
       @update:page="emit('page', $event)"
       @update:page-size="emit('pageSize', $event)"
     />
@@ -122,6 +120,7 @@ import { formatCostFixed, formatNumber } from '@/utils/format'
 import { formatOrganizationUsageOrganization } from '@/utils/organizationUsageReport'
 import { captureTablePng } from '@/utils/tableScreenshot'
 import { useAppStore } from '@/stores/app'
+import './organizationUsageTable.css'
 
 const props = defineProps<{
   items: OrganizationUsageSummaryItem[]
@@ -178,31 +177,42 @@ const PeakCell = defineComponent({
     return () => {
       const period = componentProps.period
       if (!period) return h('span', { class: 'text-gray-400 dark:text-dark-500' }, t('admin.organizationUsage.common.noData'))
-      return h('div', { class: 'min-w-[180px]' }, [
-        h('div', { class: 'whitespace-nowrap text-xs text-gray-500 dark:text-dark-400' }, [
-          `${period.period_start} - ${period.period_end}`,
-          period.partial ? h('span', { class: 'ml-1 rounded bg-amber-100 px-1 py-0.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' }, t('admin.organizationUsage.common.partial')) : null
-        ]),
-        h('div', { class: 'mt-1 tabular-nums text-gray-900 dark:text-white' }, `${formatNumber(period.total_tokens)} ${t('admin.organizationUsage.common.tokens')}`)
+      return h('div', { class: 'min-w-[130px]' }, [
+        h('div', { class: 'font-medium tabular-nums text-gray-900 dark:text-white' }, formatNumber(period.total_tokens)),
+        h('div', { class: 'mt-0.5 flex items-center justify-end gap-1 whitespace-nowrap text-xs text-gray-500 dark:text-dark-400' }, [
+          period.partial ? h('span', { class: 'badge badge-warning' }, t('admin.organizationUsage.common.partial')) : null,
+          period.period_start === period.period_end ? period.period_start : `${period.period_start} - ${period.period_end}`
+        ])
       ])
     }
   }
 })
 
 const columns = computed(() => [
+  { key: 'email', label: t('admin.organizationUsage.columns.email'), sortable: true, sortKey: 'email' as const },
   { key: 'organization', label: t('admin.organizationUsage.columns.organization') },
   { key: 'department', label: t('admin.departments.department') },
-  { key: 'email', label: t('admin.organizationUsage.columns.email'), sortable: true, sortKey: 'email' as const },
-  { key: 'requests', label: t('admin.organizationUsage.metrics.requests'), sortable: true, sortKey: 'requests' as const },
-  { key: 'input_tokens', label: t('admin.organizationUsage.metrics.inputTokens'), sortable: true, sortKey: 'input_tokens' as const },
-  { key: 'output_tokens', label: t('admin.organizationUsage.metrics.outputTokens'), sortable: true, sortKey: 'output_tokens' as const },
-  { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheTokens'), sortable: true, sortKey: 'cache_read_tokens' as const },
-  { key: 'total_tokens', label: t('admin.organizationUsage.metrics.totalTokens'), sortable: true, sortKey: 'total_tokens' as const },
-  { key: 'actual_cost', label: t('admin.organizationUsage.metrics.actualCost'), sortable: true, sortKey: 'actual_cost' as const },
-  { key: 'peak_day', label: t('admin.organizationUsage.columns.peakDay'), sortable: true, sortKey: 'peak_day_tokens' as const },
-  { key: 'peak_week', label: t('admin.organizationUsage.columns.peakWeek'), sortable: true, sortKey: 'peak_week_tokens' as const },
-  { key: 'peak_month', label: t('admin.organizationUsage.columns.peakMonth'), sortable: true, sortKey: 'peak_month_tokens' as const }
+  { key: 'requests', label: t('admin.organizationUsage.metrics.requests'), sortable: true, sortKey: 'requests' as const, numeric: true },
+  { key: 'input_tokens', label: t('admin.organizationUsage.metrics.inputTokens'), sortable: true, sortKey: 'input_tokens' as const, numeric: true },
+  { key: 'output_tokens', label: t('admin.organizationUsage.metrics.outputTokens'), sortable: true, sortKey: 'output_tokens' as const, numeric: true },
+  { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheTokens'), sortable: true, sortKey: 'cache_read_tokens' as const, numeric: true },
+  { key: 'total_tokens', label: t('admin.organizationUsage.metrics.totalTokens'), sortable: true, sortKey: 'total_tokens' as const, numeric: true },
+  { key: 'actual_cost', label: t('admin.organizationUsage.metrics.actualCost'), sortable: true, sortKey: 'actual_cost' as const, numeric: true },
+  { key: 'peak_day', label: t('admin.organizationUsage.columns.peakDay'), sortable: true, sortKey: 'peak_day_tokens' as const, numeric: true },
+  { key: 'peak_week', label: t('admin.organizationUsage.columns.peakWeek'), sortable: true, sortKey: 'peak_week_tokens' as const, numeric: true },
+  { key: 'peak_month', label: t('admin.organizationUsage.columns.peakMonth'), sortable: true, sortKey: 'peak_month_tokens' as const, numeric: true }
 ])
+
+// Rank and email stay visible while the wide metric columns scroll horizontally.
+const rankCellClass = 'sticky left-0 z-10 w-14 min-w-[3.5rem] max-w-[3.5rem]'
+const emailCellClass = 'sticky left-14 z-10 border-r border-gray-100 dark:border-dark-700'
+const stickyBodyClass = 'bg-white transition-colors group-hover:bg-gray-50 dark:bg-dark-900 dark:group-hover:bg-dark-800'
+
+function sortIndicatorClass(sortKey: OrganizationUsageSortBy, order: OrganizationUsageSortOrder) {
+  return props.sortBy === sortKey && props.sortOrder === order
+    ? 'text-primary-500 dark:text-primary-400'
+    : 'text-gray-400 dark:text-dark-500'
+}
 
 function ariaSort(column: (typeof columns.value)[number]) {
   if (!column.sortable) return undefined
