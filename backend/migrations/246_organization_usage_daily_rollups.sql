@@ -37,18 +37,23 @@ INSERT INTO usage_user_rollup_state (id, closed_before)
 VALUES (1, NULL)
 ON CONFLICT (id) DO NOTHING;
 
+-- 只追加：每个修改过去日期的事务为每天写一行自己的标记，日期不设唯一约束。
 CREATE TABLE IF NOT EXISTS usage_user_rollup_dirty_days (
-    bucket_date DATE PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
+    bucket_date DATE NOT NULL,
     marked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE usage_user_rollup_dirty_days IS '原始用量在日桶发布后又发生变化、等待重建的北京时间日期。';
+CREATE INDEX IF NOT EXISTS idx_usage_user_rollup_dirty_days_bucket_date
+    ON usage_user_rollup_dirty_days (bucket_date);
 
--- 登记某天为脏。DO UPDATE 让本事务持有该标记行的行锁直到提交，后台作业认领（删除）
--- 标记时必须等本事务提交，因此不会在本次变更可见之前就重建该天；作业正在重建该天时，
--- 本次登记会等待作业提交（最多约一天的重建时长）后再插入新标记。
--- 同一事务内每天只登记一次，批量删除不会为每一行重复写标记。
--- 只有写入过去日期的事务才会到达这里，当天的普通网关写入不加任何锁。
+COMMENT ON TABLE usage_user_rollup_dirty_days IS '原始用量在日桶发布后又发生变化、等待重建的北京时间日期；同一天可有多行。';
+
+-- 登记某天为脏：只插入本事务自己的一行，不与其它标记冲突，因此不加锁、不等待、不会死锁。
+-- 后台作业认领时只能删除已提交的标记；本事务未提交的标记不会被删，提交后留存，
+-- 该天随后再次重建，所以作业不会用缺少本次改动的快照“永久”发布该天。
+-- 同一事务内每天只登记一次（事务级设置随子事务回滚一起撤销），批量删除不会逐行写标记。
+-- 只有写入过去日期的事务才会到达这里，当天的普通网关写入不写标记。
 CREATE OR REPLACE FUNCTION mark_user_usage_rollup_dirty_day(p_day DATE)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -59,9 +64,7 @@ BEGIN
     IF current_setting(marker, true) = 't' THEN
         RETURN;
     END IF;
-    INSERT INTO usage_user_rollup_dirty_days (bucket_date, marked_at)
-    VALUES (p_day, clock_timestamp())
-    ON CONFLICT (bucket_date) DO UPDATE SET marked_at = EXCLUDED.marked_at;
+    INSERT INTO usage_user_rollup_dirty_days (bucket_date) VALUES (p_day);
     PERFORM set_config(marker, 't', true);
 END;
 $$;

@@ -23,9 +23,9 @@ func NewOrganizationUsageRollupRepository(db *sql.DB) service.OrganizationUsageR
 // across midnight before a row can be missed, and hourly reconciliation catches even that.
 const organizationUsageRollupClosableDateSQL = `((clock_timestamp() - INTERVAL '10 minutes') AT TIME ZONE 'Asia/Shanghai')::date`
 
-// Every step runs in its own short READ COMMITTED transaction: the dirty mark is claimed
-// before the day is re-aggregated, so a late row committed after the aggregation statement
-// keeps its own mark and is rebuilt by the next run.
+// Every step runs in its own short READ COMMITTED transaction: the committed dirty marks are
+// claimed before the day is re-aggregated. Marks are append-only, so a writer whose change is
+// not yet committed keeps its own uncommitted mark, and the day is rebuilt again by a later run.
 func (r *organizationUsageRollupRepository) inTx(ctx context.Context, fn func(*sql.Tx) (bool, error)) (bool, error) {
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
@@ -67,11 +67,10 @@ func (r *organizationUsageRollupRepository) InitializeOrganizationUsageRollups(c
 )::text FROM usage_logs`).Scan(&start); err != nil {
 			return false, fmt.Errorf("read earliest usage day: %w", err)
 		}
-		// Nothing is published yet, so every pending mark is covered by closing its day.
+		// Pending marks are kept: a mark on or after start is claimed when its day closes, and a
+		// mark before start (a log older than the MIN read above, committed concurrently) makes
+		// that day dirty so it is rebuilt instead of being read as an empty published day.
 		if _, err := tx.ExecContext(ctx, `DELETE FROM usage_user_daily_rollups`); err != nil {
-			return false, err
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM usage_user_rollup_dirty_days`); err != nil {
 			return false, err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE usage_user_rollup_state SET closed_before = $1::date, updated_at = NOW() WHERE id = 1`, start); err != nil {
@@ -223,7 +222,6 @@ mismatched AS (
 INSERT INTO usage_user_rollup_dirty_days (bucket_date)
 SELECT m.bucket_date FROM mismatched m
 WHERE NOT EXISTS (SELECT 1 FROM usage_user_rollup_dirty_days d WHERE d.bucket_date = m.bucket_date)
-ON CONFLICT (bucket_date) DO NOTHING
 RETURNING bucket_date::text`, lower.Format(organizationUsageDateLayout), upper.Format(organizationUsageDateLayout), lower.UTC(), upper.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("reconcile organization usage rollups: %w", err)

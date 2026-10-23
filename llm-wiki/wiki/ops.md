@@ -519,7 +519,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - OAuth: LinuxDo, WeChat, OIDC, DingTalk, GitHub, Google。
 - `pricing`: 模型价格远程源、hash 校验和 fallback 文件。可选 `override_file` 优先级最高，按精确模型名对 JSON 字段做浅合并，值为 `null` 表示删除字段；修改后重启或等待下次目录下载生效。文件缺失/无效只告警并跳过 override，不中断目录/fallback 加载。
 - `billing`: 计费熔断。
-- `organization_usage.rollup_enabled`: 默认 `true`（环境变量 `ORGANIZATION_USAGE_ROLLUP_ENABLED`）。开启时组织用量报表读日汇总并启动 `OrganizationUsageRollupService`；设为 `false` 立即回到原始 `usage_logs` 聚合，无需改库，触发器继续登记脏日期，重新开启后自动补齐。
+- `organization_usage.rollup_enabled`: 默认 `true`（环境变量 `ORGANIZATION_USAGE_ROLLUP_ENABLED`）。开启时组织用量报表读日汇总并启动 `OrganizationUsageRollupService`；配置只在启动时读取：设为 `false` 并重启应用进程后回到原始 `usage_logs` 聚合，无需改库，触发器继续登记脏日期，重新开启后自动补齐。
 - `gemini`: OAuth 和本地 quota 模拟。
 - `image_storage`: 异步图片任务总开关与 S3-compatible 结果存储; `enabled=true` 仍要求 bucket/access key/secret 完整。`endpoint`, `region`, `prefix`, `public_base_url`, `presign_expiry_hours`, `max_download_bytes` 控制 R2/S3 兼容上传和 URL 结果下载上限。管理端备份页通过 `/api/v1/admin/backups/image-storage` 读取、测试和保存运行时设置, 可复用备份 S3 凭据；保存目标受 step-up 2FA 保护, 独立 secret 加密入库且 API 不回显。数据库配置优先且保存后失效 resolver/uploader 缓存, 下一次异步图片请求立即采用新配置, 无需重启；从未保存过后台配置时回落 YAML/环境变量。`IMAGE_STORAGE_*`、`SERVER_TRUSTED_PROXIES` 和 `SECURITY_FORWARDED_CLIENT_IP_HEADERS` 已有 env reachability guard。当前任务 worker 只在进程内运行, 服务重启不会恢复 Redis 中的 `processing` 任务, 可能保留到默认 24h TTL。生产环境若上游 URL 不可信, 应保持 `image_storage` 关闭直至 SSRF/任务恢复风险被上游修复。
 - Ollama Cloud usage 不是 YAML 配置组, 由数据库 setting `OLLAMA_CLOUD_USAGE_SETTINGS` 热管理；默认 `enabled=false`、`interval_minutes=60`、`debounce_minutes=1`, 保存时分别钳制到 15-1440 与 1-60。后台 worker 由模型请求更新时间驱动 due 判定, 使用 PostgreSQL/Redis leader lock, 单周期最多刷新 20 个 eligible 账号、并发 4, 通过账号代理访问固定 `https://ollama.com/settings`；session 持久化要求固定 `TOTP_ENCRYPTION_KEY`。

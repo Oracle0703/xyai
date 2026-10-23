@@ -64,7 +64,10 @@ func TestMigration246CreatesOrganizationUsageRollupsWithLockFreeDirtyMarks(t *te
 	require.Contains(t, sql, "REFERENCING NEW TABLE AS inserted_usage_logs")
 	require.Contains(t, sql, "clock_timestamp() + INTERVAL '10 minutes'")
 	require.Contains(t, sql, "AFTER TRUNCATE ON usage_logs")
-	require.Contains(t, sql, "ON CONFLICT (bucket_date) DO UPDATE SET marked_at = EXCLUDED.marked_at")
+	// Dirty marks are append-only: no unique date, no ON CONFLICT row locks, no cross-day deadlocks.
+	require.Contains(t, sql, "id BIGSERIAL PRIMARY KEY")
+	require.Contains(t, sql, "INSERT INTO usage_user_rollup_dirty_days (bucket_date) VALUES (p_day)")
+	require.NotContains(t, sql, "ON CONFLICT (bucket_date)")
 	require.Contains(t, sql, "PERFORM set_config(marker, 't', true)")
 	require.Contains(t, sql, "REFERENCING OLD TABLE AS old_usage_logs NEW TABLE AS new_usage_logs")
 	require.Contains(t, sql, "reconciled_at TIMESTAMPTZ")

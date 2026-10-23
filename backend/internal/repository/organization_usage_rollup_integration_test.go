@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"sort"
 	"strconv"
@@ -414,9 +415,9 @@ JOIN unnest($7::bigint[]) WITH ORDINALITY AS acc(id, ord) ON acc.ord = (g / 135)
 	require.Equal(t, rawTrend, rolledTrend)
 }
 
-// A writer that marks an already-dirty day holds the mark until it commits, so the job cannot
-// rebuild the day from a snapshot that still contains the writer's uncommitted change.
-func TestOrganizationUsageRollupIntegration_RebuildWaitsForWriterHoldingDirtyMark(t *testing.T) {
+// A writer that changes an already-dirty day keeps its own uncommitted mark: a rebuild that
+// runs before the writer commits cannot see the change, so the day must stay dirty afterwards.
+func TestOrganizationUsageRollupIntegration_WriterMarkSurvivesConcurrentRebuild(t *testing.T) {
 	resetOrganizationUsageRollupsForTest(t)
 	ctx := context.Background()
 	prefix := organizationUsageIntegrationPrefix("rollup-race")
@@ -440,27 +441,121 @@ func TestOrganizationUsageRollupIntegration_RebuildWaitsForWriterHoldingDirtyMar
 	require.NoError(t, writer.QueryRowContext(ctx, `SELECT current_setting('sub2api.user_rollup_dirty_20260506', true)`).Scan(&marker))
 	require.Equal(t, "t", marker, "the day is marked once per transaction")
 
-	rebuilt := make(chan error, 1)
-	go func() {
-		_, err := NewOrganizationUsageRollupRepository(integrationDB).RebuildNextDirtyOrganizationUsageRollupDay(ctx)
-		rebuilt <- err
-	}()
-	select {
-	case err := <-rebuilt:
-		t.Fatalf("rebuild finished while the writer still held the mark: %v", err)
-	case <-time.After(500 * time.Millisecond):
-	}
+	// The rebuild neither waits for the writer nor sees its uncommitted delete.
+	rebuildCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	rebuilt, err := NewOrganizationUsageRollupRepository(integrationDB).RebuildNextDirtyOrganizationUsageRollupDay(rebuildCtx)
+	require.NoError(t, err)
+	require.True(t, rebuilt)
 	require.NoError(t, writer.Commit())
-	select {
-	case err := <-rebuilt:
-		require.NoError(t, err)
-	case <-time.After(10 * time.Second):
-		t.Fatal("rebuild did not resume after the writer committed")
-	}
+
+	require.True(t, organizationUsageDirtyDayExists(t, "2026-05-06"), "the writer's own mark survives the concurrent claim")
+	requireOrganizationUsageDayMatchesRaw(t, ctx, user.ID, "2026-05-06", 1)
+	drainOrganizationUsageDirtyDaysForTest(t)
+	require.False(t, organizationUsageDirtyDayExists(t, "2026-05-06"))
 	var requests int64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COALESCE(SUM(requests), 0) FROM usage_user_daily_rollups WHERE user_id = $1 AND bucket_date = '2026-05-06'`, user.ID).Scan(&requests))
-	require.Equal(t, int64(1), requests, "the rebuild saw the committed delete")
-	require.False(t, organizationUsageDirtyDayExists(t, "2026-05-06"))
+	require.Equal(t, int64(1), requests)
+}
+
+// Two transactions changing the same two past days in opposite orders must not deadlock on
+// the dirty marks.
+func TestOrganizationUsageRollupIntegration_CrossDayWritersDoNotDeadlock(t *testing.T) {
+	resetOrganizationUsageRollupsForTest(t)
+	ctx := context.Background()
+	prefix := organizationUsageIntegrationPrefix("rollup-deadlock")
+	account := organizationUsageIntegrationAccount(t, prefix)
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+	user, key := organizationUsageIntegrationUser(t, prefix+"user@xunyou.com", service.StatusActive)
+	d1 := time.Date(2026, 5, 11, 9, 0, 0, 0, organizationUsageRollupLocation)
+	d2 := time.Date(2026, 5, 12, 9, 0, 0, 0, organizationUsageRollupLocation)
+	for _, at := range []time.Time{d1, d1.Add(time.Minute), d2, d2.Add(time.Minute)} {
+		insertOrganizationUsageIntegrationLog(t, user.ID, key.ID, account.ID, 1, 1, 1, 1, 1, at)
+	}
+	a, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = a.Rollback() }()
+	b, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = b.Rollback() }()
+	deleteAt := func(tx *sql.Tx, at time.Time) {
+		stepCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		_, err := tx.ExecContext(stepCtx, `DELETE FROM usage_logs WHERE user_id = $1 AND created_at = $2`, user.ID, at)
+		require.NoError(t, err, "a dirty mark must never block another writer")
+	}
+	deleteAt(a, d1)
+	deleteAt(b, d2)
+	deleteAt(a, d2.Add(time.Minute))
+	deleteAt(b, d1.Add(time.Minute))
+	require.NoError(t, a.Commit())
+	require.NoError(t, b.Commit())
+	require.True(t, organizationUsageDirtyDayExists(t, "2026-05-11"))
+	require.True(t, organizationUsageDirtyDayExists(t, "2026-05-12"))
+}
+
+// Initialization must keep a mark committed for a day older than the MIN(created_at) it read;
+// otherwise that day would be published empty and never repaired.
+func TestOrganizationUsageRollupIntegration_InitializationKeepsEarlierConcurrentMark(t *testing.T) {
+	resetOrganizationUsageRollupsForTest(t)
+	ctx := context.Background()
+	prefix := organizationUsageIntegrationPrefix("rollup-init")
+	account := organizationUsageIntegrationAccount(t, prefix)
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+	user, key := organizationUsageIntegrationUser(t, prefix+"user@xunyou.com", service.StatusActive)
+	var earliest time.Time
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COALESCE(MIN(created_at), NOW()) FROM usage_logs`).Scan(&earliest))
+	older := organizationUsageCalendarDay(earliest.In(organizationUsageRollupLocation)).AddDate(0, 0, -20).Add(10 * time.Hour)
+	olderDay := older.Format(organizationUsageDateLayout)
+
+	// Hold the rollup table so initialization stops right after reading MIN(created_at).
+	locker, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = locker.Rollback() }()
+	_, err = locker.ExecContext(ctx, `LOCK TABLE usage_user_daily_rollups IN ACCESS EXCLUSIVE MODE`)
+	require.NoError(t, err)
+	initialized := make(chan error, 1)
+	go func() {
+		_, err := NewOrganizationUsageRollupRepository(integrationDB).InitializeOrganizationUsageRollups(ctx)
+		initialized <- err
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		_ = integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE wait_event_type = 'Lock' AND query LIKE 'DELETE FROM usage_user_daily_rollups%'`).Scan(&waiting)
+		return waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "initialization should wait after reading MIN(created_at)")
+
+	insertOrganizationUsageIntegrationLog(t, user.ID, key.ID, account.ID, 10, 10, 10, 20, 2.5, older)
+	require.NoError(t, locker.Commit())
+	select {
+	case err := <-initialized:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("initialization did not finish")
+	}
+
+	var closedBefore string
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT closed_before::text FROM usage_user_rollup_state WHERE id = 1`).Scan(&closedBefore))
+	require.Less(t, olderDay, closedBefore, "the concurrent log is older than the initialized watermark")
+	require.True(t, organizationUsageDirtyDayExists(t, olderDay))
+	requireOrganizationUsageDayMatchesRaw(t, ctx, user.ID, olderDay, 1)
+	drainOrganizationUsageDirtyDaysForTest(t)
+	requireOrganizationUsageDayMatchesRaw(t, ctx, user.ID, olderDay, 1)
+}
+
+// requireOrganizationUsageDayMatchesRaw checks one user's single-day report through both sources.
+func requireOrganizationUsageDayMatchesRaw(t *testing.T, ctx context.Context, userID int64, day string, wantRequests int64) {
+	t.Helper()
+	var email string
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email))
+	params := organizationUsageSummaryIntegrationParams(email, day, day)
+	raw, err := (&organizationUsageRepository{db: integrationDB, rollupDisabled: true}).Summary(ctx, params)
+	require.NoError(t, err)
+	rolled, err := (&organizationUsageRepository{db: integrationDB}).Summary(ctx, params)
+	require.NoError(t, err)
+	require.Equal(t, raw, rolled)
+	require.Equal(t, wantRequests, rolled.Overview.Requests)
 }
 
 // Cross-partition UPDATEs become DELETE+INSERT; only the statement-level UPDATE trigger sees
@@ -503,7 +598,7 @@ func TestOrganizationUsageRollupIntegration_PartitionDropMarksWholeMonth(t *test
 	require.NoError(t, tx.Commit())
 	var count int
 	var first, last string
-	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*), MIN(bucket_date)::text, MAX(bucket_date)::text FROM usage_user_rollup_dirty_days`).Scan(&count, &first, &last))
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(DISTINCT bucket_date), MIN(bucket_date)::text, MAX(bucket_date)::text FROM usage_user_rollup_dirty_days`).Scan(&count, &first, &last))
 	require.Equal(t, 32, count)
 	require.Equal(t, "2026-05-01", first)
 	require.Equal(t, "2026-06-01", last)

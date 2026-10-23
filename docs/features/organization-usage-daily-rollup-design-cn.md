@@ -37,7 +37,7 @@
 - 默认本月加载：summary 目标 < 0.5s，trend 目标 < 0.3s；366 天范围 < 1.5s（数值以 §12 实测行数复核）。
 - 结果与现在逐字段一致：口径、筛选、`as_of` 快照、当前成员/组织/部门归属语义不变。唯一差异是 `actual_cost` 末位精度（§7.5）。
 - 不阻塞网关写入 `usage_logs`，热路径不新增行锁。
-- 汇总缺失、落后或被关闭时，自动退回原始日志路径（即当前行为），可随时一键回退。
+- 汇总缺失、落后或被关闭时，自动退回原始日志路径（即当前行为）；改配置并重启进程即可回退。
 
 ### 1.3 非目标
 
@@ -100,11 +100,13 @@ CREATE TABLE IF NOT EXISTS usage_user_rollup_state (
 );
 INSERT INTO usage_user_rollup_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
--- 脏日期：已发布后原始日志又发生变化、需要重建的日期。
+-- 脏日期：已发布后原始日志又发生变化、需要重建的日期。只追加，同一天可有多行。
 CREATE TABLE IF NOT EXISTS usage_user_rollup_dirty_days (
-    bucket_date DATE PRIMARY KEY,
+    id          BIGSERIAL PRIMARY KEY,
+    bucket_date DATE NOT NULL,
     marked_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_usage_user_rollup_dirty_days_bucket_date ON usage_user_rollup_dirty_days (bucket_date);
 ```
 
 - 主键以 `bucket_date` 开头，报表按日期范围读取时直接走主键范围扫描。部门负责人范围很小时，可再评估 `(user_id, bucket_date)` 索引；首版不加。
@@ -115,13 +117,13 @@ CREATE TABLE IF NOT EXISTS usage_user_rollup_dirty_days (
 所有触发器都通过 `mark_user_usage_rollup_dirty_day(day)` 登记：
 
 ```sql
--- DO UPDATE 让写入事务持有该天的标记行锁直到提交；同一事务内每天只登记一次。
-INSERT INTO usage_user_rollup_dirty_days (bucket_date, marked_at) VALUES (p_day, clock_timestamp())
-ON CONFLICT (bucket_date) DO UPDATE SET marked_at = EXCLUDED.marked_at;
+-- 每个事务为每天插入一行自己的标记；同一事务内每天只登记一次。
+INSERT INTO usage_user_rollup_dirty_days (bucket_date) VALUES (p_day);
 PERFORM set_config('sub2api.user_rollup_dirty_' || to_char(p_day, 'YYYYMMDD'), 't', true);
 ```
 
-- **为什么用 DO UPDATE，不用 DO NOTHING**：若标记已存在而写入方只是 DO NOTHING，作业可能在写入方提交前认领标记，并用仍包含未提交改动的快照重建该天，导致这次改动永久丢失。最典型的场景是保留期分批删除最老的一天。DO UPDATE 会锁住标记行，作业认领时必须等写入方提交。代价：写入过去日期的事务之间，以及它们与正在重建同一天的作业之间，按天短暂串行，最多等一天的重建时长（生产约 0.1–0.5 秒）。当天的普通网关写入不会走到这里，不加任何锁。
+- **为什么只追加**：如果按日期唯一并用 `ON CONFLICT DO NOTHING`，标记已存在时写入方不会留下自己的标记；作业若在写入方提交前认领并重建该天，这次改动就永久丢失（典型场景是保留期分批删除最老的一天）。改成 `ON CONFLICT DO UPDATE` 虽能防丢，但写入方会按天持有标记行锁，跨日事务按相反顺序修改会死锁（复审 F2 已复现）。只追加时每个写入方插入自己的行，互不冲突、不加锁、不会死锁；作业认领时只能删除已提交的标记，写入方未提交的标记提交后仍在，该天会被再次重建，读者也会对该天读原始日志。当天的普通网关写入不写标记。
+- **初始化不清空脏标记**：初始化只把水位设为当时读到的 `MIN(created_at)` 所在日期。若有更早日期的日志在读取之后并发提交，它的标记会让该天在水位之前保持“脏”，随后被重建，而不会被当成空的已发布日期（复审 F1）。
 - **INSERT**：语句级 + transition table，每条批量 INSERT 执行一次，按日期升序登记“已过去的日期”。最后 10 分钟内写入的当天数据也登记（见 §7.3 的宽限窗口）。
 - **DELETE**：行级 `AFTER DELETE`，登记 `OLD` 的日期。和上游分组触发器一样用行级，以覆盖外键级联和直接写分区。同一事务内同一天只在第一行时写标记，其余行只查一次事务级设置，保留期每批 5000 行不会写 5000 次。
 - **UPDATE**：行级 `AFTER UPDATE OF ...`（带 `WHEN` 过滤）登记新旧日期，覆盖直接写分区。另有一个语句级 `AFTER UPDATE` 触发器（`REFERENCING OLD TABLE ... NEW TABLE ...`，按 `id` 配对比较相关列），覆盖分区表上跨分区移动的 UPDATE：这种 UPDATE 会被转换为 DELETE + INSERT，行级 UPDATE 和语句级 INSERT 都不会触发。当前代码没有更新这些列的路径，这是兜底。
@@ -154,7 +156,7 @@ PERFORM set_config('sub2api.user_rollup_dirty_' || to_char(p_day, 'YYYYMMDD'), '
 3. **重建脏日期**：取 `bucket_date < closed_before` 的脏日期，按日期升序。每个日期一个事务：先 `DELETE ... WHERE bucket_date = D RETURNING`，认领成功才删旧汇总、重算该天。`bucket_date >= closed_before` 的标记先保留，关闭该天时一并认领。
 4. **对账（集群范围每小时一次）**：比较已发布的最近 3 天的“汇总合计”与“原始合计”（请求数、四类 Token、费用）。不一致时登记脏日期，并打 warn 日志。节奏通过 `usage_user_rollup_state.reconciled_at` 条件更新来抢占，多实例轮换 leader 时也只执行一次。这是 §7.3 残余风险的自愈兜底。
 
-和上游分组汇总的区别：上游的同步事务在整个重建期间持有状态行的 `FOR UPDATE`，网关 INSERT 触发器要拿同一行的 `FOR KEY SHARE`，所以重建期间日志写入会排队；另外保留期清理会把水位拉回最早日期，每 6 小时触发一次全量重建。本方案的触发器不碰状态行，当天写入不加锁；只有写入过去日期时才按天锁标记行（见 §4.1）。保留期清理只把被删的那几天登记为脏，只重建那几天。
+和上游分组汇总的区别：上游的同步事务在整个重建期间持有状态行的 `FOR UPDATE`，网关 INSERT 触发器要拿同一行的 `FOR KEY SHARE`，所以重建期间日志写入会排队；另外保留期清理会把水位拉回最早日期，每 6 小时触发一次全量重建。本方案的触发器不碰状态行，也不锁标记行：当天写入不写标记，过去日期的写入只追加自己的标记（见 §4.1）。保留期清理只把被删的那几天登记为脏，只重建那几天。
 
 首次回填：生产约 90 天，每天一个事务约 0.1–0.3 秒，总计不到 1 分钟，分摊在启动后的前几次运行里。回填期间读路径自动对未发布日期走原始日志，不会退化到比现在更慢。
 
@@ -217,7 +219,7 @@ usage_rows AS (
 
 ### 6.3 开关与回退
 
-新增配置 `organization_usage.rollup.enabled`，默认 `true`。设为 `false` 时 `rollupEnd = start_date`，全部走原始日志，结果与现行为一致。这个开关有两个用途：生产紧急回退，以及测试里的参照实现（§10）。读路径不依赖作业是否在运行：作业落后时，读原始日志的尾段会变长，查询变慢但结果依然正确。
+新增配置 `organization_usage.rollup_enabled`（环境变量 `ORGANIZATION_USAGE_ROLLUP_ENABLED`），默认 `true`。配置只在进程启动时读取，修改后需重启应用进程才生效。设为 `false` 时 `rollupEnd = start_date`，全部走原始日志，结果与现行为一致。这个开关有两个用途：生产紧急回退，以及测试里的参照实现（§10）。读路径不依赖作业是否在运行：作业落后时，读原始日志的尾段会变长，查询变慢但结果依然正确。
 
 ## 7. 正确性论证
 
@@ -239,8 +241,9 @@ usage_rows AS (
 | --- | --- |
 | 迟到行在作业的聚合语句开始前提交 | 被聚合（READ COMMITTED 下每条语句取新快照，认领在聚合之前执行） |
 | 迟到行在聚合语句开始后才提交 | 它的脏标记一起提交并留存；读者对该日改读原始日志；下次运行重建 |
-| 作业认领（删除）标记的同时，有写入要登记同一天 | 写入方的 `ON CONFLICT` 等待作业提交后再插入新标记，标记留存 |
-| 写入方先登记（标记已存在），作业随后认领 | 写入方的 DO UPDATE 持有标记行锁，作业的认领等待写入方提交后再聚合，看到的是提交后的数据（集成测试 `RebuildWaitsForWriterHoldingDirtyMark`） |
+| 作业认领标记时，写入方的标记尚未提交 | 认领只删除已提交的标记，不等待写入方；写入方提交后其标记仍在，该天读原始日志并在下次运行重建（集成测试 `WriterMarkSurvivesConcurrentRebuild`） |
+| 两个事务按相反顺序修改同两天 | 标记互不冲突，不加锁，不会死锁（集成测试 `CrossDayWritersDoNotDeadlock`） |
+| 初始化时并发写入早于 `MIN(created_at)` 的历史日志 | 标记保留，该天在水位之前保持脏并被重建（集成测试 `InitializationKeepsEarlierConcurrentMark`） |
 | 某天最后 10 分钟内写入的当天数据 | 触发器提前登记为脏（宽限窗口），关闭该天时一并认领 |
 | 跨午夜的写入事务 | 作业在午夜后 10 分钟才关闭前一天。漏数需要同时满足：触发器在 23:50 之前执行（因此没登记）、写入事务在 00:10 之后才提交，即事务保持打开超过 20 分钟。网关写入是短事务，不会出现；即便出现，§5 的每小时对账也会检出并重建 |
 
@@ -261,7 +264,7 @@ usage_rows AS (
 | 本月 summary | 5.19s | < 0.5s：读约 2–5 万行汇总，加今天约 3.5 万行走索引 |
 | 本月 trend | 1.77s | < 0.3s |
 | 90 天 / 366 天 | 扫全表，随数据量线性增长 | 只随天数线性增长：366 天约 10–40 万行汇总 |
-| 网关写入 | — | 当天数据：每条 INSERT 语句多一次 transition table 扫描（一般 1 到一个批次的行数），无锁、无写入，预计为微秒级。过去日期：每事务每天一次标记行写入并持锁到提交 |
+| 网关写入 | — | 当天数据：每条 INSERT 语句多一次 transition table 扫描（一般 1 到一个批次的行数），无锁、无写入，预计为微秒级。过去日期：每事务每天插入一行标记，不加锁 |
 | 后台作业 | — | 每天约 0.1–0.3s 关闭一次；脏日期按需重建；每小时对账扫描 2 天数据 |
 
 今天的尾段原始数据走 `created_at` 索引，读取量是当天的日志量，与所选范围长短无关。
@@ -282,7 +285,7 @@ usage_rows AS (
 1. **迁移**：创建三张表和触发器。`CREATE TRIGGER` 会对 `usage_logs` 短暂加 SHARE ROW EXCLUSIVE 锁，建议在低峰执行。
 2. **部署代码**：`enabled` 默认开启，作业从启动开始逐日回填，读路径对已发布的日期自动生效。
 3. **验收**：对所有已发布日期逐日比较汇总与原始合计（SQL 附在实施文档中）；浏览器 Network 复测 summary/trend；对新 SQL 做 `EXPLAIN (ANALYZE, BUFFERS)`。
-4. **回退**：设 `organization_usage.rollup.enabled=false` 即回到原始路径，无需改库。如需彻底移除，新增一个迁移删除触发器和表，不修改 246。
+4. **回退**：设 `organization_usage.rollup_enabled: false`（或环境变量 `ORGANIZATION_USAGE_ROLLUP_ENABLED=false`）并重启应用进程，即回到原始路径，无需改库。如需彻底移除，新增一个迁移删除触发器和表，不修改 246。
 
 ## 10. 测试计划与实现入口
 

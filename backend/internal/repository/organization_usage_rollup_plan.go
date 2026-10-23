@@ -113,10 +113,10 @@ func loadOrganizationUsageRollupState(ctx context.Context, q organizationUsageEx
 	var dirty pq.StringArray
 	err := q.QueryRowContext(ctx, `SELECT s.closed_before::text,
     ARRAY(
-        SELECT d.bucket_date::text
+        SELECT DISTINCT d.bucket_date::text
         FROM usage_user_rollup_dirty_days d
         WHERE d.bucket_date >= $1::date AND d.bucket_date < s.closed_before
-        ORDER BY d.bucket_date
+        ORDER BY 1
     )
 FROM usage_user_rollup_state s
 WHERE s.id = 1`, organizationUsageCalendarDay(startDate).Format(organizationUsageDateLayout)).Scan(&closedBefore, &dirty)
