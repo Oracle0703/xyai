@@ -30,7 +30,7 @@
 
 `token_analysis_user_inputs`: `archive_id` UNIQUE 与 summaries 同键幂等; `content` 为脱敏+截断后的最后一条用户输入全文; `content_sha256` 对**脱敏后未截断**文本计算——跨 agent 轮次/跨截断配置稳定, 且不构成 secret 原文的可验证指纹(拿候选 secret 无法离线比对确认其出现过, codex 审查重要1 的修正); `truncated` 标记防止误判短输入。独立表而非加列到 summaries: 大文本不进聚合热表, 质量字段与输入同生命周期, 后续可独立清理。
 
-Upsert 冲突时只更新内容字段, **不触碰 `quality_*` 四列**——重建索引不会冲掉评估结果; 标准改版重评时按 `quality_version` 区分是哪一版标准打的分。
+Upsert 冲突时更新内容字段, **仅在 `content_sha256` 不变时保留四个质量字段**(`quality_score/quality_findings/quality_version/evaluated_at`); 哈希变化时清空评估, 避免旧评分绑定新正文。标准改版重评时按 `quality_version` 区分是哪一版标准打的分。启用留存、未截断且未降级的请求确认没有用户正文时, 重索引会删除对应旧净输入; 关闭留存、归档截断或解析降级时不删除。
 
 ## 提取与脱敏
 
@@ -96,4 +96,4 @@ Upsert 冲突时只更新内容字段, **不触碰 `quality_*` 四列**——重
 | 提取 | `go test ./internal/service/ -run "TokenAnalysisSummarize\|SanitizeTokenAnalysisInputText"`(原文保留/排版保留/脱敏/截断) |
 | 索引留存 | `go test ./internal/service/ -run "TokenAnalysisIndexer"`(留存内容+哈希+截断; 0=不写; GetUserInput 404) |
 | 前端 | `vitest run`(列表字段/点行懒加载全文)+ `vue-tsc --noEmit` |
-| 端到端 | 触发索引 → user_inputs 出现行 → 页面明细表新列 → 点行抽屉全文; 手工 UPDATE quality_score → 重索引不被冲掉 |
+| 端到端 | 触发索引 → user_inputs 出现行 → 页面明细表新列 → 点行抽屉全文; 手工设置质量字段 → 同哈希重索引保留、换哈希重索引清空; 完整解析确认无正文时删除旧净输入 |

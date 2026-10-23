@@ -242,6 +242,17 @@ func (r *tokenAnalysisRepoStub) UpsertUserInput(ctx context.Context, input *Toke
 	return nil
 }
 
+func (r *tokenAnalysisRepoStub) DeleteUserInput(ctx context.Context, archiveID string) error {
+	kept := r.userInputs[:0]
+	for _, input := range r.userInputs {
+		if input.ArchiveID != archiveID {
+			kept = append(kept, input)
+		}
+	}
+	r.userInputs = kept
+	return nil
+}
+
 func (r *tokenAnalysisRepoStub) GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error) {
 	for i := len(r.userInputs) - 1; i >= 0; i-- {
 		if r.userInputs[i].ArchiveID == archiveID {
@@ -707,4 +718,59 @@ func TestTokenAnalysisServiceGetUserInputNotFound(t *testing.T) {
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
+}
+
+// indexTokenAnalysisTestLine indexes one archive request line through the real
+// indexArchiveLine and returns the stub; fields override the line defaults.
+func indexTokenAnalysisTestLine(t *testing.T, cfg *config.Config, fields map[string]any, seed ...TokenAnalysisUserInput) *tokenAnalysisRepoStub {
+	t.Helper()
+	repo := &tokenAnalysisRepoStub{userInputs: seed}
+	line := map[string]any{"archive_id": "test-line", "event": "request", "timestamp": "2026-10-23T01:02:03Z"}
+	for key, value := range fields {
+		line[key] = value
+	}
+	raw, err := json.Marshal(line)
+	require.NoError(t, err)
+	indexed, _, failed, _, err := NewTokenAnalysisService(repo, cfg, nil).indexArchiveLine(context.Background(), "test.jsonl", int64(len(raw)), raw, false, nil)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, indexed)
+	require.Zero(t, failed)
+	require.Len(t, repo.upserts, 1)
+	return repo
+}
+
+// 回填时请求已确认没有用户正文(只有 tool_result): 旧版本误存的工具输出必须失效;
+// 采集关闭、归档截断或降级解析不能证明"没有正文", 不得误删历史留存。
+func TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty(t *testing.T) {
+	const toolOnlyBody = `{"model":"claude-sonnet-4-5","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"tool output"}]}]}`
+	tests := []struct {
+		name      string
+		maxChars  int
+		truncated bool
+		body      string
+		wantKept  bool
+	}{
+		{"confirmed empty clears stale input", 8000, false, toolOnlyBody, false},
+		{"truncated archive keeps history", 8000, true, toolOnlyBody, true},
+		{"degraded multipart keeps history", 8000, false, "--b\r\n--b--\r\n", true},
+		{"input store disabled keeps history", 0, false, toolOnlyBody, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := indexTokenAnalysisTestLine(t,
+				&config.Config{TokenAnalysis: config.TokenAnalysisConfig{InputStoreMaxChars: tt.maxChars}},
+				map[string]any{"archive_id": "reindex-1", "endpoint": "/v1/messages", "body": tt.body, "body_truncated": tt.truncated},
+				TokenAnalysisUserInput{ArchiveID: "reindex-1", Content: "tool output", ContentSHA256: "stale"},
+			)
+			require.Empty(t, repo.upserts[0].LastUserPreview)
+			got, err := repo.GetUserInput(context.Background(), "reindex-1")
+			require.NoError(t, err)
+			if tt.wantKept {
+				require.NotNil(t, got)
+				require.Equal(t, "tool output", got.Content)
+			} else {
+				require.Nil(t, got)
+			}
+		})
+	}
 }

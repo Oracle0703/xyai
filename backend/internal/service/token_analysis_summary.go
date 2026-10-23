@@ -62,6 +62,7 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 	}
 	summary.ToolsCount += tokenAnalysisToolCount(root)
 	summary.SummaryJSON["shape"] = tokenAnalysisShape(root)
+	setTokenAnalysisRequestOrigin(&summary, classifyTokenAnalysisRequestOrigin(root))
 	finalizeTokenAnalysisBodySummary(endpoint, &summary, maxPreviewChars)
 	return summary, nil
 }
@@ -69,6 +70,8 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 // finalizeTokenAnalysisBodySummary 统一摘要尾部(JSON 与 multipart 两条解析
 // 路径共用): 预览脱敏与 SummaryJSON 计数字段, 保证下游展示字段齐全。
 func finalizeTokenAnalysisBodySummary(endpoint string, summary *TokenAnalysisBodySummary, maxPreviewChars int) {
+	// 走到这里即完整解析(降级摘要不经过 finalize), 净输入为空才可视为确认无正文。
+	summary.InputComplete = true
 	// sanitize 之前 LastUserPreview 即原始全文, 留一份给净输入留存。
 	summary.LastUserText = summary.LastUserPreview
 	summary.LastUserPreview = SanitizeTokenAnalysisPreview(summary.LastUserPreview, maxPreviewChars)
@@ -126,7 +129,9 @@ func SummarizeTokenAnalysisMultipartRequest(endpoint, contentType string, body [
 		}
 	}
 	if len(fields) == 0 && imageParts == 0 {
-		return TokenAnalysisBodySummary{SummaryJSON: map[string]any{"degraded": "multipart_body"}}, true
+		summary := TokenAnalysisBodySummary{SummaryJSON: map[string]any{"degraded": "multipart_body"}}
+		setTokenAnalysisRequestOrigin(&summary, tokenAnalysisOrigin("unsupported_shape"))
+		return summary, true
 	}
 
 	summary := TokenAnalysisBodySummary{
@@ -136,7 +141,7 @@ func SummarizeTokenAnalysisMultipartRequest(endpoint, contentType string, body [
 	prompt := fields["prompt"]
 	summary.MessageCount = 1
 	summary.UserChars = len([]rune(prompt))
-	summary.LastUserPreview = prompt
+	summary.LastUserPreview = tokenAnalysisUserInputText(prompt)
 	// 与 summaryImageRequest 同口径: ImageCount 取请求张数 n, 缺省回退输入图数。
 	summary.ImageCount = tokenAnalysisFormInt(fields["n"])
 	if summary.ImageCount <= 0 {
@@ -148,6 +153,8 @@ func SummarizeTokenAnalysisMultipartRequest(endpoint, contentType string, body [
 	if size := sanitizeTokenAnalysisText(strings.TrimSpace(fields["size"])); size != "" {
 		summary.SummaryJSON["size"] = size
 	}
+	origin, _ := tokenAnalysisOriginFromUserContent(prompt, false)
+	setTokenAnalysisRequestOrigin(&summary, origin)
 	finalizeTokenAnalysisBodySummary(endpoint, &summary, maxPreviewChars)
 	return summary, true
 }
@@ -244,8 +251,8 @@ func summaryMessagesRequest(root map[string]any, summary *TokenAnalysisBodySumma
 			summary.SystemChars += len([]rune(text))
 		case "user":
 			summary.UserChars += len([]rune(text))
-			if strings.TrimSpace(text) != "" {
-				summary.LastUserPreview = text
+			if input := tokenAnalysisUserInputText(content); strings.TrimSpace(input) != "" {
+				summary.LastUserPreview = input
 			}
 		case "tool":
 			bytesLen := int64(0)
@@ -270,7 +277,7 @@ func summaryResponsesRequest(root map[string]any, summary *TokenAnalysisBodySumm
 	if text, ok := input.(string); ok {
 		summary.MessageCount = 1
 		summary.UserChars = len([]rune(text))
-		summary.LastUserPreview = text
+		summary.LastUserPreview = tokenAnalysisUserInputText(text)
 		return
 	}
 	for _, raw := range tokenAnalysisArray(input) {
@@ -294,7 +301,12 @@ func summaryResponsesRequest(root map[string]any, summary *TokenAnalysisBodySumm
 		default:
 			if text != "" {
 				summary.UserChars += len([]rune(text))
-				summary.LastUserPreview = text
+			}
+			if role != "user" {
+				continue
+			}
+			if input := tokenAnalysisUserInputText(item["content"]); strings.TrimSpace(input) != "" {
+				summary.LastUserPreview = input
 			}
 		}
 	}
@@ -317,8 +329,8 @@ func summaryGeminiRequest(root map[string]any, summary *TokenAnalysisBodySummary
 			continue
 		}
 		summary.UserChars += len([]rune(text))
-		if strings.TrimSpace(text) != "" {
-			summary.LastUserPreview = text
+		if input := tokenAnalysisUserInputText(parts); strings.TrimSpace(input) != "" {
+			summary.LastUserPreview = input
 		}
 	}
 }
@@ -328,7 +340,7 @@ func summaryImageRequest(root map[string]any, summary *TokenAnalysisBodySummary)
 	prompt := tokenAnalysisExtractText(root["prompt"])
 	summary.MessageCount = 1
 	summary.UserChars = len([]rune(prompt))
-	summary.LastUserPreview = prompt
+	summary.LastUserPreview = tokenAnalysisUserInputText(prompt)
 	summary.ImageCount = tokenAnalysisNumberAsInt(root["n"])
 	if summary.ImageCount <= 0 {
 		summary.ImageCount = tokenAnalysisImageCount(root["image"])
@@ -340,6 +352,44 @@ func summaryFallbackRequest(root map[string]any, summary *TokenAnalysisBodySumma
 	text := tokenAnalysisExtractText(root)
 	summary.UserChars = len([]rune(text))
 	summary.LastUserPreview = text
+}
+
+// tokenAnalysisUserInputText 取一条用户消息中由用户本人写的文本, 作为预览与
+// 净输入留存的来源: 跳过工具结果(tool_result/functionResponse 等非文本块)和整块
+// 客户端注入包装(<environment_context>/<system-reminder>)。没有用户文本时返回
+// 空串, 调用方保留更早的用户输入, 因此同一 agent 轮次内的请求共享同一净输入。
+// UserChars 仍按原口径累计, 风险规则不受影响。
+func tokenAnalysisUserInputText(content any) string {
+	switch v := content.(type) {
+	case string:
+		if tokenAnalysisInjectedContextOnly(v) {
+			return ""
+		}
+		return v
+	case map[string]any:
+		return tokenAnalysisUserInputText([]any{v})
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, raw := range v {
+			if text, ok := raw.(string); ok {
+				if strings.TrimSpace(text) != "" && !tokenAnalysisInjectedContextOnly(text) {
+					parts = append(parts, text)
+				}
+				continue
+			}
+			block, ok := raw.(map[string]any)
+			if !ok || !tokenAnalysisIsTextBlock(block) {
+				continue
+			}
+			text, _ := block["text"].(string)
+			if strings.TrimSpace(text) == "" || tokenAnalysisInjectedContextOnly(text) {
+				continue
+			}
+			parts = append(parts, text)
+		}
+		return strings.Join(parts, " ")
+	}
+	return ""
 }
 
 func tokenAnalysisExtractText(value any) string {

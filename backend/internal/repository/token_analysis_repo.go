@@ -691,9 +691,10 @@ func (r *tokenAnalysisRepository) UpsertUserInput(ctx context.Context, input *se
 	if input == nil {
 		return nil
 	}
-	// 冲突时只刷新内容字段, quality_* 由评估任务回填, 重建索引不得覆盖。
+	// quality_* 由评估任务回填并绑定内容哈希: 重建索引内容不变时保留, 变了即清空,
+	// 避免旧评分挂到新正文上(SET 中的 t.* 均为更新前的旧行)。
 	_, err := r.db.ExecContext(ctx, `
-INSERT INTO token_analysis_user_inputs (
+INSERT INTO token_analysis_user_inputs AS t (
     archive_id, event_time, user_id, content, content_sha256, chars, truncated
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
@@ -705,6 +706,10 @@ ON CONFLICT (archive_id) DO UPDATE SET
     content_sha256 = EXCLUDED.content_sha256,
     chars = EXCLUDED.chars,
     truncated = EXCLUDED.truncated,
+    quality_score = CASE WHEN t.content_sha256 = EXCLUDED.content_sha256 THEN t.quality_score END,
+    quality_findings = CASE WHEN t.content_sha256 = EXCLUDED.content_sha256 THEN t.quality_findings END,
+    quality_version = CASE WHEN t.content_sha256 = EXCLUDED.content_sha256 THEN t.quality_version ELSE '' END,
+    evaluated_at = CASE WHEN t.content_sha256 = EXCLUDED.content_sha256 THEN t.evaluated_at END,
     updated_at = NOW()`,
 		input.ArchiveID,
 		input.EventTime,
@@ -716,6 +721,16 @@ ON CONFLICT (archive_id) DO UPDATE SET
 	)
 	if err != nil {
 		return fmt.Errorf("upsert token analysis user input: %w", err)
+	}
+	return nil
+}
+
+func (r *tokenAnalysisRepository) DeleteUserInput(ctx context.Context, archiveID string) error {
+	if strings.TrimSpace(archiveID) == "" {
+		return nil
+	}
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM token_analysis_user_inputs WHERE archive_id = $1`, archiveID); err != nil {
+		return fmt.Errorf("delete token analysis user input: %w", err)
 	}
 	return nil
 }

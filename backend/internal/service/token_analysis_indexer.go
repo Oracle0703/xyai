@@ -282,6 +282,11 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 			return 0, 0, 0, archiveID, err
 		}
 	}
+	rawPath := firstNonEmptyTokenAnalysisString(event.Path, event.Endpoint)
+	isCountTokens := tokenAnalysisIsCountTokensPath(rawPath)
+	if origin, ok := tokenAnalysisTransportOrigin(rawPath, isCountTokens, event.BodyTruncated); ok {
+		setTokenAnalysisRequestOrigin(&bodySummary, origin)
+	}
 	if bodySummary.Model == "" {
 		bodySummary.Model = event.Model
 	}
@@ -291,7 +296,6 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	// 项目聚合会把该条计费 token 累加两次。入库 endpoint 还原 /count_tokens
 	// 后缀 -- 归一化会把它折叠成 /v1/messages, 否则库内无法与真实请求区分。
 	endpoint := firstNonEmptyTokenAnalysisString(event.Endpoint, event.Path)
-	isCountTokens := tokenAnalysisIsCountTokensPath(firstNonEmptyTokenAnalysisString(event.Path, event.Endpoint))
 	if isCountTokens && !strings.HasSuffix(strings.TrimRight(endpoint, "/"), "/count_tokens") {
 		endpoint = strings.TrimRight(endpoint, "/") + "/count_tokens"
 	}
@@ -368,25 +372,38 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	}
 	// 净输入留存: 原始 JSONL 按保留期删除后, 全文仍可供"输入是否符合标准"类
 	// 分析回溯; 质量字段由后续评估任务回填, 这里只存原料。
-	if maxChars := tokenAnalysisInputStoreMaxChars(s.cfg); maxChars > 0 && strings.TrimSpace(bodySummary.LastUserText) != "" {
-		// sha256 对"脱敏后未截断"文本计算: 同一人类输入跨 agent 轮次/跨截断配置
-		// 稳定, 且不构成 secret 原文的可验证指纹(不可拿候选 secret 离线比对)。
-		redacted := RedactTokenAnalysisInputText(bodySummary.LastUserText)
-		redactedSum := sha256.Sum256([]byte(redacted))
-		content, truncated := truncateTokenAnalysisRunes(redacted, maxChars)
-		if err := s.repo.UpsertUserInput(ctx, &TokenAnalysisUserInput{
-			ArchiveID:     event.ArchiveID,
-			EventTime:     eventTime,
-			UserID:        event.UserID,
-			Content:       content,
-			ContentSHA256: hex.EncodeToString(redactedSum[:]),
-			Chars:         len([]rune(content)),
-			Truncated:     truncated,
-		}); err != nil {
+	if maxChars := tokenAnalysisInputStoreMaxChars(s.cfg); maxChars > 0 {
+		if err := s.storeTokenAnalysisUserInput(ctx, event, eventTime, bodySummary, maxChars); err != nil {
 			return 0, 0, 0, archiveID, err
 		}
 	}
 	return 1, 0, 0, archiveID, nil
+}
+
+func (s *TokenAnalysisService) storeTokenAnalysisUserInput(ctx context.Context, event tokenAnalysisArchiveEvent, eventTime time.Time, bodySummary TokenAnalysisBodySummary, maxChars int) error {
+	if strings.TrimSpace(bodySummary.LastUserText) == "" {
+		// 完整解析且确认没有用户正文: 重新索引时清掉旧版本误提取的留存(如只有
+		// tool_result 的请求曾把工具输出存成净输入)。截断或降级解析不能证明
+		// "没有正文", 不动历史数据。
+		if event.BodyTruncated || !bodySummary.InputComplete {
+			return nil
+		}
+		return s.repo.DeleteUserInput(ctx, event.ArchiveID)
+	}
+	// sha256 对"脱敏后未截断"文本计算: 同一人类输入跨 agent 轮次/跨截断配置
+	// 稳定, 且不构成 secret 原文的可验证指纹(不可拿候选 secret 离线比对)。
+	redacted := RedactTokenAnalysisInputText(bodySummary.LastUserText)
+	redactedSum := sha256.Sum256([]byte(redacted))
+	content, truncated := truncateTokenAnalysisRunes(redacted, maxChars)
+	return s.repo.UpsertUserInput(ctx, &TokenAnalysisUserInput{
+		ArchiveID:     event.ArchiveID,
+		EventTime:     eventTime,
+		UserID:        event.UserID,
+		Content:       content,
+		ContentSHA256: hex.EncodeToString(redactedSum[:]),
+		Chars:         len([]rune(content)),
+		Truncated:     truncated,
+	})
 }
 
 func tokenAnalysisInputStoreMaxChars(cfg *config.Config) int {

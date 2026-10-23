@@ -228,3 +228,37 @@ func TestSanitizeTokenAnalysisInputTextPreservesFormatting(t *testing.T) {
 	require.True(t, shortTruncated)
 	require.Equal(t, "abc", short)
 }
+
+// 预览/净输入只取用户本人写的文本: 工具结果、注入包装、assistant 文本都不覆盖它,
+// 同一 agent 轮次内的工具续执行请求共享发起该轮的用户输入。
+func TestTokenAnalysisSummarizePreviewUsesUserAuthoredText(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		body     string
+	}{
+		{"responses trailing assistant", "/v1/responses", `{"input":[{"role":"user","content":[{"type":"input_text","text":"fix the login bug"}]},{"role":"assistant","content":[{"type":"output_text","text":"I will read the file"}]}]}`},
+		{"responses codex tool loop", "/v1/responses", `{"input":[{"role":"user","content":[{"type":"input_text","text":"<environment_context><cwd>/w</cwd></environment_context>"}]},{"role":"user","content":[{"type":"input_text","text":"fix the login bug"}]},{"type":"function_call","name":"shell","arguments":"{}"},{"type":"function_call_output","output":"tool output"},{"type":"agent_message","content":"child said hi"}]}`},
+		{"claude tool loop", "/v1/messages", `{"messages":[{"role":"user","content":[{"type":"text","text":"<system-reminder>ctx</system-reminder>"},{"type":"text","text":"fix the login bug"}]},{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"tool output"},{"type":"text","text":"<system-reminder>file changed</system-reminder>"}]}]}`},
+		{"claude reminder-only message after assistant", "/v1/messages", `{"messages":[{"role":"user","content":[{"type":"text","text":"<system-reminder>ctx</system-reminder>"},{"type":"text","text":"fix the login bug"}]},{"role":"assistant","content":[{"type":"text","text":"done"}]},{"role":"user","content":[{"type":"text","text":"<system-reminder>background notice</system-reminder>"}]}]}`},
+		{"chat reminder string after prompt", "/v1/chat/completions", `{"messages":[{"role":"user","content":"fix the login bug"},{"role":"assistant","content":"ok"},{"role":"user","content":"<system-reminder>nudge</system-reminder>"}]}`},
+		{"gemini function response", "/v1beta/models/gemini-2.5-pro:generateContent", `{"contents":[{"role":"user","parts":[{"text":"fix the login bug"}]},{"role":"model","parts":[{"functionCall":{"name":"read"}}]},{"role":"user","parts":[{"functionResponse":{"name":"read","response":{"text":"tool output"}}}]}]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SummarizeTokenAnalysisRequest(tt.endpoint, []byte(tt.body), 300)
+			require.NoError(t, err)
+			require.Equal(t, "fix the login bug", got.LastUserPreview)
+			require.Equal(t, "fix the login bug", got.LastUserText)
+		})
+	}
+}
+
+func TestTokenAnalysisSummarizeUserCharsStillCountsToolResults(t *testing.T) {
+	// oversized_system_prompt 依赖 UserChars, 预览口径修正不改变它的累计方式。
+	body := []byte(`{"messages":[{"role":"user","content":"hi"},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"0123456789"}]}]}`)
+	got, err := SummarizeTokenAnalysisRequest("/v1/messages", body, 300)
+	require.NoError(t, err)
+	require.Equal(t, "hi", got.LastUserPreview)
+	require.Equal(t, len("hi")+len("0123456789"), got.UserChars)
+}

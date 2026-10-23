@@ -69,7 +69,10 @@ type TokenAnalysisBodySummary struct {
 	LastUserPreview string `json:"last_user_preview"`
 	// LastUserText 是最后一条用户输入的原始全文(未脱敏未截断),
 	// 仅供索引器经 SanitizeTokenAnalysisInputText 处理后留存, 不直接外发。
-	LastUserText       string         `json:"-"`
+	LastUserText string `json:"-"`
+	// InputComplete 表示 body 被完整解析(非降级摘要); 只有此时 LastUserText 为空
+	// 才能确认请求没有用户正文。
+	InputComplete      bool           `json:"-"`
 	ToolsCount         int            `json:"tools_count"`
 	ImageCount         int            `json:"image_count"`
 	ToolMessageCount   int            `json:"tool_message_count"`
@@ -311,8 +314,10 @@ type TokenAnalysisRepository interface {
 	LoadProjectRoots(ctx context.Context) (map[string]string, error)
 	// UpsertProjectRoots 批量学习仓库根, 已存在时仅刷新 last_seen。
 	UpsertProjectRoots(ctx context.Context, roots map[string]string) error
-	// UpsertUserInput 留存用户净输入全文; 冲突时只更新内容字段, 不触碰 quality_*。
+	// UpsertUserInput 留存用户净输入全文; quality_* 仅在 content_sha256 不变时保留。
 	UpsertUserInput(ctx context.Context, input *TokenAnalysisUserInput) error
+	// DeleteUserInput 删除单条净输入(重新索引确认请求没有用户正文时)。
+	DeleteUserInput(ctx context.Context, archiveID string) error
 	// GetUserInput 按 archive_id 取单条净输入(无记录返回 nil, nil)。
 	GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error)
 }

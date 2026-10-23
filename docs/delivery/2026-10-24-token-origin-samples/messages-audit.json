@@ -1,0 +1,488 @@
+{
+  "collected_at_utc": "2026-10-23T18:46:47.643601+00:00",
+  "source_file": "/opt/sub2api/backend/data/request-archive/2026-10-23.jsonl",
+  "source_before": {
+    "size_bytes": 132582213280,
+    "mtime_ns": 1792771196085397094,
+    "inode": 1062370
+  },
+  "source_after": {
+    "size_bytes": 132582213280,
+    "mtime_ns": 1792771196085397094,
+    "inode": 1062370
+  },
+  "source_stat_unchanged": true,
+  "max_io_bytes": 1073741824,
+  "max_seconds": 45,
+  "read_bytes": 1073741824,
+  "duration_seconds": 4.352,
+  "counts": {
+    "complete_lines_read": 1246,
+    "messages_requests": 11,
+    "claude_cli_requests": 11,
+    "tool_without_pure_reminder": 10,
+    "window_ended_on_incomplete_read": 16,
+    "user_without_tool_or_pure_reminder": 1,
+    "duplicate_line_skipped": 20
+  },
+  "windows": [
+    {
+      "index": 0,
+      "anchor": 107745012942,
+      "known_line_boundary": true,
+      "alignment_read_bytes": 0,
+      "start": 107745012942,
+      "end": 107812121806
+    },
+    {
+      "index": 1,
+      "anchor": 124298870556,
+      "known_line_boundary": true,
+      "alignment_read_bytes": 0,
+      "start": 124298870556,
+      "end": 124365979420
+    },
+    {
+      "index": 2,
+      "anchor": 0,
+      "known_line_boundary": true,
+      "alignment_read_bytes": 0,
+      "start": 0,
+      "end": 67108864
+    },
+    {
+      "index": 3,
+      "anchor": 8286388330,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 7162120,
+      "start": 8293550450,
+      "end": 8360659314
+    },
+    {
+      "index": 4,
+      "anchor": 16572776660,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 690304,
+      "start": 16573466964,
+      "end": 16640575828
+    },
+    {
+      "index": 5,
+      "anchor": 24859164990,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 1627744,
+      "start": 24860792734,
+      "end": 24927901598
+    },
+    {
+      "index": 6,
+      "anchor": 33145553320,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 7768636,
+      "start": 33153321956,
+      "end": 33220430820
+    },
+    {
+      "index": 7,
+      "anchor": 41431941650,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 17707158,
+      "start": 41449648808,
+      "end": 41516757672
+    },
+    {
+      "index": 8,
+      "anchor": 49718329980,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 6458366,
+      "start": 49724788346,
+      "end": 49791897210
+    },
+    {
+      "index": 9,
+      "anchor": 58004718310,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 942339,
+      "start": 58005660649,
+      "end": 58072769513
+    },
+    {
+      "index": 10,
+      "anchor": 66291106640,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 343494,
+      "start": 66291450134,
+      "end": 66358558998
+    },
+    {
+      "index": 11,
+      "anchor": 74577494970,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 18441277,
+      "start": 74595936247,
+      "end": 74663045111
+    },
+    {
+      "index": 12,
+      "anchor": 82863883300,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 348713,
+      "start": 82864232013,
+      "end": 82893977444
+    },
+    {
+      "index": 13,
+      "anchor": 91150271630,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 1412948,
+      "start": 91151684578,
+      "end": 91218793442
+    },
+    {
+      "index": 14,
+      "anchor": 99436659960,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 3442056,
+      "start": 99440102016,
+      "end": 99507210880
+    },
+    {
+      "index": 15,
+      "anchor": 107723048290,
+      "known_line_boundary": false,
+      "alignment_read_bytes": 1548,
+      "start": 107723049838,
+      "end": 107761175432
+    }
+  ],
+  "examples": {
+    "tool_without_pure_reminder": [
+      {
+        "offset": 107745012942,
+        "line_bytes_including_lf": 3592342,
+        "line_sha256_including_lf": "f661db915edde612604dcd1d9de8c692a74afe2cbaf36cacd89ac0e78fc3d2d4",
+        "archive_id": "f439f7f4661691c749c2d29b2018625c",
+        "timestamp_utc": "2026-10-23T10:11:33.78357214Z",
+        "path": "/v1/messages",
+        "window": 0,
+        "claude_cli_user_agent": true,
+        "body_truncated": false,
+        "message_count": 856,
+        "effective_tail_index": 854,
+        "tail": [
+          {
+            "index": 852,
+            "role": "system",
+            "type": null,
+            "content": {
+              "chars": 176,
+              "nonblank": true,
+              "pure_wrappers": null
+            }
+          },
+          {
+            "index": 853,
+            "role": "assistant",
+            "type": null,
+            "blocks": [
+              {
+                "type": "thinking"
+              },
+              {
+                "type": "text",
+                "chars": 44,
+                "nonblank": true,
+                "pure_wrappers": null
+              },
+              {
+                "type": "tool_use"
+              }
+            ]
+          },
+          {
+            "index": 854,
+            "role": "user",
+            "type": null,
+            "blocks": [
+              {
+                "type": "tool_result"
+              }
+            ]
+          },
+          {
+            "index": 855,
+            "role": "system",
+            "type": null,
+            "blocks": [
+              {
+                "type": "text",
+                "chars": 176,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "offset": 107794977200,
+        "line_bytes_including_lf": 3595490,
+        "line_sha256_including_lf": "2fb4d14dfc1911ef2f4dc189590fe02ed989d4322c498d232edea6b93e6a3776",
+        "archive_id": "9e692b2d6556bfdc789cdc6b4e8a801e",
+        "timestamp_utc": "2026-10-23T10:12:03.881229796Z",
+        "path": "/v1/messages",
+        "window": 0,
+        "claude_cli_user_agent": true,
+        "body_truncated": false,
+        "message_count": 859,
+        "effective_tail_index": 857,
+        "tail": [
+          {
+            "index": 855,
+            "role": "system",
+            "type": null,
+            "content": {
+              "chars": 176,
+              "nonblank": true,
+              "pure_wrappers": null
+            }
+          },
+          {
+            "index": 856,
+            "role": "assistant",
+            "type": null,
+            "blocks": [
+              {
+                "type": "thinking"
+              },
+              {
+                "type": "text",
+                "chars": 44,
+                "nonblank": true,
+                "pure_wrappers": null
+              },
+              {
+                "type": "tool_use"
+              }
+            ]
+          },
+          {
+            "index": 857,
+            "role": "user",
+            "type": null,
+            "blocks": [
+              {
+                "type": "tool_result"
+              }
+            ]
+          },
+          {
+            "index": 858,
+            "role": "system",
+            "type": null,
+            "blocks": [
+              {
+                "type": "text",
+                "chars": 176,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "offset": 124298870556,
+        "line_bytes_including_lf": 1405074,
+        "line_sha256_including_lf": "e894d95bdc829cb379a8e24930e07c4f86de9808d5bb24840a1c064f07845bd8",
+        "archive_id": "31fee1a33681b8cafea8bd797e790966",
+        "timestamp_utc": "2026-10-23T13:16:12.319042025Z",
+        "path": "/v1/messages",
+        "window": 1,
+        "claude_cli_user_agent": true,
+        "body_truncated": false,
+        "message_count": 392,
+        "effective_tail_index": 390,
+        "tail": [
+          {
+            "index": 388,
+            "role": "system",
+            "type": null,
+            "content": {
+              "chars": 176,
+              "nonblank": true,
+              "pure_wrappers": null
+            }
+          },
+          {
+            "index": 389,
+            "role": "assistant",
+            "type": null,
+            "blocks": [
+              {
+                "type": "thinking"
+              },
+              {
+                "type": "thinking"
+              },
+              {
+                "type": "tool_use"
+              }
+            ]
+          },
+          {
+            "index": 390,
+            "role": "user",
+            "type": null,
+            "blocks": [
+              {
+                "type": "tool_result"
+              }
+            ]
+          },
+          {
+            "index": 391,
+            "role": "system",
+            "type": null,
+            "blocks": [
+              {
+                "type": "text",
+                "chars": 176,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "offset": 124300277546,
+        "line_bytes_including_lf": 1409222,
+        "line_sha256_including_lf": "c08efd7d5e56453c607fb8f0ecdfcf6d3cedd10ea281ce3fb3d62514912b96f2",
+        "archive_id": "a6ef6631809d3dee1ea19afc01e87b19",
+        "timestamp_utc": "2026-10-23T13:16:18.221376236Z",
+        "path": "/v1/messages",
+        "window": 1,
+        "claude_cli_user_agent": true,
+        "body_truncated": false,
+        "message_count": 395,
+        "effective_tail_index": 393,
+        "tail": [
+          {
+            "index": 391,
+            "role": "system",
+            "type": null,
+            "content": {
+              "chars": 176,
+              "nonblank": true,
+              "pure_wrappers": null
+            }
+          },
+          {
+            "index": 392,
+            "role": "assistant",
+            "type": null,
+            "blocks": [
+              {
+                "type": "tool_use"
+              }
+            ]
+          },
+          {
+            "index": 393,
+            "role": "user",
+            "type": null,
+            "blocks": [
+              {
+                "type": "tool_result"
+              }
+            ]
+          },
+          {
+            "index": 394,
+            "role": "system",
+            "type": null,
+            "blocks": [
+              {
+                "type": "text",
+                "chars": 176,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "user_without_tool_or_pure_reminder": [
+      {
+        "offset": 8334277225,
+        "line_bytes_including_lf": 1605932,
+        "line_sha256_including_lf": "4b295e51d1434e7536f8a107cbe5ed2efa9208680bcdb233853c2aadb292080c",
+        "archive_id": "3ce5a5f0341ff781500257deafe4c764",
+        "timestamp_utc": "2026-10-23T01:38:25.631203736Z",
+        "path": "/v1/messages",
+        "window": 3,
+        "claude_cli_user_agent": true,
+        "body_truncated": false,
+        "message_count": 532,
+        "effective_tail_index": 530,
+        "tail": [
+          {
+            "index": 528,
+            "role": "system",
+            "type": null,
+            "content": {
+              "chars": 1051,
+              "nonblank": true,
+              "pure_wrappers": null
+            }
+          },
+          {
+            "index": 529,
+            "role": "assistant",
+            "type": null,
+            "blocks": [
+              {
+                "type": "thinking"
+              },
+              {
+                "type": "text",
+                "chars": 1629,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          },
+          {
+            "index": 530,
+            "role": "user",
+            "type": null,
+            "blocks": [
+              {
+                "type": "text",
+                "chars": 12,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          },
+          {
+            "index": 531,
+            "role": "system",
+            "type": null,
+            "blocks": [
+              {
+                "type": "text",
+                "chars": 176,
+                "nonblank": true,
+                "pure_wrappers": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scope": "Targeted bounded sample. Structure only, not the Go classifier output or ground truth. Other_text is independent of complete wrappers, not proof of human authorship."
+}

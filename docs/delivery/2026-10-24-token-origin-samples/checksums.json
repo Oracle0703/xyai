@@ -1,0 +1,8 @@
+{
+  "algorithm": "SHA-256",
+  "files": {
+    "sample_archive.py": "71ba8a1cc646fa74d655c97a8545b63ecc3e910dc6c6d31cee6ea1d9009e42e6",
+    "samples.json": "86ee712395770a0f450cac4fc9b8bf13e12a39e0af4dcb1977ec9d62ffb31d45",
+    "review-cases.json": "5654c3ddfc0d52f90737a6deedac952c13d3e06bc7f4c23012176a52345e5e04"
+  }
+}

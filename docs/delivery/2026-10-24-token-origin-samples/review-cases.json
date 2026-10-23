@@ -1,0 +1,2540 @@
+{
+  "notice": "Source-derived structural excerpts. Assessments are review notes, not human ground truth or executed current Go classifier results.",
+  "cases": [
+    {
+      "sample": 1,
+      "window": 0,
+      "offset": 0,
+      "line_bytes_including_lf": 488477,
+      "line_sha256_including_lf": "a9dfa5abca17866c91f707cc192ded70a830a1bda51ec08552f4f63dd5a78a79",
+      "archive_id": "cda9893b8b7b77a956c9d95e91bc8c76",
+      "timestamp_utc": "2026-10-22T16:00:00.640237089Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": "collab_spawn",
+        "request_kind": "turn",
+        "turn_trigger": "composer",
+        "thread_source": "subagent",
+        "subagent_kind": "thread_spawn"
+      },
+      "input_container": "input",
+      "item_count": 42,
+      "tail": [
+        {
+          "index": 36,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 37,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 38,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 39,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 40,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 41,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        }
+      ],
+      "terminal_signature": "/v1/responses /  / custom_tool_call_output / ",
+      "review_assessment": "AI evidence",
+      "review_note": "Subagent marker plus custom tool output; composer does not make it human."
+    },
+    {
+      "sample": 2,
+      "window": 0,
+      "offset": 488477,
+      "line_bytes_including_lf": 477759,
+      "line_sha256_including_lf": "c4923778cdd083cc27096a07e6625971a5815ef3840d3258cd38a332f016a963",
+      "archive_id": "9e0baaffb4ee6902c17a1b67767510fd",
+      "timestamp_utc": "2026-10-22T16:00:10.580990685Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "goal",
+        "thread_source": "user",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 478,
+      "tail": [
+        {
+          "index": 472,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 473,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 474,
+          "role": "assistant",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "output_text",
+              "text": {
+                "chars": 30,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 475,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 476,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 477,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 309,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "environment_context"
+                ],
+                "environment_only": true,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user / message / input_text",
+      "review_assessment": "AI evidence",
+      "review_note": "Goal trigger; final user message is environment-only after a tool output."
+    },
+    {
+      "sample": 5,
+      "window": 0,
+      "offset": 2264277,
+      "line_bytes_including_lf": 408557,
+      "line_sha256_including_lf": "dc793e5b8bf1d00d810fdb164a9290534e8593fd9182510e67890babd191a5e6",
+      "archive_id": "939bd412031f0cfe7917dee1c2b57a95",
+      "timestamp_utc": "2026-10-22T16:00:30.69900468Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "composer",
+        "thread_source": "user",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 60,
+      "tail": [
+        {
+          "index": 54,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 55,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 56,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 57,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 58,
+          "role": null,
+          "type": "agent_message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 78,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "known_prefix": "agent_message_envelope"
+              }
+            },
+            {
+              "type": "encrypted_content"
+            }
+          ]
+        },
+        {
+          "index": 59,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 850,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "environment_context"
+                ],
+                "environment_only": true,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user / message / input_text",
+      "review_assessment": "AI evidence",
+      "review_note": "Composer trigger, but the last user message is environment-only after an agent_message."
+    },
+    {
+      "sample": 9,
+      "window": 0,
+      "offset": 4608281,
+      "line_bytes_including_lf": 129463,
+      "line_sha256_including_lf": "f5218e4a737804b363b5799fc0a38c3fce7b33fdbb2e5c98ab1a47be288da7ea",
+      "archive_id": "8cc183ddb7366517b916ff2223a4d719",
+      "timestamp_utc": "2026-10-22T16:00:50.699628161Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "automation_cron_scheduled",
+        "thread_source": "automation",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 7,
+      "tail": [
+        {
+          "index": 1,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 17730,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 8842,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 11790,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 362,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1014,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 232,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 2235,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 271,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 5643,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 637,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "environment_context"
+                ],
+                "environment_only": true,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1827,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user / message / input_text",
+      "review_assessment": "AI evidence",
+      "review_note": "Ordinary user message belongs to a declared scheduled automation."
+    },
+    {
+      "sample": 15,
+      "window": 0,
+      "offset": 23943546,
+      "line_bytes_including_lf": 420364,
+      "line_sha256_including_lf": "efd9006ec73380c8892594d7be6084aff9656d6f7b7102e6c26c4e8314c1174b",
+      "archive_id": "aeecf48653654aa1eafd8b3648203369",
+      "timestamp_utc": "2026-10-22T16:01:01.043105522Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "composer",
+        "thread_source": "user",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 65,
+      "tail": [
+        {
+          "index": 59,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 850,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "environment_context"
+                ],
+                "environment_only": true,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 60,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 61,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 62,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 63,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 64,
+          "role": null,
+          "type": "agent_message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 78,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "known_prefix": "agent_message_envelope"
+              }
+            },
+            {
+              "type": "encrypted_content"
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses /  / agent_message / input_text,encrypted_content",
+      "review_assessment": "AI evidence",
+      "review_note": "agent_message is explicit even though the containing thread source is user."
+    },
+    {
+      "sample": 23,
+      "window": 1,
+      "offset": 8296888915,
+      "line_bytes_including_lf": 232070,
+      "line_sha256_including_lf": "f74a14227ddda43e705726734f1dac07768af1da750da909d867e6e7f0c5e599",
+      "archive_id": "c4fb37f5d07815c985befea4ce3cecd1",
+      "timestamp_utc": "2026-10-23T01:38:06.325216986Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "composer",
+        "thread_source": "user",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 19,
+      "tail": [
+        {
+          "index": 13,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 14,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 22,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 16,
+          "role": "assistant",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "output_text",
+              "text": {
+                "chars": 65,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 17,
+          "role": null,
+          "type": "function_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 18,
+          "role": null,
+          "type": "function_call_output",
+          "content_value_type": "NoneType"
+        }
+      ],
+      "terminal_signature": "/v1/responses /  / function_call_output / ",
+      "review_assessment": "AI evidence",
+      "review_note": "composer and thread_source=user coexist with function_call_output."
+    },
+    {
+      "sample": 32,
+      "window": 1,
+      "offset": 8305117097,
+      "line_bytes_including_lf": 402630,
+      "line_sha256_including_lf": "0530e5701b55fdfc17eb76d0bd3f9c3ba4ebdd22a957a4b2926dd7ffdcc6da62",
+      "archive_id": "c13dd55659d7ceaa103c0eaa486ecd35",
+      "timestamp_utc": "2026-10-23T01:38:12.654118778Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": "guardian",
+        "request_kind": "turn",
+        "turn_trigger": "guardian_review",
+        "thread_source": "guardian_review",
+        "subagent_kind": "guardian"
+      },
+      "input_container": "input",
+      "item_count": 47,
+      "tail": [
+        {
+          "index": 41,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 42,
+          "role": "assistant",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "output_text",
+              "text": {
+                "chars": 19,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "json_known_keys": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 43,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 273,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "known_prefix": "guardian_history_delta"
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 366,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "known_prefix": "retained_instructions"
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 142,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 147,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 164,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 36,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 27,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 3052,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 384,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 3958,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 143,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 2741,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 25,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 64,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 42,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 95,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 39,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 57,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 27,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 91,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 21,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 322,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "json_known_keys": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 25,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 44,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 45,
+          "role": "assistant",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "output_text",
+              "text": {
+                "chars": 19,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "json_known_keys": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 46,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 273,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "known_prefix": "guardian_history_delta"
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 27,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 435,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1320,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 25,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 64,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 42,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 95,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 39,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 57,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 27,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 91,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 21,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 591,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "json_known_keys": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 25,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user / message / input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text",
+      "review_assessment": "AI evidence",
+      "review_note": "guardian/guardian_review sends input_text with role=user."
+    },
+    {
+      "sample": 153,
+      "window": 9,
+      "offset": 74598984812,
+      "line_bytes_including_lf": 1060991,
+      "line_sha256_including_lf": "25e5a49c5089eb2d7a21f9d9a271c9945f9f91de074e0ba9fefa34cf788af68a",
+      "archive_id": "651d50832cdc1152ae2dc1edf5e20243",
+      "timestamp_utc": "2026-10-23T07:29:29.052979743Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "composer",
+        "thread_source": "user",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 149,
+      "tail": [
+        {
+          "index": 143,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 144,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 145,
+          "role": null,
+          "type": "reasoning",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 146,
+          "role": null,
+          "type": "custom_tool_call",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 147,
+          "role": null,
+          "type": "custom_tool_call_output",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 148,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 133,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "image_resize_notice"
+                ],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / developer / message / input_text",
+      "review_assessment": "AI evidence",
+      "review_note": "Developer image-resize notice follows a custom tool output; inspect the preceding event."
+    },
+    {
+      "sample": 175,
+      "window": 11,
+      "offset": 91151684578,
+      "line_bytes_including_lf": 2880,
+      "line_sha256_including_lf": "8351d6c63409fba6f4421c6b1770aa6aace402bd716271f0797d716e9ee970cc",
+      "archive_id": "021e7c3b5d4d5d2518fa2997ead96dd2",
+      "timestamp_utc": "2026-10-23T08:48:42.735663558Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "dict",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": null,
+        "turn_trigger": null,
+        "thread_source": null,
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "input_string": {
+        "chars": 126,
+        "nonblank": true,
+        "text_omitted": true,
+        "known_tags": [],
+        "environment_only": false,
+        "system_reminder_only": false,
+        "user_request_chars": [],
+        "known_prefix": "translation_template"
+      },
+      "item_count": 1,
+      "tail": [
+        {
+          "index": 0,
+          "role": "user",
+          "type": null,
+          "content": {
+            "chars": 126,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": [],
+            "known_prefix": "translation_template"
+          }
+        }
+      ],
+      "terminal_signature": "/v1/responses / user /  / string",
+      "review_assessment": "Inference only",
+      "review_note": "Translation-template user prompt has no automation metadata; physical human origin is unproven."
+    },
+    {
+      "sample": 184,
+      "window": 11,
+      "offset": 91156051244,
+      "line_bytes_including_lf": 179629,
+      "line_sha256_including_lf": "bfd0c587df0b1d6cdde0fe470dcd0c70a180f4886692a611b38b688b75318cdc",
+      "archive_id": "d701a82c45e04237123cc750c871fd75",
+      "timestamp_utc": "2026-10-23T08:48:46.530584939Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": "guardian",
+        "request_kind": null,
+        "turn_trigger": "guardian_classifier",
+        "thread_source": "guardian_classifier",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 5,
+      "tail": [
+        {
+          "index": 0,
+          "role": "developer",
+          "type": "additional_tools",
+          "content_value_type": "NoneType"
+        },
+        {
+          "index": 1,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 12057,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 21,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 373,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 93,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1079,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 4024,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 450,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1219,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 377,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1161,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 541,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1515,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 376,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 4024,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 376,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 4024,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 603,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 3085,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 368,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1083,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 1444,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 2048,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 518,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 437,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 483,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 437,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 359,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 126,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 145,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 70,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 20,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 42,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 95,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 39,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 433,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 366,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "known_prefix": "retained_instructions"
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 147,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 115,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 166,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 36,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 52,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 27,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 21,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 89,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "json_known_keys": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 25,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_image"
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user / message / input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_text,input_image",
+      "review_assessment": "AI evidence",
+      "review_note": "guardian_classifier sends user text plus an image; image presence does not imply human."
+    },
+    {
+      "sample": 193,
+      "window": 11,
+      "offset": 91169004481,
+      "line_bytes_including_lf": 9681,
+      "line_sha256_including_lf": "0f0f9290e5a71c74619934a2f9b2844288d2ffbb3303f7f3c5832e07815d2649",
+      "archive_id": "ed96e18ebf86058c48a8f15bc142bd98",
+      "timestamp_utc": "2026-10-23T08:48:52.624441004Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "dict",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": null,
+        "turn_trigger": null,
+        "thread_source": null,
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 1,
+      "tail": [
+        {
+          "index": 0,
+          "role": "user",
+          "type": null,
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 705,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": [],
+                "json_known_keys": [
+                  "stage",
+                  "goal",
+                  "package",
+                  "page",
+                  "sensitive",
+                  "width",
+                  "height",
+                  "orientation",
+                  "captured_at"
+                ],
+                "json_stage": "preflight",
+                "synthetic_preflight_goal": true
+              }
+            },
+            {
+              "type": "input_image"
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user /  / input_text,input_image",
+      "review_assessment": "Important ambiguity",
+      "review_note": "User JSON plus image has stage=preflight and a synthetic-preflight goal, but no automation metadata. A user-input rule cannot distinguish automation from manual submission."
+    },
+    {
+      "sample": 210,
+      "window": 12,
+      "offset": 99471474288,
+      "line_bytes_including_lf": 300107,
+      "line_sha256_including_lf": "98519bbefc351883f81b9e62cce7fefaec251b5fc64abf9bd9cedcb9372c3a4b",
+      "archive_id": "a18852e6ba37ab5b5a5083cfe03a5009",
+      "timestamp_utc": "2026-10-23T09:23:34.861421711Z",
+      "endpoint": "/v1/chat/completions",
+      "path": "/v1/chat/completions",
+      "body_truncated": false,
+      "turn_metadata_encoding": "dict",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": null,
+        "turn_trigger": null,
+        "thread_source": null,
+        "subagent_kind": null
+      },
+      "input_container": "messages",
+      "item_count": 94,
+      "tail": [
+        {
+          "index": 88,
+          "role": "tool",
+          "type": null,
+          "content": {
+            "chars": 420,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 89,
+          "role": "assistant",
+          "type": null,
+          "content": {
+            "chars": 0,
+            "nonblank": false,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 90,
+          "role": "tool",
+          "type": null,
+          "content": {
+            "chars": 248,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 91,
+          "role": "tool",
+          "type": null,
+          "content": {
+            "chars": 108,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 92,
+          "role": "assistant",
+          "type": null,
+          "content": {
+            "chars": 185,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 93,
+          "role": "user",
+          "type": null,
+          "content": {
+            "chars": 4133,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [
+              "userRequest",
+              "attachments",
+              "context",
+              "editorContext",
+              "reminderInstructions"
+            ],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": [
+              114
+            ]
+          }
+        }
+      ],
+      "terminal_signature": "/v1/chat/completions / user /  / string",
+      "review_assessment": "Human-input structure only",
+      "review_note": "New user message follows tool and assistant; userRequest contains 114 characters."
+    },
+    {
+      "sample": 219,
+      "window": 13,
+      "offset": 107727454269,
+      "line_bytes_including_lf": 800344,
+      "line_sha256_including_lf": "82b210ccb19870a1db5ed439aace993b90280b82342a2681507e283ae9de0590",
+      "archive_id": "2bbb0e16f05edac034f0eeb3f3e1d59f",
+      "timestamp_utc": "2026-10-23T10:11:29.248328199Z",
+      "endpoint": "/v1/chat/completions",
+      "path": "/v1/chat/completions",
+      "body_truncated": false,
+      "turn_metadata_encoding": "dict",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": null,
+        "turn_trigger": null,
+        "thread_source": null,
+        "subagent_kind": null
+      },
+      "input_container": "messages",
+      "item_count": 120,
+      "tail": [
+        {
+          "index": 114,
+          "role": "tool",
+          "type": null,
+          "content": {
+            "chars": 1985,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 115,
+          "role": "tool",
+          "type": null,
+          "content": {
+            "chars": 119,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 116,
+          "role": "assistant",
+          "type": null,
+          "content": {
+            "chars": 1491,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 117,
+          "role": "user",
+          "type": null,
+          "content": {
+            "chars": 43933,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [
+              "userRequest",
+              "attachments",
+              "context",
+              "editorContext",
+              "reminderInstructions"
+            ],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": [
+              14
+            ]
+          }
+        },
+        {
+          "index": 118,
+          "role": "assistant",
+          "type": null,
+          "content": {
+            "chars": 2581,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 119,
+          "role": "user",
+          "type": null,
+          "content": {
+            "chars": 44145,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [
+              "userRequest",
+              "attachments",
+              "context",
+              "editorContext",
+              "reminderInstructions"
+            ],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": [
+              23
+            ]
+          }
+        }
+      ],
+      "terminal_signature": "/v1/chat/completions / user /  / string",
+      "review_assessment": "Human-input structure only",
+      "review_note": "New userRequest is 23 characters, previous userRequest was 14; attachments dominate total text."
+    },
+    {
+      "sample": 230,
+      "window": 13,
+      "offset": 107745012942,
+      "line_bytes_including_lf": 3592342,
+      "line_sha256_including_lf": "f661db915edde612604dcd1d9de8c692a74afe2cbaf36cacd89ac0e78fc3d2d4",
+      "archive_id": "f439f7f4661691c749c2d29b2018625c",
+      "timestamp_utc": "2026-10-23T10:11:33.78357214Z",
+      "endpoint": "/v1/messages",
+      "path": "/v1/messages",
+      "body_truncated": false,
+      "turn_metadata_encoding": "dict",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": null,
+        "turn_trigger": null,
+        "thread_source": null,
+        "subagent_kind": null
+      },
+      "input_container": "messages",
+      "item_count": 856,
+      "tail": [
+        {
+          "index": 850,
+          "role": "assistant",
+          "type": null,
+          "content_blocks": [
+            {
+              "type": "thinking"
+            },
+            {
+              "type": "tool_use"
+            }
+          ]
+        },
+        {
+          "index": 851,
+          "role": "user",
+          "type": null,
+          "content_blocks": [
+            {
+              "type": "tool_result"
+            }
+          ]
+        },
+        {
+          "index": 852,
+          "role": "system",
+          "type": null,
+          "content": {
+            "chars": 176,
+            "nonblank": true,
+            "text_omitted": true,
+            "known_tags": [
+              "total_tokens"
+            ],
+            "environment_only": false,
+            "system_reminder_only": false,
+            "user_request_chars": []
+          }
+        },
+        {
+          "index": 853,
+          "role": "assistant",
+          "type": null,
+          "content_blocks": [
+            {
+              "type": "thinking"
+            },
+            {
+              "type": "text",
+              "text": {
+                "chars": 44,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "tool_use"
+            }
+          ]
+        },
+        {
+          "index": 854,
+          "role": "user",
+          "type": null,
+          "content_blocks": [
+            {
+              "type": "tool_result"
+            }
+          ]
+        },
+        {
+          "index": 855,
+          "role": "system",
+          "type": null,
+          "content_blocks": [
+            {
+              "type": "text",
+              "text": {
+                "chars": 176,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "total_tokens"
+                ],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/messages / system /  / text",
+      "review_assessment": "AI evidence",
+      "review_note": "Anthropic user content is tool_result; trailing system message must not become human input."
+    },
+    {
+      "sample": 259,
+      "window": 15,
+      "offset": 124309436659,
+      "line_bytes_including_lf": 86064,
+      "line_sha256_including_lf": "c6da3e0f992ca074a1e91ff5690ecbba7beb9b0b81c7bf1217e22c8b0340063d",
+      "archive_id": "1f8274a6ff28f111e6fbe6380b8432d2",
+      "timestamp_utc": "2026-10-23T13:16:26.493187648Z",
+      "endpoint": "/v1/responses",
+      "path": "/v1/responses",
+      "body_truncated": false,
+      "turn_metadata_encoding": "str",
+      "metadata": {
+        "x-openai-subagent": null,
+        "request_kind": "turn",
+        "turn_trigger": "thread_title",
+        "thread_source": "thread_title",
+        "subagent_kind": null
+      },
+      "input_container": "input",
+      "item_count": 7,
+      "tail": [
+        {
+          "index": 1,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 18037,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 17973,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 342,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 920,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 2400,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "role": "developer",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 271,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 4017,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            },
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 398,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [
+                  "environment_context"
+                ],
+                "environment_only": true,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "type": "message",
+          "content_blocks": [
+            {
+              "type": "input_text",
+              "text": {
+                "chars": 4094,
+                "nonblank": true,
+                "text_omitted": true,
+                "known_tags": [],
+                "environment_only": false,
+                "system_reminder_only": false,
+                "user_request_chars": []
+              }
+            }
+          ]
+        }
+      ],
+      "terminal_signature": "/v1/responses / user / message / input_text",
+      "review_assessment": "AI evidence",
+      "review_note": "thread_title trigger creates user text automatically."
+    }
+  ]
+}

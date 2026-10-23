@@ -1,0 +1,541 @@
+{
+  "scope": "All historical user messages within five selected production requests. Histories overlap; occurrences are not unique requests or new turns.",
+  "read_bytes": 11608060,
+  "results": [
+    {
+      "offset": 107745012942,
+      "line_bytes_including_lf": 3592342,
+      "line_sha256_including_lf": "f661db915edde612604dcd1d9de8c692a74afe2cbaf36cacd89ac0e78fc3d2d4",
+      "message_count": 856,
+      "counts": {
+        "user_text_contains_reminder": 4,
+        "user_text_pure_reminder": 4
+      },
+      "examples": [
+        {
+          "message_index": 0,
+          "previous_role": null,
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 3891,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 996,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 580,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 90,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 488,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 925,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 620,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 848,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 49,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 689,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 929,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        }
+      ]
+    },
+    {
+      "offset": 107794977200,
+      "line_bytes_including_lf": 3595490,
+      "line_sha256_including_lf": "2fb4d14dfc1911ef2f4dc189590fe02ed989d4322c498d232edea6b93e6a3776",
+      "message_count": 859,
+      "counts": {
+        "user_text_contains_reminder": 4,
+        "user_text_pure_reminder": 4
+      },
+      "examples": [
+        {
+          "message_index": 0,
+          "previous_role": null,
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 3891,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 996,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 580,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 90,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 488,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 925,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 620,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 848,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 49,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 689,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 929,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        }
+      ]
+    },
+    {
+      "offset": 124298870556,
+      "line_bytes_including_lf": 1405074,
+      "line_sha256_including_lf": "e894d95bdc829cb379a8e24930e07c4f86de9808d5bb24840a1c064f07845bd8",
+      "message_count": 392,
+      "counts": {
+        "user_text_contains_reminder": 7,
+        "user_text_pure_reminder": 7
+      },
+      "examples": [
+        {
+          "message_index": 0,
+          "previous_role": null,
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 864,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 812,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 580,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 177,
+              "pure_system_reminder": false
+            },
+            {
+              "chars": 44,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 282,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 1369,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 1108,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 8,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 318,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 919,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 324,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 925,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 330,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 7349,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 336,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 8259,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 342,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 9745,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        }
+      ]
+    },
+    {
+      "offset": 124300277546,
+      "line_bytes_including_lf": 1409222,
+      "line_sha256_including_lf": "c08efd7d5e56453c607fb8f0ecdfcf6d3cedd10ea281ce3fb3d62514912b96f2",
+      "message_count": 395,
+      "counts": {
+        "user_text_contains_reminder": 7,
+        "user_text_pure_reminder": 7
+      },
+      "examples": [
+        {
+          "message_index": 0,
+          "previous_role": null,
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 864,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 812,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 580,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 177,
+              "pure_system_reminder": false
+            },
+            {
+              "chars": 44,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 282,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 1369,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 1108,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 8,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 318,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 919,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 324,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 925,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 330,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 7349,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 336,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 8259,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 342,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 9745,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        }
+      ]
+    },
+    {
+      "offset": 8334277225,
+      "line_bytes_including_lf": 1605932,
+      "line_sha256_including_lf": "4b295e51d1434e7536f8a107cbe5ed2efa9208680bcdb233853c2aadb292080c",
+      "message_count": 532,
+      "counts": {
+        "user_text_contains_reminder": 2,
+        "user_text_pure_reminder": 2
+      },
+      "examples": [
+        {
+          "message_index": 0,
+          "previous_role": null,
+          "next_role": "system",
+          "block_types": [
+            "text",
+            "text",
+            "text",
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 3891,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 996,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 580,
+              "pure_system_reminder": true
+            },
+            {
+              "chars": 90,
+              "pure_system_reminder": false
+            }
+          ],
+          "has_tool_result": false
+        },
+        {
+          "message_index": 488,
+          "previous_role": "assistant",
+          "next_role": "system",
+          "block_types": [
+            "text"
+          ],
+          "text_blocks": [
+            {
+              "chars": 925,
+              "pure_system_reminder": true
+            }
+          ],
+          "has_tool_result": false
+        }
+      ]
+    }
+  ]
+}

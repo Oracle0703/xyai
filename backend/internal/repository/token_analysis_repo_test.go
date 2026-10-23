@@ -340,8 +340,8 @@ func TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality(t *testing.T) {
 	userID := int64(7)
 	now := time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC)
 
-	// 冲突更新只触内容字段, 不应出现 quality_ 列。
-	mock.ExpectExec(`INSERT INTO token_analysis_user_inputs[\s\S]*ON CONFLICT \(archive_id\) DO UPDATE SET[\s\S]*truncated = EXCLUDED\.truncated`).
+	// 冲突更新刷新内容字段; quality_* 只在内容哈希不变时保留(语义由集成测试覆盖)。
+	mock.ExpectExec(`INSERT INTO token_analysis_user_inputs[\s\S]*ON CONFLICT \(archive_id\) DO UPDATE SET[\s\S]*truncated = EXCLUDED\.truncated,[\s\S]*quality_score = CASE WHEN t\.content_sha256 = EXCLUDED\.content_sha256`).
 		WithArgs("arch-1", now, userID, "line one\nline two", "deadbeef", 17, false).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -390,5 +390,21 @@ func TestTokenAnalysisRepositoryGetUserInput(t *testing.T) {
 	missing, err := repo.GetUserInput(context.Background(), "missing")
 	require.NoError(t, err)
 	require.Nil(t, missing)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTokenAnalysisRepositoryDeleteUserInput(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenAnalysisRepository(db)
+	mock.ExpectExec(`DELETE FROM token_analysis_user_inputs WHERE archive_id = \$1`).
+		WithArgs("arch-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	require.NoError(t, repo.DeleteUserInput(context.Background(), "arch-1"))
+	// 空 archive_id 不发 SQL。
+	require.NoError(t, repo.DeleteUserInput(context.Background(), " "))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
