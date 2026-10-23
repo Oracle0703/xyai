@@ -1,588 +1,261 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
-      <div class="card p-4">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-8">
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('common.startDate') }}</span>
-            <input v-model="filters.start_date" type="date" class="input h-9 text-sm" @change="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('common.endDate') }}</span>
-            <input v-model="filters.end_date" type="date" class="input h-9 text-sm" @change="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">User ID</span>
-            <input v-model.number="filters.user_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.userEmail') }}</span>
-            <input v-model.trim="filters.user_email" type="text" class="input h-9 text-sm" :placeholder="t('admin.tokenAnalysis.userEmailHint')" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">API Key ID</span>
-            <input v-model.number="filters.api_key_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Account ID</span>
-            <input v-model.number="filters.account_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Group ID</span>
-            <input v-model.number="filters.group_id" type="number" min="1" class="input h-9 text-sm" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Model</span>
-            <input v-model.trim="filters.model" class="input h-9 text-sm" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.project') }}</span>
-            <input v-model.trim="filters.project" class="input h-9 text-sm" :placeholder="t('admin.tokenAnalysis.projectFilterHint')" @keyup.enter="reloadAll" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.riskMin') }}</span>
-            <select v-model.number="filters.risk_min" class="input h-9 text-sm" @change="reloadAll">
-              <option :value="0">0</option>
-              <option :value="20">20</option>
-              <option :value="40">40</option>
-              <option :value="60">60</option>
-            </select>
-          </label>
-          <label class="flex items-end gap-2 pb-2 text-sm text-gray-600 dark:text-gray-300">
-            <input v-model="filters.include_unmatched" type="checkbox" class="h-4 w-4 rounded border-gray-300" @change="reloadAll" />
-            <span>{{ t('admin.tokenAnalysis.includeUnmatched') }}</span>
-          </label>
-          <div class="flex items-end gap-2">
-            <button type="button" class="btn btn-secondary h-9 flex-1 text-sm" @click="reloadAll">
-              {{ t('common.refresh') }}
+    <!-- 页面标题与描述由 AppHeader(路由元信息)展示, 页面内不重复。 -->
+    <div class="mx-auto w-full max-w-[1800px] space-y-6" data-testid="token-analysis-view">
+      <section class="card p-4" :aria-label="t('admin.tokenAnalysis.filters')">
+        <div class="flex flex-wrap items-center gap-3">
+          <DateRangePicker
+            :start-date="filters.start_date || ''"
+            :end-date="filters.end_date || ''"
+            @change="onDateRangeChange"
+          />
+          <div class="relative min-w-[220px] flex-1">
+            <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              v-model.trim="filters.user_email"
+              type="search"
+              class="input py-2 pl-9"
+              :aria-label="t('admin.tokenAnalysis.userEmail')"
+              :placeholder="t('admin.tokenAnalysis.userEmailHint')"
+              @keyup.enter="reloadAll"
+            />
+          </div>
+          <input
+            v-model.trim="filters.project"
+            class="input w-full py-2 sm:w-44"
+            :aria-label="t('admin.tokenAnalysis.project')"
+            :title="t('admin.tokenAnalysis.projectFilterHint')"
+            :placeholder="t('admin.tokenAnalysis.projectPlaceholder')"
+            @keyup.enter="reloadAll"
+          />
+          <input
+            v-model.trim="filters.model"
+            class="input w-full py-2 sm:w-44"
+            :aria-label="t('admin.tokenAnalysis.model')"
+            :placeholder="t('admin.tokenAnalysis.modelFilterHint')"
+            @keyup.enter="reloadAll"
+          />
+          <div class="w-full sm:w-36">
+            <Select
+              :model-value="filters.risk_min ?? 0"
+              :options="riskMinOptions"
+              :searchable="false"
+              :aria-label="t('admin.tokenAnalysis.riskMin')"
+              @update:model-value="onRiskMinChange"
+            />
+          </div>
+          <button
+            type="button"
+            class="btn btn-secondary inline-flex items-center gap-1.5"
+            :aria-expanded="showAdvanced"
+            data-testid="token-analysis-advanced-toggle"
+            @click="showAdvanced = !showAdvanced"
+          >
+            <Icon name="filter" size="sm" />
+            {{ t('admin.tokenAnalysis.moreFilters') }}
+            <span v-if="advancedActiveCount > 0" class="rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+              {{ advancedActiveCount }}
+            </span>
+            <Icon name="chevronDown" size="xs" class="transition-transform" :class="{ 'rotate-180': showAdvanced }" />
+          </button>
+          <div class="flex items-center gap-2 lg:ml-auto">
+            <button type="button" class="btn btn-secondary" @click="resetFilters">
+              {{ t('admin.tokenAnalysis.reset') }}
             </button>
-            <button v-if="canTriggerIndex" type="button" class="btn btn-primary h-9 flex-1 text-sm" :disabled="indexing" @click="triggerIndex">
+            <button type="button" class="btn btn-primary inline-flex items-center gap-1.5" @click="reloadAll">
+              <Icon name="search" size="sm" />
+              {{ t('admin.tokenAnalysis.query') }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="showAdvanced" class="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4 dark:border-dark-700 md:grid-cols-3 xl:grid-cols-5">
+          <label v-for="field in idFilterFields" :key="field.key" class="block">
+            <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-400">{{ field.label }}</span>
+            <input v-model.number="filters[field.key]" type="number" min="1" class="input py-2" @keyup.enter="reloadAll" />
+          </label>
+          <label class="col-span-2 flex items-center gap-2 self-end pb-2 text-sm text-gray-700 dark:text-gray-300 md:col-span-1">
+            <input v-model="filters.include_unmatched" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" @change="reloadAll" />
+            <span>{{ t('admin.tokenAnalysis.includeUnmatched') }}</span>
+            <HelpTooltip :content="t('admin.tokenAnalysis.includeUnmatchedHelp')" />
+          </label>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-dark-700">
+          <div class="flex min-w-0 flex-wrap items-center gap-2" data-testid="token-analysis-active-filters">
+            <template v-if="activeFilterChips.length">
+              <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.tokenAnalysis.activeFilters') }}</span>
+              <span
+                v-for="chip in activeFilterChips"
+                :key="chip.key"
+                class="inline-flex max-w-[280px] items-center gap-1 rounded-full bg-primary-50 py-0.5 pl-2.5 pr-1 text-xs font-medium text-primary-700 dark:bg-primary-900/20 dark:text-primary-300"
+              >
+                <span class="truncate" :title="chip.label">{{ chip.label }}</span>
+                <button
+                  type="button"
+                  class="rounded-full p-0.5 hover:bg-primary-100 dark:hover:bg-primary-900/40"
+                  :aria-label="t('admin.tokenAnalysis.removeFilter', { name: chip.label })"
+                  @click="clearFilter(chip.key)"
+                >
+                  <Icon name="x" size="xs" />
+                </button>
+              </span>
+              <button type="button" class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-gray-200" @click="clearAllFilters">
+                {{ t('admin.tokenAnalysis.clearFilters') }}
+              </button>
+            </template>
+            <span v-else class="text-xs text-gray-400 dark:text-dark-500">{{ t('admin.tokenAnalysis.noActiveFilters') }}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex max-w-[360px] items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700"
+              :title="indexPill.title"
+              data-testid="token-analysis-index-pill"
+              @click="activeTab = 'index'"
+            >
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="indexPill.dot" />
+              <span class="truncate">{{ indexPill.text }}</span>
+            </button>
+            <button
+              v-if="canTriggerIndex"
+              type="button"
+              class="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+              :disabled="indexing"
+              :title="t('admin.tokenAnalysis.indexRangeHint')"
+              @click="triggerIndex"
+            >
+              <Icon name="refresh" size="xs" :class="{ 'animate-spin': indexing }" />
               {{ indexing ? t('common.loading') : t('admin.tokenAnalysis.indexNow') }}
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <div v-for="card in summaryCards" :key="card.label" class="card p-4">
-          <div class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ card.label }}</div>
-          <div class="mt-2 truncate text-xl font-semibold text-gray-900 dark:text-white" :title="card.title">{{ card.value }}</div>
-        </div>
-      </div>
+      <TokenAnalysisOverview
+        :summary="summary"
+        :active-risk-reason="appliedFilters.risk_reason"
+        @toggle-risk-reason="toggleRiskReason"
+      />
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="card p-4">
-          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.matchQuality') }}</h2>
-          <div class="mt-3 grid grid-cols-3 gap-3 text-sm">
-            <div>
-              <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.matched') }}</div>
-              <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatNumber(summary?.matched_requests ?? 0) }}</div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.unmatched') }}</div>
-              <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formatNumber(summary?.unmatched_requests ?? 0) }}</div>
-            </div>
-            <div>
-              <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.unmatchedRate') }}</div>
-              <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ percent(summary?.unmatched_rate ?? 0) }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card p-4 lg:col-span-2">
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.riskReasons') }}</h2>
-            <span class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.riskRate') }} {{ percent(summary?.risk_request_rate ?? 0) }}</span>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="reason in summary?.risk_reasons || []"
-              :key="reason.code"
-              type="button"
-              class="rounded border px-2.5 py-1 text-xs"
-              :class="filters.risk_reason === reason.code ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-300' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300'"
-              :title="riskDesc(reason.code) || reason.code"
-              @click="toggleRiskReason(reason.code)"
+      <div class="space-y-4">
+        <div
+          class="inline-flex max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-dark-700 dark:bg-dark-800/60"
+          role="tablist"
+          :aria-label="t('admin.tokenAnalysis.title')"
+        >
+          <button
+            v-for="tab in tabs"
+            :id="`token-analysis-tab-${tab.key}`"
+            :key="tab.key"
+            :ref="(el) => setTabRef(tab.key, el)"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === tab.key"
+            :aria-controls="`token-analysis-panel-${tab.key}`"
+            :tabindex="activeTab === tab.key ? 0 : -1"
+            class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            :class="activeTab === tab.key
+              ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-dark-700 dark:hover:text-white'"
+            :data-testid="`token-analysis-tab-${tab.key}`"
+            @click="activeTab = tab.key"
+            @keydown="onTabKeydown($event, tab.key)"
+          >
+            <Icon :name="tab.icon" size="sm" />
+            {{ tab.label }}
+            <span
+              class="rounded-full px-1.5 text-xs tabular-nums"
+              :class="activeTab === tab.key ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200' : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400'"
             >
-              {{ riskLabel(reason.code) }} · {{ formatNumber(reason.count) }}
-            </button>
-            <span v-if="!(summary?.risk_reasons || []).length" class="text-sm text-gray-500">{{ t('common.noData') }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card p-4">
-        <button type="button" class="mb-1 flex w-full items-center justify-between text-left" @click="showRiskLegend = !showRiskLegend">
-          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.riskLegend') }}</h2>
-          <span class="text-xs text-gray-400">{{ showRiskLegend ? '▾' : '▸' }}</span>
-        </button>
-        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.riskLegendHint') }}</p>
-        <div v-if="showRiskLegend" class="grid grid-cols-1 gap-x-6 gap-y-2.5 md:grid-cols-2">
-          <div v-for="code in RISK_CODES" :key="code" class="flex items-start gap-2">
-            <span class="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-              {{ riskLabel(code) }}
+              {{ tab.count }}
             </span>
-            <p class="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{{ riskDesc(code) }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="card p-4">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="text-sm text-gray-500 dark:text-gray-400">
-            {{ t('admin.tokenAnalysis.indexStatus') }}:
-            <span class="font-medium text-gray-800 dark:text-gray-100">{{ indexStatusText }}</span>
-          </div>
-          <div class="text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.tokenAnalysis.processed') }} {{ indexStatus?.processed_rows ?? 0 }} / {{ t('admin.tokenAnalysis.failed') }} {{ indexStatus?.failed_rows ?? 0 }}
-          </div>
-        </div>
-        <div v-if="indexStatus?.files?.length" class="mt-3 overflow-x-auto">
-          <table class="table text-xs">
-            <thead>
-              <tr>
-                <th>{{ t('admin.tokenAnalysis.file') }}</th>
-                <th>{{ t('admin.tokenAnalysis.offset') }}</th>
-                <th>{{ t('admin.tokenAnalysis.processed') }}</th>
-                <th>{{ t('admin.tokenAnalysis.failed') }}</th>
-                <th>{{ t('admin.tokenAnalysis.updated') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="file in indexStatus.files.slice(0, 5)" :key="file.source_file">
-                <td class="max-w-[320px] truncate">{{ file.source_file }}</td>
-                <td>{{ formatNumber(file.last_offset) }}</td>
-                <td>{{ formatNumber(file.processed_rows) }}</td>
-                <td>{{ formatNumber(file.failed_rows) }}</td>
-                <td class="whitespace-nowrap">{{ formatTimeCN(file.updated_at) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card p-4">
-        <div class="mb-1 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.archiveFiles') }}</h2>
-          <span class="text-xs text-gray-500">{{ archiveFiles.length }}</span>
-        </div>
-        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.archiveFilesHint') }}</p>
-        <div class="overflow-x-auto">
-          <table class="table text-xs">
-            <thead>
-              <tr>
-                <th>{{ t('admin.tokenAnalysis.file') }}</th>
-                <th>{{ t('admin.tokenAnalysis.fileSize') }}</th>
-                <th>{{ t('admin.tokenAnalysis.indexProgress') }}</th>
-                <th>{{ t('admin.tokenAnalysis.processed') }} / {{ t('admin.tokenAnalysis.failed') }}</th>
-                <th>{{ t('admin.tokenAnalysis.fileStatus') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="file in archiveFiles" :key="file.name">
-                <td class="font-medium">{{ file.name }}</td>
-                <td>{{ formatBytes(file.size_bytes) }}</td>
-                <td :title="archiveFileProgressDetail(file)">{{ archiveFileProgress(file) }}</td>
-                <td>
-                  {{ formatNumber(file.processed_rows) }} / {{ formatNumber(file.failed_rows) }}
-                  <span v-if="archiveFileFullyRead(file)" class="text-gray-400">
-                    · {{ t('admin.tokenAnalysis.requestRowsTotal', { n: formatNumber(file.processed_rows + file.failed_rows) }) }}
-                  </span>
-                </td>
-                <td>
-                  <span
-                    class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold"
-                    :class="archiveFileStatusClass(file.status)"
-                    :title="t(`admin.tokenAnalysis.archiveFileStatusHint.${file.status}`)"
-                  >
-                    {{ t(`admin.tokenAnalysis.archiveFileStatus.${file.status}`) }}
-                  </span>
-                  <div v-if="file.last_error" class="mt-1 max-w-[280px] truncate text-xs text-red-500" :title="file.last_error">{{ file.last_error }}</div>
-                </td>
-              </tr>
-              <tr v-if="archiveFiles.length === 0">
-                <td colspan="5" class="py-4 text-center text-gray-500">{{ t('common.noData') }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card p-4">
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.projectRanking') }}</h2>
-          <span class="text-xs text-gray-500">{{ projectsPagination.total }}</span>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="table text-sm">
-            <thead>
-              <tr>
-                <th>{{ t('admin.tokenAnalysis.project') }}</th>
-                <th>{{ t('admin.tokenAnalysis.user') }}</th>
-                <th>
-                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('request_count')">
-                    {{ t('admin.tokenAnalysis.requests') }}
-                    <span :class="projectSort === 'request_count' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('request_count') }}</span>
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('total_tokens')">
-                    {{ t('admin.tokenAnalysis.tokens') }}
-                    <span :class="projectSort === 'total_tokens' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('total_tokens') }}</span>
-                  </button>
-                </th>
-                <th>{{ t('admin.tokenAnalysis.inputOutput') }}</th>
-                <th>{{ t('admin.tokenAnalysis.cacheTokens') }}</th>
-                <th>{{ t('admin.tokenAnalysis.outputInputRatio') }}</th>
-                <th>
-                  <button type="button" class="inline-flex items-center gap-0.5 hover:text-primary-600" @click="changeProjectSort('last_event_time')">
-                    {{ t('admin.tokenAnalysis.lastActive') }}
-                    <span :class="projectSort === 'last_event_time' ? 'text-primary-600' : 'text-gray-400'">{{ projectSortIcon('last_event_time') }}</span>
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in projects" :key="`${row.project}-${row.user_id || 0}`">
-                <td>
-                  <button
-                    type="button"
-                    class="max-w-[200px] truncate font-medium hover:text-primary-600"
-                    :class="row.project === 'unattributed' ? 'italic text-gray-400' : ''"
-                    :title="row.project"
-                    @click="toggleProjectFilter(row.project)"
-                  >
-                    {{ row.project === 'unattributed' ? t('admin.tokenAnalysis.unattributed') : row.project }}
-                  </button>
-                </td>
-                <td>
-                  <div class="max-w-[180px] truncate">{{ row.user_email || '-' }}</div>
-                </td>
-                <td>
-                  <div>{{ formatNumber(row.request_count) }}</div>
-                  <div class="text-xs text-gray-500">{{ t('admin.tokenAnalysis.matched') }} {{ formatNumber(row.matched_request_count) }}</div>
-                </td>
-                <td class="font-medium" :title="formatNumber(row.total_tokens)">{{ formatCompactNumber(row.total_tokens) }}</td>
-                <td class="text-xs text-gray-500" :title="`${formatNumber(row.input_tokens)} / ${formatNumber(row.output_tokens)}`">
-                  {{ formatCompactNumber(row.input_tokens) }} / {{ formatCompactNumber(row.output_tokens) }}
-                </td>
-                <td class="text-xs text-gray-500" :title="formatNumber(row.cache_read_tokens + row.cache_creation_tokens)">
-                  {{ formatCompactNumber(row.cache_read_tokens + row.cache_creation_tokens) }}
-                </td>
-                <td
-                  class="text-xs font-semibold"
-                  :class="projectOutputInputRatioClass(row)"
-                  :data-test="projectOutputInputRatioDataTest(row)"
-                  :title="projectOutputInputRatioTitle(row)"
-                >
-                  {{ formatProjectOutputInputRatio(row) }}
-                </td>
-                <td class="whitespace-nowrap text-xs text-gray-500">{{ formatTimeCN(row.last_event_time) }}</td>
-              </tr>
-              <tr v-if="!projectsLoading && projects.length === 0">
-                <td colspan="8" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <Pagination
-          v-if="projectsPagination.total > 0"
-          :page="projectsPagination.page"
-          :page-size="projectsPagination.page_size"
-          :total="projectsPagination.total"
-          class="mt-3"
-          @update:page="changeProjectPage"
-          @update:pageSize="changeProjectPageSize"
-        />
-      </div>
-
-      <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div class="card p-4 xl:col-span-1">
-          <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.userRanking') }}</h2>
-            <span class="text-xs text-gray-500">{{ usersPagination.total }}</span>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="table text-sm">
-              <thead>
-                <tr>
-                  <th class="w-8"></th>
-                  <th class="w-10">#</th>
-                  <th>{{ t('admin.tokenAnalysis.user') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.tokens') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.cost') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(user, index) in users" :key="user.user_id || 0">
-                  <td class="w-8">
-                    <input
-                      v-if="user.user_id"
-                      data-user-trend-select
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                      :checked="isTrendUserSelected(user.user_id)"
-                      :disabled="trendUserSelectionDisabled(user.user_id)"
-                      :aria-label="t('admin.tokenAnalysis.selectUserTrend', { email: user.user_email || user.user_id })"
-                      @change="toggleTrendUser(user)"
-                    />
-                    <span v-else class="text-gray-300">-</span>
-                  </td>
-                  <td class="tabular-nums text-gray-500">{{ userRankingRank(index) }}</td>
-                  <td>
-                    <div class="max-w-[180px] truncate font-medium">{{ user.user_email || '-' }}</div>
-                  </td>
-                  <td class="tabular-nums" :title="formatNumber(user.total_tokens)">{{ formatUserRankingTokens(user.total_tokens) }}</td>
-                  <td class="tabular-nums" :title="formatCost(user.actual_cost)">{{ formatUserRankingCost(user.actual_cost) }}</td>
-                </tr>
-                <tr v-if="!usersLoading && users.length === 0">
-                  <td colspan="5" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            v-if="usersPagination.total > 0"
-            :page="usersPagination.page"
-            :page-size="usersPagination.page_size"
-            :total="usersPagination.total"
-            class="mt-3"
-            @update:page="changeUserPage"
-            @update:pageSize="changeUserPageSize"
-          />
-        </div>
-
-        <div class="card p-4 xl:col-span-2">
-          <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.requestDetails') }}</h2>
-            <div class="flex items-center gap-2">
-              <select v-model="requestSort" class="input h-8 w-auto text-xs" @change="changeRequestSort">
-                <option value="event_time">{{ t('admin.tokenAnalysis.sortByTime') }}</option>
-                <option value="risk_score">{{ t('admin.tokenAnalysis.sortByRisk') }}</option>
-              </select>
-              <span class="text-xs text-gray-500">{{ requestsPagination.total }}</span>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="table text-sm">
-              <thead>
-                <tr>
-                  <th>{{ t('admin.tokenAnalysis.time') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.user') }}</th>
-                  <th>Model</th>
-                  <th>{{ t('admin.tokenAnalysis.project') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.usage') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.quality') }}</th>
-                  <th>{{ t('admin.tokenAnalysis.preview') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in requests" :key="item.id" class="cursor-pointer" @click="selectRequest(item)">
-                  <td class="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">{{ formatDateTime(item.event_time) }}</td>
-                  <td>
-                    <div class="max-w-[160px] truncate font-medium">{{ item.user_email || '-' }}</div>
-                    <div class="text-xs text-gray-500">{{ item.api_key_name || '-' }}</div>
-                  </td>
-                  <td>
-                    <div class="max-w-[160px] truncate">{{ item.model }}</div>
-                    <div class="text-xs text-gray-500">{{ item.endpoint }}</div>
-                  </td>
-                  <td>
-                    <div class="max-w-[150px] truncate">{{ item.client_project || t('admin.tokenAnalysis.unattributed') }}</div>
-                    <div class="max-w-[150px] truncate text-xs text-gray-500">{{ item.client_branch || '-' }}</div>
-                  </td>
-                  <td>
-                    <div>{{ formatNumber(item.input_tokens + item.output_tokens + item.cache_read_tokens + item.cache_creation_tokens) }}</div>
-                    <div class="text-xs text-gray-500">{{ formatCost(item.actual_cost) }}</div>
-                  </td>
-                  <td>
-                    <span v-if="item.quality_score !== undefined && item.quality_score !== null" class="inline-flex min-w-10 justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      {{ item.quality_score }}
-                    </span>
-                    <span v-else-if="item.has_input" class="text-xs text-gray-400">{{ t('admin.tokenAnalysis.qualityNotEvaluated') }}</span>
-                    <span v-else class="text-xs text-gray-400">-</span>
-                  </td>
-                  <td>
-                    <div class="max-w-[300px] truncate">{{ item.last_user_preview }}</div>
-                    <div class="mt-1 flex flex-wrap items-center gap-1">
-                      <span
-                        v-if="(item.duplicate_count ?? 0) > 1"
-                        class="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                        :title="t('admin.tokenAnalysis.duplicateHint')"
-                      >
-                        ×{{ item.duplicate_count }}
-                      </span>
-                      <span
-                        v-if="item.request_body_truncated"
-                        class="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                        :title="t('admin.tokenAnalysis.bodyTruncatedHint')"
-                      >
-                        {{ t('admin.tokenAnalysis.bodyTruncated') }}
-                      </span>
-                      <span v-if="item.risk_score > 0" class="inline-flex min-w-8 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold" :class="riskClass(item.risk_score)">
-                        {{ item.risk_score }}
-                      </span>
-                      <span
-                        v-for="reason in item.risk_reasons || []"
-                        :key="reason.code"
-                        class="cursor-help rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
-                        :title="riskDesc(reason.code) || reason.message || reason.code"
-                      >
-                        {{ riskLabel(reason.code) }}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-                <tr v-if="!requestsLoading && requests.length === 0">
-                  <td colspan="7" class="py-8 text-center text-gray-500">{{ t('common.noData') }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            v-if="requestsPagination.total > 0"
-            :page="requestsPagination.page"
-            :page-size="requestsPagination.page_size"
-            :total="requestsPagination.total"
-            class="mt-3"
-            @update:page="changeRequestPage"
-            @update:pageSize="changeRequestPageSize"
-          />
-        </div>
-      </div>
-
-      <div v-if="selectedTrendUsers.length > 0" class="card p-4">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.usageTrend') }}</h2>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.tokenAnalysis.selectedUsersCount', { count: selectedTrendUsers.length }) }}
-            </p>
-          </div>
-          <div class="inline-flex overflow-hidden rounded-md border border-gray-200 dark:border-dark-700">
-            <button
-              type="button"
-              class="h-8 px-3 text-xs font-medium"
-              :class="userTrendGranularity === 'day' ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
-              @click="setUserTrendGranularity('day')"
-            >
-              {{ t('admin.tokenAnalysis.trendDay') }}
-            </button>
-            <button
-              type="button"
-              class="h-8 border-l border-gray-200 px-3 text-xs font-medium dark:border-dark-700"
-              :class="userTrendGranularity === 'hour' ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700'"
-              :disabled="!canUseHourlyTrend"
-              :title="canUseHourlyTrend ? '' : t('admin.tokenAnalysis.trendHourSingleDayHint')"
-              @click="setUserTrendGranularity('hour')"
-            >
-              {{ t('admin.tokenAnalysis.trendHour') }}
-            </button>
-          </div>
-        </div>
-
-        <div v-if="userTrendLoading" class="mt-4 flex h-72 items-center justify-center text-sm text-gray-500 md:h-80">
-          {{ t('common.loading') }}
-        </div>
-        <div v-else-if="userTrendError" class="mt-4 flex h-72 flex-col items-center justify-center gap-3 text-center md:h-80">
-          <p class="text-sm text-red-600 dark:text-red-400">{{ t('admin.tokenAnalysis.trendLoadFailed') }}</p>
-          <button type="button" class="btn btn-secondary btn-sm" @click="loadSelectedUserTrend">
-            {{ t('admin.tokenAnalysis.trendRetry') }}
+            <span v-if="tab.alert" class="h-1.5 w-1.5 rounded-full bg-red-500" :aria-label="t('admin.tokenAnalysis.indexHasError')" />
           </button>
         </div>
-        <div v-else class="mt-4">
-          <p v-if="userTrendPoints.length === 0" class="mb-2 text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.tokenAnalysis.trendNoUsage') }}
-          </p>
-          <div class="h-72 md:h-80">
-            <Line :data="selectedUserTrendChartData" :options="selectedUserTrendChartOptions" />
-          </div>
+
+        <div
+          v-show="activeTab === 'users'"
+          id="token-analysis-panel-users"
+          role="tabpanel"
+          aria-labelledby="token-analysis-tab-users"
+          class="grid grid-cols-1 gap-4 xl:grid-cols-2"
+        >
+          <TokenAnalysisUserRanking
+            :users="users"
+            :pagination="usersPagination"
+            :loading="usersLoading"
+            :selected-users="selectedTrendUsers"
+            @toggle="toggleTrendUser"
+            @page="changeUserPage"
+            @page-size="changeUserPageSize"
+          />
+          <TokenAnalysisUserTrend
+            :selected-users="selectedTrendUsers"
+            :points="userTrendPoints"
+            :granularity="userTrendGranularity"
+            :loading="userTrendLoading"
+            :error="userTrendError"
+            :can-use-hourly="canUseHourlyTrend"
+            :start-date="appliedFilters.start_date || ''"
+            :end-date="appliedFilters.end_date || ''"
+            @granularity="setUserTrendGranularity"
+            @retry="loadSelectedUserTrend"
+            @remove="removeTrendUser"
+            @clear="clearTrendUsers"
+          />
+        </div>
+
+        <div v-show="activeTab === 'projects'" id="token-analysis-panel-projects" role="tabpanel" aria-labelledby="token-analysis-tab-projects">
+          <TokenAnalysisProjectTable
+            :projects="projects"
+            :pagination="projectsPagination"
+            :loading="projectsLoading"
+            :sort-by="projectSort"
+            :sort-order="projectSortOrder"
+            :active-project="appliedFilters.project"
+            @sort="changeProjectSort"
+            @filter-project="toggleProjectFilter"
+            @page="changeProjectPage"
+            @page-size="changeProjectPageSize"
+          />
+        </div>
+
+        <div v-show="activeTab === 'requests'" id="token-analysis-panel-requests" role="tabpanel" aria-labelledby="token-analysis-tab-requests">
+          <TokenAnalysisRequestTable
+            :requests="requests"
+            :pagination="requestsPagination"
+            :loading="requestsLoading"
+            :sort="requestSort"
+            :selected-id="selectedRequest?.id"
+            @sort="changeRequestSort"
+            @select="selectRequest"
+            @page="changeRequestPage"
+            @page-size="changeRequestPageSize"
+          />
+        </div>
+
+        <div v-show="activeTab === 'index'" id="token-analysis-panel-index" role="tabpanel" aria-labelledby="token-analysis-tab-index">
+          <TokenAnalysisIndexPanel :index-status="indexStatus" :archive-files="archiveFiles" />
         </div>
       </div>
     </div>
 
-    <div v-if="selectedRequest" class="fixed inset-0 z-40 bg-black/20" @click="selectedRequest = null"></div>
-    <aside v-if="selectedRequest" class="fixed right-0 top-0 z-50 h-full w-full max-w-xl overflow-y-auto border-l border-gray-200 bg-white p-5 shadow-xl dark:border-dark-700 dark:bg-dark-900">
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ selectedRequest.archive_id }}</h2>
-          <p class="text-sm text-gray-500">{{ selectedRequest.event_time }}</p>
-        </div>
-        <button type="button" class="btn btn-ghost btn-sm" @click="selectedRequest = null">{{ t('common.close') }}</button>
-      </div>
-      <div v-if="extractedUserRequest" class="mb-5">
-        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.userRequest') }}</div>
-        <div class="max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-gray-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-gray-100">{{ extractedUserRequest }}</div>
-        <div class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.tokenAnalysis.userRequestHint') }}</div>
-      </div>
-      <dl class="grid grid-cols-2 gap-3 text-sm">
-        <template v-for="field in detailFields" :key="field.label">
-          <dt class="text-gray-500">{{ field.label }}</dt>
-          <dd class="min-w-0 break-words font-medium text-gray-900 dark:text-gray-100">{{ field.value }}</dd>
-        </template>
-      </dl>
-      <div class="mt-5">
-        <div class="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-          <span>{{ t('admin.tokenAnalysis.inputFull') }}</span>
-          <span v-if="requestInput?.truncated" class="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-            {{ t('admin.tokenAnalysis.inputTruncatedNote') }}
-          </span>
-          <span v-if="requestInput" class="text-xs font-normal text-gray-500">{{ formatNumber(requestInput.chars) }} {{ t('admin.tokenAnalysis.chars') }}</span>
-        </div>
-        <div v-if="requestInputLoading" class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800">
-          {{ t('common.loading') }}
-        </div>
-        <div v-else-if="requestInput" class="max-h-96 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">{{ requestInput.content }}</div>
-        <div v-else class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-200">
-          {{ selectedRequest.last_user_preview || t('admin.tokenAnalysis.noInputStored') }}
-        </div>
-        <div
-          v-if="requestInput?.content_sha256"
-          class="mt-1.5 break-all font-mono text-xs text-gray-400 dark:text-gray-500"
-          :title="t('admin.tokenAnalysis.contentHashHint')"
-        >
-          {{ t('admin.tokenAnalysis.contentHash') }}: {{ requestInput.content_sha256 }}
-        </div>
-      </div>
-      <div class="mt-5">
-        <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.tokenAnalysis.quality') }}</div>
-        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-dark-700 dark:bg-dark-800">
-          <template v-if="requestInput && requestInput.quality_score !== undefined && requestInput.quality_score !== null">
-            <div class="flex items-center gap-2">
-              <span class="inline-flex min-w-10 justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                {{ requestInput.quality_score }}
-              </span>
-              <span v-if="requestInput.quality_version" class="text-xs text-gray-500">{{ requestInput.quality_version }}</span>
-              <span v-if="requestInput.evaluated_at" class="text-xs text-gray-500">{{ formatDateTime(requestInput.evaluated_at) }}</span>
-            </div>
-            <pre v-if="requestInput.quality_findings && Object.keys(requestInput.quality_findings).length > 0" class="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-gray-600 dark:text-gray-300">{{ JSON.stringify(requestInput.quality_findings, null, 2) }}</pre>
-          </template>
-          <span v-else class="text-gray-500">{{ t('admin.tokenAnalysis.qualityNotEvaluated') }}</span>
-        </div>
-      </div>
-    </aside>
+    <TokenAnalysisRequestDrawer
+      :request="selectedRequest"
+      :input="requestInput"
+      :input-loading="requestInputLoading"
+      @close="selectedRequest = null"
+    />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Legend,
-  type ChartData,
-  type ChartOptions
-} from 'chart.js'
-import { Line } from 'vue-chartjs'
 import { adminAPI } from '@/api/admin'
 import type {
   TokenAnalysisArchiveFile,
-  TokenAnalysisArchiveFileStatus,
   TokenAnalysisIndexStatus,
   TokenAnalysisProjectUsage,
   TokenAnalysisQueryParams,
@@ -592,28 +265,63 @@ import type {
   TokenAnalysisUserUsage
 } from '@/api/admin/tokenAnalysis'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import Pagination from '@/components/common/Pagination.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
+import Select from '@/components/common/Select.vue'
+import Icon from '@/components/icons/Icon.vue'
+import TokenAnalysisIndexPanel from '@/components/admin/token-analysis/TokenAnalysisIndexPanel.vue'
+import TokenAnalysisOverview from '@/components/admin/token-analysis/TokenAnalysisOverview.vue'
+import TokenAnalysisProjectTable, {
+  type TokenAnalysisProjectSortField
+} from '@/components/admin/token-analysis/TokenAnalysisProjectTable.vue'
+import TokenAnalysisRequestDrawer from '@/components/admin/token-analysis/TokenAnalysisRequestDrawer.vue'
+import TokenAnalysisRequestTable, {
+  type TokenAnalysisRequestSort
+} from '@/components/admin/token-analysis/TokenAnalysisRequestTable.vue'
+import TokenAnalysisUserRanking from '@/components/admin/token-analysis/TokenAnalysisUserRanking.vue'
+import TokenAnalysisUserTrend from '@/components/admin/token-analysis/TokenAnalysisUserTrend.vue'
+import {
+  MAX_SELECTED_TREND_USERS,
+  TOKEN_ANALYSIS_INDEX_DOT,
+  formatRequestMetric,
+  formatTimeCN,
+  tokenAnalysisIndexState,
+  useTokenAnalysisRisk,
+  type TokenAnalysisSelectedUser,
+  type TokenAnalysisTrendGranularity
+} from '@/components/admin/token-analysis/tokenAnalysisFormat'
+import { formatDateLocalInput } from '@/utils/format'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import type { UserUsageTrendPoint } from '@/types'
-import { formatBytes, formatCompactNumber, formatDateTime } from '@/utils/format'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
 const { t } = useI18n()
+const { riskLabel } = useTokenAnalysisRisk()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const canTriggerIndex = computed(() => authStore.isAdmin)
 
-const today = new Date().toISOString().slice(0, 10)
-const filters = reactive<TokenAnalysisQueryParams>({
-  start_date: today,
-  end_date: today,
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  // 请求明细默认展示全部请求(风险排查时再调高风险分过滤)。
-  risk_min: 0,
-  include_unmatched: false
-})
+function defaultFilters(): TokenAnalysisQueryParams {
+  // 默认日期按浏览器本地日(与请求携带的 timezone 一致), 不用 UTC 日期。
+  const today = formatDateLocalInput(new Date())
+  return {
+    start_date: today,
+    end_date: today,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    // 请求明细默认展示全部请求(风险排查时再调高风险分过滤)。
+    risk_min: 0,
+    include_unmatched: false
+  }
+}
+
+const filters = reactive<TokenAnalysisQueryParams>(defaultFilters())
+// 最近一次提交的筛选快照: 所有列表/概览/趋势请求、翻页排序续查、已应用筛选
+// 标签和行内高亮都以它为准; 输入框里尚未提交的草稿不生效, 只有 reloadAll 更新它。
+const appliedFilters = ref<TokenAnalysisQueryParams>({})
+const showAdvanced = ref(false)
+
+type TabKey = 'users' | 'projects' | 'requests' | 'index'
+const activeTab = ref<TabKey>('users')
 
 const summary = ref<TokenAnalysisSummary | null>(null)
 const users = ref<TokenAnalysisUserUsage[]>([])
@@ -622,22 +330,9 @@ const requests = ref<TokenAnalysisRequestItem[]>([])
 const indexStatus = ref<TokenAnalysisIndexStatus | null>(null)
 const archiveFiles = ref<TokenAnalysisArchiveFile[]>([])
 const selectedRequest = ref<TokenAnalysisRequestItem | null>(null)
-const requestSort = ref<'event_time' | 'risk_score'>('event_time')
-// 风险说明图例常驻展示(可折叠), 顺序与 ScoreTokenAnalysisRisk 中的扣分权重一致。
-const showRiskLegend = ref(true)
-const RISK_CODES = [
-  'huge_input_tiny_output',
-  'repeat_uncached_body',
-  'low_cache_hit_large_input',
-  'rapid_similar_requests',
-  'oversized_system_prompt',
-  'tool_heavy_short_output',
-  'large_tool_history',
-  'giant_tool_output'
-] as const
+const requestSort = ref<TokenAnalysisRequestSort>('event_time')
 // 项目排行支持按请求数/token/最近活动服务端排序(列表是分页的, 前端排序无意义)。
-type ProjectSortField = 'request_count' | 'total_tokens' | 'last_event_time'
-const projectSort = ref<ProjectSortField>('total_tokens')
+const projectSort = ref<TokenAnalysisProjectSortField>('total_tokens')
 const projectSortOrder = ref<'asc' | 'desc'>('desc')
 const requestInput = ref<TokenAnalysisRequestInput | null>(null)
 const requestInputLoading = ref(false)
@@ -649,282 +344,110 @@ const indexing = ref(false)
 const usersPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const projectsPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const requestsPagination = reactive({ page: 1, page_size: 20, total: 0 })
-const PROJECT_OUTPUT_INPUT_HEALTHY_RATIO = 0.05
-const MAX_SELECTED_TREND_USERS = 5
-const USER_TREND_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
-type TrendGranularity = 'day' | 'hour'
-type SelectedTrendUser = { user_id: number; email: string }
-
-const selectedTrendUsers = ref<SelectedTrendUser[]>([])
+const selectedTrendUsers = ref<TokenAnalysisSelectedUser[]>([])
 const userTrendPoints = ref<UserUsageTrendPoint[]>([])
-const userTrendGranularity = ref<TrendGranularity>('day')
+const userTrendGranularity = ref<TokenAnalysisTrendGranularity>('day')
 const userTrendLoading = ref(false)
 const userTrendError = ref(false)
 let userTrendLoadSeq = 0
 
-const cleanFilters = computed(() => {
-  const out: TokenAnalysisQueryParams = {}
-  for (const [key, value] of Object.entries(filters)) {
-    if (value !== '' && value !== undefined && value !== null) {
-      (out as Record<string, unknown>)[key] = value
-    }
-  }
-  return out
-})
+function compactFilters(source: TokenAnalysisQueryParams): TokenAnalysisQueryParams {
+  return Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== '' && value !== undefined && value !== null)
+  ) as TokenAnalysisQueryParams
+}
 
-const summaryCards = computed(() => [
-  {
-    label: t('admin.tokenAnalysis.summary.totalRequests'),
-    value: formatRequestMetric(summary.value?.total_requests ?? 0),
-    title: formatNumber(summary.value?.total_requests ?? 0)
-  },
-  // 同期计费请求数(usage_logs)与归档覆盖率: 直观呈现归档样本与真实
-  // 计费请求量的差距, 避免把"已归档请求数"误读为全量请求数。
-  {
-    label: t('admin.tokenAnalysis.summary.billedRequests'),
-    value: formatRequestMetric(summary.value?.billed_requests ?? 0),
-    title: formatNumber(summary.value?.billed_requests ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.archiveCoverage'),
-    value: percent(summary.value?.archive_coverage ?? 0),
-    title: percent(summary.value?.archive_coverage ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.totalTokens'),
-    value: formatTokenMetric(summary.value?.total_tokens ?? 0),
-    title: formatNumber(summary.value?.total_tokens ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.inputTokens'),
-    value: formatTokenMetric(summary.value?.total_input_tokens ?? 0),
-    title: formatNumber(summary.value?.total_input_tokens ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.outputTokens'),
-    value: formatTokenMetric(summary.value?.total_output_tokens ?? 0),
-    title: formatNumber(summary.value?.total_output_tokens ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.totalCost'),
-    value: formatCost(summary.value?.total_actual_cost ?? 0),
-    title: formatCost(summary.value?.total_actual_cost ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.cacheRead'),
-    value: formatTokenMetric(summary.value?.cache_read_tokens ?? 0),
-    title: formatNumber(summary.value?.cache_read_tokens ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.cacheHitRate'),
-    value: percent(summary.value?.cache_hit_rate ?? 0),
-    title: percent(summary.value?.cache_hit_rate ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.riskyRequests'),
-    value: formatRequestMetric(summary.value?.risky_requests ?? 0),
-    title: formatNumber(summary.value?.risky_requests ?? 0)
-  },
-  {
-    label: t('admin.tokenAnalysis.summary.riskyCost'),
-    value: formatCost(summary.value?.risky_cost ?? 0),
-    title: formatCost(summary.value?.risky_cost ?? 0)
-  }
+const riskMinOptions = computed(() => [
+  { value: 0, label: t('admin.tokenAnalysis.riskMinAll') },
+  { value: 20, label: t('admin.tokenAnalysis.riskMinAtLeast', { n: 20 }) },
+  { value: 40, label: t('admin.tokenAnalysis.riskMinAtLeast', { n: 40 }) },
+  { value: 60, label: t('admin.tokenAnalysis.riskMinAtLeast', { n: 60 }) }
 ])
 
+type IdFilterKey = 'user_id' | 'api_key_id' | 'account_id' | 'group_id'
+const idFilterFields = computed<Array<{ key: IdFilterKey; label: string }>>(() => [
+  { key: 'user_id', label: t('admin.tokenAnalysis.filterUserId') },
+  { key: 'api_key_id', label: t('admin.tokenAnalysis.filterApiKeyId') },
+  { key: 'account_id', label: t('admin.tokenAnalysis.filterAccountId') },
+  { key: 'group_id', label: t('admin.tokenAnalysis.filterGroupId') }
+])
+
+const advancedActiveCount = computed(() => {
+  const f = appliedFilters.value
+  return idFilterFields.value.filter((field) => f[field.key]).length + (f.include_unmatched ? 1 : 0)
+})
+
+type FilterChipKey = 'user_email' | 'project' | 'model' | 'risk_reason' | 'risk_min' | 'include_unmatched' | IdFilterKey
+
+const activeFilterChips = computed(() => {
+  const f = appliedFilters.value
+  const chips: Array<{ key: FilterChipKey; label: string }> = []
+  if (f.user_email) chips.push({ key: 'user_email', label: `${t('admin.tokenAnalysis.userEmail')}: ${f.user_email}` })
+  if (f.project) {
+    const project = f.project === 'unattributed' ? t('admin.tokenAnalysis.unattributed') : f.project
+    chips.push({ key: 'project', label: `${t('admin.tokenAnalysis.project')}: ${project}` })
+  }
+  if (f.model) chips.push({ key: 'model', label: `${t('admin.tokenAnalysis.model')}: ${f.model}` })
+  if (f.risk_reason) chips.push({ key: 'risk_reason', label: `${t('admin.tokenAnalysis.riskReason')}: ${riskLabel(f.risk_reason)}` })
+  if (f.risk_min) chips.push({ key: 'risk_min', label: t('admin.tokenAnalysis.riskMinAtLeast', { n: f.risk_min }) })
+  for (const field of idFilterFields.value) {
+    if (f[field.key]) chips.push({ key: field.key, label: `${field.label}: ${f[field.key]}` })
+  }
+  if (f.include_unmatched) chips.push({ key: 'include_unmatched', label: t('admin.tokenAnalysis.includeUnmatched') })
+  return chips
+})
+
+const archiveNeedsAttention = computed(() => {
+  return Boolean(indexStatus.value?.last_error) || archiveFiles.value.some((file) => file.status === 'attention')
+})
+
+const tabs = computed(() => [
+  { key: 'users' as const, icon: 'users' as const, label: t('admin.tokenAnalysis.tabs.users'), count: formatRequestMetric(usersPagination.total), alert: false },
+  { key: 'projects' as const, icon: 'cube' as const, label: t('admin.tokenAnalysis.tabs.projects'), count: formatRequestMetric(projectsPagination.total), alert: false },
+  { key: 'requests' as const, icon: 'document' as const, label: t('admin.tokenAnalysis.tabs.requests'), count: formatRequestMetric(requestsPagination.total), alert: false },
+  { key: 'index' as const, icon: 'database' as const, label: t('admin.tokenAnalysis.tabs.index'), count: formatRequestMetric(archiveFiles.value.length), alert: archiveNeedsAttention.value }
+])
+
+const tabRefs = new Map<TabKey, HTMLElement>()
+
+function setTabRef(key: TabKey, el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLElement) tabRefs.set(key, el)
+  else tabRefs.delete(key)
+}
+
+// 方向键在标签间移动并激活, Home/End 跳到首尾(WAI-ARIA tabs 模式)。
+function onTabKeydown(event: KeyboardEvent, key: TabKey) {
+  const keys = tabs.value.map((tab) => tab.key)
+  const index = keys.indexOf(key)
+  let next = -1
+  if (event.key === 'ArrowRight') next = (index + 1) % keys.length
+  else if (event.key === 'ArrowLeft') next = (index - 1 + keys.length) % keys.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = keys.length - 1
+  if (next < 0) return
+  event.preventDefault()
+  activeTab.value = keys[next]
+  tabRefs.get(keys[next])?.focus()
+}
+
+const indexPill = computed(() => {
+  const status = indexStatus.value
+  const state = tokenAnalysisIndexState(status)
+  const text = {
+    running: t('admin.tokenAnalysis.indexRunning'),
+    error: t('admin.tokenAnalysis.indexHasError'),
+    idle: t('admin.tokenAnalysis.indexUpdatedAt', { time: formatTimeCN(status?.updated_at) })
+  }[state]
+  return { dot: TOKEN_ANALYSIS_INDEX_DOT[state], text, title: state === 'error' ? status?.last_error : text }
+})
+
 const canUseHourlyTrend = computed(() => {
-  return Boolean(filters.start_date && filters.end_date && filters.start_date === filters.end_date)
+  const { start_date, end_date } = appliedFilters.value
+  return Boolean(start_date && end_date && start_date === end_date)
 })
 
-function buildTrendLabels(startDate: string, endDate: string, granularity: TrendGranularity): string[] {
-  if (!startDate || !endDate) return []
-  if (granularity === 'hour') {
-    if (startDate !== endDate) return []
-    return Array.from({ length: 24 }, (_, hour) => `${startDate} ${String(hour).padStart(2, '0')}:00`)
-  }
-
-  const labels: string[] = []
-  const cursor = new Date(`${startDate}T00:00:00Z`)
-  const end = new Date(`${endDate}T00:00:00Z`)
-  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime()) || cursor > end) return labels
-  while (cursor <= end) {
-    labels.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return labels
-}
-
-const selectedUserTrendChartData = computed<ChartData<'line'>>(() => {
-  const labels = buildTrendLabels(
-    filters.start_date || '',
-    filters.end_date || '',
-    userTrendGranularity.value
-  )
-  const values = new Map<string, number>()
-  for (const point of userTrendPoints.value) {
-    values.set(`${point.user_id}/${point.date}`, point.tokens)
-  }
-  return {
-    labels,
-    datasets: selectedTrendUsers.value.map((user, index) => {
-      const color = USER_TREND_COLORS[index % USER_TREND_COLORS.length]
-      return {
-        label: user.email || `User ${user.user_id}`,
-        data: labels.map((label) => values.get(`${user.user_id}/${label}`) ?? 0),
-        borderColor: color,
-        backgroundColor: `${color}20`,
-        borderWidth: 2,
-        pointRadius: 2,
-        pointHoverRadius: 4,
-        fill: false,
-        tension: 0.3
-      }
-    })
-  }
-})
-
-const selectedUserTrendChartOptions: ChartOptions<'line'> = {
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: {
-    intersect: false,
-    mode: 'index'
-  },
-  plugins: {
-    legend: {
-      position: 'bottom',
-      labels: {
-        usePointStyle: true,
-        boxWidth: 8
-      }
-    }
-  },
-  scales: {
-    x: {
-      grid: { display: false }
-    },
-    y: {
-      beginAtZero: true,
-      ticks: {
-        callback: (value) => formatCompactNumber(Number(value))
-      }
-    }
-  }
-}
-
-const indexStatusText = computed(() => {
-  if (indexStatus.value?.running) return t('admin.tokenAnalysis.indexRunning')
-  if (indexStatus.value?.last_error) return indexStatus.value.last_error
-  return formatTimeCN(indexStatus.value?.updated_at)
-})
-
-const extractedUserRequest = computed(() => extractUserRequestTag(requestInput.value?.content || ''))
-
-function extractUserRequestTag(content: string): string {
-  const match = content.match(/<userRequest>([\s\S]*?)<\/userRequest>/i)
-  return match?.[1]?.trim() || ''
-}
-
-const detailFields = computed(() => {
-  const item = selectedRequest.value
-  if (!item) return []
-  return [
-    { label: 'Endpoint', value: item.endpoint },
-    { label: 'Model', value: item.model },
-    { label: 'Match', value: String(item.match_confidence) },
-    { label: 'Messages', value: String(item.message_count ?? 0) },
-    { label: 'System chars', value: formatNumber(item.system_chars ?? 0) },
-    { label: 'User chars', value: formatNumber(item.user_chars ?? 0) },
-    { label: 'Tools', value: String(item.tools_count ?? 0) },
-    { label: 'Images', value: String(item.image_count ?? 0) },
-    { label: 'Input tokens', value: formatNumber(item.input_tokens ?? 0) },
-    { label: 'Output tokens', value: formatNumber(item.output_tokens ?? 0) },
-    { label: 'Cache read', value: formatNumber(item.cache_read_tokens ?? 0) },
-    { label: 'Cache creation', value: formatNumber(item.cache_creation_tokens ?? 0) },
-    { label: 'Cost', value: formatCost(item.actual_cost ?? 0) },
-    { label: t('admin.tokenAnalysis.project'), value: item.client_project || '-' },
-    { label: t('admin.tokenAnalysis.workdir'), value: item.client_workdir || '-' },
-    { label: t('admin.tokenAnalysis.branch'), value: item.client_branch || '-' },
-    { label: t('admin.tokenAnalysis.attributionSource'), value: item.attribution_source || '-' },
-    { label: t('admin.tokenAnalysis.duplicateCount'), value: formatNumber(item.duplicate_count ?? 1) },
-    { label: 'Body size', value: formatBytes(item.request_body_size ?? 0) },
-    { label: t('admin.tokenAnalysis.bodyTruncated'), value: item.request_body_truncated ? t('common.yes') : t('common.no') }
-  ]
-})
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat().format(Math.round(value || 0))
-}
-
-function finiteNumber(value: number): number {
-  const number = Number(value || 0)
-  return Number.isFinite(number) ? number : 0
-}
-
-function formatTokenMetric(value: number): string {
-  const number = finiteNumber(value)
-  const abs = Math.abs(number)
-  if (abs >= 1_000_000_000) return `${(number / 1_000_000_000).toFixed(1)}B`
-  if (abs >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`
-  return formatNumber(number)
-}
-
-function formatRequestMetric(value: number): string {
-  const number = finiteNumber(value)
-  const abs = Math.abs(number)
-  if (abs >= 1_000_000_000) return `${(number / 1_000_000_000).toFixed(1)}B`
-  if (abs >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `${(number / 1_000).toFixed(1)}K`
-  return formatNumber(number)
-}
-
-// 时间列固定东八区展示(团队所在时区), 形如 2026-06-10 16:23:45;
-// sv-SE locale 天然输出 YYYY-MM-DD HH:mm:ss, 不带 ISO 的 T 和时区尾巴。
-function formatTimeCN(value?: string | null): string {
-  if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).format(d)
-}
-
-function formatCost(value: number): string {
-  return `$${Number(value || 0).toFixed(4)}`
-}
-
-// 用户排行专用: Token 仅用 M/B(不用 K), 费用达到 1000 后使用 K。
-function formatUserRankingTokens(value: number): string {
-  return formatTokenMetric(value)
-}
-
-function formatUserRankingCost(value: number): string {
-  const number = finiteNumber(value)
-  if (Math.abs(number) >= 1_000) return `$${(number / 1_000).toFixed(1)}K`
-  return formatCost(number)
-}
-
-function userRankingRank(index: number): number {
-  return (usersPagination.page - 1) * usersPagination.page_size + index + 1
-}
-
-function isTrendUserSelected(userID?: number): boolean {
-  return Boolean(userID && selectedTrendUsers.value.some((user) => user.user_id === userID))
-}
-
-function trendUserSelectionDisabled(userID?: number): boolean {
-  if (!userID) return true
-  return selectedTrendUsers.value.length >= MAX_SELECTED_TREND_USERS && !isTrendUserSelected(userID)
-}
-
+// 颜色槽位在选中时分配并固定: 取消某个用户不会让其余用户换色。
 function toggleTrendUser(user: TokenAnalysisUserUsage) {
   const userID = Number(user.user_id || 0)
   if (userID <= 0) return
@@ -932,15 +455,28 @@ function toggleTrendUser(user: TokenAnalysisUserUsage) {
   if (selectedIndex >= 0) {
     selectedTrendUsers.value.splice(selectedIndex, 1)
   } else if (selectedTrendUsers.value.length < MAX_SELECTED_TREND_USERS) {
+    const used = new Set(selectedTrendUsers.value.map((item) => item.slot))
+    const slot = Array.from({ length: MAX_SELECTED_TREND_USERS }, (_, index) => index).find((index) => !used.has(index)) ?? 0
     selectedTrendUsers.value.push({
       user_id: userID,
-      email: user.user_email || `User ${userID}`
+      email: user.user_email || `User ${userID}`,
+      slot
     })
   }
   void loadSelectedUserTrend()
 }
 
-function setUserTrendGranularity(granularity: TrendGranularity) {
+function removeTrendUser(userID: number) {
+  selectedTrendUsers.value = selectedTrendUsers.value.filter((user) => user.user_id !== userID)
+  void loadSelectedUserTrend()
+}
+
+function clearTrendUsers() {
+  selectedTrendUsers.value = []
+  void loadSelectedUserTrend()
+}
+
+function setUserTrendGranularity(granularity: TokenAnalysisTrendGranularity) {
   if (granularity === 'hour' && !canUseHourlyTrend.value) return
   if (userTrendGranularity.value === granularity) return
   userTrendGranularity.value = granularity
@@ -955,7 +491,8 @@ async function loadSelectedUserTrend() {
     userTrendLoading.value = false
     return
   }
-  if (!filters.start_date || !filters.end_date) {
+  const { start_date: startDate, end_date: endDate } = appliedFilters.value
+  if (!startDate || !endDate) {
     userTrendLoading.value = false
     userTrendError.value = true
     return
@@ -968,8 +505,8 @@ async function loadSelectedUserTrend() {
   try {
     const response = await adminAPI.dashboard.getUserUsageTrend({
       user_ids: selectedTrendUsers.value.map((user) => user.user_id),
-      start_date: filters.start_date,
-      end_date: filters.end_date,
+      start_date: startDate,
+      end_date: endDate,
       granularity: userTrendGranularity.value
     })
     if (seq !== userTrendLoadSeq) return
@@ -982,69 +519,15 @@ async function loadSelectedUserTrend() {
   }
 }
 
-function percent(value: number): string {
-  return `${((value || 0) * 100).toFixed(1)}%`
-}
-
-function projectOutputInputRatio(row: TokenAnalysisProjectUsage): number | null {
-  if (!row.input_tokens || row.input_tokens <= 0) return null
-  return (row.output_tokens || 0) / row.input_tokens
-}
-
-function formatProjectOutputInputRatio(row: TokenAnalysisProjectUsage): string {
-  const ratio = projectOutputInputRatio(row)
-  if (ratio === null) return '-'
-  return percent(ratio)
-}
-
-function projectOutputInputRatioClass(row: TokenAnalysisProjectUsage): string {
-  const ratio = projectOutputInputRatio(row)
-  if (ratio === null) return 'text-gray-400'
-  if (ratio >= PROJECT_OUTPUT_INPUT_HEALTHY_RATIO) return 'text-emerald-600 dark:text-emerald-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-function projectOutputInputRatioDataTest(row: TokenAnalysisProjectUsage): string {
-  const ratio = projectOutputInputRatio(row)
-  if (ratio === null) return 'project-io-ratio-empty'
-  return ratio >= PROJECT_OUTPUT_INPUT_HEALTHY_RATIO ? 'project-io-ratio-healthy' : 'project-io-ratio-low'
-}
-
-function projectOutputInputRatioTitle(row: TokenAnalysisProjectUsage): string {
-  const ratio = projectOutputInputRatio(row)
-  if (ratio === null) return t('admin.tokenAnalysis.outputInputRatioUnavailable')
-  return `${t('admin.tokenAnalysis.outputInputRatio')}: ${percent(ratio)} (${t('admin.tokenAnalysis.outputInputRatioThreshold')}: ${percent(PROJECT_OUTPUT_INPUT_HEALTHY_RATIO)})`
-}
-
-function riskClass(score: number): string {
-  if (score >= 60) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-  if (score >= 30) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-  return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
-}
-
-// 风险原因 code 映射中文名称/解释(见 i18n riskCodes)。缺失映射时回退展示原始
-// code, 保证后端新增风险类型而前端文案未补时仍可读, 不会显示成空白。
-function riskLabel(code: string): string {
-  const key = `admin.tokenAnalysis.riskCodes.${code}.label`
-  const label = t(key)
-  return label === key ? code : label
-}
-
-function riskDesc(code: string): string {
-  const key = `admin.tokenAnalysis.riskCodes.${code}.desc`
-  const desc = t(key)
-  return desc === key ? '' : desc
-}
-
 async function loadSummary() {
-  summary.value = await adminAPI.tokenAnalysis.getSummary(cleanFilters.value)
+  summary.value = await adminAPI.tokenAnalysis.getSummary(appliedFilters.value)
 }
 
 async function loadUsers() {
   usersLoading.value = true
   try {
     const result = await adminAPI.tokenAnalysis.listUsers({
-      ...cleanFilters.value,
+      ...appliedFilters.value,
       page: usersPagination.page,
       page_size: usersPagination.page_size
     })
@@ -1061,7 +544,7 @@ async function loadProjects() {
   projectsLoading.value = true
   try {
     const result = await adminAPI.tokenAnalysis.listProjects({
-      ...cleanFilters.value,
+      ...appliedFilters.value,
       page: projectsPagination.page,
       page_size: projectsPagination.page_size,
       sort_by: projectSort.value,
@@ -1080,7 +563,7 @@ async function loadRequests() {
   requestsLoading.value = true
   try {
     const result = await adminAPI.tokenAnalysis.listRequests({
-      ...cleanFilters.value,
+      ...appliedFilters.value,
       page: requestsPagination.page,
       page_size: requestsPagination.page_size,
       sort_by: requestSort.value,
@@ -1095,13 +578,15 @@ async function loadRequests() {
   }
 }
 
-function changeRequestSort() {
+function changeRequestSort(value: TokenAnalysisRequestSort) {
+  if (requestSort.value === value) return
+  requestSort.value = value
   requestsPagination.page = 1
   void loadRequests()
 }
 
 // 点已选中列翻转方向, 点新列重置为降序。
-function changeProjectSort(field: ProjectSortField) {
+function changeProjectSort(field: TokenAnalysisProjectSortField) {
   if (projectSort.value === field) {
     projectSortOrder.value = projectSortOrder.value === 'desc' ? 'asc' : 'desc'
   } else {
@@ -1110,11 +595,6 @@ function changeProjectSort(field: ProjectSortField) {
   }
   projectsPagination.page = 1
   void loadProjects()
-}
-
-function projectSortIcon(field: ProjectSortField): string {
-  if (projectSort.value !== field) return '↕'
-  return projectSortOrder.value === 'desc' ? '↓' : '↑'
 }
 
 // 点行打开抽屉并懒加载净输入全文(列表只带 300 字预览)。
@@ -1150,39 +630,8 @@ async function loadArchiveFiles() {
   archiveFiles.value = await adminAPI.tokenAnalysis.listArchiveFiles()
 }
 
-// 文件是否已被索引器读完(字节水位追平文件大小)。"有失败行"状态也意味着
-// 已读完 -- 只是其中部分行未入库, 这层语义靠进度列和状态提示显式说出来。
-function archiveFileFullyRead(file: TokenAnalysisArchiveFile): boolean {
-  return file.status !== 'compressed' && file.size_bytes > 0 && file.indexed_offset >= file.size_bytes
-}
-
-// 进度展示为百分比, 直观回答"处理完没有"; 字节明细放 title 悬浮提示。
-function archiveFileProgress(file: TokenAnalysisArchiveFile): string {
-  if (file.status === 'compressed' || file.size_bytes <= 0) return '-'
-  if (archiveFileFullyRead(file)) return `100% · ${t('admin.tokenAnalysis.fullyRead')}`
-  return `${(Math.min(file.indexed_offset / file.size_bytes, 1) * 100).toFixed(1)}%`
-}
-
-function archiveFileProgressDetail(file: TokenAnalysisArchiveFile): string {
-  return `${formatBytes(file.indexed_offset)} / ${formatBytes(file.size_bytes)}`
-}
-
-function archiveFileStatusClass(status: TokenAnalysisArchiveFileStatus): string {
-  switch (status) {
-    case 'deletable':
-      return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-    case 'writing':
-      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-    case 'indexing':
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-    case 'attention':
-      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-    default:
-      return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
-  }
-}
-
 async function reloadAll() {
+  appliedFilters.value = compactFilters(filters)
   usersPagination.page = 1
   requestsPagination.page = 1
   projectsPagination.page = 1
@@ -1198,6 +647,49 @@ async function reloadAll() {
   } catch (error) {
     appStore.showError((error as { message?: string })?.message || t('errors.networkError'))
   }
+}
+
+function onDateRangeChange(range: { startDate: string; endDate: string }) {
+  filters.start_date = range.startDate
+  filters.end_date = range.endDate
+  void reloadAll()
+}
+
+function onRiskMinChange(value: string | number | boolean | null) {
+  filters.risk_min = Number(value) || 0
+  void reloadAll()
+}
+
+function clearFilter(key: FilterChipKey) {
+  if (key === 'risk_min') filters.risk_min = 0
+  else if (key === 'include_unmatched') filters.include_unmatched = false
+  else filters[key] = undefined
+  void reloadAll()
+}
+
+function resetDimensionFilters(dates: Pick<TokenAnalysisQueryParams, 'start_date' | 'end_date'>) {
+  Object.assign(filters, defaultFilters(), {
+    user_email: undefined,
+    project: undefined,
+    model: undefined,
+    risk_reason: undefined,
+    user_id: undefined,
+    api_key_id: undefined,
+    account_id: undefined,
+    group_id: undefined
+  }, dates)
+}
+
+// 清除维度筛选, 保留当前日期范围。
+function clearAllFilters() {
+  resetDimensionFilters({ start_date: filters.start_date, end_date: filters.end_date })
+  void reloadAll()
+}
+
+// 重置为进入页面时的状态(含日期回到今天)。
+function resetFilters() {
+  resetDimensionFilters({})
+  void reloadAll()
 }
 
 // 索引触发已改异步(后端立即返回 202): 大范围回扫可达分钟级, 同步等待会撞
@@ -1238,9 +730,9 @@ async function triggerIndex() {
   indexing.value = true
   try {
     await adminAPI.tokenAnalysis.triggerIndex({
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      timezone: filters.timezone
+      start_date: appliedFilters.value.start_date,
+      end_date: appliedFilters.value.end_date,
+      timezone: appliedFilters.value.timezone
     })
     appStore.showSuccess(t('admin.tokenAnalysis.indexStarted'))
     scheduleIndexPoll()

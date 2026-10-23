@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import TokenAnalysisView from '../TokenAnalysisView.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Pagination from '@/components/common/Pagination.vue'
 
 const api = vi.hoisted(() => ({
@@ -53,11 +54,30 @@ vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
     ...actual,
-    useI18n: () => ({ t: (key: string) => key })
+    // DateRangePicker 读取 locale 格式化日期显示。
+    useI18n: () => ({ t: (key: string) => key, locale: { value: 'zh' } })
   }
 })
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
+
+function mountView() {
+  return mount(TokenAnalysisView, { global: { stubs: { AppLayout: AppLayoutStub } } })
+}
+
+function pageOf<T>(items: T[], total: number) {
+  return { items, total, page: 1, page_size: 20 }
+}
+
+async function setDateRange(wrapper: VueWrapper, startDate: string, endDate: string) {
+  wrapper.findComponent(DateRangePicker).vm.$emit('change', { startDate, endDate, preset: null })
+  await flushPromises()
+}
+
+function localToday(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
 
 function summaryFixture(overrides: Record<string, unknown> = {}) {
   return {
@@ -104,7 +124,7 @@ describe('TokenAnalysisView', () => {
     dashboardApi.getUserUsageTrend.mockReset()
     authState.isAdmin = true
     authState.isSubAdmin = false
-    api.listProjects.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    api.listProjects.mockResolvedValue(pageOf([], 0))
     api.listArchiveFiles.mockResolvedValue([
       {
         name: '2026-05-20.jsonl',
@@ -128,15 +148,14 @@ describe('TokenAnalysisView', () => {
       quality_version: ''
     })
     api.getSummary.mockResolvedValue(summaryFixture())
-    api.listUsers.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    api.listUsers.mockResolvedValue(pageOf([], 0))
     dashboardApi.getUserUsageTrend.mockResolvedValue({
       trend: [],
       start_date: '2026-07-01',
       end_date: '2026-07-01',
       granularity: 'day'
     })
-    api.listRequests.mockResolvedValue({
-      items: [
+    api.listRequests.mockResolvedValue(pageOf([
         {
           id: 1,
           archive_id: 'arch-1',
@@ -160,11 +179,7 @@ describe('TokenAnalysisView', () => {
           request_body_truncated: true,
           duplicate_count: 3
         }
-      ],
-      total: 1,
-      page: 1,
-      page_size: 20
-    })
+      ], 1))
     api.getIndexStatus.mockResolvedValue({
       running: false,
       processed_rows: 10,
@@ -182,9 +197,7 @@ describe('TokenAnalysisView', () => {
   })
 
   it('renders summary and request detail rows', async () => {
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
 
     await flushPromises()
 
@@ -216,13 +229,92 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
   })
 
+  it('shows request origins from validated server metadata and leaves legacy or invalid records unclassified', async () => {
+    const cases = [
+      { origin: { kind: 'human', reason: 'user_input', confidence: 'medium', version: 1 }, label: 'human', reason: 'user_input' },
+      { origin: { kind: 'ai', reason: 'tool_result', confidence: 'high', version: 1 }, label: 'ai', reason: 'tool_result' },
+      { origin: { kind: 'unknown', reason: 'no_signal', confidence: 'none', version: 1 }, label: null, reason: 'no_signal' },
+      { origin: undefined, label: null, reason: null },
+      { origin: { kind: 'ai', reason: 'tool_result', confidence: 'high', version: 2 }, label: null, reason: null },
+      { origin: { kind: 'human', reason: 'user_input', confidence: 'high', version: 1 }, label: null, reason: null },
+      { origin: { kind: 'ai', reason: 'future_reason', confidence: 'high', version: 1 }, label: null, reason: null },
+      { origin: { kind: 'other', reason: 'tool_result', confidence: 'high', version: 1 }, label: null, reason: null },
+      { origin: 'human', label: null, reason: null },
+      { origin: null, label: null, reason: null }
+    ]
+    api.listRequests.mockResolvedValue({
+      items: cases.map(({ origin }, index) => ({
+        id: index + 1,
+        archive_id: `origin-${index}`,
+        event_time: '2026-05-19T01:00:00Z',
+        user_email: `origin-${index}@example.com`,
+        model: 'gpt-4.1',
+        risk_score: 0,
+        risk_reasons: [],
+        last_user_preview: '<userRequest>human-looking text</userRequest>',
+        duplicate_count: 8,
+        summary_json: origin === undefined ? undefined : { request_origin: origin },
+        has_input: false
+      })),
+      total: cases.length,
+      page: 1,
+      page_size: 20
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const table = wrapper.get('[data-testid="token-analysis-request-details"]')
+    const badges = table.findAll('[data-testid="request-origin"]')
+    expect(badges).toHaveLength(cases.length)
+    cases.forEach(({ label, reason }, index) => {
+      expect(badges[index].text()).toBe(label ? `admin.tokenAnalysis.requestOrigin.${label}` : '—')
+      expect(badges[index].attributes('title')).toContain(reason
+        ? `admin.tokenAnalysis.requestOrigin.reasons.${reason}`
+        : 'admin.tokenAnalysis.requestOrigin.notIdentified')
+    })
+    expect(table.text()).toContain('admin.tokenAnalysis.requestOrigin.label')
+    expect(table.text()).toContain('admin.tokenAnalysis.requestOrigin.hint')
+    expect(api.listRequests).toHaveBeenCalledTimes(1)
+    expect(api.getRequestInput).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { kind: 'human', reason: 'user_input', confidence: 'medium' },
+    { kind: 'ai', reason: 'tool_result', confidence: 'high' },
+    { kind: 'unknown', reason: 'body_truncated', confidence: 'none' },
+    { kind: 'unknown', reason: 'count_tokens', confidence: 'none' }
+  ])('explains the $kind/$reason origin in the drawer without fetching input for classification', async (origin) => {
+    api.listRequests.mockResolvedValue(pageOf([{
+        id: 1,
+        archive_id: 'origin-detail',
+        event_time: '2026-05-19T01:00:00Z',
+        user_email: 'origin-detail@example.com',
+        model: 'gpt-4.1',
+        risk_score: 0,
+        risk_reasons: [],
+        summary_json: { request_origin: { ...origin, version: 1 } },
+        has_input: false
+      }], 1))
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="token-analysis-request-details"] tbody tr').trigger('click')
+    await flushPromises()
+
+    const detail = wrapper.get('[data-testid="request-origin-detail"]')
+    expect(detail.text()).toContain(origin.kind === 'unknown' ? '—' : `admin.tokenAnalysis.requestOrigin.${origin.kind}`)
+    expect(detail.text()).toContain('admin.tokenAnalysis.requestOrigin.inferred')
+    expect(detail.text()).toContain(`admin.tokenAnalysis.requestOrigin.reasons.${origin.reason}`)
+    expect(detail.text()).toContain(`admin.tokenAnalysis.requestOrigin.confidences.${origin.confidence}`)
+    expect(detail.text()).toContain('admin.tokenAnalysis.requestOrigin.humanHint')
+    expect(api.listRequests).toHaveBeenCalledTimes(1)
+    expect(api.getRequestInput).not.toHaveBeenCalled()
+  })
+
   it('hides the manual index action for sub admins', async () => {
     authState.isAdmin = false
     authState.isSubAdmin = true
 
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('admin.tokenAnalysis.indexNow')
@@ -235,9 +327,7 @@ describe('TokenAnalysisView', () => {
   ])('formats total Token value %s with M/B only and preserves its exact title', async (value, expected) => {
     api.getSummary.mockResolvedValue(summaryFixture({ total_tokens: value }))
 
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const card = wrapper.findAll('.card').find((item) => item.text().includes('admin.tokenAnalysis.summary.totalTokens'))
@@ -254,9 +344,7 @@ describe('TokenAnalysisView', () => {
   ])('formats total request value %s with K/M/B and preserves its exact title', async (value, expected) => {
     api.getSummary.mockResolvedValue(summaryFixture({ total_requests: value }))
 
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const card = wrapper.findAll('.card').find((item) => item.text().includes('admin.tokenAnalysis.summary.totalRequests'))
@@ -266,8 +354,7 @@ describe('TokenAnalysisView', () => {
   })
 
   it('renders user ranking by user only without API key subtitle', async () => {
-    api.listUsers.mockResolvedValue({
-      items: [
+    api.listUsers.mockResolvedValue(pageOf([
         {
           user_id: 7,
           user_email: 'dev@example.com',
@@ -286,15 +373,9 @@ describe('TokenAnalysisView', () => {
           risk_ratio: 0.2,
           last_event_time: '2026-06-12T10:00:00Z'
         }
-      ],
-      total: 1,
-      page: 1,
-      page_size: 20
-    })
+      ], 1))
 
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const userRankingCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.userRanking'))
@@ -308,20 +389,13 @@ describe('TokenAnalysisView', () => {
   })
 
   it('formats user ranking Token and cost thresholds while preserving exact titles', async () => {
-    api.listUsers.mockResolvedValue({
-      items: [
+    api.listUsers.mockResolvedValue(pageOf([
         { user_id: 7, user_email: 'raw@example.com', total_tokens: 1_200, actual_cost: 999.9999 },
         { user_id: 8, user_email: 'million@example.com', total_tokens: 1_000_000, actual_cost: 1_000 },
         { user_id: 9, user_email: 'billion@example.com', total_tokens: 1_000_000_000, actual_cost: 1_200_000 }
-      ],
-      total: 3,
-      page: 1,
-      page_size: 20
-    })
+      ], 3))
 
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const userRankingCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.userRanking'))
@@ -339,12 +413,7 @@ describe('TokenAnalysisView', () => {
   })
 
   it('selects ranking users and loads authoritative daily usage trend', async () => {
-    api.listUsers.mockResolvedValue({
-      items: [userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')],
-      total: 2,
-      page: 1,
-      page_size: 20
-    })
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')], 2))
     dashboardApi.getUserUsageTrend.mockResolvedValue({
       trend: [
         { date: '2026-07-01', user_id: 7, email: 'a@example.com', username: '', requests: 1, tokens: 100, cost: 1, actual_cost: 1 },
@@ -354,14 +423,10 @@ describe('TokenAnalysisView', () => {
       end_date: '2026-07-01',
       granularity: 'day'
     })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
-    const dateInputs = wrapper.findAll('input[type="date"]')
-    await dateInputs[0].setValue('2026-07-01')
-    await dateInputs[1].setValue('2026-07-01')
+    await setDateRange(wrapper, '2026-07-01', '2026-07-01')
     const selectors = wrapper.findAll('input[data-user-trend-select]')
     await selectors[0].setValue(true)
     await selectors[1].setValue(true)
@@ -391,9 +456,7 @@ describe('TokenAnalysisView', () => {
       page: 1,
       page_size: 20
     })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     let selectors = wrapper.findAll('input[data-user-trend-select]')
@@ -412,11 +475,9 @@ describe('TokenAnalysisView', () => {
 
   it('keeps selected users when the ranking page changes', async () => {
     api.listUsers
-      .mockResolvedValueOnce({ items: [userFixture(7, 'page-one@example.com')], total: 40, page: 1, page_size: 20 })
+      .mockResolvedValueOnce(pageOf([userFixture(7, 'page-one@example.com')], 40))
       .mockResolvedValueOnce({ items: [userFixture(8, 'page-two@example.com')], total: 40, page: 2, page_size: 20 })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     await wrapper.find('input[data-user-trend-select]').setValue(true)
@@ -433,20 +494,13 @@ describe('TokenAnalysisView', () => {
   })
 
   it('ignores an older trend response after the selection changes and clears stale chart data', async () => {
-    const today = new Date().toISOString().slice(0, 10)
-    api.listUsers.mockResolvedValue({
-      items: [userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')],
-      total: 2,
-      page: 1,
-      page_size: 20
-    })
+    const today = localToday()
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')], 2))
     const resolvers: Array<(value: unknown) => void> = []
     dashboardApi.getUserUsageTrend.mockImplementation(
       () => new Promise((resolve) => resolvers.push(resolve))
     )
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const selectors = wrapper.findAll('input[data-user-trend-select]')
@@ -474,18 +528,14 @@ describe('TokenAnalysisView', () => {
   })
 
   it('fills missing user periods with zero', async () => {
-    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com')], 1))
     dashboardApi.getUserUsageTrend.mockResolvedValue({
       trend: [{ date: '2026-07-02', user_id: 7, email: 'a@example.com', username: '', requests: 1, tokens: 42, cost: 0, actual_cost: 0 }]
     })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
-    const dateInputs = wrapper.findAll('input[type="date"]')
-    await dateInputs[0].setValue('2026-07-01')
-    await dateInputs[1].setValue('2026-07-03')
+    await setDateRange(wrapper, '2026-07-01', '2026-07-03')
     await wrapper.find('input[data-user-trend-select]').setValue(true)
     await flushPromises()
 
@@ -496,14 +546,10 @@ describe('TokenAnalysisView', () => {
   })
 
   it('enables hourly mode only for a single selected date', async () => {
-    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com')], 1))
+    const wrapper = mountView()
     await flushPromises()
-    const dateInputs = wrapper.findAll('input[type="date"]')
-    await dateInputs[0].setValue('2026-07-01')
-    await dateInputs[1].setValue('2026-07-01')
+    await setDateRange(wrapper, '2026-07-01', '2026-07-01')
     await wrapper.find('input[data-user-trend-select]').setValue(true)
     await flushPromises()
 
@@ -522,14 +568,10 @@ describe('TokenAnalysisView', () => {
   })
 
   it('does not request hourly trend for a multi-day range', async () => {
-    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com')], 1))
+    const wrapper = mountView()
     await flushPromises()
-    const dateInputs = wrapper.findAll('input[type="date"]')
-    await dateInputs[0].setValue('2026-07-01')
-    await dateInputs[1].setValue('2026-07-02')
+    await setDateRange(wrapper, '2026-07-01', '2026-07-02')
     await wrapper.find('input[data-user-trend-select]').setValue(true)
     await flushPromises()
 
@@ -542,11 +584,9 @@ describe('TokenAnalysisView', () => {
   })
 
   it('clears stale chart data and exposes retry after a load error', async () => {
-    api.listUsers.mockResolvedValue({ items: [userFixture(7, 'a@example.com')], total: 1, page: 1, page_size: 20 })
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com')], 1))
     dashboardApi.getUserUsageTrend.mockRejectedValueOnce(new Error('network'))
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
     await wrapper.find('input[data-user-trend-select]').setValue(true)
     await flushPromises()
@@ -565,8 +605,7 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('admin.tokenAnalysis.trendNoUsage')
   })
   it('renders project ranking with compact tokens, UTC+8 time and sortable headers', async () => {
-    api.listProjects.mockResolvedValue({
-      items: [
+    api.listProjects.mockResolvedValue(pageOf([
         {
           project: 'lag-killer',
           user_id: 7,
@@ -595,14 +634,8 @@ describe('TokenAnalysisView', () => {
           actual_cost: 98.7654,
           last_event_time: '2026-06-10T02:03:04Z'
         }
-      ],
-      total: 2,
-      page: 1,
-      page_size: 20
-    })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+      ], 2))
+    const wrapper = mountView()
     await flushPromises()
 
     // 默认按 total_tokens 降序请求。
@@ -647,9 +680,7 @@ describe('TokenAnalysisView', () => {
   })
 
   it('lazy loads full user input when a request row is opened', async () => {
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const row = wrapper.findAll('tbody tr').find((r) => r.text().includes('user@example.com'))
@@ -675,9 +706,7 @@ describe('TokenAnalysisView', () => {
       truncated: false,
       quality_version: ''
     })
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const row = wrapper.findAll('tbody tr').find((r) => r.text().includes('user@example.com'))
@@ -719,19 +748,12 @@ describe('TokenAnalysisView', () => {
       has_input: true,
       input_truncated: false
     }
-    api.listRequests.mockResolvedValue({
-      items: [
+    api.listRequests.mockResolvedValue(pageOf([
         { ...baseItem, id: 1, archive_id: 'arch-1', user_email: 'user@example.com' },
         { ...baseItem, id: 2, archive_id: 'arch-2', user_email: 'second@example.com' }
-      ],
-      total: 2,
-      page: 1,
-      page_size: 20
-    })
+      ], 2))
 
-    const wrapper = mount(TokenAnalysisView, {
-      global: { stubs: { AppLayout: AppLayoutStub } }
-    })
+    const wrapper = mountView()
     await flushPromises()
 
     const rows = wrapper.findAll('tbody tr')
@@ -779,9 +801,7 @@ describe('TokenAnalysisView', () => {
     vi.useFakeTimers()
     try {
       api.triggerIndex.mockResolvedValue(undefined)
-      const wrapper = mount(TokenAnalysisView, {
-        global: { stubs: { AppLayout: AppLayoutStub } }
-      })
+      const wrapper = mountView()
       await flushPromises()
       const mountCalls = api.getIndexStatus.mock.calls.length
 
@@ -819,9 +839,7 @@ describe('TokenAnalysisView', () => {
     vi.useFakeTimers()
     try {
       api.getIndexStatus.mockResolvedValue({ running: true, processed_rows: 0, failed_rows: 0, files: [] })
-      const wrapper = mount(TokenAnalysisView, {
-        global: { stubs: { AppLayout: AppLayoutStub } }
-      })
+      const wrapper = mountView()
       await flushPromises()
       const mountCalls = api.getIndexStatus.mock.calls.length
 
@@ -839,5 +857,143 @@ describe('TokenAnalysisView', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('keeps each trend user on its color slot when another user is removed', async () => {
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com'), userFixture(9, 'c@example.com')], 3))
+    const wrapper = mountView()
+    await flushPromises()
+
+    const selectors = wrapper.findAll('input[data-user-trend-select]')
+    await selectors[0].setValue(true)
+    await selectors[1].setValue(true)
+    await flushPromises()
+    const colorOf = (label: string) => {
+      const data = wrapper.findComponent({ name: 'Line' }).props('data') as { datasets: Array<{ label: string; borderColor: string }> }
+      return data.datasets.find((dataset) => dataset.label === label)?.borderColor
+    }
+    const bColor = colorOf('b@example.com')
+
+    // 取消第一个用户: 第二个用户保留原颜色; 新选用户补用空出的第一个槽位。
+    await wrapper.findAll('input[data-user-trend-select]')[0].setValue(false)
+    await flushPromises()
+    expect(colorOf('b@example.com')).toBe(bColor)
+    await wrapper.findAll('input[data-user-trend-select]')[2].setValue(true)
+    await flushPromises()
+    expect(colorOf('b@example.com')).toBe(bColor)
+    expect(colorOf('c@example.com')).not.toBe(bColor)
+  })
+
+  it('removes a trend user from the chip list and clears all selections', async () => {
+    api.listUsers.mockResolvedValue(pageOf([userFixture(7, 'a@example.com'), userFixture(8, 'b@example.com')], 2))
+    const wrapper = mountView()
+    await flushPromises()
+    const selectors = wrapper.findAll('input[data-user-trend-select]')
+    await selectors[0].setValue(true)
+    await selectors[1].setValue(true)
+    await flushPromises()
+
+    const trend = wrapper.find('[data-testid="token-analysis-user-trend"]')
+    await trend.find('button[aria-label="admin.tokenAnalysis.removeTrendUser"]').trigger('click')
+    await flushPromises()
+    expect(dashboardApi.getUserUsageTrend).toHaveBeenLastCalledWith(expect.objectContaining({ user_ids: [8] }))
+    expect(wrapper.findAll('input[data-user-trend-select]')[0].element.checked).toBe(false)
+
+    const clear = trend.findAll('button').find((button) => button.text() === 'admin.tokenAnalysis.clearTrendUsers')
+    await clear!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="token-analysis-trend-empty"]').exists()).toBe(true)
+  })
+
+  it('shows clicked project and risk reason as removable filter chips', async () => {
+    api.listProjects.mockResolvedValue(pageOf([{
+        project: 'lag-killer',
+        user_id: 7,
+        user_email: 'dev@example.com',
+        request_count: 1,
+        matched_request_count: 1,
+        total_tokens: 10,
+        input_tokens: 5,
+        output_tokens: 5,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        actual_cost: 0,
+        last_event_time: '2026-06-10T01:02:03Z'
+      }], 1))
+    const wrapper = mountView()
+    await flushPromises()
+    const chips = () => wrapper.find('[data-testid="token-analysis-active-filters"]')
+    expect(chips().text()).toContain('admin.tokenAnalysis.noActiveFilters')
+
+    const projectButton = wrapper.find('[data-testid="token-analysis-project-ranking"] tbody button')
+    await projectButton.trigger('click')
+    await flushPromises()
+    expect(api.listRequests).toHaveBeenLastCalledWith(expect.objectContaining({ project: 'lag-killer' }))
+
+    const riskButton = wrapper.find('[data-testid="token-analysis-risk-reasons"] button[aria-pressed]')
+    await riskButton.trigger('click')
+    await flushPromises()
+    expect(api.getSummary).toHaveBeenLastCalledWith(expect.objectContaining({ risk_reason: 'huge_input_tiny_output' }))
+    expect(chips().text()).toContain('admin.tokenAnalysis.project: lag-killer')
+    expect(chips().text()).toContain('admin.tokenAnalysis.riskReason: huge_input_tiny_output')
+    expect(wrapper.find('[data-testid="token-analysis-risk-reasons"] button[aria-pressed="true"]').exists()).toBe(true)
+
+    await chips().find('button[aria-label="admin.tokenAnalysis.removeFilter"]').trigger('click')
+    await flushPromises()
+    const lastCall = api.listRequests.mock.calls.at(-1)![0]
+    expect(lastCall.project).toBeUndefined()
+    expect(lastCall.risk_reason).toBe('huge_input_tiny_output')
+  })
+
+  it('resets dimension filters and dates back to today', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await setDateRange(wrapper, '2026-07-01', '2026-07-03')
+    await wrapper.find('input[type="search"]').setValue('someone')
+    await wrapper.find('input[type="search"]').trigger('keyup.enter')
+    await flushPromises()
+    expect(api.listRequests).toHaveBeenLastCalledWith(expect.objectContaining({ user_email: 'someone', start_date: '2026-07-01' }))
+
+    const reset = wrapper.findAll('button').find((button) => button.text() === 'admin.tokenAnalysis.reset')
+    await reset!.trigger('click')
+    await flushPromises()
+    const lastCall = api.listRequests.mock.calls.at(-1)![0]
+    expect(lastCall.user_email).toBeUndefined()
+    expect(lastCall.start_date).toBe(localToday())
+    expect(lastCall.end_date).toBe(localToday())
+  })
+
+  it('keeps sorting and paging on the submitted filters while a draft is pending', async () => {
+    api.listRequests.mockResolvedValue(pageOf([], 40))
+    const wrapper = mountView()
+    await flushPromises()
+    const modelInput = wrapper.find('input[aria-label="admin.tokenAnalysis.model"]')
+    await modelInput.setValue('model-a')
+    await modelInput.trigger('keyup.enter')
+    await flushPromises()
+    // 改了输入框但未提交: 排序与翻页续查仍用已提交的 model-a。
+    await modelInput.setValue('model-b')
+
+    const riskSort = wrapper.findAll('button').find((button) => button.text() === 'admin.tokenAnalysis.sortByRisk')
+    await riskSort!.trigger('click')
+    await flushPromises()
+    expect(api.listRequests).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'model-a', sort_by: 'risk_score' }))
+
+    const requestPagination = wrapper.find('[data-testid="token-analysis-request-details"]').findComponent(Pagination)
+    requestPagination.vm.$emit('update:page', 2)
+    await flushPromises()
+    expect(api.listRequests).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'model-a', page: 2 }))
+    expect(wrapper.find('[data-testid="token-analysis-active-filters"]').text()).toContain('admin.tokenAnalysis.model: model-a')
+  })
+
+  it('switches to the index tab from the index status pill', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="token-analysis-tab-users"]').attributes('aria-selected')).toBe('true')
+
+    await wrapper.find('[data-testid="token-analysis-index-pill"]').trigger('click')
+    expect(wrapper.find('[data-testid="token-analysis-tab-index"]').attributes('aria-selected')).toBe('true')
+    expect(wrapper.find('#token-analysis-panel-index').isVisible()).toBe(true)
+    expect(wrapper.find('#token-analysis-panel-users').isVisible()).toBe(false)
   })
 })

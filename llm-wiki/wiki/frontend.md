@@ -319,10 +319,12 @@ API 模块分布:
 
 管理端 Token Analysis 计费用量趋势:
 
+- 页面布局: 顶部筛选卡(共用 `DateRangePicker` + 邮箱/项目/模型/风险分, ID 类与"包含未匹配"收在"更多筛选"; 已应用筛选按最近一次提交的快照 `appliedFilters` 显示为可移除标签, 概览/列表/排序翻页续查/趋势/索引触发也都只读该快照, 排序翻页不提交输入框草稿; 已知例外: 索引完成轮询仍调用 `reloadAll` 并提交当前草稿, 待分离提交与刷新入口, 见 `docs/reviews/2026-10-24-token-analysis-request-origin-implementation-review-cn.md` 的 P3; 右侧索引状态胶囊与"索引当前范围") → `TokenAnalysisOverview.vue`(5 张 KPI 卡、Token 构成条、风险原因条形列表, 点击条目切换全局 `risk_reason`) → 四个标签页(用户排行+趋势 / 项目 / 请求明细 / 索引与归档)。标签页用 `v-show`, 各列表仍在 `reloadAll` 中一次加载, 计数显示在标签上。数据加载、竞态与索引轮询仍集中在 View, 目录组件只做展示。默认日期取浏览器本地日(与请求 `timezone` 一致), 不用 UTC 日期。
+- 请求明细组件 `components/admin/token-analysis/TokenAnalysisRequestTable.vue` 从 `summary_json.request_origin` 展示“人工 / AI”，`TokenAnalysisRequestDrawer.vue` 显示依据、推断程度和版本；公共 `requestOrigin.ts` 校验 v1 合同，缺字段、坏数据、未知版本显示“—/尚未识别”，不按预览或重复次数猜测。人工仅表示本轮新用户输入的规则推断；历史行需服务端重新索引才有分类。无新接口或逐行读取，详情全文仍按点击懒加载。组件合同见该目录 README，完整设计见 `docs/features/token-analysis-request-origin-design-cn.md`。
 - `frontend/src/views/admin/TokenAnalysisView.vue` 的用户排行可跨分页选择最多 5 名存在 `user_id` 的用户; 选择状态保存用户 ID、邮箱和选择顺序, 达到上限后只禁用未选项, 已选项仍可取消。
 - 趋势面板调用 `adminAPI.dashboard.getUserUsageTrend`, 数据源是后端 `usage_logs` 计费用量而不是归档摘要。`frontend/src/api/admin/dashboard.ts` 把 `number[]` 序列化为逗号分隔 `user_ids`; 空数组不发送该参数, 避免误进入后端严格选人模式。
-- 日粒度按筛选范围生成完整日期轴; 小时粒度只在同一日期可选并生成 24 个北京时间整点。每名用户按选择顺序使用稳定颜色, 缺失周期补 0, 完全无用量仍渲染零值折线并显示空用量提示。
-- 用户/粒度/筛选变化先清空旧点并递增请求序号, 迟到响应不得覆盖最新选择; 错误态在面板内重试。Chart.js 只在页面内注册并复用 `vue-chartjs` 的 `Line`, 不新增全局图表组件或页面路由。
+- 日粒度按筛选范围生成完整日期轴; 小时粒度只在同一日期可选并生成 24 个北京时间整点。颜色槽位在选中时分配并固定(取消其他用户不重排颜色, `tokenAnalysisFormat.ts` 的亮/暗两套色板已用 dataviz 校验且不含红色), 图上方已选用户标签即图例, 缺失周期补 0, 完全无用量仍渲染零值折线并显示空用量提示。
+- 用户/粒度/筛选变化先清空旧点并递增请求序号, 迟到响应不得覆盖最新选择; 错误态在面板内重试。Chart.js 只在 `TokenAnalysisUserTrend.vue` 内注册并复用 `vue-chartjs` 的 `Line`, 不新增全局图表组件或页面路由。
 - 回归测试位于 `frontend/src/views/admin/__tests__/TokenAnalysisView.spec.ts` 与 `frontend/src/api/__tests__/admin.dashboard.spec.ts`; 修改选择上限、分页、时间轴或竞态处理时同步中英文 `admin/tokenAnalysis.ts` 文案和这两组测试。
 
 用户侧用量页:

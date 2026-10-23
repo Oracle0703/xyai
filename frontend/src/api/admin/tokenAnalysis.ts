@@ -91,6 +91,33 @@ export interface TokenAnalysisProjectUsage {
   last_event_time?: string
 }
 
+export type TokenAnalysisRequestOriginKind = 'human' | 'ai' | 'unknown'
+
+export type TokenAnalysisRequestOriginReason =
+  | 'subagent'
+  | 'automation'
+  | 'tool_result'
+  | 'agent_message'
+  | 'assistant_continuation'
+  | 'compaction'
+  | 'user_input'
+  | 'no_signal'
+  | 'unsupported_shape'
+  | 'body_truncated'
+  | 'count_tokens'
+
+export interface TokenAnalysisRequestOrigin {
+  kind: TokenAnalysisRequestOriginKind
+  reason: TokenAnalysisRequestOriginReason
+  confidence: 'high' | 'medium' | 'none'
+  version: 1
+}
+
+export interface TokenAnalysisRequestSummary {
+  request_origin?: TokenAnalysisRequestOrigin
+  [key: string]: unknown
+}
+
 export interface TokenAnalysisRequestItem {
   id: number
   archive_id: string
@@ -114,7 +141,7 @@ export interface TokenAnalysisRequestItem {
   last_user_preview: string
   tools_count: number
   image_count: number
-  summary_json?: Record<string, unknown>
+  summary_json?: TokenAnalysisRequestSummary
   client_workdir?: string
   client_project?: string
   client_branch?: string

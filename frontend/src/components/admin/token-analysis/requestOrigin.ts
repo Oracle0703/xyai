@@ -1,0 +1,59 @@
+import { useI18n } from 'vue-i18n'
+import type {
+  TokenAnalysisRequestOrigin,
+  TokenAnalysisRequestOriginKind,
+  TokenAnalysisRequestOriginReason
+} from '@/api/admin/tokenAnalysis'
+
+const reasonKinds: Record<TokenAnalysisRequestOriginReason, TokenAnalysisRequestOriginKind> = {
+  subagent: 'ai',
+  automation: 'ai',
+  tool_result: 'ai',
+  agent_message: 'ai',
+  assistant_continuation: 'ai',
+  compaction: 'ai',
+  user_input: 'human',
+  no_signal: 'unknown',
+  unsupported_shape: 'unknown',
+  body_truncated: 'unknown',
+  count_tokens: 'unknown'
+}
+
+// API 响应在运行时仍可能是旧数据或未知版本; 不从预览、重复次数推测来源。
+function readRequestOrigin(summary: unknown): TokenAnalysisRequestOrigin | null {
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return null
+  const origin = (summary as Record<string, unknown>).request_origin
+  if (!origin || typeof origin !== 'object' || Array.isArray(origin)) return null
+  const { kind, reason, confidence, version } = origin as Record<string, unknown>
+  if (version !== 1 || typeof reason !== 'string' || !Object.prototype.hasOwnProperty.call(reasonKinds, reason)) return null
+  const knownReason = reason as TokenAnalysisRequestOriginReason
+  const expectedKind = reasonKinds[knownReason]
+  const expectedConfidence = expectedKind === 'ai' ? 'high' : expectedKind === 'human' ? 'medium' : 'none'
+  if (kind !== expectedKind || confidence !== expectedConfidence) return null
+  return { kind: expectedKind, reason: knownReason, confidence: expectedConfidence, version: 1 }
+}
+
+export function useRequestOrigin() {
+  const { t } = useI18n()
+
+  function requestOrigin(summary: unknown) {
+    const origin = readRequestOrigin(summary)
+    const kind = origin?.kind ?? 'unknown'
+    const reason = origin ? t(`admin.tokenAnalysis.requestOrigin.reasons.${origin.reason}`) : t('admin.tokenAnalysis.requestOrigin.notIdentified')
+    const label = kind === 'unknown' ? '—' : t(`admin.tokenAnalysis.requestOrigin.${kind}`)
+    return {
+      label,
+      reason,
+      confidence: origin ? t(`admin.tokenAnalysis.requestOrigin.confidences.${origin.confidence}`) : '—',
+      version: origin?.version ?? '—',
+      tooltip: `${t('admin.tokenAnalysis.requestOrigin.inferred')} · ${reason}`,
+      className: kind === 'human'
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+        : kind === 'ai'
+          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+          : 'text-gray-400 dark:text-dark-400'
+    }
+  }
+
+  return { requestOrigin }
+}

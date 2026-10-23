@@ -17,7 +17,8 @@
       ]"
       :data-testid="`${testidPrefix}${option.value}`"
       :aria-pressed="modelValue === option.value"
-      :disabled="disabled"
+      :disabled="disabled || option.disabled"
+      :title="option.title"
       @click="emit('update:modelValue', option.value)"
     >
       {{ option.label }}
@@ -29,7 +30,7 @@
 // Same segmented style as the dashboard/usage chart toggles (ModelDistributionChart).
 withDefaults(defineProps<{
   modelValue: T
-  options: Array<{ value: T; label: string }>
+  options: Array<{ value: T; label: string; disabled?: boolean; title?: string }>
   testidPrefix: string
   ariaLabel?: string
   size?: 'sm' | 'md'
