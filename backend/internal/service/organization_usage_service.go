@@ -20,6 +20,10 @@ const (
 )
 
 var organizationUsageLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+// OrganizationUsageLocation is the fixed report timezone shared with the rollup repository.
+func OrganizationUsageLocation() *time.Location { return organizationUsageLocation }
+
 var organizationUsageRFC3339Pattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$`)
 
 type OrganizationUsageValidationError struct {

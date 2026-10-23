@@ -45,6 +45,7 @@ func TestDepartmentUsagePerformanceIntegration(t *testing.T) {
 		_, err = integrationDB.ExecContext(ctx, "ANALYZE "+table)
 		require.NoError(t, err)
 	}
+	publishOrganizationUsageRollupsForPerformance(t, time.Date(2025, 6, 30, 0, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*3600)))
 	adminCtx := service.WithDepartmentActor(ctx, adminID)
 	leaderCtx := service.WithDepartmentActor(ctx, leaderID)
 	repo := NewOrganizationUsageRepository(integrationDB)
@@ -87,6 +88,8 @@ func TestDepartmentUsagePerformanceIntegration(t *testing.T) {
 				// Record a real scoped query plan and the last exported page shape.
 				concrete := repo.(*organizationUsageRepository)
 				q, tx, _, e := concrete.beginScoped(queryCtx, p.Organization, p.Q, p.Filters)
+				require.NoError(t, e)
+				q, e = q.withRollupPlan(queryCtx, p.StartDate, p.StartTime, p.EndTime)
 				require.NoError(t, e)
 				query, args := q.scopedQuery(organizationUsageSummaryItemsSQL("total_tokens DESC, user_id ASC", true), []any{p.StartTime, p.EndTime, organizationUsageSearchPattern(p.Q), p.Organization, p.StartDate.Format("2006-01-02"), p.EndDate.Format("2006-01-02"), 500, 0})
 				var raw []byte

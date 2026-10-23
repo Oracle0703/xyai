@@ -96,10 +96,13 @@ WHERE u.email LIKE $1`, organizationUsageExplainPrefix+"%",
 	require.NoError(t, err)
 
 	endDate := time.Date(2026, 6, 30, 0, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	publishOrganizationUsageRollupsForPerformance(t, endDate.AddDate(0, 0, -365))
 	for _, days := range organizationUsageExplainDays(t) {
 		startDate := endDate.AddDate(0, 0, -(days - 1))
 		startTime := startDate.UTC()
 		endTime := endDate.AddDate(0, 0, 1).UTC()
+		planned, err := (&organizationUsageRepository{db: integrationDB}).withRollupPlan(ctx, startDate, startTime, endTime)
+		require.NoError(t, err)
 		pattern := organizationUsageSearchPattern(organizationUsageExplainPrefix)
 		startRaw := startDate.Format("2006-01-02")
 		endRaw := endDate.Format("2006-01-02")
@@ -142,9 +145,10 @@ WHERE u.email LIKE $1`, organizationUsageExplainPrefix+"%",
 			if filter := os.Getenv("ORGANIZATION_USAGE_EXPLAIN_QUERY"); filter != "" && filter != query.name {
 				continue
 			}
+			boundQuery, boundArgs := planned.plan.bind(query.query, query.args)
 			// First pass warms PostgreSQL and filesystem caches; the second pass is recorded.
-			explainOrganizationUsageQuery(t, ctx, query.query, query.args...)
-			plan := explainOrganizationUsageQuery(t, ctx, query.query, query.args...)
+			explainOrganizationUsageQuery(t, ctx, boundQuery, boundArgs...)
+			plan := explainOrganizationUsageQuery(t, ctx, boundQuery, boundArgs...)
 			t.Logf(
 				"ORG_USAGE_EXPLAIN days=%d query=%s planning_ms=%.3f execution_ms=%.3f rows=%.0f shared_hit=%d shared_read=%d temp_read=%d temp_written=%d",
 				days, query.name, plan.PlanningTime, plan.ExecutionTime, plan.Plan.ActualRows,

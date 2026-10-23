@@ -40,6 +40,11 @@ report_champions AS MATERIALIZED (
     ) c JOIN selected_users su ON su.user_id=c.user_id
 )`
 
+// Report queries aggregate a whole date range of usage_logs. Production EXPLAIN showed
+// JIT compilation costing 0.4-1s per query, and the default work_mem spilling the shared
+// usage_rows CTE to temp files. Both settings are transaction-local.
+const organizationUsageReportSessionSQL = `SELECT set_config('jit', 'off', true), set_config('work_mem', '64MB', true)`
+
 func (r *organizationUsageRepository) executor() organizationUsageExecutor {
 	if r.query != nil {
 		return r.query
@@ -47,22 +52,21 @@ func (r *organizationUsageRepository) executor() organizationUsageExecutor {
 	return r.db
 }
 
-// The two markers are internal SQL template slots. Values are always bound;
-// neither user input nor authorization IDs are interpolated into SQL text.
+// The markers and rollup plan slots are internal SQL template slots. Values are always
+// bound; neither user input nor authorization IDs are interpolated into SQL text.
 func (r *organizationUsageRepository) scopedQuery(query string, args []any) (string, []any) {
-	if r.scope == nil {
-		return query, args
+	if r.scope != nil {
+		if strings.Contains(query, "/* department_members */") {
+			args = append(args, pq.Array(r.scopeIDs))
+			query = strings.ReplaceAll(query, "/* department_members */", fmt.Sprintf("AND u.id=ANY($%d::bigint[])", len(args)))
+		}
+		if strings.Contains(query, "/* department_platform */") {
+			args = append(args, r.filters.Platform)
+			n := len(args)
+			query = strings.ReplaceAll(query, "/* department_platform */", fmt.Sprintf("AND ($%d='all' OR COALESCE(NULLIF(%s,''),'unknown')=$%d)", n, usageLogEffectivePlatformExpr, n))
+		}
 	}
-	if strings.Contains(query, "/* department_members */") {
-		args = append(args, pq.Array(r.scopeIDs))
-		query = strings.ReplaceAll(query, "/* department_members */", fmt.Sprintf("AND u.id=ANY($%d::bigint[])", len(args)))
-	}
-	if strings.Contains(query, "/* department_platform */") {
-		args = append(args, r.filters.Platform)
-		n := len(args)
-		query = strings.ReplaceAll(query, "/* department_platform */", fmt.Sprintf("AND ($%d='all' OR COALESCE(NULLIF(%s,''),'unknown')=$%d)", n, usageLogEffectivePlatformExpr, n))
-	}
-	return query, args
+	return r.plan.bind(query, args)
 }
 
 func (r *organizationUsageRepository) queryRows(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
@@ -84,6 +88,10 @@ func (r *organizationUsageRepository) beginScoped(ctx context.Context, organizat
 	}
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	if err != nil {
+		return nil, nil, nil, err
+	}
+	if _, err = tx.ExecContext(ctx, organizationUsageReportSessionSQL); err != nil {
+		_ = tx.Rollback()
 		return nil, nil, nil, err
 	}
 	scope, err := resolveDepartmentQueryScope(ctx, tx, service.AdminPermissionOrganizationUsage, service.DepartmentScopeQuery{Organization: organization, DepartmentID: filters.DepartmentID, Platform: filters.Platform, Q: q, ExpectedVersion: filters.ScopeVersion})
@@ -109,6 +117,10 @@ func (r *organizationUsageRepository) scopedSummary(ctx context.Context, p servi
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	// One read plan per request: Summary and the breakdowns share it.
+	if q, err = q.withRollupPlan(ctx, p.StartDate, p.StartTime, p.EndTime); err != nil {
+		return nil, err
+	}
 	result, err := q.Summary(ctx, p)
 	if err != nil {
 		return nil, err
@@ -238,15 +250,19 @@ func (r *organizationUsageRepository) breakdowns(ctx context.Context, p service.
 	}
 	platforms := map[string]*service.OrganizationUsagePlatform{}
 	usedMembers := map[int64]bool{}
-	query := `SELECT ul.user_id,COALESCE(NULLIF(` + usageLogEffectivePlatformExpr + `,''),'unknown'),COUNT(*)::bigint,
-COALESCE(SUM(ul.input_tokens),0)::bigint,COALESCE(SUM(ul.output_tokens),0)::bigint,
-COALESCE(SUM(ul.cache_creation_tokens),0)::bigint,COALESCE(SUM(ul.cache_read_tokens),0)::bigint,
-COALESCE(SUM(ul.input_tokens+ul.output_tokens+ul.cache_creation_tokens+ul.cache_read_tokens),0)::bigint,COALESCE(SUM(ul.actual_cost),0)::double precision
-FROM usage_logs ul LEFT JOIN groups g ON g.id=ul.group_id LEFT JOIN accounts a ON a.id=ul.account_id
-WHERE ul.user_id=ANY($1::bigint[]) AND ul.created_at >= $2 AND ul.created_at < $3
-AND ($4='all' OR COALESCE(NULLIF(` + usageLogEffectivePlatformExpr + `,''),'unknown')=$4)
-GROUP BY ul.user_id,2 ORDER BY ul.user_id,2`
-	rows, err := r.executor().QueryContext(ctx, query, pq.Array(r.scopeIDs), p.StartTime, p.EndTime, r.filters.Platform)
+	planned, err := r.withRollupPlan(ctx, p.StartDate, p.StartTime, p.EndTime)
+	if err != nil {
+		return err
+	}
+	query, args := planned.plan.bind(`WITH `+organizationUsageDaysCTE("= ANY($1::bigint[])", "ul.created_at >= $2 AND ul.created_at < $3")+`
+SELECT d.user_id,COALESCE(NULLIF(`+usageLogEffectivePlatformExpr+`,''),'unknown'),COALESCE(SUM(d.requests),0)::bigint,
+COALESCE(SUM(d.input_tokens),0)::bigint,COALESCE(SUM(d.output_tokens),0)::bigint,
+COALESCE(SUM(d.cache_creation_tokens),0)::bigint,COALESCE(SUM(d.cache_read_tokens),0)::bigint,
+COALESCE(SUM(d.input_tokens+d.output_tokens+d.cache_creation_tokens+d.cache_read_tokens),0)::bigint,COALESCE(SUM(d.actual_cost),0)::double precision
+FROM usage_days d LEFT JOIN groups g ON g.id=d.group_id LEFT JOIN accounts a ON a.id=d.account_id
+WHERE ($4='all' OR COALESCE(NULLIF(`+usageLogEffectivePlatformExpr+`,''),'unknown')=$4)
+GROUP BY d.user_id,2 ORDER BY d.user_id,2`, []any{pq.Array(r.scopeIDs), p.StartTime, p.EndTime, r.filters.Platform})
+	rows, err := r.executor().QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}

@@ -50,3 +50,25 @@ func TestMigration223TracksConfiguredTimezone(t *testing.T) {
 	require.Contains(t, sql, "CREATE OR REPLACE FUNCTION invalidate_group_usage_rollup_state")
 	require.Contains(t, sql, "CREATE OR REPLACE FUNCTION invalidate_group_usage_rollup_state_after_insert")
 }
+
+func TestMigration246CreatesOrganizationUsageRollupsWithLockFreeDirtyMarks(t *testing.T) {
+	content, err := FS.ReadFile("246_organization_usage_daily_rollups.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "CREATE TABLE IF NOT EXISTS usage_user_daily_rollups")
+	require.Contains(t, sql, "PRIMARY KEY (bucket_date, user_id, group_id, account_id)")
+	require.Contains(t, sql, "actual_cost DECIMAL(24, 10)")
+	require.Contains(t, sql, "CREATE TABLE IF NOT EXISTS usage_user_rollup_state")
+	require.Contains(t, sql, "CREATE TABLE IF NOT EXISTS usage_user_rollup_dirty_days")
+	require.Contains(t, sql, "REFERENCING NEW TABLE AS inserted_usage_logs")
+	require.Contains(t, sql, "clock_timestamp() + INTERVAL '10 minutes'")
+	require.Contains(t, sql, "AFTER TRUNCATE ON usage_logs")
+	require.Contains(t, sql, "ON CONFLICT (bucket_date) DO UPDATE SET marked_at = EXCLUDED.marked_at")
+	require.Contains(t, sql, "PERFORM set_config(marker, 't', true)")
+	require.Contains(t, sql, "REFERENCING OLD TABLE AS old_usage_logs NEW TABLE AS new_usage_logs")
+	require.Contains(t, sql, "reconciled_at TIMESTAMPTZ")
+	// The gateway write path must not lock the watermark row.
+	require.NotContains(t, sql, "FOR UPDATE")
+	require.NotContains(t, sql, "FOR KEY SHARE")
+}

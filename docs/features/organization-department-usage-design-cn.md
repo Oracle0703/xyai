@@ -370,7 +370,7 @@ flowchart TD
     E -- "成员或部门发生变化" --> J["409，提示重新查询后导出"]
 ```
 
-页面先以 Summary 建立快照，再用 canonical `as_of/scope_version` 请求 Trend；人员翻页和趋势续查复用快照。仅 `REPORT_SCOPE_CHANGED` 可触发一次重新建立快照，持续变化停止；授权失效清数据。已加载页面导出沿用其成功快照，导出途中变化立即中止，不能拼接不同版本或静默改范围。
+页面以 Summary 建立快照；首个 Trend 与 Summary 用同一候选 `as_of` 并行请求（不带 `scope_version`），仅当其 `scope_version` 与 canonical `as_of` 都与 Summary 一致时展示，否则每周期最多用 Summary 快照重拉一次（2026-10-23 起，原为 Summary 返回后才请求 Trend）。人员翻页和趋势续查复用快照。仅 `REPORT_SCOPE_CHANGED` 可触发一次重新建立快照，持续变化停止；授权失效清数据。已加载页面导出沿用其成功快照，导出途中变化立即中止，不能拼接不同版本或静默改范围。
 
 范围摘要解决成员及授权变化导致的混合导出，不冻结延迟写入或被清理的用量日志；首版仍是管理报表，不承诺数据库历史快照或财务封账一致性。
 

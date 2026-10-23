@@ -199,11 +199,12 @@ describe('OrganizationUsageView', () => {
     reportScope.mockResolvedValueOnce({ unrestricted: true, organizations: ['xunyou'], departments: [], catalog_version: 'catalog-v1', default_organization: 'all', default_department_id: 'all' })
       .mockResolvedValue({ unrestricted: true, organizations: ['xunyou'], departments: [], catalog_version: 'catalog-v2', default_organization: 'all', default_department_id: 'all' })
     getSummary.mockRejectedValueOnce({ status: 409, code: 409, reason: 'REPORT_SCOPE_CHANGED' }).mockResolvedValue({ ...summary(), scope_version: 'scope-v2' })
-    getTrend.mockImplementation(async query => ({ ...trendResponse(), scope_version: query.scope_version }))
+    getTrend.mockImplementation(async query => ({ ...trendResponse(), scope_version: query.scope_version ?? 'scope-v2' }))
     const wrapper = mountView(); await flushPromises()
     expect(reportScope).toHaveBeenCalledTimes(2)
     expect(getSummary.mock.calls.at(-1)![0]).not.toHaveProperty('scope_version')
-    expect(getTrend).toHaveBeenLastCalledWith(expect.objectContaining({ scope_version: 'scope-v2' }), expect.anything())
+    expect(getTrend.mock.calls.at(-1)![0]).not.toHaveProperty('scope_version')
+    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toHaveLength(1)
     expect(wrapper.text()).toContain('alice@xunyou.com')
     wrapper.unmount()
   })
@@ -227,10 +228,11 @@ describe('OrganizationUsageView', () => {
       start_date: '2026-07-01',
       end_date: '2026-07-31',
       organization: 'all',
-      department_id: 'all', platform: 'all', scope_version: 'scope-v1',
+      department_id: 'all', platform: 'all',
       granularity: 'day',
       as_of: SNAPSHOT_AS_OF
     }, { signal: expect.any(AbortSignal) })
+    expect(getTrend).toHaveBeenCalledTimes(1)
   })
 
   it('switches all three date modes and blocks an invalid custom range', async () => {
@@ -461,11 +463,12 @@ describe('OrganizationUsageView', () => {
     const wrapper = mountView()
     await wrapper.vm.$nextTick()
     const signal = getSummary.mock.calls[0][1].signal as AbortSignal
-    expect(getTrend).not.toHaveBeenCalled()
+    const trendSignal = getTrend.mock.calls[0][1].signal as AbortSignal
 
     wrapper.unmount()
 
     expect(signal.aborted).toBe(true)
+    expect(trendSignal.aborted).toBe(true)
   })
 
   it('renders loading, retryable error and empty states', async () => {
@@ -504,177 +507,132 @@ describe('OrganizationUsageView', () => {
     expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
   })
 
-  it('summary-first: request as_of=C but late trend response D is not displayed; reloads once with C', async () => {
-    // Bug regression: when Summary returns canonical C while Trend is still in-flight with
-    // requested C, a later response with body as_of=D must not be kept just because the
-    // request param was C.
-    const candidateC = SNAPSHOT_AS_OF
-    const responseD = '2026-07-10T03:58:00.000Z'
-
-    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
-    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
-    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
-
-    getSummary.mockImplementationOnce(
-      () => new Promise<OrganizationUsageSummaryResponse>((resolve) => { resolveSummary = resolve })
-    )
-    getTrend
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend1 = resolve }))
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend2 = resolve }))
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    // Trend waits for the initial Summary snapshot.
-    expect(getSummary).toHaveBeenCalledTimes(1)
-    expect(getTrend).not.toHaveBeenCalled()
-    expect(getSummary.mock.calls[0][0]).not.toHaveProperty('scope_version')
-
-    // Summary completes first with the same canonical C as the in-flight request.
-    resolveSummary({
-      ...summary(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: candidateC }
-    })
-    await flushPromises()
-    // Must NOT start a second trend solely because request param already equals C.
-    expect(getTrend).toHaveBeenCalledTimes(1)
-
-    // First trend response body carries a different canonical D — must not be written.
-    resolveTrend1({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: responseD },
-      points: [{ ...trendResponse().points[0], input_tokens: 999 }]
-    })
-    await flushPromises()
-
-    expect(getTrend).toHaveBeenCalledTimes(2)
-    expect(getTrend.mock.calls[1][0].as_of).toBe(candidateC)
-    let stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
-    // Mismatched D must not be kept while waiting for the single reload.
-    expect(stub.props('points')).toEqual([])
-    expect(stub.props('points').some?.((p: { input_tokens: number }) => p.input_tokens === 999)).toBeFalsy()
-
-    // Second response aligns with C → display success.
-    resolveTrend2({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: candidateC },
-      points: [{ ...trendResponse().points[0], input_tokens: 42 }]
-    })
-    await flushPromises()
-
-    stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
-    expect(stub.props('error')).toBe('')
-    expect(stub.props('points')).toHaveLength(1)
-    expect(stub.props('points')[0].input_tokens).toBe(42)
-    expect(stub.props('range')).toMatchObject({ as_of: candidateC })
-    expect(getTrend).toHaveBeenCalledTimes(2)
-  })
-
-  it('summary-first: after one reload still returning D or missing as_of fail-closes without looping', async () => {
-    const candidateC = SNAPSHOT_AS_OF
-    const responseD = '2026-07-10T03:58:00.000Z'
-
-    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
-    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
-    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
-
-    getSummary.mockImplementationOnce(
-      () => new Promise<OrganizationUsageSummaryResponse>((resolve) => { resolveSummary = resolve })
-    )
-    getTrend
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend1 = resolve }))
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend2 = resolve }))
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    resolveSummary({
-      ...summary(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: candidateC }
-    })
-    await flushPromises()
-
-    resolveTrend1({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: responseD }
-    })
-    await flushPromises()
-    expect(getTrend).toHaveBeenCalledTimes(2)
-    expect(getTrend.mock.calls[1][0].as_of).toBe(candidateC)
-
-    // Second response still wrong / missing as_of.
-    resolveTrend2({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: responseD }
-    })
-    await flushPromises()
-
-    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
-    expect(stub.props('error')).toBe('admin.organizationUsage.trend.loadFailed')
-    expect(stub.props('points')).toEqual([])
-    expect(getTrend).toHaveBeenCalledTimes(2)
-
-    await flushPromises()
-    expect(getTrend).toHaveBeenCalledTimes(2)
-  })
-
-  it('summary-first: reload returning missing as_of fail-closes with exactly two trend requests', async () => {
-    const candidateC = SNAPSHOT_AS_OF
-    const responseD = '2026-07-10T03:58:00.000Z'
-
-    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
-    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
-    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
-
-    getSummary.mockImplementationOnce(
-      () => new Promise<OrganizationUsageSummaryResponse>((resolve) => { resolveSummary = resolve })
-    )
-    getTrend
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend1 = resolve }))
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveTrend2 = resolve }))
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    resolveSummary({
-      ...summary(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: candidateC }
-    })
-    await flushPromises()
-
-    resolveTrend1({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31', as_of: responseD }
-    })
-    await flushPromises()
-
-    resolveTrend2({
-      ...trendResponse(),
-      range: { start_date: '2026-07-01', end_date: '2026-07-31' }
-    })
-    await flushPromises()
-
-    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
-    expect(stub.props('error')).toBe('admin.organizationUsage.trend.loadFailed')
-    expect(stub.props('points')).toEqual([])
-    expect(getTrend).toHaveBeenCalledTimes(2)
-  })
-
-  it('waits for Summary and starts Trend with its canonical time and query version, never the catalog version', async () => {
-    const canonical = '2026-07-10T03:59:00.000Z'
+  it('starts Trend in parallel with the first Summary and shows it before Summary returns', async () => {
     let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
     getSummary.mockImplementationOnce(() => new Promise(resolve => { resolveSummary = resolve }))
-    getTrend.mockResolvedValue({ ...trendResponse(), scope_version: 'query-v9', range: { ...summary().range, as_of: canonical } })
     const wrapper = mountView()
     await flushPromises()
-    expect(getTrend).not.toHaveBeenCalled()
-    expect(getSummary.mock.calls[0][0]).not.toHaveProperty('scope_version')
-    resolveSummary({ ...summary(), scope_version: 'query-v9', range: { ...summary().range, as_of: canonical } })
+
+    expect(getTrend).toHaveBeenCalledTimes(1)
+    expect(getTrend.mock.calls[0][0]).not.toHaveProperty('scope_version')
+    expect(getTrend.mock.calls[0][0].as_of).toBe(getSummary.mock.calls[0][0].as_of)
+    expect(wrapper.find('[data-testid="people-loading"]').exists()).toBe(true)
+    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toHaveLength(1)
+
+    resolveSummary(summary())
     await flushPromises()
     expect(getTrend).toHaveBeenCalledTimes(1)
-    expect(getTrend.mock.calls[0][0]).toMatchObject({ scope_version: 'query-v9', as_of: canonical })
     expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toHaveLength(1)
     wrapper.unmount()
+  })
+
+  it('realigns a shown Trend once when the Summary snapshot differs', async () => {
+    const canonical = '2026-07-10T03:59:00.000Z'
+    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
+    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
+    getSummary.mockImplementationOnce(() => new Promise(resolve => { resolveSummary = resolve }))
+    getTrend
+      .mockResolvedValueOnce({ ...trendResponse(), scope_version: 'query-old', points: [{ ...trendResponse().points[0], input_tokens: 999 }] })
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend2 = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')[0].input_tokens).toBe(999)
+
+    resolveSummary({ ...summary(), scope_version: 'query-v9', range: { ...summary().range, as_of: canonical } })
+    await flushPromises()
+    expect(getTrend).toHaveBeenCalledTimes(2)
+    expect(getTrend.mock.calls[1][0]).toMatchObject({ scope_version: 'query-v9', as_of: canonical })
+    expect(getTrend.mock.calls.some(([query]) => query.scope_version === 'catalog-v1')).toBe(false)
+    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toEqual([])
+
+    resolveTrend2({ ...trendResponse(), scope_version: 'query-v9', range: { ...summary().range, as_of: canonical }, points: [{ ...trendResponse().points[0], input_tokens: 42 }] })
+    await flushPromises()
+    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
+    expect(stub.props('error')).toBe('')
+    expect(stub.props('points')[0].input_tokens).toBe(42)
+    expect(stub.props('range')).toMatchObject({ as_of: canonical })
+    expect(getTrend).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('never shows an in-flight Trend that answers after Summary with another snapshot', async () => {
+    const candidateC = SNAPSHOT_AS_OF
+    const responseD = '2026-07-10T03:58:00.000Z'
+    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
+    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
+    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
+    getSummary.mockImplementationOnce(() => new Promise(resolve => { resolveSummary = resolve }))
+    getTrend
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend1 = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend2 = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+
+    resolveSummary(summary())
+    await flushPromises()
+    // The in-flight request validates itself; Summary does not start a duplicate.
+    expect(getTrend).toHaveBeenCalledTimes(1)
+
+    resolveTrend1({ ...trendResponse(), range: { ...summary().range, as_of: responseD }, points: [{ ...trendResponse().points[0], input_tokens: 999 }] })
+    await flushPromises()
+    expect(getTrend).toHaveBeenCalledTimes(2)
+    expect(getTrend.mock.calls[1][0]).toMatchObject({ scope_version: 'scope-v1', as_of: candidateC })
+    expect(wrapper.getComponent({ name: 'OrganizationUsageTrendChart' }).props('points')).toEqual([])
+
+    resolveTrend2({ ...trendResponse(), range: { ...summary().range, as_of: candidateC }, points: [{ ...trendResponse().points[0], input_tokens: 42 }] })
+    await flushPromises()
+    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
+    expect(stub.props('points')[0].input_tokens).toBe(42)
+    expect(getTrend).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails closed without looping when the single realignment still mismatches', async () => {
+    const responseD = '2026-07-10T03:58:00.000Z'
+    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
+    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
+    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
+    getSummary.mockImplementationOnce(() => new Promise(resolve => { resolveSummary = resolve }))
+    getTrend
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend1 = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend2 = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    resolveSummary(summary())
+    await flushPromises()
+    resolveTrend1({ ...trendResponse(), range: { ...summary().range, as_of: responseD } })
+    await flushPromises()
+    expect(getTrend).toHaveBeenCalledTimes(2)
+
+    resolveTrend2({ ...trendResponse(), range: { ...summary().range, as_of: responseD } })
+    await flushPromises()
+    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
+    expect(stub.props('error')).toBe('admin.organizationUsage.trend.loadFailed')
+    expect(stub.props('points')).toEqual([])
+    await flushPromises()
+    expect(getTrend).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails closed with exactly two trend requests when the realignment omits as_of', async () => {
+    let resolveSummary!: (value: OrganizationUsageSummaryResponse) => void
+    let resolveTrend1!: (value: ReturnType<typeof trendResponse>) => void
+    let resolveTrend2!: (value: ReturnType<typeof trendResponse>) => void
+    getSummary.mockImplementationOnce(() => new Promise(resolve => { resolveSummary = resolve }))
+    getTrend
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend1 = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveTrend2 = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    resolveSummary(summary())
+    await flushPromises()
+    resolveTrend1({ ...trendResponse(), range: { ...summary().range, as_of: '2026-07-10T03:58:00.000Z' } })
+    await flushPromises()
+    resolveTrend2({ ...trendResponse(), range: { start_date: '2026-07-01', end_date: '2026-07-31' } })
+    await flushPromises()
+
+    const stub = wrapper.getComponent({ name: 'OrganizationUsageTrendChart' })
+    expect(stub.props('error')).toBe('admin.organizationUsage.trend.loadFailed')
+    expect(stub.props('points')).toEqual([])
+    expect(getTrend).toHaveBeenCalledTimes(2)
   })
 
   it('changes granularity with trend-only requests and keeps summary call count', async () => {

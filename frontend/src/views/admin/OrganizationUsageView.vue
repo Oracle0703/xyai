@@ -184,7 +184,7 @@ const report = ref<OrganizationUsageSummaryResponse | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
 
-// Summary establishes the snapshot; paging and Trend reuse it.
+// Summary establishes the snapshot; paging reuses it and Trend is aligned to it.
 const reportCycleId = ref(0)
 const snapshotAsOf = ref('')
 const reconciledCycleId = ref<number | null>(null)
@@ -250,7 +250,7 @@ async function loadSummaryOnly(asOf: string, cycleId: number) {
     scopeVersion.value = response.scope_version
     report.value = response
     Object.assign(pagination, response.pagination)
-    if (!requestedVersion) void loadTrend(response.range.as_of, cycleId)
+    if (!requestedVersion) reconcileTrend(cycleId)
   } catch (cause) {
     if (controller.signal.aborted || reportController !== controller || reportCycleId.value !== cycleId) return
     if (handleScopeFailure(cause, cycleId)) return
@@ -269,14 +269,16 @@ function clearTrendSuccessState() {
   trendMeta.value = null
 }
 
-// One automatic retry per report cycle; an invalid trend never replaces valid Summary data.
+// Summary owns the snapshot. A full load starts Trend in parallel without a scope version;
+// it is shown only while it matches the Summary snapshot (scope_version + canonical as_of).
+// One realignment/retry per report cycle; a second failure stays a local trend error.
 async function loadTrend(asOf: string, cycleId: number) {
-  if (!scopeVersion.value) return
   trendController?.abort()
   const controller = new AbortController()
   trendController = controller
   trendLoading.value = true
   trendError.value = ''
+  const expectedVersion = scopeVersion.value
   try {
     const q = applied.q.trim()
     const response = await adminAPI.organizationUsage.getTrend(
@@ -286,7 +288,7 @@ async function loadTrend(asOf: string, cycleId: number) {
         organization: applied.organization,
         department_id: applied.department_id,
         platform: applied.platform,
-        scope_version: scopeVersion.value,
+        ...(expectedVersion ? { scope_version: expectedVersion } : {}),
         granularity: effectiveGranularity.value,
         as_of: asOf,
         ...(q ? { q } : {})
@@ -295,8 +297,15 @@ async function loadTrend(asOf: string, cycleId: number) {
     )
     if (trendController !== controller || controller.signal.aborted || reportCycleId.value !== cycleId) return
 
-    if (response.scope_version !== scopeVersion.value) throw new Error('REPORT_SCOPE_CHANGED')
-    if (response.range?.as_of?.trim() !== asOf) throw new Error('Invalid trend snapshot')
+    const responseAsOf = response.range?.as_of?.trim()
+    if (!response.scope_version || !responseAsOf) throw new Error('Invalid trend snapshot')
+    if (expectedVersion && response.scope_version !== expectedVersion) throw new Error('REPORT_SCOPE_CHANGED')
+    if (expectedVersion && responseAsOf !== asOf) throw new Error('Invalid trend snapshot')
+    // Summary established the snapshot while this parallel request was in flight.
+    if (scopeVersion.value && (response.scope_version !== scopeVersion.value || responseAsOf !== snapshotAsOf.value)) {
+      realignTrend(cycleId)
+      return
+    }
 
     trendPoints.value = response.points
     trendMeta.value = {
@@ -309,18 +318,32 @@ async function loadTrend(asOf: string, cycleId: number) {
   } catch (cause) {
     if (controller.signal.aborted || trendController !== controller || reportCycleId.value !== cycleId) return
     if (handleScopeFailure(cause, cycleId)) return
-    clearTrendSuccessState()
-    trendError.value = t('admin.organizationUsage.trend.loadFailed')
-    if (reconciledCycleId.value !== cycleId) {
-      reconciledCycleId.value = cycleId
-      void loadTrend(asOf, cycleId)
-    }
+    realignTrend(cycleId)
   } finally {
     if (trendController === controller) {
       trendLoading.value = false
       trendController = null
     }
   }
+}
+
+function realignTrend(cycleId: number) {
+  clearTrendSuccessState()
+  if (reconciledCycleId.value === cycleId) {
+    trendError.value = t('admin.organizationUsage.trend.loadFailed')
+    return
+  }
+  reconciledCycleId.value = cycleId
+  void loadTrend(snapshotAsOf.value, cycleId)
+}
+
+// Runs once Summary establishes the snapshot of a full load. An in-flight Trend checks
+// itself on arrival; a failed Trend keeps its own single retry.
+function reconcileTrend(cycleId: number) {
+  const meta = trendMeta.value
+  if (trendController || !meta) return
+  if (meta.scope_version === scopeVersion.value && meta.range?.as_of === snapshotAsOf.value) return
+  realignTrend(cycleId)
 }
 
 function selectionAllowed(current: DepartmentScope, organization: string, department: string) {
@@ -398,6 +421,7 @@ async function loadFullReport(allowScopeRetry = true) {
     trendError.value = ''
     resolveAutoGranularity()
     void loadSummaryOnly(candidateAsOf, cycleId)
+    void loadTrend(candidateAsOf, cycleId)
   } catch {
     if (!controller.signal.aborted && cycleId === reportCycleId.value) {
       scope.value = null

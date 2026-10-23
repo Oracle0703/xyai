@@ -133,6 +133,7 @@ func provideCleanup(
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
 	gptQuotaDisplay *service.GPTQuotaDisplayService,
+	organizationUsageRollup *service.OrganizationUsageRollupService,
 	auditLog *service.AuditLogService,
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
@@ -152,6 +153,12 @@ func provideCleanup(
 			{"GPTQuotaDisplayService", func() error {
 				if gptQuotaDisplay != nil {
 					gptQuotaDisplay.Stop()
+				}
+				return nil
+			}},
+			{"OrganizationUsageRollupService", func() error {
+				if organizationUsageRollup != nil {
+					organizationUsageRollup.Stop()
 				}
 				return nil
 			}},

@@ -227,6 +227,15 @@ func ProvideGPTQuotaDisplayService(repo GPTQuotaDisplayRepository, accountRepo A
 	return svc
 }
 
+// ProvideOrganizationUsageRollupService 启动组织用量日汇总的发布/修复循环；关闭汇总时不启动。
+func ProvideOrganizationUsageRollupService(repo OrganizationUsageRollupRepository, locks LeaderLockCache, db *sql.DB, cfg *config.Config) *OrganizationUsageRollupService {
+	svc := NewOrganizationUsageRollupService(repo, locks, db)
+	if cfg == nil || cfg.OrganizationUsage.RollupEnabled {
+		svc.Start()
+	}
+	return svc
+}
+
 // ProvideOpenAIQuotaAutoResetService 启动账号级自动用卡队列与补偿扫描。
 func ProvideOpenAIQuotaAutoResetService(
 	accountRepo AccountRepository,
@@ -962,6 +971,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
 	ProvideGPTQuotaDisplayService,
+	ProvideOrganizationUsageRollupService,
 	ProvideOpenAIQuotaAutoResetService,
 	ProvideGrokQuotaService,
 	ProvideCNProviderQuotaService,

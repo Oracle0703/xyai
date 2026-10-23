@@ -15,7 +15,7 @@
 
 ## 页面请求与导出
 
-`views/admin/OrganizationUsageView.vue` 先请求 scope 目录，再由首个 Summary 确定查询 `scope_version` 和 canonical `as_of`，随后加载 Trend；目录 `catalog_version` 不作为查询版本。必要时每周期单次对齐 Trend；人员翻页/排序只刷新 Summary。
+`views/admin/OrganizationUsageView.vue` 先请求 scope 目录，再用同一个候选 `as_of` 并行请求首个 Summary 与 Trend（首个 Trend 不带 `scope_version`）。Summary 确定查询 `scope_version` 和 canonical `as_of`；Trend 仅在两者一致时保留，不一致或失败时每周期最多用 Summary 快照重拉一次，仍失败则局部报错。目录 `catalog_version` 不作为查询版本；人员翻页/排序只刷新 Summary。
 
 完整查询递增 `reportCycleId`，取消旧控制器并清数据；403/范围冲突清除保护结果及导出任务。仅业务码 `REPORT_SCOPE_CHANGED`（reason 或字符串 code）最多重新获取 scope 并重试一次，持续变化停止；空授权显示联系管理员，不回退全站。迟到响应不能覆盖新筛选。
 
@@ -26,3 +26,4 @@ PNG 截图仅包含当前页已渲染的表头与人员行，末页按实际行�
 设计：`docs/features/organization-department-usage-design-cn.md`。专项覆盖 View 403/409/迟到响应、scope 汇总、分页导出/取消/超限及工作簿字符串安全；真实浏览器与 Excel 对账见 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
 
 - 2026-09-21 精简：Summary 建立快照后再启动 Trend，移除旧并行对齐函数及请求时间状态；人员续页不允许更换 as_of。导出必须取得完整 as_of/scope_version，并校验每页/Sheet 一致，删除缺字段继续导出的兼容兜底；保留取消、总行数和分页上限。
+- 2026-10-23 恢复并行：生产实测 Summary 约 5.2s、Trend 约 1.8s，串行使趋势约 7s 才出现。首个 Trend 与 Summary 并行，到达后按 Summary 快照校验，失配只重拉一次；`realignTrend` 与失败重试共用每周期一次的预算。

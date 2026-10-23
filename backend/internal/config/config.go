@@ -96,6 +96,7 @@ type Config struct {
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	TokenAnalysis           TokenAnalysisConfig           `mapstructure:"token_analysis"`
+	OrganizationUsage       OrganizationUsageConfig       `mapstructure:"organization_usage"`
 	PromptMetrics           PromptMetricsConfig           `mapstructure:"prompt_metrics"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
@@ -1872,6 +1873,11 @@ type TokenAnalysisConfig struct {
 	InputStoreMaxChars int `mapstructure:"input_store_max_chars"`
 }
 
+type OrganizationUsageConfig struct {
+	// RollupEnabled 控制组织用量报表读取并维护日汇总；关闭时报表退回原始 usage_logs 聚合。
+	RollupEnabled bool `mapstructure:"rollup_enabled"`
+}
+
 type PromptMetricsConfig struct {
 	Enabled             bool  `mapstructure:"enabled"`
 	StoreFullText       bool  `mapstructure:"store_full_text"`
@@ -2483,6 +2489,8 @@ func setDefaults() {
 	viper.SetDefault("usage_cleanup.batch_size", 5000)
 	viper.SetDefault("usage_cleanup.worker_interval_seconds", 10)
 	viper.SetDefault("usage_cleanup.task_timeout_seconds", 1800)
+
+	viper.SetDefault("organization_usage.rollup_enabled", true)
 
 	viper.SetDefault("token_analysis.index_enabled", true)
 	viper.SetDefault("token_analysis.index_batch_size", 1000)

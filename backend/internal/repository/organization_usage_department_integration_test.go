@@ -186,3 +186,21 @@ func TestOrganizationUsageDepartmentIntegration_AllSurfacesUseTheSameScope(t *te
 	require.Zero(t, after.Overview.Requests)
 	require.Nil(t, after.Champions.Day)
 }
+
+func TestOrganizationUsageDepartmentIntegration_ReportTransactionDisablesJITAndRaisesWorkMem(t *testing.T) {
+	ctx := context.Background()
+	prefix := organizationUsageIntegrationPrefix("session")
+	cleanupOrganizationUsageIntegrationData(t, prefix)
+	admin, _ := organizationUsageIntegrationUser(t, prefix+"admin@example.com", service.StatusActive)
+	_, err := integrationDB.ExecContext(ctx, `UPDATE users SET role='admin' WHERE id=$1`, admin.ID)
+	require.NoError(t, err)
+
+	repo := NewOrganizationUsageRepository(integrationDB).(*organizationUsageRepository)
+	scoped, tx, _, err := repo.beginScoped(service.WithDepartmentActor(ctx, admin.ID), service.OrganizationAll, "", service.OrganizationUsageDepartmentFilters{})
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	var jit, workMem string
+	require.NoError(t, scoped.executor().QueryRowContext(ctx, `SELECT current_setting('jit'), current_setting('work_mem')`).Scan(&jit, &workMem))
+	require.Equal(t, "off", jit)
+	require.Equal(t, "64MB", workMem)
+}

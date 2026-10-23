@@ -662,6 +662,9 @@ func dropUsageLogsPartitionWithRollupInvalidation(ctx context.Context, db *sql.D
 	if err := invalidateGroupUsageRollupsAt(ctx, tx, monthStart); err != nil {
 		return rollback(err)
 	}
+	if err := markOrganizationUsageRollupRangeDirty(ctx, tx, monthStart, monthStart.AddDate(0, 1, 0)); err != nil {
+		return rollback(err)
+	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", pq.QuoteIdentifier(name))); err != nil {
 		return rollback(err)
 	}

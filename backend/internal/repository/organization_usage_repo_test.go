@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql/driver"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -122,15 +124,15 @@ func TestOrganizationUsageRepositoryTrend_ScansZeroFilledPoint(t *testing.T) {
 
 	query, err := organizationUsageTrendQuery(service.OrganizationUsageGranularityDay)
 	require.NoError(t, err)
-	mock.ExpectQuery(regexp.QuoteMeta(query)).
-		WithArgs(start, end, "%dev%", service.OrganizationAll, "2026-01-01", "2026-01-10", "2026-01-05").
+	mock.ExpectQuery(regexp.QuoteMeta(rawOnlyOrganizationUsageQuery(query))).
+		WithArgs(append([]driver.Value{start, end, "%dev%", service.OrganizationAll, "2026-01-01", "2026-01-10", "2026-01-05"}, rollupPlanArgs()...)...).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"period_start", "period_end", "partial",
 			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost",
 		}).AddRow(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), false,
 			0, 0, 0, 0, 0, 0, 0.0))
 
-	repo := NewOrganizationUsageRepository(db)
+	repo := &organizationUsageRepository{db: db, rollupDisabled: true}
 	got, err := repo.Trend(context.Background(), params)
 	require.NoError(t, err)
 	require.Len(t, got.Points, 1)
@@ -156,18 +158,18 @@ func TestOrganizationUsageRepositoryPeriods_ScansPartialWeekAndPagination(t *tes
 
 	countQuery, err := organizationUsagePeriodsCountQuery(service.OrganizationUsageGranularityWeek)
 	require.NoError(t, err)
-	mock.ExpectQuery(regexp.QuoteMeta(countQuery)).
-		WithArgs(start, end, "%dev%", service.OrganizationAll).
+	mock.ExpectQuery(regexp.QuoteMeta(rawOnlyOrganizationUsageQuery(countQuery))).
+		WithArgs(append([]driver.Value{start, end, "%dev%", service.OrganizationAll}, rollupPlanArgs()...)...).
 		WillReturnRows(sqlmock.NewRows([]string{"total_count"}).AddRow(11))
 	mock.ExpectQuery(regexp.QuoteMeta("ul.created_at >= $1 AND ul.created_at < $2")).
-		WithArgs(start, end, "%dev%", service.OrganizationAll, "2026-01-01", "2026-01-10", 10, 10).
+		WithArgs(append([]driver.Value{start, end, "%dev%", service.OrganizationAll, "2026-01-01", "2026-01-10", 10, 10}, rollupPlanArgs()...)...).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"total_count", "period_start", "period_end", "partial", "user_id", "email", "organization",
 			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost",
 		}).AddRow(11, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 4, 0, 0, 0, 0, time.UTC), true,
 			9, "DEV@XUNYOU.COM", service.OrganizationXunyou, 3, 10, 20, 30, 40, 100, 1.25))
 
-	repo := NewOrganizationUsageRepository(db)
+	repo := &organizationUsageRepository{db: db, rollupDisabled: true}
 	got, err := repo.Periods(context.Background(), params)
 	require.NoError(t, err)
 	require.Equal(t, int64(11), got.Total)
@@ -196,22 +198,41 @@ func TestOrganizationUsageRepositoryPeriods_PreservesTotalForEmptyPage(t *testin
 
 	countQuery, err := organizationUsagePeriodsCountQuery(service.OrganizationUsageGranularityDay)
 	require.NoError(t, err)
-	mock.ExpectQuery(regexp.QuoteMeta(countQuery)).
-		WithArgs(start, end, "", service.OrganizationAll).
+	mock.ExpectQuery(regexp.QuoteMeta(rawOnlyOrganizationUsageQuery(countQuery))).
+		WithArgs(append([]driver.Value{start, end, "", service.OrganizationAll}, rollupPlanArgs()...)...).
 		WillReturnRows(sqlmock.NewRows([]string{"total_count"}).AddRow(11))
 	itemsQuery, err := organizationUsagePeriodsQuery(service.OrganizationUsageGranularityDay)
 	require.NoError(t, err)
-	mock.ExpectQuery(regexp.QuoteMeta(itemsQuery)).
-		WithArgs(start, end, "", service.OrganizationAll, "2026-01-01", "2026-01-10", 10, 980).
+	mock.ExpectQuery(regexp.QuoteMeta(rawOnlyOrganizationUsageQuery(itemsQuery))).
+		WithArgs(append([]driver.Value{start, end, "", service.OrganizationAll, "2026-01-01", "2026-01-10", 10, 980}, rollupPlanArgs()...)...).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"period_start", "period_end", "partial", "user_id", "email", "organization",
 			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost",
 		}))
 
-	repo := NewOrganizationUsageRepository(db)
+	repo := &organizationUsageRepository{db: db, rollupDisabled: true}
 	got, err := repo.Periods(context.Background(), params)
 	require.NoError(t, err)
 	require.Empty(t, got.Items)
 	require.Equal(t, int64(11), got.Total)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// rawOnlyOrganizationUsageQuery binds the rollup plan slots the way a disabled rollup does.
+func rawOnlyOrganizationUsageQuery(query string) string {
+	plan := organizationUsageRollupPlan{}
+	bound, _ := plan.bind(query, make([]any, organizationUsageQueryParamCount(query)))
+	return bound
+}
+
+func organizationUsageQueryParamCount(query string) int {
+	count := 0
+	for n := 1; strings.Contains(query, fmt.Sprintf("$%d", n)); n++ {
+		count = n
+	}
+	return count
+}
+
+func rollupPlanArgs() []driver.Value {
+	return []driver.Value{sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()}
 }

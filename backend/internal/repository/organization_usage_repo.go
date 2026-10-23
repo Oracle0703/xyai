@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -16,10 +17,18 @@ type organizationUsageRepository struct {
 	scope    *service.DepartmentScope
 	scopeIDs []int64
 	filters  service.OrganizationUsageDepartmentFilters
+	// rollupDisabled forces every range to be aggregated from raw usage_logs.
+	rollupDisabled bool
+	plan           *organizationUsageRollupPlan
 }
 
 func NewOrganizationUsageRepository(db *sql.DB) service.OrganizationUsageRepository {
 	return &organizationUsageRepository{db: db}
+}
+
+// ProvideOrganizationUsageRepository applies organization_usage.rollup_enabled.
+func ProvideOrganizationUsageRepository(db *sql.DB, cfg *config.Config) service.OrganizationUsageRepository {
+	return &organizationUsageRepository{db: db, rollupDisabled: cfg != nil && !cfg.OrganizationUsage.RollupEnabled}
 }
 
 func (r *organizationUsageRepository) Summary(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams) (*service.OrganizationUsageSummaryRepositoryResult, error) {
@@ -27,6 +36,10 @@ func (r *organizationUsageRepository) Summary(ctx context.Context, params servic
 		return r.scopedSummary(ctx, params)
 	}
 	orderBy, err := organizationUsageOrderBy(params.SortBy, params.SortOrder)
+	if err != nil {
+		return nil, err
+	}
+	r, err = r.withRollupPlan(ctx, params.StartDate, params.StartTime, params.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +74,10 @@ func (r *organizationUsageRepository) Periods(ctx context.Context, params servic
 		return r.scopedPeriods(ctx, params)
 	}
 	countQuery, err := organizationUsagePeriodsCountQuery(params.Granularity)
+	if err != nil {
+		return nil, err
+	}
+	r, err = r.withRollupPlan(ctx, params.StartDate, params.StartTime, params.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +127,10 @@ func (r *organizationUsageRepository) Trend(ctx context.Context, params service.
 		return r.scopedTrend(ctx, params)
 	}
 	query, err := organizationUsageTrendQuery(params.Granularity)
+	if err != nil {
+		return nil, err
+	}
+	r, err = r.withRollupPlan(ctx, params.StartDate, params.StartTime, params.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -327,34 +348,59 @@ func organizationUsageActiveUsersCTE() string {
 )`, organizationUsageOrganizationExpression("u"))
 }
 
-const organizationUsageRowsCTE = `usage_rows AS (
+// organizationUsageDaysCTE yields usage at Beijing day × user × group × account grain: days
+// published in usage_user_daily_rollups and not dirty come from the rollup; the remaining ranges
+// of the read plan are aggregated from usage_logs into the same shape. Costs stay numeric until
+// the final output so both sources sum exactly. {{...}} slots are bound by organizationUsageRollupPlan.
+func organizationUsageDaysCTE(userFilter, rawBounds string) string {
+	return fmt.Sprintf(`usage_days AS (
+    SELECT r.bucket_date AS local_date, r.user_id, NULLIF(r.group_id, 0) AS group_id, r.account_id,
+        r.requests, r.input_tokens, r.output_tokens, r.cache_creation_tokens, r.cache_read_tokens, r.actual_cost
+    FROM usage_user_daily_rollups r
+    WHERE r.bucket_date >= {{rollup_start}}::date AND r.bucket_date < {{rollup_end}}::date
+      AND r.bucket_date <> ALL({{dirty_dates}}::date[])
+      AND r.user_id %[1]s
+    UNION ALL
+    SELECT (ul.created_at AT TIME ZONE 'Asia/Shanghai')::date, ul.user_id, ul.group_id, ul.account_id,
+        COUNT(*)::bigint, SUM(ul.input_tokens)::bigint, SUM(ul.output_tokens)::bigint,
+        SUM(ul.cache_creation_tokens)::bigint, SUM(ul.cache_read_tokens)::bigint, SUM(ul.actual_cost)
+    FROM unnest({{raw_starts}}::timestamptz[], {{raw_ends}}::timestamptz[]) AS raw_range(range_start, range_end)
+    JOIN usage_logs ul ON ul.created_at >= raw_range.range_start AND ul.created_at < raw_range.range_end
+    WHERE %[2]s
+      AND ul.user_id %[1]s
+    GROUP BY 1, 2, 3, 4
+)`, userFilter, rawBounds)
+}
+
+var organizationUsageRowsCTE = organizationUsageDaysCTE("IN (SELECT user_id FROM active_users)", "ul.created_at >= $1 AND ul.created_at < $2") + `,
+usage_rows AS (
     SELECT
-        ul.user_id,
-        ul.created_at AT TIME ZONE 'Asia/Shanghai' AS local_created_at,
-        ul.input_tokens::bigint AS input_tokens,
-        ul.output_tokens::bigint AS output_tokens,
-        ul.cache_creation_tokens::bigint AS cache_creation_tokens,
-        ul.cache_read_tokens::bigint AS cache_read_tokens,
-        (ul.input_tokens + ul.output_tokens + ul.cache_creation_tokens + ul.cache_read_tokens)::bigint AS total_tokens,
-        ul.actual_cost::double precision AS actual_cost
-    FROM usage_logs ul
-    LEFT JOIN groups g ON g.id=ul.group_id
-    LEFT JOIN accounts a ON a.id=ul.account_id
-    WHERE ul.created_at >= $1 AND ul.created_at < $2
-      AND ul.user_id IN (SELECT user_id FROM active_users)
+        d.user_id,
+        d.local_date,
+        d.requests::bigint AS requests,
+        d.input_tokens::bigint AS input_tokens,
+        d.output_tokens::bigint AS output_tokens,
+        d.cache_creation_tokens::bigint AS cache_creation_tokens,
+        d.cache_read_tokens::bigint AS cache_read_tokens,
+        (d.input_tokens + d.output_tokens + d.cache_creation_tokens + d.cache_read_tokens)::bigint AS total_tokens,
+        d.actual_cost
+    FROM usage_days d
+    LEFT JOIN groups g ON g.id=d.group_id
+    LEFT JOIN accounts a ON a.id=d.account_id
+    WHERE TRUE
       /* department_platform */
 )`
 
 const organizationUsageTotalsCTE = `usage_totals AS (
     SELECT
         user_id,
-        COUNT(*)::bigint AS requests,
+        COALESCE(SUM(requests), 0)::bigint AS requests,
         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
         COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
         COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
         COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
         COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
-        COALESCE(SUM(actual_cost), 0)::double precision AS actual_cost
+        COALESCE(SUM(actual_cost), 0) AS actual_cost
     FROM usage_rows
     GROUP BY user_id
 )`
@@ -401,11 +447,11 @@ WHERE $2 = 'all' OR organization = $2`, organizationUsageOrganizationExpression(
 func organizationUsagePeriodBucketSQL(granularity string) (string, string, error) {
 	switch granularity {
 	case service.OrganizationUsageGranularityDay:
-		return "date_trunc('day', local_created_at)::date", "date_trunc('day', local_created_at)::date", nil
+		return "local_date", "local_date", nil
 	case service.OrganizationUsageGranularityWeek:
-		return "date_trunc('week', local_created_at)::date", "(date_trunc('week', local_created_at) + interval '6 days')::date", nil
+		return "date_trunc('week', local_date::timestamp)::date", "(date_trunc('week', local_date::timestamp) + interval '6 days')::date", nil
 	case service.OrganizationUsageGranularityMonth:
-		return "date_trunc('month', local_created_at)::date", "(date_trunc('month', local_created_at) + interval '1 month - 1 day')::date", nil
+		return "date_trunc('month', local_date::timestamp)::date", "(date_trunc('month', local_date::timestamp) + interval '1 month - 1 day')::date", nil
 	default:
 		return "", "", fmt.Errorf("invalid organization usage granularity %q", granularity)
 	}
@@ -421,13 +467,13 @@ func organizationUsagePeriodAggregationSQL(granularity string) (string, error) {
         '%s'::text AS granularity,
         %s AS bucket_start,
         %s AS bucket_end,
-        COUNT(*)::bigint AS requests,
+        COALESCE(SUM(requests), 0)::bigint AS requests,
         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
         COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
         COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
         COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
         COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
-        COALESCE(SUM(actual_cost), 0)::double precision AS actual_cost
+        COALESCE(SUM(actual_cost), 0) AS actual_cost
     FROM usage_rows
     GROUP BY user_id, bucket_start, bucket_end`, granularity, start, end), nil
 }
@@ -485,19 +531,19 @@ SELECT
     (dp.bucket_start < $5::date OR dp.bucket_end > $6::date) AS peak_day_partial,
     dp.requests AS peak_day_requests, dp.input_tokens AS peak_day_input_tokens, dp.output_tokens AS peak_day_output_tokens,
     dp.cache_creation_tokens AS peak_day_cache_creation_tokens, dp.cache_read_tokens AS peak_day_cache_read_tokens,
-    dp.total_tokens AS peak_day_total_tokens, dp.actual_cost AS peak_day_actual_cost,
+    dp.total_tokens AS peak_day_total_tokens, dp.actual_cost::double precision AS peak_day_actual_cost,
     CASE WHEN wp.user_id IS NULL THEN NULL ELSE GREATEST(wp.bucket_start, $5::date) END AS peak_week_start,
     CASE WHEN wp.user_id IS NULL THEN NULL ELSE LEAST(wp.bucket_end, $6::date) END AS peak_week_end,
     (wp.bucket_start < $5::date OR wp.bucket_end > $6::date) AS peak_week_partial,
     wp.requests AS peak_week_requests, wp.input_tokens AS peak_week_input_tokens, wp.output_tokens AS peak_week_output_tokens,
     wp.cache_creation_tokens AS peak_week_cache_creation_tokens, wp.cache_read_tokens AS peak_week_cache_read_tokens,
-    wp.total_tokens AS peak_week_total_tokens, wp.actual_cost AS peak_week_actual_cost,
+    wp.total_tokens AS peak_week_total_tokens, wp.actual_cost::double precision AS peak_week_actual_cost,
     CASE WHEN mp.user_id IS NULL THEN NULL ELSE GREATEST(mp.bucket_start, $5::date) END AS peak_month_start,
     CASE WHEN mp.user_id IS NULL THEN NULL ELSE LEAST(mp.bucket_end, $6::date) END AS peak_month_end,
     (mp.bucket_start < $5::date OR mp.bucket_end > $6::date) AS peak_month_partial,
     mp.requests AS peak_month_requests, mp.input_tokens AS peak_month_input_tokens, mp.output_tokens AS peak_month_output_tokens,
     mp.cache_creation_tokens AS peak_month_cache_creation_tokens, mp.cache_read_tokens AS peak_month_cache_read_tokens,
-    mp.total_tokens AS peak_month_total_tokens, mp.actual_cost AS peak_month_actual_cost
+    mp.total_tokens AS peak_month_total_tokens, mp.actual_cost::double precision AS peak_month_actual_cost
 FROM selected_users su
     LEFT JOIN usage_totals ut ON ut.user_id = su.user_id
     LEFT JOIN day_peak dp ON dp.user_id = su.user_id
@@ -532,7 +578,7 @@ SELECT
     LEAST(r.bucket_end, $6::date) AS period_end,
     (r.bucket_start < $5::date OR r.bucket_end > $6::date) AS partial,
     su.user_id, su.email, su.organization,
-    r.requests, r.input_tokens, r.output_tokens, r.cache_creation_tokens, r.cache_read_tokens, r.total_tokens, r.actual_cost
+    r.requests, r.input_tokens, r.output_tokens, r.cache_creation_tokens, r.cache_read_tokens, r.total_tokens, r.actual_cost::double precision AS actual_cost
 FROM ranked r
 JOIN selected_users su ON su.user_id = r.user_id
 WHERE r.rn = 1
@@ -559,7 +605,7 @@ SELECT
     LEAST(bucket_end, $6::date) AS period_end,
     (bucket_start < $5::date OR bucket_end > $6::date) AS partial,
     su.user_id, su.email, su.organization,
-    pa.requests, pa.input_tokens, pa.output_tokens, pa.cache_creation_tokens, pa.cache_read_tokens, pa.total_tokens, pa.actual_cost
+    pa.requests, pa.input_tokens, pa.output_tokens, pa.cache_creation_tokens, pa.cache_read_tokens, pa.total_tokens, pa.actual_cost::double precision AS actual_cost
 FROM period_aggregates pa
 JOIN selected_users su ON su.user_id = pa.user_id
 ORDER BY period_start DESC, user_id ASC
@@ -623,13 +669,13 @@ func organizationUsageTrendAggregationSQL(granularity string) (string, error) {
 	return fmt.Sprintf(`SELECT
         %s AS bucket_start,
         %s AS bucket_end,
-        COUNT(*)::bigint AS requests,
+        COALESCE(SUM(requests), 0)::bigint AS requests,
         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
         COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
         COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
         COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
         COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
-        COALESCE(SUM(actual_cost), 0)::double precision AS actual_cost
+        COALESCE(SUM(actual_cost), 0) AS actual_cost
     FROM filtered_usage
     GROUP BY bucket_start, bucket_end`, start, end), nil
 }
