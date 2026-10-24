@@ -222,3 +222,16 @@ llm-wiki/.understand-anything/tmp/
 !docs/reviews/token-analysis-user-input-retention-main-merge-review-cn.md
 !docs/reviews/token-analysis-user-input-retention-staged-code-review-cn.md
 !docs/reviews/features-review-archive-index.md
+
+# 本地合并中间产物与运行快照（精确路径，保留正式补丁和验收材料）
+/_conflict_oai.diff
+/_local_oai.diff
+/_merged_oai.diff
+/_merged_test.diff
+/_upstream_oai.diff
+/ours_numstat.txt
+/theirs_numstat.txt
+/dump.rdb
+/backend/_local_compat.go
+/backend/_upstream_fallback.go
+__pycache__/

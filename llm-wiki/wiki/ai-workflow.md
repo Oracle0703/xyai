@@ -111,6 +111,7 @@ Windows 不要使用裸 `powershell -File ...`（RemoteSigned 下可能被拦截
 
 - 入库: wiki 正文、`llm-wiki/index.md`、共享 config/ignore、**wiki 图谱 JSON**、AGENTS 与本页规则。
 - 不入库: 代码图谱 JSON、fingerprints、dashboard 日志（见根 `.gitignore`）。
+- 不入库: 根目录旧合并 diff、`ours_numstat.txt` / `theirs_numstat.txt`、根目录 Redis `dump.rdb`、Python `__pycache__/` 及 `backend/_local_compat.go` / `backend/_upstream_fallback.go` 旧合并脚手架；精确忽略规则见根 `.gitignore`。正式补丁、source-freeze 和交付验收材料继续保留，不能按 `*.diff` / `*.patch` 批量删除或忽略。
 
 ## 相关页面
 
