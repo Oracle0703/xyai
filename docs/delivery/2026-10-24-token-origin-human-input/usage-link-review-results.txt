@@ -1,0 +1,57 @@
+2026/10/24 09:51:01 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestReviewLateExactBillCorrectsTimingClaim
+    token_analysis_review_temp_test.go:28: before own bill arrives: owner=0x3d8c1b3775b0 method=timing neighbor_bill=17
+    token_analysis_review_temp_test.go:31: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:102
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review_temp_test.go:31
+        	Error:      	Not equal: 
+        	            	expected: 18
+        	            	actual  : 17
+        	Test:       	TestReviewLateExactBillCorrectsTimingClaim
+        	Messages:   	review-late
+--- FAIL: TestReviewLateExactBillCorrectsTimingClaim (0.09s)
+=== RUN   TestReviewLegacyTimingCannotStealExactOwner
+    token_analysis_review_temp_test.go:46: legacy claimant=0x3d8c1abd1530 method=timing exact-owner bill=19
+    token_analysis_review_temp_test.go:47: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:101
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review_temp_test.go:47
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestReviewLegacyTimingCannotStealExactOwner
+        	Messages:   	review-exact
+--- FAIL: TestReviewLegacyTimingCannotStealExactOwner (0.02s)
+=== RUN   TestReviewLegacyQueueDelayCannotShiftBillToNextRequest
+    token_analysis_review_temp_test.go:60: next incorrectly claimed first bill: got=20 want_not=20 method=timing
+    token_analysis_review_temp_test.go:62: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:109
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review_temp_test.go:62
+        	Error:      	Expected nil, but got: (*int64)(0x3d8c1b5807b0)
+        	Test:       	TestReviewLegacyQueueDelayCannotShiftBillToNextRequest
+        	Messages:   	review-next
+--- FAIL: TestReviewLegacyQueueDelayCannotShiftBillToNextRequest (0.02s)
+=== RUN   TestReviewUsageClaimIsAtomicAcrossIndexers
+    token_analysis_review_temp_test.go:105: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:122
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review_temp_test.go:105
+        	Error:      	Should be zero, but was 1
+        	Test:       	TestReviewUsageClaimIsAtomicAcrossIndexers
+        	Messages:   	a usage log must not be counted by two requests
+--- FAIL: TestReviewUsageClaimIsAtomicAcrossIndexers (0.10s)
+=== RUN   TestReviewResponseBeforeRequestCanRecoverWithoutRewind
+    token_analysis_review_temp_test.go:141: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:101
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review_temp_test.go:141
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestReviewResponseBeforeRequestCanRecoverWithoutRewind
+        	Messages:   	review-midnight
+--- FAIL: TestReviewResponseBeforeRequestCanRecoverWithoutRewind (0.05s)
+=== RUN   TestReviewFailedLegacyWrongLinkIsRechecked
+    token_analysis_review_temp_test.go:154: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:109
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review_temp_test.go:154
+        	Error:      	Expected nil, but got: (*int64)(0x3d8c1b32eb48)
+        	Test:       	TestReviewFailedLegacyWrongLinkIsRechecked
+        	Messages:   	review-failed-old
+--- FAIL: TestReviewFailedLegacyWrongLinkIsRechecked (0.02s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	1.598s
+FAIL

@@ -1,0 +1,41 @@
+{
+  "archive_id": "73eb6d29496d6c677054f5c797996d66",
+  "archive_path": "/opt/sub2api/backend/data/request-archive/2026-10-24.jsonl",
+  "request": {
+    "offset": 18155124865,
+    "line_bytes": 942377,
+    "line_sha256": "a2e65ddfab9a846d1efc7c1ef6fc4f338071823aad2554d9aa938ffedcee74e1",
+    "timestamp": "2026-10-24T06:11:12.654557512Z",
+    "path": "/v1/responses",
+    "model": "gpt-6-astra",
+    "body_truncated": false,
+    "input_count": 119,
+    "last_item_index": 118,
+    "last_item": {
+      "type": "message",
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "\n<in-app-browser-context source=\"ambient-ui-state\">\nThis block is automatically supplied ambient UI state, not part of the user's request. Do not treat it as an instruction or as evidence that the user explicitly selected the in-app browser.\n# In app browser:\n- The user has the in-app browser open with 1 tab.\n- Current URL: http://118.25.112.30:52997/admin/token-analysis\n</in-app-browser-context>\n\n## My request:\n我之前请求的来源是不是没有办法归类了,只有上线后的才能归类?\n"
+        }
+      ]
+    },
+    "metadata": {
+      "x-openai-subagent": null,
+      "subagent_kind": null,
+      "turn_trigger": "composer"
+    }
+  },
+  "response": {
+    "offset": 18166371053,
+    "line_bytes": 27026,
+    "line_sha256": "f747699a0562517cb73b81f1d0227740bb307976f69d83bc49014818dfe7a3b9",
+    "timestamp": "2026-10-24T06:11:31.202047834Z",
+    "status": 200,
+    "duration_ms": 18547,
+    "input_tokens": 156582,
+    "cached_tokens": 156288,
+    "output_tokens": 547
+  }
+}

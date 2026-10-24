@@ -80,7 +80,17 @@ func (s *TokenAnalysisService) ListRequests(ctx context.Context, filters TokenAn
 	if s == nil || s.repo == nil {
 		return nil, nil, fmt.Errorf("token analysis service is not configured")
 	}
-	return s.repo.ListRequests(ctx, filters, params)
+	// 请求明细是完整归档视角: 未关联计费的请求同样展示并标注关联状态,
+	// include_unmatched 只影响用户/项目排行。
+	filters.IncludeUnmatched = true
+	items, page, err := s.repo.ListRequests(ctx, filters, params)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range items {
+		decorateTokenAnalysisUsageLink(&items[i])
+	}
+	return items, page, nil
 }
 
 func (s *TokenAnalysisService) GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error) {

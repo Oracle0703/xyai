@@ -1,0 +1,56 @@
+2026/10/24 16:51:22 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestReview3CrossDayLateBillRemainsRetryable
+    token_analysis_review4_temp_test.go:40: response indexed before bill arrives: pending=true
+--- PASS: TestReview3CrossDayLateBillRemainsRetryable (0.07s)
+=== RUN   TestReview3NewResponseInvalidatesStaleTimingWrite
+    token_analysis_review4_temp_test.go:67: stale write after 502: applied=false pending=true bill=2
+--- PASS: TestReview3NewResponseInvalidatesStaleTimingWrite (0.03s)
+=== RUN   TestReview3StaleClearCannotAcknowledgeNewDisplacement
+    token_analysis_review4_temp_test.go:115: after stale clear and follow-up index: method= pending=false risk=0
+--- PASS: TestReview3StaleClearCannotAcknowledgeNewDisplacement (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkLongRunningLegacyRequest
+--- PASS: TestTokenAnalysisUsageLinkLongRunningLegacyRequest (0.06s)
+=== RUN   TestTokenAnalysisUsageLinkLateBillingByRequestID
+--- PASS: TestTokenAnalysisUsageLinkLateBillingByRequestID (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkConcurrentAndRetriedRequests
+--- PASS: TestTokenAnalysisUsageLinkConcurrentAndRetriedRequests (0.06s)
+=== RUN   TestTokenAnalysisUsageLinkLegacyAmbiguousBillStaysUnlinked
+--- PASS: TestTokenAnalysisUsageLinkLegacyAmbiguousBillStaysUnlinked (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkLateExactBillBeatsNeighborTiming
+--- PASS: TestTokenAnalysisUsageLinkLateExactBillBeatsNeighborTiming (0.14s)
+=== RUN   TestTokenAnalysisUsageLinkLegacyCannotTakeExactOwnersBill
+--- PASS: TestTokenAnalysisUsageLinkLegacyCannotTakeExactOwnersBill (0.11s)
+=== RUN   TestTokenAnalysisUsageLinkResponseIDCorrectsTimingClaim
+--- PASS: TestTokenAnalysisUsageLinkResponseIDCorrectsTimingClaim (0.14s)
+=== RUN   TestTokenAnalysisUsageLinkConcurrentClaimsAreAtomic
+--- PASS: TestTokenAnalysisUsageLinkConcurrentClaimsAreAtomic (0.64s)
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/descending
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/ascending
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/full_range
+--- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder (0.12s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/descending (0.05s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/ascending (0.03s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/full_range (0.03s)
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=resp_failed_owner
+--- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink (0.06s)
+    --- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id= (0.03s)
+    --- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=resp_failed_owner (0.03s)
+=== RUN   TestTokenAnalysisUsageLinkStaleWritesCannotOverrideNewerLink
+--- PASS: TestTokenAnalysisUsageLinkStaleWritesCannotOverrideNewerLink (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkDisplacedRowOnOtherDayIsRescored
+--- PASS: TestTokenAnalysisUsageLinkDisplacedRowOnOtherDayIsRescored (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkFailedRequestsKeepOnlyExactBills
+--- PASS: TestTokenAnalysisUsageLinkFailedRequestsKeepOnlyExactBills (0.03s)
+=== RUN   TestTokenAnalysisListRequestsFiltersByOrigin
+--- PASS: TestTokenAnalysisListRequestsFiltersByOrigin (0.03s)
+=== RUN   TestTokenAnalysisUsageLinkLateBillIsRetriedUntilDeadline
+--- PASS: TestTokenAnalysisUsageLinkLateBillIsRetriedUntilDeadline (0.14s)
+=== RUN   TestTokenAnalysisUsageLinkNewRecheckRejectsStaleResults
+--- PASS: TestTokenAnalysisUsageLinkNewRecheckRejectsStaleResults (0.31s)
+=== RUN   TestTokenAnalysisUserInputQualityFollowsContentHash
+--- PASS: TestTokenAnalysisUserInputQualityFollowsContentHash (0.01s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/repository	6.628s

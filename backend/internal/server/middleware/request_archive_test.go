@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -64,6 +65,66 @@ func TestRequestArchiveWritesCorrelatedRequestAndResponse(t *testing.T) {
 	require.Equal(t, "application/json", headers["content_type"])
 	require.NotContains(t, headers, "authorization")
 	require.NotContains(t, headers, "cookie")
+}
+
+// 网关链路 ClientRequestID 在归档之前执行; 归档记下的值即计费 usage_logs 的
+// "client:" request_id, Token 分析据此精确关联账单。
+func TestRequestArchiveRecordsClientRequestID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dir := t.TempDir()
+	router := gin.New()
+	router.Use(ClientRequestID())
+	router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{Enabled: true, Dir: dir, CaptureResponse: true}))
+	var seen string
+	router.POST("/v1/responses", func(c *gin.Context) {
+		seen, _ = c.Request.Context().Value(ctxkey.ClientRequestID).(string)
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5"}`)))
+
+	records := readArchiveRecords(t, dir, 2)
+	require.NotEmpty(t, seen)
+	require.Equal(t, seen, records[0]["client_request_id"])
+	require.Equal(t, seen, records[1]["client_request_id"])
+}
+
+// WS 上游计费以 response.id 为 request_id: 流式取 SSE 事件里最后的 response.id,
+// 非流式取 Responses 对象顶层 id; 其他协议的 id 不记录。
+func TestRequestArchiveRecordsUpstreamResponseID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name    string
+		handler gin.HandlerFunc
+		want    any
+	}{
+		{"sse", func(c *gin.Context) {
+			c.Header("Content-Type", "text/event-stream")
+			c.Status(http.StatusOK)
+			_, _ = c.Writer.WriteString("event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_stream\"}}\n\n")
+			_, _ = c.Writer.WriteString("data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n")
+			_, _ = c.Writer.WriteString("data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_stream\",\"usage\":{\"output_tokens\":3}}}\n\n")
+		}, "resp_stream"},
+		{"json responses object", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"id": "resp_json", "object": "response", "usage": gin.H{"output_tokens": 3}})
+		}, "resp_json"},
+		{"chat completion", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"id": "chatcmpl-1", "object": "chat.completion", "usage": gin.H{"completion_tokens": 3}})
+		}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			router := gin.New()
+			router.Use(useRequestArchive(t, config.GatewayRequestArchiveConfig{Enabled: true, Dir: dir, CaptureResponse: true}))
+			router.POST("/v1/responses", tt.handler)
+
+			router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5"}`)))
+
+			records := readArchiveRecords(t, dir, 2)
+			require.Equal(t, tt.want, records[1]["response_id"])
+		})
+	}
 }
 
 func TestRequestArchiveDisabledDoesNotWriteFiles(t *testing.T) {

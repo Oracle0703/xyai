@@ -1,0 +1,143 @@
+//go:build integration
+
+package repository
+
+import (
+ "encoding/json"
+ "os"
+ "path/filepath"
+ "testing"
+ "time"
+
+ "github.com/Wei-Shaw/sub2api/internal/config"
+ "github.com/Wei-Shaw/sub2api/internal/service"
+ "github.com/stretchr/testify/require"
+)
+
+func TestReviewLateExactBillCorrectsTimingClaim(t *testing.T) {
+ day := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+ f := newTokenAnalysisLinkFixture(t, day)
+ start := day.Add(6*time.Hour)
+ f.request("review-late", "review-cid-late", start)
+ f.response("review-late", start.Add(18*time.Second), 200)
+ f.request("review-ws", "review-cid-ws", start.Add(time.Second))
+ f.response("review-ws", start.Add(18100*time.Millisecond), 200)
+ neighbor := f.usage("resp_review_neighbor", start.Add(18100*time.Millisecond), 17000, 547)
+ f.link()
+ first, firstMethod := f.linked("review-late")
+ t.Logf("before own bill arrives: owner=%v method=%s neighbor_bill=%d", first, firstMethod, neighbor)
+ own := f.usage("client:review-cid-late", start.Add(25*time.Second), 17900, 547)
+ f.link()
+ f.requireLinked("review-late", own, service.TokenAnalysisUsageMatchRequestID)
+}
+
+func TestReviewLegacyTimingCannotStealExactOwner(t *testing.T) {
+ day := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
+ f := newTokenAnalysisLinkFixture(t, day)
+ start := day.Add(6*time.Hour)
+ f.request("review-legacy", "", start)
+ f.response("review-legacy", start.Add(10*time.Second), 200)
+ f.request("review-exact", "review-cid-exact", start.Add(time.Second))
+ f.response("review-exact", start.Add(5*time.Second), 200)
+ own := f.usage("client:review-cid-exact", start.Add(5010*time.Millisecond), 4000, 547)
+ f.link()
+ f.link()
+ legacy, method := f.linked("review-legacy")
+ t.Logf("legacy claimant=%v method=%s exact-owner bill=%d", legacy, method, own)
+ f.requireLinked("review-exact", own, service.TokenAnalysisUsageMatchRequestID)
+}
+
+func TestReviewLegacyQueueDelayCannotShiftBillToNextRequest(t *testing.T) {
+ day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+ f := newTokenAnalysisLinkFixture(t, day)
+ start := day.Add(6*time.Hour)
+ f.request("review-first", "", start)
+ f.request("review-next", "", start.Add(2100*time.Millisecond))
+ own := f.usage("client:review-first", start.Add(4*time.Second), 1000, 547)
+ f.link()
+ got, method := f.linked("review-next")
+ if got != nil { t.Logf("next incorrectly claimed first bill: got=%d want_not=%d method=%s", *got, own, method) }
+ f.requireUnlinked("review-next")
+}
+
+func TestReviewUsageClaimIsAtomicAcrossIndexers(t *testing.T) {
+ day := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
+ f := newTokenAnalysisLinkFixture(t, day)
+ start := day.Add(6*time.Hour)
+ f.request("review-race-a", "", start)
+ f.response("review-race-a",start.Add(time.Second),200)
+ f.request("review-race-b", "", start.Add(50*time.Millisecond))
+ f.response("review-race-b",start.Add(1050*time.Millisecond),200)
+ f.usage("resp_review_race", start.Add(1010*time.Millisecond), 900, 547)
+ query := func(id string) *service.TokenAnalysisUsageMatch {
+   startedAt, completedAt := start,start.Add(time.Second)
+   if id == "review-race-b" { startedAt=startedAt.Add(50*time.Millisecond); completedAt=completedAt.Add(50*time.Millisecond) }
+   match, err := f.repo.FindUsageLink(f.ctx, service.TokenAnalysisUsageLinkQuery{
+     ArchiveID:id, StartedAt:startedAt,CompletedAt:&completedAt,
+     UserID:&f.userID, APIKeyID:&f.apiKeyID, Model:tokenAnalysisLinkModel, Window:10*time.Second,
+   })
+   require.NoError(t,err)
+   require.NotNil(t,match)
+   return match
+ }
+ // Both readers observe the unclaimed bill before either writer commits.
+ a, b := query("review-race-a"), query("review-race-b")
+ gate := make(chan struct{})
+ errs := make(chan error,2)
+ for _, row := range []struct{id string; m *service.TokenAnalysisUsageMatch}{{"review-race-a",a},{"review-race-b",b}} {
+   go func(id string, m *service.TokenAnalysisUsageMatch){ <-gate; errs <- f.repo.SetUsageLink(f.ctx,id,m,0,[]service.TokenAnalysisRiskReason{}) }(row.id,row.m)
+ }
+ close(gate)
+ require.NoError(t,<-errs)
+ require.NoError(t,<-errs)
+ f.link()
+ f.requireNoSharedUsage()
+}
+
+func TestReviewResponseBeforeRequestCanRecoverWithoutRewind(t *testing.T) {
+ day := time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC)
+ f := newTokenAnalysisLinkFixture(t, day)
+ dir := t.TempDir()
+ f.svc = service.NewTokenAnalysisService(f.repo,&config.Config{
+   Gateway:config.GatewayConfig{RequestArchive:config.GatewayRequestArchiveConfig{Dir:dir}},
+   TokenAnalysis:config.TokenAnalysisConfig{IndexEnabled:true,UsageMatchWindowSeconds:10},
+ },nil)
+ start := day.Add(24*time.Hour-time.Second)
+ done := start.Add(21*time.Second)
+ write := func(name string, event map[string]any) {
+   data, err := json.Marshal(event); require.NoError(t,err)
+   require.NoError(t,os.WriteFile(filepath.Join(dir,name),append(data,'\n'),0600))
+ }
+ write("2026-11-05.jsonl",map[string]any{
+   "archive_id":"review-midnight","client_request_id":"review-midnight-id","event":"request",
+   "timestamp":start.Format(time.RFC3339Nano),"endpoint":"/v1/responses","path":"/v1/responses",
+   "user_id":f.userID,"api_key_id":f.apiKeyID,"model":tokenAnalysisLinkModel,
+   "body":`{"model":"gpt-6-astra","input":"human question"}`,
+ })
+ write("2026-11-06.jsonl",map[string]any{
+   "archive_id":"review-midnight","event":"response","timestamp":done.Format(time.RFC3339Nano),"status":200,
+ })
+ bill := f.usage("resp_review_midnight",done.Add(10*time.Millisecond),21000,547)
+ index := func(date string) {
+   _,err:=f.svc.IndexRange(f.ctx,service.TokenAnalysisIndexRequest{StartDate:date,EndDate:date,Timezone:"UTC"})
+   require.NoError(t,err)
+ }
+ index("2026-11-06")
+ index("2026-11-05")
+ index("2026-11-06")
+ index("2026-11-05")
+ f.requireLinked("review-midnight",bill,service.TokenAnalysisUsageMatchTiming)
+}
+
+func TestReviewFailedLegacyWrongLinkIsRechecked(t *testing.T) {
+ day := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
+ f := newTokenAnalysisLinkFixture(t, day)
+ start := day.Add(6*time.Hour)
+ f.request("review-failed-old","",start)
+ unrelated:=f.usage("client:review-other",start.Add(time.Second),900,547)
+ _,err:=integrationDB.ExecContext(f.ctx,`UPDATE token_analysis_request_summaries SET usage_log_id=$1 WHERE archive_id=$2`,unrelated,"review-failed-old")
+ require.NoError(t,err)
+ f.response("review-failed-old",start.Add(2*time.Second),502)
+ f.link()
+ f.requireUnlinked("review-failed-old")
+}

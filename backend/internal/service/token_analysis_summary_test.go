@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"strings"
@@ -252,6 +253,42 @@ func TestTokenAnalysisSummarizePreviewUsesUserAuthoredText(t *testing.T) {
 			require.Equal(t, "fix the login bug", got.LastUserText)
 		})
 	}
+}
+
+// 只剥离文本开头完整闭合的客户端注入包装(及其后 Codex 的 "## My request:"
+// 标题); 用户引用的标签、未闭合包装、正文之后的包装都保留原文。
+func TestTokenAnalysisSummarizeStripsLeadingClientContext(t *testing.T) {
+	const ambient = "\n<in-app-browser-context source=\"ambient-ui-state\">\n- Current URL: http://example/admin\n</in-app-browser-context>\n\n## My request:\n"
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{"ambient context then request", ambient + "为什么看不到?\n", "为什么看不到?"},
+		{"stacked wrappers", "<environment_context><cwd>/w</cwd></environment_context>\n" + ambient + "fix it", "fix it"},
+		{"environment then instruction", "<environment_context>cwd</environment_context> now edit the file", "now edit the file"},
+		{"heading without wrapper is user text", "## My request:\nfix it", "## My request:\nfix it"},
+		{"quoted tag mid text", "为什么预览里有 <in-app-browser-context>x</in-app-browser-context>?", "为什么预览里有 <in-app-browser-context>x</in-app-browser-context>?"},
+		{"unclosed wrapper", "<in-app-browser-context source=\"ambient-ui-state\">\nfix it", "<in-app-browser-context source=\"ambient-ui-state\">\nfix it"},
+		{"different tag sharing the prefix", "<in-app-browser-contextual>x</in-app-browser-contextual> fix it", "<in-app-browser-contextual>x</in-app-browser-contextual> fix it"},
+		{"wrapper after user text", "fix it\n<system-reminder>x</system-reminder>", "fix it\n<system-reminder>x</system-reminder>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(tt.text)
+			require.NoError(t, err)
+			body := `{"input":[{"role":"user","content":[{"type":"input_text","text":` + string(raw) + `}]}]}`
+			got, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(body), 300)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got.LastUserText)
+			require.Equal(t, "user_input", got.SummaryJSON["request_origin"].(tokenAnalysisRequestOrigin).Reason)
+		})
+	}
+
+	// 整块注入的用户消息不算新输入, 预览保留更早的用户正文。
+	got, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(`{"input":[{"role":"user","content":"fix it"},{"role":"assistant","content":"ok"},{"role":"user","content":"<in-app-browser-context>url</in-app-browser-context>"}]}`), 300)
+	require.NoError(t, err)
+	require.Equal(t, "fix it", got.LastUserPreview)
 }
 
 func TestTokenAnalysisSummarizeUserCharsStillCountsToolResults(t *testing.T) {

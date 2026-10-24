@@ -40,6 +40,7 @@
 - `features/token-analysis-project-attribution-design-cn.md`（`backend/migrations/145_*.sql`、`project_attribution.go`）
 - `features/token-analysis-user-input-store-design-cn.md`（`backend/migrations/146_*.sql`）
 - `features/token-analysis-request-origin-design-cn.md`（人工/AI 请求来源规则、只读采样证据与历史回填边界）
+- `features/token-analysis-usage-link-design-cn.md`（`backend/migrations/247_*.sql`；归档请求与计费记录关联、存量恢复）
 - `features/gpt-account-quota-display-design-cn.md`（`backend/migrations/243_*.sql`、`gpt_quota_display.go`）
 - `features/codex-prompt-risk-filter-design-cn.md`（`prompt_risk.go`）
 - `features/organization-department-usage-design-cn.md`（`frontend/src/components/admin/organization-usage/README.md`）

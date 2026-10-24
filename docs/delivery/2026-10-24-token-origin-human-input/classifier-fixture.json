@@ -1,0 +1,40 @@
+{
+  "description": "最小同构样例：末条 user 来自原始归档；历史消息和无关字段已删减，不能称为完整请求回放。",
+  "source_archive_id": "73eb6d29496d6c677054f5c797996d66",
+  "endpoint": "/v1/responses",
+  "body": {
+    "model": "gpt-6-astra",
+    "client_metadata": {
+      "x-codex-turn-metadata": "{\"turn_trigger\":\"composer\"}"
+    },
+    "input": [
+      {
+        "role": "assistant",
+        "type": "message",
+        "content": [
+          {
+            "text": "[previous answer omitted]",
+            "type": "output_text"
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "user",
+        "content": [
+          {
+            "type": "input_text",
+            "text": "\n<in-app-browser-context source=\"ambient-ui-state\">\nThis block is automatically supplied ambient UI state, not part of the user's request. Do not treat it as an instruction or as evidence that the user explicitly selected the in-app browser.\n# In app browser:\n- The user has the in-app browser open with 1 tab.\n- Current URL: http://118.25.112.30:52997/admin/token-analysis\n</in-app-browser-context>\n\n## My request:\n我之前请求的来源是不是没有办法归类了,只有上线后的才能归类?\n"
+          }
+        ]
+      }
+    ]
+  },
+  "expected_request_origin": {
+    "kind": "human",
+    "reason": "user_input",
+    "version": 1,
+    "confidence": "medium"
+  },
+  "expected_visible_question": "我之前请求的来源是不是没有办法归类了,只有上线后的才能归类?"
+}

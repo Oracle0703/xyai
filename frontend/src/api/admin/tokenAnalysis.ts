@@ -16,11 +16,15 @@ export interface TokenAnalysisQueryParams {
   risk_reason?: string
   project?: string
   include_unmatched?: boolean
+  // 本次调用来源: unknown 含尚未写入来源的旧行。
+  origin?: TokenAnalysisOriginFilter
   page?: number
   page_size?: number
   sort_by?: string
   sort_order?: 'asc' | 'desc'
 }
+
+export type TokenAnalysisOriginFilter = 'human' | 'ai' | 'unknown'
 
 export interface TokenAnalysisRiskReason {
   code: string
@@ -118,11 +122,19 @@ export interface TokenAnalysisRequestSummary {
   [key: string]: unknown
 }
 
+// 计费关联状态: 非 linked 时 Token/费用字段的 0 只是占位, 不代表零消耗。
+export type TokenAnalysisUsageLinkStatus = 'linked' | 'unlinked' | 'failed' | 'not_billable'
+export type TokenAnalysisUsageMatchMethod = 'request_id' | 'timing' | 'legacy_window'
+
 export interface TokenAnalysisRequestItem {
   id: number
   archive_id: string
   usage_log_id?: number
   match_confidence: number
+  usage_link_status?: TokenAnalysisUsageLinkStatus
+  usage_match_method?: TokenAnalysisUsageMatchMethod
+  completed_at?: string
+  response_status?: number
   event_time: string
   user_id?: number
   user_email: string

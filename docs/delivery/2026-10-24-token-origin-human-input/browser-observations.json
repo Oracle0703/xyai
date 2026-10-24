@@ -1,0 +1,46 @@
+{
+  "evidence_type": "manual transcription of authenticated browser observations; not raw API responses",
+  "observed_on": "2026-10-24",
+  "deployed_commit": "98151012b1ce107fbbbbc67d93aafd08aa40bbf6",
+  "archive_id": "73eb6d29496d6c677054f5c797996d66",
+  "token_analysis": {
+    "url": "http://118.25.112.30:52997/admin/token-analysis",
+    "filters": {"date": "2026-10-24", "user_email_search": "huangyu", "risk_min": 0, "sort": "event_time_desc"},
+    "include_unmatched_false": "Target row excluded by the existing SQL filter; classifier result is unchanged.",
+    "include_unmatched_true": "Target row found on page 2 at the time of observation and opened by archive ID.",
+    "drawer": {
+      "time_cst": "2026-10-24 14:11:12",
+      "origin_label": "人工",
+      "reason_text": "本轮末尾包含新的用户输入，未发现明确的自动执行标记",
+      "confidence_label": "中",
+      "rule_version": 1,
+      "match_confidence": 0,
+      "displayed_input_tokens": 0,
+      "displayed_output_tokens": 0,
+      "displayed_cache_read_tokens": 0,
+      "displayed_cost_usd": "0.0000",
+      "body_truncated": false,
+      "full_text_contains_exact_question": true
+    }
+  },
+  "billing": {
+    "url": "http://118.25.112.30:52997/admin/usage",
+    "user_id": 2,
+    "time_cst_at_second_precision": "2026-10-24 14:11:31",
+    "api_key_name": "cx",
+    "model": "gpt-6-astra",
+    "uncached_input_tokens": 294,
+    "output_tokens": 547,
+    "displayed_cache_read_tokens": "156.3K",
+    "displayed_total_duration_seconds": 18.41,
+    "actual_cost_usd": "0.186578",
+    "correlation_basis": "Same user, key and model, response completion second, output tokens and input/cache split; no SQL or exact usage row ID was collected."
+  },
+  "effective_config_evidence": {
+    "data_dir": "/var/lib/sub2api",
+    "config_file": "/var/lib/sub2api/config.yaml",
+    "usage_match_window_explicit_override": false,
+    "usage_match_window_environment_override": false,
+    "code_default_seconds": 10
+  }
+}

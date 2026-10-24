@@ -355,41 +355,46 @@ func summaryFallbackRequest(root map[string]any, summary *TokenAnalysisBodySumma
 }
 
 // tokenAnalysisUserInputText 取一条用户消息中由用户本人写的文本, 作为预览与
-// 净输入留存的来源: 跳过工具结果(tool_result/functionResponse 等非文本块)和整块
-// 客户端注入包装(<environment_context>/<system-reminder>)。没有用户文本时返回
-// 空串, 调用方保留更早的用户输入, 因此同一 agent 轮次内的请求共享同一净输入。
-// UserChars 仍按原口径累计, 风险规则不受影响。
+// 净输入留存的来源: 跳过工具结果(tool_result/functionResponse 等非文本块)和
+// 文本开头的完整客户端注入包装(见 tokenAnalysisInjectedContextTags)。没有用户
+// 文本时返回空串, 调用方保留更早的用户输入, 因此同一 agent 轮次内的请求共享
+// 同一净输入。UserChars 仍按原口径累计, 风险规则不受影响。
 func tokenAnalysisUserInputText(content any) string {
 	switch v := content.(type) {
 	case string:
-		if tokenAnalysisInjectedContextOnly(v) {
-			return ""
-		}
-		return v
+		return tokenAnalysisUserAuthoredText(v)
 	case map[string]any:
 		return tokenAnalysisUserInputText([]any{v})
 	case []any:
 		parts := make([]string, 0, len(v))
 		for _, raw := range v {
-			if text, ok := raw.(string); ok {
-				if strings.TrimSpace(text) != "" && !tokenAnalysisInjectedContextOnly(text) {
-					parts = append(parts, text)
+			text, ok := raw.(string)
+			if !ok {
+				block, isBlock := raw.(map[string]any)
+				if !isBlock || !tokenAnalysisIsTextBlock(block) {
+					continue
 				}
-				continue
+				text, _ = block["text"].(string)
 			}
-			block, ok := raw.(map[string]any)
-			if !ok || !tokenAnalysisIsTextBlock(block) {
-				continue
+			if text = tokenAnalysisUserAuthoredText(text); text != "" {
+				parts = append(parts, text)
 			}
-			text, _ := block["text"].(string)
-			if strings.TrimSpace(text) == "" || tokenAnalysisInjectedContextOnly(text) {
-				continue
-			}
-			parts = append(parts, text)
 		}
 		return strings.Join(parts, " ")
 	}
 	return ""
+}
+
+// tokenAnalysisUserAuthoredText drops the injected context leading one text
+// part; text without such a prefix is returned unchanged.
+func tokenAnalysisUserAuthoredText(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	if rest, stripped := stripTokenAnalysisInjectedPrefix(text); stripped {
+		return rest
+	}
+	return text
 }
 
 func tokenAnalysisExtractText(value any) string {

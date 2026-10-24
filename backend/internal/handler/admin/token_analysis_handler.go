@@ -201,6 +201,13 @@ func (h *TokenAnalysisHandler) parseFilters(c *gin.Context) (service.TokenAnalys
 		}
 		filters.RiskMin = v
 	}
+	switch origin := strings.TrimSpace(c.Query("origin")); origin {
+	case "", "human", "ai", "unknown":
+		filters.Origin = origin
+	default:
+		response.BadRequest(c, "Invalid origin")
+		return filters, false
+	}
 	if raw := strings.TrimSpace(c.Query("include_unmatched")); raw != "" {
 		v, err := strconv.ParseBool(raw)
 		if err != nil {

@@ -1,0 +1,59 @@
+2026/10/24 14:45:39 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestRereviewTimingClaimRechecksLateFailedResponse
+=== RUN   TestRereviewTimingClaimRechecksLateFailedResponse/response_id=
+=== RUN   TestRereviewTimingClaimRechecksLateFailedResponse/response_id=resp_failed_owner
+--- PASS: TestRereviewTimingClaimRechecksLateFailedResponse (0.18s)
+    --- PASS: TestRereviewTimingClaimRechecksLateFailedResponse/response_id= (0.13s)
+    --- PASS: TestRereviewTimingClaimRechecksLateFailedResponse/response_id=resp_failed_owner (0.05s)
+=== RUN   TestRereviewStaleTimingCannotOverwriteExactClaim
+    token_analysis_rereview_temp_test.go:62: stale timing accepted=false own=4 neighbor=3
+--- PASS: TestRereviewStaleTimingCannotOverwriteExactClaim (0.06s)
+=== RUN   TestRereviewStaleReleaseCannotClearExactClaim
+--- PASS: TestRereviewStaleReleaseCannotClearExactClaim (0.06s)
+=== RUN   TestRereviewAscendingSingleDayIndexLinksCrossDayRequest
+--- PASS: TestRereviewAscendingSingleDayIndexLinksCrossDayRequest (0.09s)
+=== RUN   TestRereviewDisplacedPreviousDayRiskIsRecomputed
+    token_analysis_rereview_temp_test.go:143: displaced previous day: method= score=0 reasons=[]
+--- PASS: TestRereviewDisplacedPreviousDayRiskIsRecomputed (0.12s)
+=== RUN   TestTokenAnalysisUsageLinkLongRunningLegacyRequest
+--- PASS: TestTokenAnalysisUsageLinkLongRunningLegacyRequest (0.12s)
+=== RUN   TestTokenAnalysisUsageLinkLateBillingByRequestID
+--- PASS: TestTokenAnalysisUsageLinkLateBillingByRequestID (0.06s)
+=== RUN   TestTokenAnalysisUsageLinkConcurrentAndRetriedRequests
+--- PASS: TestTokenAnalysisUsageLinkConcurrentAndRetriedRequests (0.10s)
+=== RUN   TestTokenAnalysisUsageLinkLegacyAmbiguousBillStaysUnlinked
+--- PASS: TestTokenAnalysisUsageLinkLegacyAmbiguousBillStaysUnlinked (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkLateExactBillBeatsNeighborTiming
+--- PASS: TestTokenAnalysisUsageLinkLateExactBillBeatsNeighborTiming (0.06s)
+=== RUN   TestTokenAnalysisUsageLinkLegacyCannotTakeExactOwnersBill
+--- PASS: TestTokenAnalysisUsageLinkLegacyCannotTakeExactOwnersBill (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkResponseIDCorrectsTimingClaim
+--- PASS: TestTokenAnalysisUsageLinkResponseIDCorrectsTimingClaim (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkConcurrentClaimsAreAtomic
+--- PASS: TestTokenAnalysisUsageLinkConcurrentClaimsAreAtomic (1.01s)
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/descending
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/ascending
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/full_range
+--- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder (0.40s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/descending (0.14s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/ascending (0.19s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/full_range (0.07s)
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=resp_failed_owner
+--- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink (0.26s)
+    --- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id= (0.19s)
+    --- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=resp_failed_owner (0.07s)
+=== RUN   TestTokenAnalysisUsageLinkStaleWritesCannotOverrideNewerLink
+--- PASS: TestTokenAnalysisUsageLinkStaleWritesCannotOverrideNewerLink (0.05s)
+=== RUN   TestTokenAnalysisUsageLinkDisplacedRowOnOtherDayIsRescored
+--- PASS: TestTokenAnalysisUsageLinkDisplacedRowOnOtherDayIsRescored (0.07s)
+=== RUN   TestTokenAnalysisUsageLinkFailedRequestsKeepOnlyExactBills
+--- PASS: TestTokenAnalysisUsageLinkFailedRequestsKeepOnlyExactBills (0.07s)
+=== RUN   TestTokenAnalysisListRequestsFiltersByOrigin
+--- PASS: TestTokenAnalysisListRequestsFiltersByOrigin (0.20s)
+=== RUN   TestTokenAnalysisUserInputQualityFollowsContentHash
+--- PASS: TestTokenAnalysisUserInputQualityFollowsContentHash (0.03s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/repository	10.563s

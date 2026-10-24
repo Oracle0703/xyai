@@ -20,8 +20,8 @@ func TestTokenAnalysisIndexerIndexesOnlyRequestEvents(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "2026-05-19.jsonl")
 	err := os.WriteFile(file, []byte(
-		`{"archive_id":"a1","event":"request","timestamp":"2026-05-19T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash1"}`+"\n"+
-			`{"archive_id":"a1","event":"response","timestamp":"2026-05-19T01:02:04Z","status":200,"body":"{\"ok\":true}"}`+"\n"),
+		`{"archive_id":"a1","client_request_id":"cid-1","event":"request","timestamp":"2026-05-19T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash1"}`+"\n"+
+			`{"archive_id":"a1","client_request_id":"cid-1","event":"response","timestamp":"2026-05-19T01:02:04Z","status":200,"usage":{"completion_tokens":20},"response_id":"resp_1"}`+"\n"),
 		0o600,
 	)
 	require.NoError(t, err)
@@ -44,8 +44,19 @@ func TestTokenAnalysisIndexerIndexesOnlyRequestEvents(t *testing.T) {
 	require.Len(t, repo.upserts, 1)
 	require.Equal(t, "a1", repo.upserts[0].ArchiveID)
 	require.Equal(t, "hello", repo.upserts[0].LastUserPreview)
-	require.Equal(t, int16(3), repo.upserts[0].MatchConfidence)
-	require.Equal(t, int64(123), *repo.upserts[0].UsageLogID)
+	// 请求行入库时不找账单; response 行写回完成事实, 扫描结束后的关联轮次再关联。
+	require.Nil(t, repo.upserts[0].UsageLogID)
+	require.Equal(t, "cid-1", repo.upserts[0].ClientRequestID)
+	require.Len(t, repo.responses, 1)
+	outputTokens := int64(20)
+	require.Equal(t, TokenAnalysisResponseFacts{ArchiveID: "a1", CompletedAt: time.Date(2026, 5, 19, 1, 2, 4, 0, time.UTC), Status: 200, OutputTokens: &outputTokens, ResponseID: "resp_1"}, repo.responses[0])
+	require.Len(t, repo.usageLookups, 1)
+	require.Equal(t, "cid-1", repo.usageLookups[0].ClientRequestID)
+	require.Equal(t, "resp_1", repo.usageLookups[0].ResponseID)
+	// 有关联键与上游 response.id 的新请求只做精确关联。
+	require.True(t, repo.usageLookups[0].ExactOnly)
+	require.Equal(t, time.Date(2026, 5, 19, 1, 2, 4, 0, time.UTC), *repo.usageLookups[0].CompletedAt)
+	require.Equal(t, int64(123), repo.links["a1"].UsageLogID)
 }
 
 func TestTokenAnalysisIndexerResumesFromStoredOffset(t *testing.T) {
@@ -151,8 +162,22 @@ type tokenAnalysisRepoStub struct {
 	summary        *TokenAnalysisSummary
 	billedRequests int64
 	summaryFilters *TokenAnalysisFilters
-	// usageLookups 记录 FindNearestUsageLog 调用次数(count_tokens 行不得匹配)。
-	usageLookups int
+	// 计费关联: responses 记录 response 行完成事实; linkCandidates 非 nil 时
+	// 直接作为待关联行, 否则由 upserts 推出(仿 SQL 排除 count_tokens 与已确认行);
+	// findUsage 决定 FindUsageLink 返回(默认 123 号账单), usageLookups 记录查询,
+	// links 记录 SetUsageLink 结果(nil 值表示解除关联)。
+	responses      []TokenAnalysisResponseFacts
+	linkCandidates []TokenAnalysisUsageLinkCandidate
+	findUsage      func(TokenAnalysisUsageLinkQuery) *TokenAnalysisUsageMatch
+	usageLookups   []TokenAnalysisUsageLinkQuery
+	links          map[string]*TokenAnalysisUsageMatch
+	linkRisk       map[string][]TokenAnalysisRiskReason
+	pendingMerges  int
+	pendingCleared []string
+	keptPending    []string
+	// requestItems/requestFilters 供请求明细口径测试注入返回值并记录过滤条件。
+	requestItems   []TokenAnalysisRequestItem
+	requestFilters *TokenAnalysisFilters
 }
 
 func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
@@ -163,18 +188,93 @@ func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summar
 	return nil
 }
 
-func (r *tokenAnalysisRepoStub) FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*TokenAnalysisUsageMatch, error) {
-	r.usageLookups++
+func testTokenAnalysisUsageMatch() *TokenAnalysisUsageMatch {
 	return &TokenAnalysisUsageMatch{
 		UsageLogID:          123,
 		MatchConfidence:     3,
+		Method:              TokenAnalysisUsageMatchRequestID,
 		InputTokens:         1000,
 		OutputTokens:        20,
 		CacheReadTokens:     100,
 		CacheCreationTokens: 50,
 		TotalCost:           0.1,
 		ActualCost:          0.2,
-	}, nil
+	}
+}
+
+func (r *tokenAnalysisRepoStub) RecordResponse(ctx context.Context, facts TokenAnalysisResponseFacts) error {
+	r.responses = append(r.responses, facts)
+	return nil
+}
+
+func (r *tokenAnalysisRepoStub) ListUsageLinkCandidates(ctx context.Context, start, end time.Time, afterID int64, limit int) ([]TokenAnalysisUsageLinkCandidate, error) {
+	all := r.linkCandidates
+	if all == nil {
+		for i, summary := range r.upserts {
+			if tokenAnalysisIsCountTokensPath(summary.Endpoint) || summary.EventTime.Before(start) || !summary.EventTime.Before(end) {
+				continue
+			}
+			c := TokenAnalysisUsageLinkCandidate{
+				ID: int64(i + 1), ArchiveID: summary.ArchiveID, ClientRequestID: summary.ClientRequestID,
+				EventTime: summary.EventTime, UserID: summary.UserID, APIKeyID: summary.APIKeyID, Model: summary.Model,
+			}
+			for _, facts := range r.responses {
+				if facts.ArchiveID == summary.ArchiveID {
+					completedAt, status := facts.CompletedAt, facts.Status
+					c.CompletedAt, c.OutputTokens, c.ResponseID, c.ResponseStatus = &completedAt, facts.OutputTokens, facts.ResponseID, &status
+				}
+			}
+			all = append(all, c)
+		}
+	}
+	out := make([]TokenAnalysisUsageLinkCandidate, 0, len(all))
+	for _, c := range all {
+		if link, ok := r.links[c.ArchiveID]; c.ID > afterID && !(ok && link != nil && link.Method != "") {
+			if ok {
+				c.UsageLogID, c.Method, c.LinkPending = nil, "", false
+				if link != nil {
+					c.UsageLogID = &link.UsageLogID
+				}
+			}
+			for _, cleared := range r.pendingCleared {
+				if cleared == c.ArchiveID {
+					c.LinkPending = false
+				}
+			}
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (r *tokenAnalysisRepoStub) FindUsageLink(ctx context.Context, query TokenAnalysisUsageLinkQuery) (*TokenAnalysisUsageMatch, error) {
+	r.usageLookups = append(r.usageLookups, query)
+	if r.findUsage != nil {
+		return r.findUsage(query), nil
+	}
+	return testTokenAnalysisUsageMatch(), nil
+}
+
+func (r *tokenAnalysisRepoStub) SetUsageLink(ctx context.Context, archiveID string, expected TokenAnalysisUsageLinkState, match *TokenAnalysisUsageMatch, riskScore int, riskReasons []TokenAnalysisRiskReason) (TokenAnalysisUsageLinkWrite, error) {
+	if r.links == nil {
+		r.links, r.linkRisk = map[string]*TokenAnalysisUsageMatch{}, map[string][]TokenAnalysisRiskReason{}
+	}
+	r.links[archiveID] = match
+	r.linkRisk[archiveID] = riskReasons
+	if expected.KeepPending {
+		r.keptPending = append(r.keptPending, archiveID)
+	}
+	return TokenAnalysisUsageLinkWrite{Applied: true}, nil
+}
+
+func (r *tokenAnalysisRepoStub) ClearUsageLinkPending(ctx context.Context, archiveID string, version int64) error {
+	r.pendingCleared = append(r.pendingCleared, archiveID)
+	return nil
+}
+
+func (r *tokenAnalysisRepoStub) MergePendingResponses(ctx context.Context) error {
+	r.pendingMerges++
+	return nil
 }
 
 func (r *tokenAnalysisRepoStub) CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error) {
@@ -199,7 +299,8 @@ func (r *tokenAnalysisRepoStub) ListUserUsage(ctx context.Context, filters Token
 }
 
 func (r *tokenAnalysisRepoStub) ListRequests(ctx context.Context, filters TokenAnalysisFilters, params pagination.PaginationParams) ([]TokenAnalysisRequestItem, *pagination.PaginationResult, error) {
-	return []TokenAnalysisRequestItem{}, &pagination.PaginationResult{}, nil
+	r.requestFilters = &filters
+	return append([]TokenAnalysisRequestItem{}, r.requestItems...), &pagination.PaginationResult{}, nil
 }
 
 func (r *tokenAnalysisRepoStub) GetIndexStatus(ctx context.Context) (*TokenAnalysisIndexStatus, error) {
@@ -297,7 +398,7 @@ func (r *cancelOnUpsertRepoStub) UpsertRequestSummary(ctx context.Context, summa
 func TestTokenAnalysisIndexerStopsScanningSkippedLinesAfterCancel(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "2026-06-08.jsonl")
-	// 1 条 request + 大量跳过行(response 事件不经过任何 repo 调用):
+	// 1 条 request + 大量 response 行(只写回完成事实, 不计入索引行):
 	// 取消后若循环不检查 ctx.Err(), 文件会被扫完并返回成功(回归场景)。
 	requestLine := `{"archive_id":"a1","event":"request","timestamp":"2026-06-08T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash1"}` + "\n"
 	skipLine := `{"archive_id":"a1","event":"response","timestamp":"2026-06-08T01:02:04Z","status":200,"body":"{\"ok\":true}"}` + "\n"
@@ -437,9 +538,9 @@ func TestTokenAnalysisIndexerDegradesTruncatedBodyToMetadata(t *testing.T) {
 func TestTokenAnalysisIndexerSkipsUsageMatchForCountTokens(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "2026-06-09.jsonl")
-	// count_tokens 探测不计费, 不得做用量匹配(否则与紧邻真实请求匹配到同一条
+	// count_tokens 探测不计费, 不得做用量关联(否则与紧邻真实请求关联到同一条
 	// usage_logs, 概览把 token 累加两次); endpoint 还原 /count_tokens 后缀,
-	// 库内才能与真实 messages 请求区分。
+	// 关联轮次据此排除(SQL 条件见仓储测试), 库内才能与真实请求区分。
 	line := `{"archive_id":"ct1","event":"request","timestamp":"2026-06-09T01:02:03Z","method":"POST","path":"/antigravity/v1/messages/count_tokens","endpoint":"/v1/messages","user_id":7,"api_key_id":9,"model":"claude-sonnet-4-6","body":"{\"model\":\"claude-sonnet-4-6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}","body_size":72,"body_sha256":"hash-ct1"}` + "\n"
 	require.NoError(t, os.WriteFile(file, []byte(line), 0o600))
 
@@ -454,7 +555,7 @@ func TestTokenAnalysisIndexerSkipsUsageMatchForCountTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), result.IndexedRows)
 	require.Equal(t, int64(0), result.FailedRows)
-	require.Zero(t, repo.usageLookups)
+	require.Empty(t, repo.usageLookups)
 	require.Len(t, repo.upserts, 1)
 	summary := repo.upserts[0]
 	require.Nil(t, summary.UsageLogID)

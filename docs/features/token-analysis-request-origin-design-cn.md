@@ -38,7 +38,7 @@
 
 1. 归档 `body_truncated=true` 一律未识别，包括仍能解析的 JSON 和 multipart，避免用缺失尾部的历史推断来源。
 2. 使用已解析请求里的客户端元数据有限白名单识别子 Agent、审批、自动化。`client_metadata.x-codex-turn-metadata` 支持 JSON 字符串和对象，实际触发键为 `turn_trigger`；生产样本中有值的 252 条均为字符串，对象格式只是兼容处理，未经生产验证。`x-openai-subagent` 的值域为 `collab_spawn`/`guardian`/`memory_consolidation`，嵌套 `subagent_kind` 的值域为 `thread_spawn`/`guardian`，两者分别匹配、不可互换。
-3. 从原始协议消息尾部向前寻找有效事件。跳过任意 item 类型的 system/developer（含 Responses Lite `additional_tools`）与完整、纯客户端注入包装（`<environment_context>`、`<system-reminder>`，可多段连续）；未知尾部不能跳过后用历史用户消息补判。
+3. 从原始协议消息尾部向前寻找有效事件。跳过任意 item 类型的 system/developer（含 Responses Lite `additional_tools`）与完整、纯客户端注入包装（`<environment_context>`、Codex app 的 `<in-app-browser-context …>`、`<system-reminder>`，开标签可带属性，可多段连续）；未知尾部不能跳过后用历史用户消息补判。
 4. 工具输出、Agent 消息、assistant/model 继续生成、压缩事件归 AI；新 user 文本、图片或文件归人工推断。混合工具结果与独立用户内容以独立新输入为依据；与 tool_result 同处的整块 `<system-reminder>` 不算独立输入。
 5. 工具声明、历史工具数、重复正文、短时间间隔、User-Agent、用户 ID、`previous_response_id` 不单独构成来源证据。
 6. `count_tokens` 探测请求不是模型调用，由索引器按原始路径固定为 `unknown/count_tokens`，优先于截断与压缩覆盖。
@@ -62,14 +62,16 @@
 
 分类器位于 `backend/internal/service/token_analysis_origin.go`，摘要阶段复用已解析的 root，索引器最后执行截断覆盖。分类结果只包含固定枚举，不带正文或标识。
 
-列表 API 已返回 `summary_json`，无需新增接口或逐行请求。`TokenAnalysisRequestTable.vue` 在用户后增加“请求来源”，保留两类业务标签；`TokenAnalysisRequestDrawer.vue` 展示判断依据、推断程度和规则版本。前端公共 helper 负责版本和枚举校验、双语说明；不在前端二次猜测来源。
+列表 API 已返回 `summary_json`，无需新增接口或逐行请求。`TokenAnalysisRequestTable.vue` 在用户后增加“本次调用来源”（预览列为“最近用户输入”，两者口径不同），保留两类业务标签；`TokenAnalysisRequestDrawer.vue` 展示判断依据、推断程度和规则版本。前端公共 helper 负责版本和枚举校验、双语说明；不在前端二次猜测来源。
+
+筛选：所有 Token 分析查询接受 `origin=human|ai|unknown`（其他值 400），仓储按 `summary_json->'request_origin'->>'kind'` 过滤；`unknown` 同时包含尚未写入来源的旧行，与页面显示 `—` 一致。它与风险分、风险原因一样作用于归档行（概览、用户/项目排行、请求明细），不作用于计费趋势和“同期计费请求数”，因此筛选来源时归档覆盖率只作参考。表达式过滤依赖 `event_time` 范围索引，未建 jsonb 表达式索引。
 
 ## 历史数据与上线边界
 
 - 新代码只对之后被索引的 request 生效；旧行缺字段显示未识别，不能默认人工。
 - 当前“索引当前范围”按 `last_offset` 增量续读，点击它不会重算已读行。
 - 历史回填须另行安排受控生产写操作：先保留目标原始归档，在索引互斥且自动索引不会抢跑的窗口，只重置目标文件的索引状态后重新索引。原始归档绝不就地改写。
-- `UpdateIndexState` 累加 processed/failed，不能仅把 offset 设为 0，否则计数重复。现有 `archive_id` upsert 幂等；净输入的 `quality_*` 只在 `content_sha256` 不变时保留，提取口径变化导致内容改变时清空；完整解析且确认没有用户正文的行会删除旧净输入（采集关闭、截断、降级不删）。重索引仍会执行旧的匹配/风险逻辑，因此须备份、明确范围和验收计数，不自动执行。
+- `UpdateIndexState` 累加 processed/failed，不能仅把 offset 设为 0，否则计数重复。现有 `archive_id` upsert 幂等；净输入的 `quality_*` 只在 `content_sha256` 不变时保留，提取口径变化导致内容改变时清空；完整解析且确认没有用户正文的行会删除旧净输入（采集关闭、截断、降级不删）。重索引后由库内关联轮次按新规则重新关联计费并重算风险（见 `token-analysis-usage-link-design-cn.md`），仍须备份、明确范围和验收计数，不自动执行。
 - 文件已被删除时，不能仅根据历史预览可靠回填。本轮未写生产数据库、未触发索引、未修改服务或部署。
 
 ## 审核修订（2026-10-24）
@@ -90,6 +92,13 @@
 生产补充检查（2026-10-24）：1 GiB 有界定向采样命中 11 条 Claude CLI Messages 请求，10 条有效尾部为工具结果、1 条普通用户文本，未出现 tool_result+纯 reminder 同条混合。选定 5 条完整历史中确认存在纯 reminder、reminder+普通文本，仍不能将其当作工具结果同条混合的实证。位置、行哈希、脚本及边界见 `docs/delivery/2026-10-24-token-origin-samples/messages-audit.md`。
 
 回填影响：预览/净输入口径变化只作用于新索引的行，新旧行同一范围内的 `duplicate_count` 会暂时不一致；历史回填应与来源回填合并为同一次受控重索引，避免对单日上百 GiB 的归档扫两遍。
+
+## 人工首发被计费关联隐藏（2026-10-24）
+
+上线后发现一条真实人工首发（archive `73eb6d29…`）分类正确，却因计费关联失败被默认请求明细排除，且显示为 0 Token/0 费用。根因在计费关联而非分类器，修复与存量恢复见 `docs/features/token-analysis-usage-link-design-cn.md`。同时修正两处展示口径：
+
+- 该请求的末条 user 先有 Codex app 的 `<in-app-browser-context source="ambient-ui-state">…</in-app-browser-context>`，真实问题在 `## My request:` 之后。预览/净输入现在剥离文本开头完整闭合的注入包装，并在剥离后去掉紧随的 `## My request:` 标题；用户在正文中引用的标签、未闭合包装、正文之后的包装和不带包装的同名标题都保留原文。只有包装没有正文的 user 消息按注入处理（与 `<environment_context>` 一致），包装加正文仍判人工；规则版本保持 1。
+- 来源是“本次调用”的判断，预览是“最近用户输入”。工具续执行可以与发起它的人工首发共享同一句预览，不能按预览或重复数把后续 AI 调用改成人工。
 
 ## 上线观察（两天）
 

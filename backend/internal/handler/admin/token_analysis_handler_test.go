@@ -40,6 +40,25 @@ func TestTokenAnalysisHandlerSummaryParsesDateRange(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"total_tokens":1000`)
 }
 
+func TestTokenAnalysisHandlerParsesOriginFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &tokenAnalysisServiceStub{summary: &service.TokenAnalysisSummary{}}
+	h := &TokenAnalysisHandler{service: svc}
+	r := gin.New()
+	r.GET("/summary", h.Summary)
+
+	for _, origin := range []string{"human", "ai", "unknown"} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/summary?origin="+origin, nil))
+		require.Equal(t, http.StatusOK, w.Code, origin)
+		require.Equal(t, origin, svc.lastFilters.Origin)
+	}
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/summary?origin=bot", nil))
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestTokenAnalysisHandlerRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := &tokenAnalysisServiceStub{

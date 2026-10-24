@@ -1,0 +1,10 @@
+{
+  "backend/internal/repository/token_analysis_repo.go": "11e422065fda630cc737bfea0e85017f0cd3276d892f17d71a5c0aa55204ea33",
+  "backend/internal/service/token_analysis_usage_link.go": "4f8af691fa355ec33c322e489356f4ac035e14b955ec6e9a33a9bd87d38b898f",
+  "backend/internal/service/token_analysis_types.go": "37b3084c3bebdf39bd152e6ab833d66a8e3434f2aa95edfac1eec6d15ade8b92",
+  "backend/internal/service/token_analysis_indexer.go": "6dab5ba2468435ba57a559dfeb9323ff987d45828c7374dfaaa0a4560a80e807",
+  "backend/internal/repository/token_analysis_usage_link_integration_test.go": "a06b51428efbdc2e507b3d8bf1a239760904da994e63a39baf0c43765af917a3",
+  "backend/internal/server/middleware/request_archive.go": "1141e0c75acfe5f470f8a4359f9b80dba23cf1032f10834c6f243fe346077cd4",
+  "backend/migrations/247_token_analysis_usage_link.sql": "1d97ccedec4a11144c2751a8c3bc7bd0aa87c6474b6958b3e1d3d53342ad75bb",
+  "backend/migrations/248_token_analysis_usage_link_keys_index_notx.sql": "baa08a32b0d5916715e33e699cbfad8544311cad239ccac4461f01eb71692299"
+}

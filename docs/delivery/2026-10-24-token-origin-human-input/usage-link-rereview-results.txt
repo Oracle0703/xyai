@@ -1,0 +1,59 @@
+2026/10/24 10:37:30 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestRereviewTimingClaimRechecksLateFailedResponse
+=== RUN   TestRereviewTimingClaimRechecksLateFailedResponse/response_id=
+    token_analysis_rereview_temp_test.go:31: after 502: bill=26 method=timing unrelated=26
+    token_analysis_rereview_temp_test.go:33: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:118
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_rereview_temp_test.go:33
+        	Error:      	Expected nil, but got: (*int64)(0x32d545371e40)
+        	Test:       	TestRereviewTimingClaimRechecksLateFailedResponse/response_id=
+        	Messages:   	rereview-failed
+=== RUN   TestRereviewTimingClaimRechecksLateFailedResponse/response_id=resp_failed_owner
+    token_analysis_rereview_temp_test.go:31: after 502: bill=27 method=timing unrelated=27
+    token_analysis_rereview_temp_test.go:33: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:118
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_rereview_temp_test.go:33
+        	Error:      	Expected nil, but got: (*int64)(0x32d54547f270)
+        	Test:       	TestRereviewTimingClaimRechecksLateFailedResponse/response_id=resp_failed_owner
+        	Messages:   	rereview-failed
+--- FAIL: TestRereviewTimingClaimRechecksLateFailedResponse (0.12s)
+    --- FAIL: TestRereviewTimingClaimRechecksLateFailedResponse/response_id= (0.10s)
+    --- FAIL: TestRereviewTimingClaimRechecksLateFailedResponse/response_id=resp_failed_owner (0.03s)
+=== RUN   TestRereviewStaleTimingCannotOverwriteExactClaim
+    token_analysis_rereview_temp_test.go:62: stale timing accepted=true own=29 neighbor=28
+    token_analysis_rereview_temp_test.go:63: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:111
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_rereview_temp_test.go:63
+        	Error:      	Not equal: 
+        	            	expected: 29
+        	            	actual  : 28
+        	Test:       	TestRereviewStaleTimingCannotOverwriteExactClaim
+        	Messages:   	rereview-race
+--- FAIL: TestRereviewStaleTimingCannotOverwriteExactClaim (0.03s)
+=== RUN   TestRereviewStaleReleaseCannotClearExactClaim
+    token_analysis_rereview_temp_test.go:89: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:110
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_rereview_temp_test.go:89
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestRereviewStaleReleaseCannotClearExactClaim
+        	Messages:   	rereview-clear
+--- FAIL: TestRereviewStaleReleaseCannotClearExactClaim (0.02s)
+=== RUN   TestRereviewAscendingSingleDayIndexLinksCrossDayRequest
+    token_analysis_rereview_temp_test.go:114: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:110
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_rereview_temp_test.go:114
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestRereviewAscendingSingleDayIndexLinksCrossDayRequest
+        	Messages:   	rereview-midnight
+--- FAIL: TestRereviewAscendingSingleDayIndexLinksCrossDayRequest (0.03s)
+=== RUN   TestRereviewDisplacedPreviousDayRiskIsRecomputed
+    token_analysis_rereview_temp_test.go:143: displaced previous day: method=released score=70 reasons=[{"code": "huge_input_tiny_output", "score": 45, "message": "输入 token 极高但输出很短", "metrics": {"total_cost": 0.186578, "actual_cost": 0.186578, "input_tokens": 100000, "output_tokens": 80}}, {"code": "low_cache_hit_large_input", "score": 25, "message": "大输入请求缓存命中偏低", "metrics": {"input_tokens": 100000, "cache_read_tokens": 0}}]
+    token_analysis_rereview_temp_test.go:144: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_rereview_temp_test.go:144
+        	Error:      	Should be zero, but was 70
+        	Test:       	TestRereviewDisplacedPreviousDayRiskIsRecomputed
+        	Messages:   	usage-only risk must disappear when its bill is removed
+--- FAIL: TestRereviewDisplacedPreviousDayRiskIsRecomputed (0.03s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	1.870s
+FAIL

@@ -32,7 +32,7 @@
         </thead>
         <tbody>
           <tr
-            v-for="{ item, origin } in requestRows"
+            v-for="{ item, origin, link } in requestRows"
             :key="item.id"
             class="cursor-pointer"
             :class="selectedId === item.id ? 'bg-primary-50/60 dark:bg-primary-900/10' : ''"
@@ -59,8 +59,14 @@
               <div class="ta-sub max-w-[160px] truncate">{{ item.client_branch || '-' }}</div>
             </td>
             <td class="ta-num">
-              <div class="font-medium" :title="formatInteger(totalTokens(item))">{{ formatTokenMetric(totalTokens(item)) }}</div>
-              <div class="ta-sub">{{ formatCost(item.actual_cost) }}</div>
+              <template v-if="link.linked">
+                <div class="font-medium" :title="formatInteger(totalTokens(item))">{{ formatTokenMetric(totalTokens(item)) }}</div>
+                <div class="ta-sub">{{ formatCost(item.actual_cost) }}</div>
+              </template>
+              <template v-else>
+                <div class="font-medium text-gray-400 dark:text-dark-400" :title="link.tooltip">—</div>
+                <span class="ta-tag mt-0.5 whitespace-nowrap" :class="link.className" :title="link.tooltip" data-testid="request-usage-link">{{ link.label }}</span>
+              </template>
             </td>
             <td>
               <div v-if="item.risk_score > 0 || (item.risk_reasons || []).length" class="flex max-w-[220px] flex-wrap items-center gap-1">
@@ -130,6 +136,7 @@ import type { TokenAnalysisRequestItem } from '@/api/admin/tokenAnalysis'
 import OrganizationUsageSegmented from '@/components/admin/organization-usage/OrganizationUsageSegmented.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { useRequestOrigin } from './requestOrigin'
+import { useUsageLink } from './usageLink'
 import {
   formatCost,
   formatInteger,
@@ -161,7 +168,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { riskLabel, riskDesc } = useTokenAnalysisRisk()
 const { requestOrigin } = useRequestOrigin()
-const requestRows = computed(() => props.requests.map((item) => ({ item, origin: requestOrigin(item.summary_json) })))
+const { usageLink } = useUsageLink()
+const requestRows = computed(() => props.requests.map((item) => ({ item, origin: requestOrigin(item.summary_json), link: usageLink(item) })))
 
 const sortOptions = computed(() => [
   { value: 'event_time' as const, label: t('admin.tokenAnalysis.sortByTime') },
