@@ -5,6 +5,11 @@ import { defineComponent } from 'vue'
 import AccountsView from '../AccountsView.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 const {
   listAccounts,
   listWithEtag,

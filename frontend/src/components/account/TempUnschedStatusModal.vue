@@ -29,7 +29,7 @@
       </div>
 
       <div v-else class="space-y-4">
-        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+        <div v-if="canManageAccounts" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
           {{ t('admin.accounts.recoverStateHint') }}
         </div>
 
@@ -118,6 +118,7 @@
           {{ t('common.close') }}
         </button>
         <button
+          v-if="canManageAccounts"
           type="button"
           class="btn btn-primary"
           :disabled="!isActive || resetting"
@@ -155,6 +156,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { useAccountOperatorAccess } from '@/composables/useAccountOperatorAccess'
 import type { Account, TempUnschedulableStatus } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { formatDateTime } from '@/utils/format'
@@ -171,6 +173,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { canManageAccounts } = useAccountOperatorAccess()
 
 const loading = ref(false)
 const resetting = ref(false)

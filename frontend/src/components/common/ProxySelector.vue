@@ -38,7 +38,7 @@
             />
           </div>
           <button
-            v-if="proxies.length > 0"
+            v-if="canManageAccounts && proxies.length > 0"
             type="button"
             @click.stop="handleBatchTest"
             :disabled="batchTesting"
@@ -120,6 +120,7 @@
 
             <!-- Individual test button -->
             <button
+              v-if="canManageAccounts"
               type="button"
               @click.stop="handleTestProxy(proxy)"
               :disabled="testingProxyIds.has(proxy.id)"
@@ -168,6 +169,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountOperatorAccess } from '@/composables/useAccountOperatorAccess'
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
@@ -175,6 +177,7 @@ import Icon from '@/components/icons/Icon.vue'
 import type { Proxy } from '@/types'
 
 const { t } = useI18n()
+const { canManageAccounts } = useAccountOperatorAccess()
 
 interface ProxyTestResult {
   success: boolean

@@ -3,6 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 const { listAccounts } = vi.hoisted(() => ({
   listAccounts: vi.fn()
 }))

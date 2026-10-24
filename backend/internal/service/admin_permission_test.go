@@ -71,6 +71,28 @@ func TestCanAccessAdminRoute(t *testing.T) {
 		{"permission catalog denied", []string{AdminPermissionUsage, AdminPermissionSubscriptions, AdminPermissionTokenAnalysis}, http.MethodGet, "/api/v1/admin/permissions/catalog", false},
 		{"unknown get route defaults to denied", []string{AdminPermissionUsage}, http.MethodGet, "/api/v1/admin/future-feature", false},
 		{"compliance status allowed for authenticated sub admin", nil, http.MethodGet, "/api/v1/admin/compliance", true},
+		{"accounts operator list allowed", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/accounts", true},
+		{"accounts operator compact form options allowed", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/accounts/form-options", true},
+		{"accounts operator create allowed", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts", true},
+		{"accounts operator test allowed", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/test", true},
+		{"accounts operator reauth apply allowed", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/apply-oauth-credentials", true},
+		{"accounts operator oauth exchange allowed", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/openai/exchange-code", true},
+		{"accounts operator full update denied", []string{AdminPermissionAccountsOperator}, http.MethodPut, "/api/v1/admin/accounts/:id", false},
+		{"accounts operator delete denied", []string{AdminPermissionAccountsOperator}, http.MethodDelete, "/api/v1/admin/accounts/:id", false},
+		{"accounts operator duplicate denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/duplicate", false},
+		{"accounts operator schedulable toggle denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/schedulable", false},
+		{"accounts operator token refresh denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/refresh", false},
+		{"accounts operator clear error denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/clear-error", false},
+		{"accounts operator recover state denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/recover-state", false},
+		{"accounts operator bulk update denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/bulk-update", false},
+		{"accounts operator batch create denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/batch", false},
+		{"accounts operator crs sync denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/sync/crs", false},
+		{"accounts operator data export denied", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/accounts/data", false},
+		{"accounts operator upstream model sync denied", []string{AdminPermissionAccountsOperator}, http.MethodPost, "/api/v1/admin/accounts/:id/models/sync-upstream", false},
+		{"accounts operator redacted account detail allowed", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/accounts/:id", true},
+		{"accounts operator full proxy catalog denied", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/proxies/all", false},
+		{"accounts operator full group catalog denied", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/groups/all", false},
+		{"accounts operator settings denied", []string{AdminPermissionAccountsOperator}, http.MethodGet, "/api/v1/admin/settings/web-search-emulation", false},
 	}
 
 	for _, tt := range tests {
@@ -88,7 +110,7 @@ func TestCanAccessAdminRoute(t *testing.T) {
 
 func TestAdminPermissionCatalogReturnsDefensiveCopy(t *testing.T) {
 	first := AdminPermissionCatalog()
-	require.Len(t, first, 5)
+	require.Len(t, first, 6)
 	require.Equal(t, AdminPermissionSubscriptions, first[0].Code)
 	first[0].Code = "changed"
 	second := AdminPermissionCatalog()
@@ -123,6 +145,9 @@ func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 		},
 		AdminPermissionUsage:         {},
 		AdminPermissionTokenAnalysis: {},
+		AdminPermissionAccountsOperator: accountOperatorRuleSet(func(kind AccountOperatorActivityKind) bool {
+			return true
+		}),
 	}
 
 	for permission, rules := range adminPermissionRouteRules {
@@ -134,4 +159,35 @@ func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 		}
 		require.Equal(t, allowedWrites[permission], actualWrites, permission)
 	}
+}
+
+func accountOperatorRuleSet(include func(kind AccountOperatorActivityKind) bool) map[adminRouteRule]struct{} {
+	out := make(map[adminRouteRule]struct{})
+	for rule, kind := range accountOperatorActivityRoutes {
+		if include(kind) {
+			out[rule] = struct{}{}
+		}
+	}
+	return out
+}
+
+func TestAccountOperatorWritesAreClassifiedForNotification(t *testing.T) {
+	writes := make(map[adminRouteRule]struct{})
+	for _, rule := range adminPermissionRouteRules[AdminPermissionAccountsOperator] {
+		if rule.method != http.MethodGet {
+			writes[rule] = struct{}{}
+		}
+	}
+	// 白名单里的每个写路由都必须声明通知方式，反之亦然。
+	require.Equal(t, accountOperatorRuleSet(func(AccountOperatorActivityKind) bool { return true }), writes)
+
+	persistent := accountOperatorRuleSet(func(kind AccountOperatorActivityKind) bool { return kind != AccountOperatorActivityNone })
+	require.Equal(t, map[adminRouteRule]struct{}{
+		{method: http.MethodPost, route: "/api/v1/admin/accounts"}:                             {},
+		{method: http.MethodPost, route: "/api/v1/admin/accounts/import/codex-session"}:        {},
+		{method: http.MethodPost, route: "/api/v1/admin/openai/create-from-codex-pat"}:         {},
+		{method: http.MethodPost, route: "/api/v1/admin/grok/sso-to-oauth"}:                    {},
+		{method: http.MethodPost, route: "/api/v1/admin/accounts/:id/test"}:                    {},
+		{method: http.MethodPost, route: "/api/v1/admin/accounts/:id/apply-oauth-credentials"}: {},
+	}, persistent)
 }

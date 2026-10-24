@@ -75,6 +75,11 @@ vi.mock('vue-i18n', async () => {
 
 import CreateAccountModal from '../CreateAccountModal.vue'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 const BaseDialogStub = defineComponent({
   name: 'BaseDialog',
   props: { show: { type: Boolean, default: false } },

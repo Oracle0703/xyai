@@ -5,6 +5,11 @@ import apiClient from '@/api/client'
 import OpenAIReferralCell from '../OpenAIReferralCell.vue'
 import type { Account } from '@/types'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 vi.mock('@/i18n', () => ({ getLocale: () => 'en' }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 

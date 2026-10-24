@@ -319,6 +319,8 @@ API 模块分布:
 
 管理端 Token Analysis 计费用量趋势:
 
+- 索引状态展示的既有歧义：标签数字是 `archiveFiles.length`（当前目录文件数），不是错误数；`last_error` 为历史粘性错误，仍被 `tokenAnalysisIndexState` 映射为非运行态 `error`，状态卡无条件显示，最近水位仅展示前 5 条。它不能证明本轮执行失败；区分当前运行状态与历史失败、补充错误来源文件的建议尚未实施，见 `docs/reviews/2026-10-25-token-analysis-index-errors-investigation-cn.md`。
+
 - 页面布局: 顶部筛选卡(共用 `DateRangePicker` + 邮箱/项目/模型/风险分, ID 类与"排行含未关联请求"收在"更多筛选"; 已应用筛选按最近一次提交的快照 `appliedFilters` 显示为可移除标签, 概览/列表/排序翻页续查/趋势/索引触发也都只读该快照, 排序翻页不提交输入框草稿; 已知例外: 索引完成轮询仍调用 `reloadAll` 并提交当前草稿, 待分离提交与刷新入口, 见 `docs/reviews/2026-10-24-token-analysis-request-origin-implementation-review-cn.md` 的 P3; 右侧索引状态胶囊与"索引当前范围") → `TokenAnalysisOverview.vue`(5 张 KPI 卡、Token 构成条、风险原因条形列表, 点击条目切换全局 `risk_reason`) → 四个标签页(用户排行+趋势 / 项目 / 请求明细 / 索引与归档)。标签页用 `v-show`, 各列表仍在 `reloadAll` 中一次加载, 计数显示在标签上。数据加载、竞态与索引轮询仍集中在 View, 目录组件只做展示。默认日期取浏览器本地日(与请求 `timezone` 一致), 不用 UTC 日期。
 - 请求明细组件 `components/admin/token-analysis/TokenAnalysisRequestTable.vue` 从 `summary_json.request_origin` 展示“人工 / AI”，`TokenAnalysisRequestDrawer.vue` 显示依据、推断程度和版本；公共 `requestOrigin.ts` 校验 v1 合同，缺字段、坏数据、未知版本显示“—/尚未识别”，不按预览或重复次数猜测。人工仅表示本轮新用户输入的规则推断；历史行需服务端重新索引才有分类。无新接口或逐行读取，详情全文仍按点击懒加载。组件合同见该目录 README，完整设计见 `docs/features/token-analysis-request-origin-design-cn.md`。
 - 计费关联展示：`components/admin/token-analysis/usageLink.ts` 读取 `usage_link_status`/`usage_match_method`（旧接口缺字段时按 `usage_log_id`），非 linked 行在请求表与抽屉显示 `—` 和状态标签（未关联计费/请求失败/不计费），说明 Token/费用未知、不代表零消耗；抽屉“计费关联”组显示关联方式、匹配置信度、账单 ID、完成时间、响应状态。请求明细是完整归档视角（服务端忽略 `include_unmatched`），该勾选改名“排行含未关联请求”，只影响排行请求数。来源列为“本次调用来源”，预览列为“最近用户输入”，两者口径不同。筛选卡在风险分旁有来源筛选（全部/人工/AI/尚未识别，参数 `origin`），进入 `appliedFilters` 快照与已应用标签，作用于概览、排行和请求明细；“尚未识别”含未写入来源的旧行，计费趋势不受影响。缺陷与修复见 `docs/reviews/2026-10-24-token-origin-human-input-investigation-cn.md`、`docs/features/token-analysis-usage-link-design-cn.md`。
@@ -377,7 +379,10 @@ API 模块分布:
 ## 子管理员菜单与页面
 
 - 权限路由顺序和 backend landing 的最小映射在 `frontend/src/utils/adminPermissions.ts`; 权限目录本身由后端 API 返回。
-- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、使用记录、Token 分析; 账号、风控、请求拦截、设置和管理员自定义菜单不显示。
+- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、使用记录、Token 分析、账号管理（`admin.accounts_operator`）; 风控、请求拦截、设置和管理员自定义菜单不显示。
+- 账号页受限模式统一用 `composables/useAccountOperatorAccess.ts` 的 `canManageAccounts`（= 完整管理员）判断：`AccountsView.vue` 隐藏编辑/删除、勾选列与批量栏、数据/工具菜单、回退代理，调度开关只读，优先级纯展示，管理员专用弹窗不挂载，分组/代理改走 `accounts.getFormOptions()`，不读取计费探测设置；行菜单只剩测试连接、统计、重新授权；配额重置/推荐邀请/用量刷新/Claude 兑换/计费探测/代理测试/临时不可调度恢复按钮在组件内隐藏；`CreateAccountModal.vue` 跳过 Web Search 与额度通知设置、TLS 指纹、创建后的模型同步与计费探测。任何越权请求都会经 `admin-permission-denied` 把用户重定向走，新增账号页调用前必须确认已在白名单。
+- `ReAuthAccountModal.vue` 所有平台（含 Gemini/Antigravity）都用 `applyOAuthCredentials` 落库，不再调用 `PUT /accounts/:id` + `clear-error`。挂载账号页组件的单测需 mock `useAccountOperatorAccess`（返回 `ref(true)` 走管理员路径）。
+- Gemini 重新授权已知接口边界（用户决定暂缓）：直接调用 ApplyOAuthCredentials 把 Code Assist 改为 AI Studio 且省略 project_id 时，全 key 合并会保留旧项目，兼容转发仍按非空项目走 Code Assist。当前 `ReAuthAccountModal.vue` 的 Gemini 类型是只读展示、取自原账号，不能描述成用户可在该弹窗直接切换类型。将来开放类型切换时需区分身份字段清理与 model_mapping 等配置保留。证据与首轮表述更正见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`。
 - `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。`admin.department_subscriptions` 负责人只显示范围内全量/仅日限重置。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
 - 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询 active 未删除用户（后端按部门范围收口，全站订阅权限即全站），通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
@@ -395,6 +400,8 @@ API 模块分布:
 
 ## GPT 账号额度展示 UI
 
+- 2026-10-25 起两页按 Dashboard 风格重排：页面标题/说明由 `AppHeader` 按路由 meta 显示（`/gpt-quota` 已补 `descriptionKey`），不再自带渐变横幅；顶部用 `components/common/MetricTile.vue` 统计卡；额度条为 `components/user/GPTQuotaMeter.vue`（填充按 ≤10%/≤30% 分级、底轨同色系浅色，配"充足/偏低/紧张"文字标签）；分级、窗口可见性、7 天均值和统计卡时间在 `utils/gptQuota.ts`。5 小时窗口快照为 null（OpenAI 已取消、上游不再返回）时不展示，上游恢复返回后自动显示；7 天缺失仍显示"未提供"。侧栏两入口改用独立 `GaugeIcon`。
+- 管理页交互：设置卡（开关 + 间隔分段按钮）、手动刷新卡（批次进度条/失败分类）、账号表格支持全部/迅游/速宝/需处理筛选与搜索、一键移除失效账号；所有修改在底部固定操作栏统一"保存配置/放弃修改"，无修改时保存禁用，有未保存修改时离开页面或关闭标签页会确认。
 - 用户页 `/gpt-quota` 为 `views/user/GPTQuotaView.vue` + `components/user/GPTQuotaColumn.vue`：`md` 以上左迅游右速宝，窄屏单列迅游在前；15 分钟只读轮询，隐藏标签页暂停、恢复可见且间隔已到才补读，卸载时清定时器并 abort 请求；重置倒计时本地 30 秒刷新，到点只显示"已到重置时间，待更新"，不改剩余比例。
 - 管理页 `/admin/gpt-quota` 为 `views/admin/GPTQuotaDisplayView.vue`：已选条目（含失去资格条目，可直接移除）、别名、单条刷新、全量刷新与批次计数；候选账号在 `components/admin/gpt-quota/GPTQuotaAccountPickerDialog.vue` 弹窗中分页搜索勾选，打开时默认勾选当前本地选择（含未保存新增），顶部“已选”区列出全部勾选项（含已删除/非 OpenAI OAuth 等候选接口不返回的账号）可直接取消；勾选草稿跨页保留、取消即丢弃；每次打开清空旧列表，加载失败清空条目并显示错误与重试（保留总数和当前页），加载中禁用勾选；弹窗“保存”只改本地选择，点“保存配置”才提交，勾回本次移除的已保存账号恢复服务端别名；保存携带 `expected_version`，409 提示重新读取。批次轮询只刷新服务端条目状态和计数，不覆盖未保存编辑，也不更新编辑基线 `version`（否则会绕过乐观锁）。
 - 菜单开关不走 public settings / `featureFlags.ts`：`composables/useGPTQuotaVisibility.ts` 调 `/gpt-quota/status`，opt-in（未加载或失败隐藏），用户页读取和管理员保存后同步。文案在 `i18n/locales/{zh,en}/gptQuota.ts`，导航键 `nav.gptQuota` / `nav.gptQuotaDisplay`。

@@ -254,6 +254,24 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		markCodexIdentitySeen(seenIdentity, item.IdentityKeys, entry.Index, item.UserID)
 
 		existing, matchedKey := index.Find(item.IdentityKeys, item.UserID)
+		// 子管理员只能新增：命中已有账号时跳过，不改写其凭据和管理配置，凭据更新请走重新授权。
+		if existing != nil && service.HasSubAdminAccountRestrictions(ctx) {
+			message := "账号已存在，子管理员不能通过导入更新已有账号，请对该账号使用重新授权"
+			result.Skipped++
+			result.Items = append(result.Items, CodexSessionImportItem{
+				Index:     entry.Index,
+				Name:      accountName,
+				Action:    "skipped",
+				AccountID: existing.ID,
+				Message:   message,
+			})
+			result.Warnings = append(result.Warnings, CodexSessionImportMessage{
+				Index:   entry.Index,
+				Name:    accountName,
+				Message: message,
+			})
+			continue
+		}
 		if existing != nil && updateExisting {
 			if strings.HasPrefix(matchedKey, "account:") && item.UserID != "" &&
 				codexCredentialString(existing.Credentials, "chatgpt_user_id") == "" {

@@ -176,7 +176,12 @@ Passkey / WebAuthn:
 - 权限目录和白名单在 `backend/internal/service/admin_permission.go`；包含原订阅管理、使用记录、Token 分析，以及 `admin.organization_usage`、`admin.department_subscriptions`。后两项共用部门授权集合；部门订阅权限与全站 `admin.subscriptions` 互斥，切换须显式确认，其他管理权限不自动追加。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
 - `admin.subscriptions` 子管理员允许 `POST /api/v1/admin/subscriptions/assign`、`bulk-assign`、`:id/reset-quota` 和 `reset-daily-filtered`；`admin.department_subscriptions` 负责人只允许后两个重置，且须通过仓储范围检查。使用记录清理、Token 立即索引、订阅延期/撤销/恢复/删除及 `bulk-action`、部门成员管理始终拒绝；无 `admin.subscriptions` 的子管理员不能分配或读取 `assignable-groups`。
 - GPT 账号额度展示的 4 个 `/api/v1/admin/gpt-quota` 路由只给完整管理员，不进 `subAdminCommonRouteRules` 或任何权限白名单（`gpt_quota_display_test.go` 有拒绝测试）。用户侧 `/api/v1/gpt-quota` 只返回卡片白名单（不含账号 ID、原名、邮箱、尝试状态）。读取路径不得触发上游；主动采集只用 `QueryUsageReadOnly`，不得写 `accounts.extra`、调度键或触发 reset-credit/自动用卡，token 预检避免走到 `disableAccountMissingRefreshToken`。管理员豁免面板限流，刷新防重依赖 60 秒冷却 + singleflight，不依赖限流。详见 [[gpt-account-quota-display-design]]。
-- 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/accounts`、`/admin/groups/all` 等完整管理接口。
+- 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/groups/all`、`/admin/proxies/all`（含代理密码）等完整管理接口；`/admin/accounts` 只对 `admin.accounts_operator` 开放。
+- `admin.accounts_operator`（受限账号运维）只放行账号读取（列表/详情凭据按 DTO 脱敏）、`GET /admin/accounts/form-options`、新增类接口（`POST /admin/accounts`、`import/codex-session`、`openai/create-from-codex-pat`、`grok/sso-to-oauth`）、各平台 OAuth 链接/换码、`:id/test` 和 `:id/apply-oauth-credentials`。编辑 `PUT /:id`、删除、复制、调度开关、刷新 token、清错误/恢复状态、批量、CRS、导入导出、模型同步、计费探测、设置均拒绝。
+- 路由白名单不能证明接口无副作用。`AdminAuth` 给所有 `sub_admin` 请求打 `service.WithSubAdminAccountRestrictions`：Codex 导入命中已有账号时跳过（不改写、不建重复账号）；`AccountUsageService.tryClearRecoverableAccountError` 和 Grok 额度探测的限流恢复对子管理员不执行。Grok 探测在 singleflight 的独立 context 里运行，标记必须显式带入并单独作为 key；新增依赖请求 context 的限制时同样要检查 singleflight/`context.Background()` 断链。
+- 受限账号运维的每个非 GET 白名单路由必须在 `accountOperatorActivityRoutes` 声明通知方式（`TestAccountOperatorWritesAreClassifiedForNotification` 强制）。新增类、重新授权和测试连接后的状态变化由 admin 路由组上的 `AccountOperator.ActivityTracker()` 异步发邮件给代码常量 `AccountOperatorNotifyRecipient`；邮件只含字段名/身份/状态，不含凭据值，发送失败只记日志，审计日志仍是操作留痕来源。
+- 重新授权的 `extra` 合并不额外过滤 key；变更通过邮件里的"附加配置字段"列表暴露。测试连接沿用现有逻辑（可自定义 prompt/模式），测试成功会自动恢复限流/过载/临时不可调度。
+- 受限账号运维两个 P1 已于 2026-10-25 本机复核：真实 JWT 导入链覆盖 update_existing 缺省/true/false，已有账号跳过且新账号照常新增；单条/批量/force 用量不清错误，Grok 双角色并发不混用限制。当前合同禁止查询直接清错误/清限流，仍保留快照缓存、真实 429 的保护性限流和 OpenAI 自动重置策略信号，不等于全部查询严格无副作用。证据见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。
 

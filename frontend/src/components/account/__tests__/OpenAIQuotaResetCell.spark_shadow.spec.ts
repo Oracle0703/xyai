@@ -5,6 +5,11 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import type { Account } from '@/types'
 import { refreshOpenAIQuota, resetOpenAIQuota, type OpenAIQuotaRefreshResult } from '@/api/admin/accounts'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 vi.mock('@/api/admin/accounts', () => ({
   refreshOpenAIQuota: vi.fn(),
   resetOpenAIQuota: vi.fn(),

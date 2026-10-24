@@ -147,7 +147,10 @@ func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
 
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(authService, userService, nil, nil)))
-	router.GET("/api/v1/admin/usage", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/api/v1/admin/usage", func(c *gin.Context) {
+		require.True(t, service.HasSubAdminAccountRestrictions(c.Request.Context()))
+		c.Status(http.StatusNoContent)
+	})
 	router.GET("/api/v1/admin/accounts", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	for _, path := range []string{"/api/v1/admin/subscriptions/assign", "/api/v1/admin/subscriptions/bulk-assign"} {
 		router.POST(path, func(c *gin.Context) {
@@ -215,7 +218,10 @@ func TestAdminAuthAdminAPIKeyBypassesSubAdminRouteCatalog(t *testing.T) {
 
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService, nil)))
-	router.GET("/api/v1/admin/accounts", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/api/v1/admin/accounts", func(c *gin.Context) {
+		require.False(t, service.HasSubAdminAccountRestrictions(c.Request.Context()))
+		c.Status(http.StatusNoContent)
+	})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts", nil)

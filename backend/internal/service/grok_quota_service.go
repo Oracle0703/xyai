@@ -138,7 +138,16 @@ func grokBillingHasAuthoritativeQuota(billing *xai.BillingSummary) bool {
 }
 
 func (s *GrokQuotaService) ProbeUsage(ctx context.Context, accountID int64) (*GrokQuotaProbeResult, error) {
-	return s.runProbeFlight(ctx, "active:"+strconv.FormatInt(accountID, 10), func(sharedCtx context.Context) (*GrokQuotaProbeResult, error) {
+	key := "active:" + strconv.FormatInt(accountID, 10)
+	// 共享探测使用独立 context，子管理员限制需显式带入，并与管理员探测分开合并。
+	restricted := HasSubAdminAccountRestrictions(ctx)
+	if restricted {
+		key += ":sub-admin"
+	}
+	return s.runProbeFlight(ctx, key, func(sharedCtx context.Context) (*GrokQuotaProbeResult, error) {
+		if restricted {
+			sharedCtx = WithSubAdminAccountRestrictions(sharedCtx)
+		}
 		return s.probeUsage(sharedCtx, accountID)
 	})
 }
@@ -203,7 +212,8 @@ func (s *GrokQuotaService) probeUsage(ctx context.Context, accountID int64) (*Gr
 	}
 	if limited {
 		persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
-	} else if isSuccessfulGrokRateLimitRecovery(account, snapshot) {
+	} else if !HasSubAdminAccountRestrictions(ctx) && isSuccessfulGrokRateLimitRecovery(account, snapshot) {
+		// 子管理员查询额度不清除限流；需要恢复时走会发通知的测试连接。
 		clearGrokRateLimitAfterRecovery(ctx, s.accountRepo, account)
 	}
 

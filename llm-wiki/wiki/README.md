@@ -1,5 +1,10 @@
 # Sub2API llm-wiki 基线
 
+## 受限账号运维入口
+
+- `feature/hy/10220_sub_admin_accounts` 新增子管理员权限 `admin.accounts_operator`：可全量查看 `/admin/accounts`，只能新增、测试连接、重新授权；在用户管理里给 `sub_admin` 勾选即可，可多人。子管理员造成的新增/重新授权/测试后状态变化会邮件通知固定收件人。设计与决策见 `docs/features/sub-admin-accounts-operator-design-cn.md`，运行合同见 security/backend/frontend 子管理员章节。
+- 2026-10-25 两个 P1 修复已复核：子管理员导入命中已有账号一律跳过，单条/批量用量不直接清错误，Grok 额度探测不清限流；四包 Go 专项及 16 个独立角色/参数/并发场景通过。Gemini OAuth 类型变更的接口残留问题按用户决定暂缓，当前弹窗类型只读。记录见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`；尚未完成生产/真实 SMTP/浏览器端到端验收。
+
 ## 部门功能入口
 
 - `feature/hy/10207_department_usage` 已完成独立部门管理、多平台报表和受限额度重置；S1–S6 复核修正及 RV1–RV8 本机隔离验收完成。负责人仍不能分配订阅。
@@ -9,7 +14,7 @@
 - 同日实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
 - 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 
-更新时间: 2026-10-19
+更新时间: 2026-10-25
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 

@@ -4,13 +4,14 @@
       type="button"
       data-testid="referral-count"
       class="rounded px-1.5 py-0.5 text-[10px] font-medium text-violet-600 hover:bg-violet-50 disabled:opacity-50 dark:text-violet-400 dark:hover:bg-violet-900/30"
-      :disabled="loading || sending"
+      :disabled="!canManageAccounts || loading || sending"
       :title="countTitle"
       @click="refresh()"
     >
       {{ t('admin.accounts.openaiReferral.available') }} {{ countDisplay }}
     </button>
     <button
+      v-if="canManageAccounts"
       type="button"
       data-testid="referral-open"
       class="rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
@@ -89,6 +90,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountOperatorAccess } from '@/composables/useAccountOperatorAccess'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'
@@ -98,6 +100,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 
 const props = defineProps<{ account: Account }>()
 const { t } = useI18n()
+const { canManageAccounts } = useAccountOperatorAccess()
 const eligibility = ref<OpenAIReferralEligibility | null>(props.account.extra?.codex_referral_snapshot ?? null)
 const show = ref(false)
 const loading = ref(false)

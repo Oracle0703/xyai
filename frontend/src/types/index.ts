@@ -64,7 +64,7 @@ export interface UserProfileSourceContext {
 }
 
 export type UserRole = 'admin' | 'sub_admin' | 'user'
-export type AdminPermission = 'admin.subscriptions' | 'admin.usage' | 'admin.token_analysis' | 'admin.organization_usage' | 'admin.department_subscriptions'
+export type AdminPermission = 'admin.subscriptions' | 'admin.usage' | 'admin.token_analysis' | 'admin.organization_usage' | 'admin.department_subscriptions' | 'admin.accounts_operator'
 
 export interface User {
   id: number

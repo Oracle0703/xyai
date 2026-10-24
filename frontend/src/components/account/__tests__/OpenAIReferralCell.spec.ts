@@ -5,6 +5,11 @@ import type { Account } from '@/types'
 import type { OpenAIReferralEligibility, OpenAIReferralRefreshResult } from '@/types/openaiReferrals'
 import { refreshOpenAIReferrals, sendOpenAIReferralInvite } from '@/api/admin/accounts'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 vi.mock('@/api/admin/accounts', () => ({ refreshOpenAIReferrals: vi.fn(), sendOpenAIReferralInvite: vi.fn() }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${Object.values(params).join(',')}` : key }) }))
 

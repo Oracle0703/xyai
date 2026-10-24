@@ -100,8 +100,8 @@ describe('AppSidebar navigation entries', () => {
     )
     expect(subAdminItems).not.toContain('/admin/gpt-quota')
     expect(subAdminTemplate).not.toContain('adminNavItems')
-    expect(componentSource).toContain("{ path: '/admin/gpt-quota', label: t('nav.gptQuotaDisplay'), icon: SignalIcon }")
-    expect(componentSource).toContain("{ path: '/gpt-quota', label: t('nav.gptQuota'), icon: SignalIcon, featureFlag: flagGPTQuota }")
+    expect(componentSource).toContain("{ path: '/admin/gpt-quota', label: t('nav.gptQuotaDisplay'), icon: GaugeIcon }")
+    expect(componentSource).toContain("{ path: '/gpt-quota', label: t('nav.gptQuota'), icon: GaugeIcon, featureFlag: flagGPTQuota }")
   })
 
   it('renders a permission-filtered management section for sub-admins', () => {

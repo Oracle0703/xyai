@@ -38,7 +38,7 @@
       </button>
 
       <button
-        v-if="visible"
+        v-if="visible && canManageAccounts"
         type="button"
         data-testid="claude-reset-redeem"
         class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 transition-colors hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
@@ -117,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountOperatorAccess } from '@/composables/useAccountOperatorAccess'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'
@@ -132,6 +133,7 @@ const props = defineProps<{ account: Account }>()
 // Fired after a redemption attempt so the parent can refresh the usage row.
 const emit = defineEmits<{ redeemed: [outcome: ClaudeResetOutcome] }>()
 const { t } = useI18n()
+const { canManageAccounts } = useAccountOperatorAccess()
 const status = ref<ClaudeResetCredits | null>(null)
 const loading = ref(false)
 const error = ref(false)

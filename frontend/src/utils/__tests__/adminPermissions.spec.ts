@@ -25,6 +25,7 @@ describe('sub-admin landing path', () => {
   it('uses the first catalog permission in backend mode', () => {
     expect(getAdminLandingPath([ADMIN_PERMISSION_TOKEN_ANALYSIS, ADMIN_PERMISSION_USAGE], true)).toBe('/admin/usage')
     expect(getAdminLandingPath([ADMIN_PERMISSION_SUBSCRIPTIONS], true)).toBe('/admin/subscriptions')
+    expect(getAdminLandingPath(['admin.accounts_operator'], true)).toBe('/admin/accounts')
   })
 
   it('falls back to login in backend mode when no permission remains', () => {

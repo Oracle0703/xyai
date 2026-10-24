@@ -1,51 +1,73 @@
 <template>
-  <section class="space-y-2.5" :data-testid="`gpt-quota-column-${groupKey}`">
-    <header class="flex items-center justify-between rounded-xl border border-gray-200/80 bg-white/80 px-3.5 py-2.5 shadow-sm dark:border-dark-700 dark:bg-dark-800/80">
-      <div class="flex items-center gap-2.5">
-        <span class="h-2.5 w-2.5 rounded-full" :class="groupKey === 'xunyou' ? 'bg-sky-500' : 'bg-violet-500'" />
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ title }}</h2>
+  <section class="card overflow-hidden" :data-testid="`gpt-quota-column-${groupKey}`">
+    <header class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+      <div class="flex min-w-0 items-center gap-2.5">
+        <!-- 分组标识色只配合分组名使用，不承担额度状态。 -->
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="groupKey === 'xunyou' ? 'bg-sky-500 dark:bg-sky-600' : 'bg-violet-500'" />
+        <h2 class="truncate text-base font-semibold text-gray-900 dark:text-white">{{ title }}</h2>
+        <span class="badge badge-gray shrink-0">{{ t('gptQuota.count', { count: items.length }) }}</span>
       </div>
-      <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-dark-300">{{ t('gptQuota.count', { count: items.length }) }}</span>
+      <p v-if="summary.average !== null" class="shrink-0 text-xs text-gray-500 dark:text-gray-400" data-testid="gpt-quota-group-average">
+        {{ t('gptQuota.summary.groupAverage') }}
+        <span class="ml-1 text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{{ formatGPTQuotaPercent(summary.average) }}</span>
+      </p>
     </header>
 
-    <div v-if="!items.length" class="card p-6 text-center text-sm text-gray-500 dark:text-dark-400">
+    <div v-if="!items.length" class="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
       {{ t('gptQuota.emptyGroup') }}
     </div>
 
-    <article v-for="item in items" :key="item.id" class="group rounded-xl border border-gray-200/80 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-800/80 dark:hover:border-primary-800" data-testid="gpt-quota-card">
-      <div class="flex items-center justify-between gap-2">
-        <strong class="truncate text-sm font-semibold text-gray-900 dark:text-white" :title="item.display_name">
-          {{ item.display_name }}
-        </strong>
-        <span v-if="item.stale" class="badge badge-warning shrink-0">{{ t('gptQuota.stale') }}</span>
-      </div>
-
-      <p v-if="!item.sampled_at" class="mt-2.5 text-sm text-gray-500 dark:text-dark-400">{{ t('gptQuota.noData') }}</p>
-      <template v-else>
-        <div class="mt-2.5 grid gap-2.5 sm:grid-cols-2">
-          <div v-for="row in windowRows(item)" :key="row.key" class="rounded-lg bg-gray-50/90 px-3 py-2 dark:bg-dark-900/50">
-            <div class="flex items-center justify-between gap-2 text-xs">
-              <span class="text-gray-600 dark:text-dark-300">{{ row.label }}</span>
-              <span class="font-semibold tabular-nums text-gray-900 dark:text-white">{{ row.value }}</span>
-            </div>
-            <div v-if="row.window" class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-200/80 dark:bg-dark-700">
-              <div class="h-full rounded-full transition-all" :class="barClass(row.window.remaining_percent)" :style="{ width: `${row.window.remaining_percent}%` }" />
-            </div>
-            <p v-if="row.window" class="mt-1 truncate text-[11px] text-gray-500 dark:text-dark-400" :title="row.resetTitle">{{ row.reset }}</p>
+    <ul v-else class="divide-y divide-gray-100 dark:divide-dark-700">
+      <li v-for="item in items" :key="item.id" class="px-5 py-4" data-testid="gpt-quota-card">
+        <div class="flex items-center justify-between gap-3">
+          <strong class="truncate text-sm font-semibold text-gray-900 dark:text-white" :title="item.display_name">
+            {{ item.display_name }}
+          </strong>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <span v-if="item.stale" class="badge badge-warning">{{ t('gptQuota.stale') }}</span>
+            <span v-if="levelOf(item)" class="badge inline-flex items-center gap-1" :class="GPT_QUOTA_LEVEL_STYLES[levelOf(item)!].badge" data-testid="gpt-quota-level">
+              <Icon :name="GPT_QUOTA_LEVEL_STYLES[levelOf(item)!].icon" size="xs" :stroke-width="2" />
+              {{ t(`gptQuota.levels.${levelOf(item)}`) }}
+            </span>
           </div>
         </div>
-        <p class="mt-2.5 text-[11px] text-gray-400 dark:text-dark-500">
-          {{ t('gptQuota.sampledAt', { time: formatDateTimeToMinute(item.sampled_at) }) }}
-        </p>
-      </template>
-    </article>
+
+        <p v-if="!item.sampled_at" class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('gptQuota.noData') }}</p>
+        <template v-else>
+          <div class="mt-3 grid gap-3" :class="visibleGPTQuotaWindows(item).length > 1 ? 'sm:grid-cols-2' : ''">
+            <GPTQuotaMeter
+              v-for="row in visibleGPTQuotaWindows(item)"
+              :key="row.key"
+              :label="row.key === 'five_hour' ? t('gptQuota.fiveHour') : t('gptQuota.sevenDay')"
+              :window="row.window"
+              :now="now"
+            />
+          </div>
+          <p class="mt-2 text-[11px] text-gray-400 dark:text-dark-500">
+            {{ t('gptQuota.sampledAt', { time: formatDateTimeToMinute(item.sampled_at) }) }}
+          </p>
+        </template>
+      </li>
+    </ul>
   </section>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { GPTQuotaGroupKey, GPTQuotaUserCard, GPTQuotaWindow } from '@/api/gptQuotaDisplay'
-import { formatCountdown, formatDateTimeToMinute } from '@/utils/format'
+import Icon from '@/components/icons/Icon.vue'
+import GPTQuotaMeter from '@/components/user/GPTQuotaMeter.vue'
+import type { GPTQuotaGroupKey, GPTQuotaUserCard } from '@/api/gptQuotaDisplay'
+import {
+  GPT_QUOTA_LEVEL_STYLES,
+  averageSevenDayRemaining,
+  effectiveGPTQuotaRemaining,
+  formatGPTQuotaPercent,
+  gptQuotaLevel,
+  visibleGPTQuotaWindows,
+  type GPTQuotaLevel,
+} from '@/utils/gptQuota'
+import { formatDateTimeToMinute } from '@/utils/format'
 
 const props = defineProps<{
   groupKey: GPTQuotaGroupKey
@@ -57,41 +79,11 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-interface WindowRow {
-  key: string
-  label: string
-  value: string
-  window: GPTQuotaWindow | null
-  reset: string
-  resetTitle: string
-}
+const summary = computed(() => averageSevenDayRemaining(props.items.filter((item) => item.sampled_at)))
 
-function resetText(window: GPTQuotaWindow): { reset: string; resetTitle: string } {
-  if (!window.reset_at) return { reset: t('gptQuota.resetUnknown'), resetTitle: '' }
-  const resetMs = new Date(window.reset_at).getTime()
-  const title = formatDateTimeToMinute(window.reset_at)
-  // 倒计时结束只提示待更新，不把剩余比例改成 100%。
-  if (Number.isNaN(resetMs) || resetMs <= props.now) return { reset: t('gptQuota.resetPending'), resetTitle: title }
-  const countdown = formatCountdown(window.reset_at)
-  return { reset: countdown ? t('gptQuota.resetIn', { time: countdown }) : t('gptQuota.resetAt', { time: title }), resetTitle: title }
-}
-
-function windowRows(item: GPTQuotaUserCard): WindowRow[] {
-  return [
-    { key: 'five_hour', label: t('gptQuota.fiveHour'), window: item.five_hour },
-    { key: 'seven_day', label: t('gptQuota.sevenDay'), window: item.seven_day },
-  ].map(({ key, label, window }) => ({
-    key,
-    label,
-    window,
-    value: window ? `${window.remaining_percent.toFixed(1)}%` : t('gptQuota.notProvided'),
-    ...(window ? resetText(window) : { reset: '', resetTitle: '' }),
-  }))
-}
-
-function barClass(remaining: number): string {
-  if (remaining <= 10) return 'bg-red-500'
-  if (remaining <= 30) return 'bg-amber-500'
-  return 'bg-emerald-500'
+function levelOf(item: GPTQuotaUserCard): GPTQuotaLevel | null {
+  if (!item.sampled_at) return null
+  const remaining = effectiveGPTQuotaRemaining(item)
+  return remaining === null ? null : gptQuotaLevel(remaining)
 }
 </script>

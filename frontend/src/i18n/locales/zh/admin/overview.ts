@@ -645,6 +645,10 @@ export default {
         'admin.token_analysis': {
           label: 'Token 分析',
           description: '查看统计、项目、请求、输入内容和索引状态。'
+        },
+        'admin.accounts_operator': {
+          label: '账号管理（受限）',
+          description: '查看全部账号信息，可新增账号、测试连接和重新授权；不能编辑、删除或批量操作。每次新增、重新授权或测试后状态变化都会邮件通知管理员。'
         }
       },
       form: {

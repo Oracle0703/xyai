@@ -63,6 +63,29 @@ describe('GPTQuotaColumn', () => {
     expect(text).toContain('gptQuota.resetUnknown')
   })
 
+  it('hides the 5-hour window when it is not provided and shows it again once reported', () => {
+    const wrapper = mountColumn([
+      card({ id: 1, five_hour: null }),
+      card({ id: 2, display_name: 'c-02' }),
+    ])
+    const cards = wrapper.findAll('[data-testid="gpt-quota-card"]')
+    expect(cards[0].findAll('[data-testid="gpt-quota-meter"]')).toHaveLength(1)
+    expect(cards[0].text()).not.toContain('gptQuota.fiveHour')
+    expect(cards[1].findAll('[data-testid="gpt-quota-meter"]')).toHaveLength(2)
+    expect(cards[1].text()).toContain('gptQuota.fiveHour')
+  })
+
+  it('labels each account by its tightest window, not by color alone', () => {
+    const wrapper = mountColumn([
+      card({ id: 1, five_hour: null, seven_day: { remaining_percent: 80 } }),
+      card({ id: 2, display_name: 'c-02', five_hour: { remaining_percent: 8 }, seven_day: { remaining_percent: 60 } }),
+      card({ id: 3, display_name: 'c-03', five_hour: null, seven_day: { remaining_percent: 25 } }),
+    ])
+    const levels = wrapper.findAll('[data-testid="gpt-quota-level"]').map((badge) => badge.text())
+    expect(levels).toEqual(['gptQuota.levels.good', 'gptQuota.levels.critical', 'gptQuota.levels.low'])
+    expect(wrapper.find('[data-testid="gpt-quota-group-average"]').text()).toContain('55.0%')
+  })
+
   it('keeps an empty column visible', () => {
     const wrapper = mount(GPTQuotaColumn, { props: { groupKey: 'wsdashi', title: '速宝', items: [], now: NOW } })
     expect(wrapper.text()).toContain('速宝')

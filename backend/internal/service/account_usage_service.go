@@ -1609,6 +1609,10 @@ func (s *AccountUsageService) tryClearRecoverableAccountError(ctx context.Contex
 	if account == nil || account.Status != StatusError {
 		return
 	}
+	// 子管理员查看用量不得顺带恢复账号状态；需要恢复时走会发通知的测试连接。
+	if HasSubAdminAccountRestrictions(ctx) {
+		return
+	}
 
 	msg := strings.ToLower(strings.TrimSpace(account.ErrorMessage))
 	if msg == "" {

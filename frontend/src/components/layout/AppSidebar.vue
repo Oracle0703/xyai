@@ -684,6 +684,22 @@ const ChevronDoubleRightIcon = {
     )
 }
 
+// GPT 账号额度：仪表盘造型，与渠道状态的 SignalIcon 区分。
+const GaugeIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M3.75 16.5a8.25 8.25 0 1 1 16.5 0M12 16.5l3.75-5.25M6.75 16.5h.008M17.25 16.5h.008M4.5 19.5h15'
+        })
+      ]
+    )
+}
+
 const SignalIcon = {
   render: () =>
     h(
@@ -986,7 +1002,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
-    { path: '/gpt-quota', label: t('nav.gptQuota'), icon: SignalIcon, featureFlag: flagGPTQuota },
+    { path: '/gpt-quota', label: t('nav.gptQuota'), icon: GaugeIcon, featureFlag: flagGPTQuota },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
@@ -1031,6 +1047,9 @@ const subAdminNavItems = computed((): NavItem[] => {
 	if (authStore.hasAdminPermission('admin.token_analysis')) {
 		items.push({ path: '/admin/token-analysis', label: t('nav.tokenAnalysis'), icon: CubeTransparentIcon })
 	}
+	if (authStore.hasAdminPermission('admin.accounts_operator')) {
+		items.push({ path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon })
+	}
 	return items
 })
 
@@ -1070,7 +1089,7 @@ const adminNavItems = computed((): NavItem[] => {
     // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
-    { path: '/admin/gpt-quota', label: t('nav.gptQuotaDisplay'), icon: SignalIcon },
+    { path: '/admin/gpt-quota', label: t('nav.gptQuotaDisplay'), icon: GaugeIcon },
     { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },

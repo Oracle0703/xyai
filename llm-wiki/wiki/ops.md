@@ -1,5 +1,9 @@
 # 运维, 配置与验证基线
 
+## unit service 编译状态
+
+- 2026-10-25 `feature/hy/10220_sub_admin_accounts` 把 `backend/internal/service/gpt_quota_display_test.go` 的测试 helper 改名为 `gptQuotaPtrFloat`，`go test -tags unit ./internal/service/` 不再被 `ptrFloat` 重复声明阻塞。全量 unit service 在基线与该分支都剩 2 个既有失败：`TestApplyDefaultOpenAIReasoningEffort`（旧断言）和 `TestCommandCodeGatewayPassesThroughCatalogProtocols`（全量顺序相关，单跑通过）。
+
 ## 0.2.17 配置与验证入口
 
 - 同轮追加 PR #8139 固定 head `e068c3d02ff8664c1142d5f7c51a05a82f75ad3d` 的 3 文件增量；无冲突、无 schema/依赖/前端变更。叠加后流式/首输出/WS 专项 130 个顶层用例 × 3 轮通过，normal/embed 与增量 lint（0 issues）通过。service unit overlay 8438 顶层 PASS、仅 effort none 旧断言失败；default 受影响 3 包中的 OAuth 刷新时序用例首次失败，代码三方同 blob，聚焦 10/10 通过，原失败保留。其余验证沿用下述 0.2.17 阶段证据；最终结果见本轮 review，不宣称全绿。

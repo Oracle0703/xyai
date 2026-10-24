@@ -31,7 +31,9 @@ import type {
   GrokMediaEligibilityMode,
   GrokMediaEligibilityState,
   OpenCodeGoUsageSettings,
-  OpenCodeGoUsageState
+  OpenCodeGoUsageState,
+  AdminGroup,
+  Proxy
 } from '@/types'
 
 /**
@@ -602,6 +604,20 @@ export async function setSchedulable(id: number, schedulable: boolean): Promise<
  * @param id - Account ID
  * @returns List of available models for this account
  */
+export interface AccountFormOptions {
+  groups: Pick<AdminGroup, 'id' | 'name' | 'description' | 'platform' | 'status' | 'subscription_type' | 'rate_multiplier' | 'account_count' | 'long_context_pricing_enabled'>[]
+  proxies: Pick<Proxy, 'id' | 'name' | 'protocol' | 'host' | 'port' | 'status' | 'account_count'>[]
+}
+
+/**
+ * Compact group/proxy options for the account page (no proxy credentials).
+ * Used by restricted account operators who cannot read the full group/proxy catalogs.
+ */
+export async function getFormOptions(): Promise<AccountFormOptions> {
+  const { data } = await apiClient.get<AccountFormOptions>('/admin/accounts/form-options')
+  return data
+}
+
 export async function getAvailableModels(id: number): Promise<ClaudeModel[]> {
   const { data } = await apiClient.get<ClaudeModel[]>(`/admin/accounts/${id}/models`)
   return data
@@ -1160,6 +1176,7 @@ export const accountsAPI = {
   resetTempUnschedulable,
   setSchedulable,
   getAvailableModels,
+  getFormOptions,
   syncUpstreamModels,
   syncUpstreamModelsPreview,
   generateAuthUrl,

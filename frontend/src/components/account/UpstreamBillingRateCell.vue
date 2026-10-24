@@ -69,6 +69,7 @@
       {{ statusLabel }}
     </span>
     <button
+      v-if="canManageAccounts"
       type="button"
       class="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
       :disabled="probing"
@@ -84,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountOperatorAccess } from '@/composables/useAccountOperatorAccess'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -105,6 +107,7 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { canManageAccounts } = useAccountOperatorAccess()
 const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000
 // 探测资格已放宽到全部 API-key 平台（上游是 sub2api 即可应答）。
 const eligible = computed(() => props.account.type === 'apikey')

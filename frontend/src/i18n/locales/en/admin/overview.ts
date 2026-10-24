@@ -762,6 +762,10 @@ export default {
         'admin.token_analysis': {
           label: 'Token analysis',
           description: 'View token statistics, projects, requests, inputs and index status.'
+        },
+        'admin.accounts_operator': {
+          label: 'Account management (restricted)',
+          description: 'View all accounts, create accounts, test connections and re-authorize; no editing, deletion or bulk actions. Every creation, re-authorization or state change after a test is emailed to the administrator.'
         }
       },
       // Settings Dropdowns

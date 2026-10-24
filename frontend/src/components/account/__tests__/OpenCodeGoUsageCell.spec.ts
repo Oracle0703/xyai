@@ -4,6 +4,11 @@ import OpenCodeGoUsageCell from '../OpenCodeGoUsageCell.vue'
 import UsageProgressBar from '../UsageProgressBar.vue'
 import type { Account, OpenCodeGoUsageState } from '@/types'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 const { refreshOpenCodeGoUsage } = vi.hoisted(() => ({
   refreshOpenCodeGoUsage: vi.fn()
 }))

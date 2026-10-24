@@ -220,7 +220,11 @@ func validateJWTForAdmin(
 	c.Set(ContextKeyAuthEmail, user.Email)
 	c.Set(ContextKeySessionID, claims.SessionID)
 	c.Set("auth_method", "jwt")
-	c.Request = c.Request.WithContext(service.WithDepartmentActor(c.Request.Context(), user.ID))
+	ctx := service.WithDepartmentActor(c.Request.Context(), user.ID)
+	if user.IsSubAdmin() {
+		ctx = service.WithSubAdminAccountRestrictions(ctx)
+	}
+	c.Request = c.Request.WithContext(ctx)
 
 	return true
 }

@@ -3,6 +3,11 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import ProxySelector from '../ProxySelector.vue'
 import type { Proxy } from '@/types'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 const testProxy = vi.hoisted(() => vi.fn())
 vi.mock('@/api/admin', () => ({ adminAPI: { proxies: { testProxy } } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))

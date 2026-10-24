@@ -64,6 +64,29 @@ describe('GPTQuotaView', () => {
     wrapper.unmount()
   })
 
+  it('summarizes accounts, the 7-day average and low quota in dashboard tiles', async () => {
+    const sampled = '2026-09-24T03:30:00Z'
+    getGPTQuotaDisplay.mockResolvedValue(view({
+      groups: {
+        xunyou: [
+          { id: 1, display_name: 'c-01', five_hour: null, seven_day: { remaining_percent: 90 }, sampled_at: sampled, stale: false },
+          { id: 2, display_name: 'c-02', five_hour: null, seven_day: { remaining_percent: 8 }, sampled_at: sampled, stale: false },
+        ],
+        wsdashi: [
+          { id: 3, display_name: 'd-01', five_hour: null, seven_day: { remaining_percent: 25 }, sampled_at: sampled, stale: false },
+          { id: 4, display_name: 'd-02', five_hour: null, seven_day: null, sampled_at: null, stale: false },
+        ],
+      },
+    }))
+    const wrapper = mount(GPTQuotaView)
+    await flushPromises()
+    const summary = wrapper.find('[data-testid="gpt-quota-summary"]').text()
+    expect(summary).toContain('4')
+    expect(summary).toContain('41.0%')
+    expect(wrapper.find('[data-testid="gpt-quota-summary-low"]').text()).toContain('2')
+    wrapper.unmount()
+  })
+
   it('shows the disabled state without columns', async () => {
     getGPTQuotaDisplay.mockResolvedValue(view({ enabled: false, groups: { xunyou: [], wsdashi: [] } }))
     const wrapper = mount(GPTQuotaView)

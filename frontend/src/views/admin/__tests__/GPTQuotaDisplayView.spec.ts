@@ -141,9 +141,12 @@ describe('GPTQuotaDisplayView', () => {
     expect((pickerItem(wrapper, 13).element as HTMLInputElement).checked).toBe(false)
     await pickerItem(wrapper, 11).trigger('change')
     await wrapper.find('[data-testid="gpt-quota-picker-confirm"]').trigger('click')
+    expect(wrapper.find('[data-testid="gpt-quota-save"]').attributes('disabled')).toBeDefined()
+    await wrapper.find('[data-testid="gpt-quota-interval-60"]').trigger('click')
     await wrapper.find('[data-testid="gpt-quota-save"]').trigger('click')
     await flushPromises()
     expect(api.saveGPTQuotaConfig).toHaveBeenCalledWith(expect.objectContaining({
+      interval_minutes: 60,
       entries: [
         { account_id: 12, display_name: '' },
         { account_id: 11, display_name: '迅游一号' },
@@ -215,6 +218,7 @@ describe('GPTQuotaDisplayView', () => {
       await vi.advanceTimersByTimeAsync(5000)
       await flushPromises()
       expect(api.getAdminGPTQuota).toHaveBeenCalledTimes(2)
+      await wrapper.find('[data-testid="gpt-quota-interval-60"]').trigger('click')
       await wrapper.find('[data-testid="gpt-quota-save"]').trigger('click')
       await flushPromises()
       expect(api.saveGPTQuotaConfig).toHaveBeenCalledWith(expect.objectContaining({ expected_version: 3 }))
@@ -227,9 +231,65 @@ describe('GPTQuotaDisplayView', () => {
     api.saveGPTQuotaConfig.mockRejectedValue({ status: 409, reason: 'GPT_QUOTA_CONFIG_CONFLICT', message: 'changed' })
     const wrapper = mount(GPTQuotaDisplayView)
     await flushPromises()
+    await wrapper.find('[data-testid="gpt-quota-interval-60"]').trigger('click')
     await wrapper.find('[data-testid="gpt-quota-save"]').trigger('click')
     await flushPromises()
     expect(showError).toHaveBeenCalledWith('gptQuota.admin.conflict')
+  })
+
+  it('enables save only after a change and discards edits back to the server state', async () => {
+    const wrapper = mount(GPTQuotaDisplayView)
+    await flushPromises()
+    const save = () => wrapper.find('[data-testid="gpt-quota-save"]')
+    expect(save().attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="gpt-quota-save-bar"]').text()).toContain('gptQuota.admin.allSaved')
+
+    await wrapper.find('[data-testid="gpt-quota-interval-60"]').trigger('click')
+    expect(save().attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="gpt-quota-save-bar"]').text()).toContain('gptQuota.admin.unsavedChanges')
+
+    await wrapper.find('[data-testid="gpt-quota-discard"]').trigger('click')
+    await flushPromises()
+    expect(save().attributes('disabled')).toBeDefined()
+    expect(api.saveGPTQuotaConfig).not.toHaveBeenCalled()
+  })
+
+  it('filters rows that need attention and removes all invalid accounts at once', async () => {
+    const wrapper = mount(GPTQuotaDisplayView)
+    await flushPromises()
+    await wrapper.find('[data-testid="gpt-quota-filter-issues"]').trigger('click')
+    const issueRows = wrapper.findAll('[data-testid="gpt-quota-selected-row"]')
+    expect(issueRows).toHaveLength(1)
+    expect(issueRows[0].text()).toContain('gptQuota.admin.reasons.account_not_found')
+
+    await wrapper.find('[data-testid="gpt-quota-filter-all"]').trigger('click')
+    await wrapper.find('[data-testid="gpt-quota-search"]').setValue('c-1')
+    expect(wrapper.findAll('[data-testid="gpt-quota-selected-row"]')).toHaveLength(1)
+    await wrapper.find('[data-testid="gpt-quota-search"]').setValue('')
+
+    await wrapper.find('[data-testid="gpt-quota-remove-invalid"]').trigger('click')
+    expect(wrapper.findAll('[data-testid="gpt-quota-selected-row"]')).toHaveLength(1)
+    await wrapper.find('[data-testid="gpt-quota-save"]').trigger('click')
+    await flushPromises()
+    expect(api.saveGPTQuotaConfig).toHaveBeenCalledWith(expect.objectContaining({ entries: [{ account_id: 11, display_name: '迅游一号' }] }))
+  })
+
+  it('hides the 5-hour meter when upstream no longer reports it', async () => {
+    const view = adminView()
+    view.entries[0] = {
+      ...view.entries[0],
+      sampled_at: '2026-09-24T03:30:00Z',
+      five_hour: null,
+      seven_day: { remaining_percent: 42, reset_at: '2026-09-30T00:00:00Z' },
+      last_attempt_status: 'ok',
+    }
+    api.getAdminGPTQuota.mockResolvedValue(view)
+    const wrapper = mount(GPTQuotaDisplayView)
+    await flushPromises()
+    const row = wrapper.findAll('[data-testid="gpt-quota-selected-row"]')[0]
+    expect(row.findAll('[data-testid="gpt-quota-meter"]')).toHaveLength(1)
+    expect(row.text()).toContain('gptQuota.sevenDay')
+    expect(row.text()).not.toContain('gptQuota.fiveHour')
   })
 
   it('reports a running batch instead of starting another one', async () => {

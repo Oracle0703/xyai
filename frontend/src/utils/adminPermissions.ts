@@ -5,6 +5,7 @@ export const ADMIN_PERMISSION_USAGE: AdminPermission = 'admin.usage'
 export const ADMIN_PERMISSION_TOKEN_ANALYSIS: AdminPermission = 'admin.token_analysis'
 export const ADMIN_PERMISSION_ORGANIZATION_USAGE: AdminPermission = 'admin.organization_usage'
 export const ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS: AdminPermission = 'admin.department_subscriptions'
+export const ADMIN_PERMISSION_ACCOUNTS_OPERATOR: AdminPermission = 'admin.accounts_operator'
 
 const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
   code: AdminPermission
@@ -15,6 +16,7 @@ const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
   { code: ADMIN_PERMISSION_TOKEN_ANALYSIS, path: '/admin/token-analysis' },
   { code: ADMIN_PERMISSION_ORGANIZATION_USAGE, path: '/admin/organization-usage' },
   { code: ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS, path: '/admin/subscriptions' },
+  { code: ADMIN_PERMISSION_ACCOUNTS_OPERATOR, path: '/admin/accounts' },
 ]
 
 export function getAdminLandingPath(

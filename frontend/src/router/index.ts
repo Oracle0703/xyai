@@ -531,7 +531,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'GPT Account Quota',
-      titleKey: 'nav.gptQuota'
+      titleKey: 'nav.gptQuota',
+      descriptionKey: 'gptQuota.description'
     }
   },
   {
@@ -567,6 +568,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
+      adminPermission: 'admin.accounts_operator',
       title: 'Account Management',
       titleKey: 'admin.accounts.title',
       descriptionKey: 'admin.accounts.description'

@@ -4,6 +4,11 @@ import OllamaCloudUsageCell from '../OllamaCloudUsageCell.vue'
 import UsageProgressBar from '../UsageProgressBar.vue'
 import type { Account, OllamaCloudUsageState } from '@/types'
 
+vi.mock('@/composables/useAccountOperatorAccess', async () => {
+  const { ref } = await import('vue')
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(true) }) }
+})
+
 const { refreshOllamaCloudUsage } = vi.hoisted(() => ({
   refreshOllamaCloudUsage: vi.fn()
 }))
