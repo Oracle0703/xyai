@@ -548,6 +548,8 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 
 ## 部署入口
 
+- 2026-10-25，118 的 `/opt/sub2api` 已按 main `777960134` 完成 Token Analysis 关联修复源码部署。前后端构建、内外网健康及新版资源校验通过；只重启 sub2api，其他服务 PID 未变，迁移由应用启动处理，未手工 SQL 或历史重索引。执行证据见 `docs/delivery/2026-10-25-token-analysis-deployment.md`；此记录不替代生产样本恢复验收。
+
 - Dockerfile: 根目录 `Dockerfile`, `deploy/Dockerfile`。
 - Compose: `deploy/docker-compose.yml`, `deploy/docker-compose.local.yml`, `deploy/docker-compose.dev.yml`, `deploy/docker-compose.standalone.yml`。
 - 上述生产与开发 Compose 的 `sub2api` 服务都必须设置 `security_opt: no-new-privileges:true`; `deploy/tests/docker-compose-security-test.sh` 由 backend CI shell job 校验, 新增 Compose 变体时要同步覆盖。
