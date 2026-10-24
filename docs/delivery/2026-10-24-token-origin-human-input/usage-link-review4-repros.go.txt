@@ -1,0 +1,117 @@
+//go:build integration
+
+package repository
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+func TestReview3CrossDayLateBillRemainsRetryable(t *testing.T) {
+	day := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	dir := t.TempDir()
+	f.svc = service.NewTokenAnalysisService(f.repo, &config.Config{Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}}, TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, UsageMatchWindowSeconds: 10}}, nil)
+	start := day.Add(24*time.Hour - time.Second)
+	done := start.Add(21 * time.Second)
+	write := func(name string, event map[string]any) {
+		data, err := json.Marshal(event)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), append(data, '\n'), 0600))
+	}
+	write("2026-10-10.jsonl", map[string]any{"archive_id": "review3-midnight", "client_request_id": "cid-review3-midnight", "event": "request", "timestamp": start.Format(time.RFC3339Nano), "endpoint": "/v1/responses", "path": "/v1/responses", "user_id": f.userID, "api_key_id": f.apiKeyID, "model": tokenAnalysisLinkModel, "body": `{"model":"gpt-6-astra","input":"human question"}`})
+	write("2026-10-11.jsonl", map[string]any{"archive_id": "review3-midnight", "event": "response", "timestamp": done.Format(time.RFC3339Nano), "status": 200, "response_id": "resp_review3_midnight"})
+	index := func(date string) {
+		_, err := f.svc.IndexRange(f.ctx, service.TokenAnalysisIndexRequest{StartDate: date, EndDate: date, Timezone: "UTC"})
+		require.NoError(t, err)
+	}
+	index("2026-10-10")
+	index("2026-10-11")
+	f.requireUnlinked("review3-midnight")
+	var pending bool
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT (usage_link_version <> usage_link_checked_version) FROM token_analysis_request_summaries WHERE archive_id='review3-midnight'`).Scan(&pending))
+	t.Logf("response indexed before bill arrives: pending=%v", pending)
+	bill := f.usage("resp_review3_midnight", done.Add(10*time.Second), 21000, 547)
+	index("2026-10-11")
+	index("2026-10-24")
+	f.requireLinked("review3-midnight", bill, service.TokenAnalysisUsageMatchRequestID)
+}
+
+func TestReview3NewResponseInvalidatesStaleTimingWrite(t *testing.T) {
+	day := time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	start := day.Add(6 * time.Hour)
+	f.request("review3-response-race", "", start)
+	bill := f.usage("client:unrelated-review3", start.Add(time.Second), 900, 547)
+	// A holds a candidate from before any response facts exist.
+	stale, err := f.repo.FindUsageLink(f.ctx, service.TokenAnalysisUsageLinkQuery{ArchiveID: "review3-response-race", StartedAt: start, UserID: &f.userID, APIKeyID: &f.apiKeyID, Model: tokenAnalysisLinkModel, Window: 10 * time.Second})
+	require.NoError(t, err)
+	require.NotNil(t, stale)
+	require.Equal(t, bill, stale.UsageLogID)
+	// B then indexes the first response for this request.
+	f.response("review3-response-race", start.Add(2*time.Second), 502)
+	var pending bool
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT (usage_link_version <> usage_link_checked_version) FROM token_analysis_request_summaries WHERE archive_id='review3-response-race'`).Scan(&pending))
+	require.True(t, pending)
+	// A commits its now-obsolete query result.
+	applied, err := f.repo.SetUsageLink(f.ctx, "review3-response-race", service.TokenAnalysisUsageLinkState{}, stale, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT (usage_link_version <> usage_link_checked_version) FROM token_analysis_request_summaries WHERE archive_id='review3-response-race'`).Scan(&pending))
+	t.Logf("stale write after 502: applied=%v pending=%v bill=%d", applied.Applied, pending, bill)
+	f.link()
+	f.link()
+	f.requireUnlinked("review3-response-race")
+}
+
+func TestReview3StaleClearCannotAcknowledgeNewDisplacement(t *testing.T) {
+	day := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	start := day.Add(-time.Second)
+	done := day.Add(20 * time.Second)
+	f.request("review3-clear-old", "", start)
+	bill := f.usage("resp_review3_risk_owner", done.Add(200*time.Millisecond), 20000, 80)
+	_, err := integrationDB.ExecContext(f.ctx, `UPDATE usage_logs SET input_tokens=100000,cache_read_tokens=0 WHERE id=$1`, bill)
+	require.NoError(t, err)
+	previous := day.AddDate(0, 0, -1).Format("2006-01-02")
+	_, err = f.svc.IndexRange(f.ctx, service.TokenAnalysisIndexRequest{StartDate: previous, EndDate: previous, Timezone: "UTC"})
+	require.NoError(t, err)
+	f.requireLinked("review3-clear-old", bill, service.TokenAnalysisUsageMatchTiming)
+	// The first response arrives; A reads the pending row and finds its bill unchanged.
+	f.response("review3-clear-old", done, 200)
+	candidates, err := f.repo.ListUsageLinkCandidates(f.ctx, day, day.AddDate(0, 0, 1), 0, 500)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	c := candidates[0]
+	require.True(t, c.LinkPending)
+	same, err := f.repo.FindUsageLink(f.ctx, service.TokenAnalysisUsageLinkQuery{ArchiveID: c.ArchiveID, StartedAt: c.EventTime, CompletedAt: c.CompletedAt, UserID: c.UserID, APIKeyID: c.APIKeyID, Model: c.Model, Window: 10 * time.Second})
+	require.NoError(t, err)
+	require.NotNil(t, same)
+	require.Equal(t, bill, same.UsageLogID)
+	// B discovers the exact owner and releases the old row with a new pending task.
+	f.request("review3-clear-owner", "cid-review3-owner", day)
+	f.responseWithID("review3-clear-owner", done, 200, "resp_review3_risk_owner")
+	ownerRead := f.state("review3-clear-owner")
+	exact, err := f.repo.FindUsageLink(f.ctx, service.TokenAnalysisUsageLinkQuery{ArchiveID: "review3-clear-owner", ClientRequestID: "cid-review3-owner", ResponseID: "resp_review3_risk_owner", StartedAt: day, CompletedAt: &done, UserID: &f.userID, APIKeyID: &f.apiKeyID, Model: tokenAnalysisLinkModel, ExactOnly: true})
+	require.NoError(t, err)
+	require.NotNil(t, exact)
+	claimed, err := f.repo.SetUsageLink(f.ctx, "review3-clear-owner", ownerRead, exact, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	require.True(t, claimed.Displaced)
+	// A acknowledges its old no-op review after B's newer displacement.
+	require.NoError(t, f.repo.ClearUsageLinkPending(f.ctx, c.ArchiveID, c.LinkVersion))
+	f.link()
+	old, method := f.linked(c.ArchiveID)
+	require.Nil(t, old)
+	var risk int
+	var pending bool
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT risk_score,(usage_link_version <> usage_link_checked_version) FROM token_analysis_request_summaries WHERE archive_id=$1`, c.ArchiveID).Scan(&risk, &pending))
+	t.Logf("after stale clear and follow-up index: method=%s pending=%v risk=%d", method, pending, risk)
+	require.Zero(t, risk, "displaced row must lose usage-only risk")
+}

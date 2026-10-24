@@ -58,12 +58,18 @@
           <p class="mt-1.5 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.tokenAnalysis.requestOrigin.humanHint') }}</p>
         </section>
 
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <div v-for="stat in usageStats" :key="stat.label" class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800">
-            <div class="truncate text-xs text-gray-500 dark:text-dark-400">{{ stat.label }}</div>
-            <div class="mt-0.5 truncate text-sm font-semibold tabular-nums text-gray-900 dark:text-white" :title="stat.title">{{ stat.value }}</div>
+        <section data-testid="request-usage-link-detail">
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div v-for="stat in usageStats" :key="stat.label" class="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800">
+              <div class="truncate text-xs text-gray-500 dark:text-dark-400">{{ stat.label }}</div>
+              <div class="mt-0.5 truncate text-sm font-semibold tabular-nums" :class="link.linked ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-dark-400'" :title="stat.title">{{ stat.value }}</div>
+            </div>
           </div>
-        </div>
+          <p v-if="!link.linked" class="mt-1.5 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
+            <span class="ta-tag" :class="link.className">{{ link.label }}</span>
+            <span>{{ link.tooltip }}</span>
+          </p>
+        </section>
 
         <section>
           <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
@@ -157,6 +163,7 @@ import type { TokenAnalysisRequestInput, TokenAnalysisRequestItem } from '@/api/
 import Icon from '@/components/icons/Icon.vue'
 import { formatBytes } from '@/utils/format'
 import { useRequestOrigin } from './requestOrigin'
+import { useUsageLink } from './usageLink'
 import {
   formatCost,
   formatInteger,
@@ -179,6 +186,8 @@ const { t } = useI18n()
 const { riskLabel, riskDesc } = useTokenAnalysisRisk()
 const { requestOrigin } = useRequestOrigin()
 const origin = computed(() => requestOrigin(props.request?.summary_json))
+const { usageLink } = useUsageLink()
+const link = computed(() => usageLink(props.request ?? {}))
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.request) emit('close')
@@ -195,13 +204,15 @@ const extractedUserRequest = computed(() => {
 const usageStats = computed(() => {
   const item = props.request
   if (!item) return []
-  return [
+  const stats = [
     { label: t('admin.tokenAnalysis.summary.inputTokens'), value: formatTokenMetric(item.input_tokens), title: formatInteger(item.input_tokens) },
     { label: t('admin.tokenAnalysis.summary.outputTokens'), value: formatTokenMetric(item.output_tokens), title: formatInteger(item.output_tokens) },
     { label: t('admin.tokenAnalysis.summary.cacheRead'), value: formatTokenMetric(item.cache_read_tokens), title: formatInteger(item.cache_read_tokens) },
     { label: t('admin.tokenAnalysis.summary.cacheCreation'), value: formatTokenMetric(item.cache_creation_tokens), title: formatInteger(item.cache_creation_tokens) },
     { label: t('admin.tokenAnalysis.cost'), value: formatCost(item.actual_cost), title: formatCost(item.actual_cost) }
   ]
+  if (link.value.linked) return stats
+  return stats.map((stat) => ({ ...stat, value: '—', title: t('admin.tokenAnalysis.usageLink.unknownHint') }))
 })
 
 const detailGroups = computed(() => {
@@ -218,8 +229,18 @@ const detailGroups = computed(() => {
         { label: t('admin.tokenAnalysis.detail.images'), value: formatInteger(item.image_count) },
         { label: t('admin.tokenAnalysis.detail.bodySize'), value: formatBytes(item.request_body_size ?? 0) },
         { label: t('admin.tokenAnalysis.bodyTruncated'), value: item.request_body_truncated ? t('common.yes') : t('common.no') },
-        { label: t('admin.tokenAnalysis.duplicateCount'), value: formatInteger(item.duplicate_count ?? 1) },
-        { label: t('admin.tokenAnalysis.detail.matchConfidence'), value: String(item.match_confidence ?? '-') }
+        { label: t('admin.tokenAnalysis.duplicateCount'), value: formatInteger(item.duplicate_count ?? 1) }
+      ]
+    },
+    {
+      title: t('admin.tokenAnalysis.usageLink.title'),
+      fields: [
+        { label: t('admin.tokenAnalysis.usageLink.status'), value: link.value.label },
+        { label: t('admin.tokenAnalysis.usageLink.method'), value: link.value.method },
+        { label: t('admin.tokenAnalysis.detail.matchConfidence'), value: link.value.linked ? String(item.match_confidence ?? '-') : '—' },
+        { label: t('admin.tokenAnalysis.usageLink.usageLogId'), value: item.usage_log_id ? String(item.usage_log_id) : '—' },
+        { label: t('admin.tokenAnalysis.usageLink.completedAt'), value: item.completed_at ? formatTimeCN(item.completed_at) : '—' },
+        { label: t('admin.tokenAnalysis.usageLink.responseStatus'), value: item.response_status ? String(item.response_status) : '—' }
       ]
     },
     {

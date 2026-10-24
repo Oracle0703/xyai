@@ -1868,7 +1868,9 @@ type TokenAnalysisConfig struct {
 	IndexBatchSize           int  `mapstructure:"index_batch_size"`
 	MaxPreviewChars          int  `mapstructure:"max_preview_chars"`
 	AutoIndexIntervalSeconds int  `mapstructure:"auto_index_interval_seconds"`
-	UsageMatchWindowSeconds  int  `mapstructure:"usage_match_window_seconds"`
+	// UsageMatchWindowSeconds: 计费关联时序兜底的余量(秒): 转发在请求开始后多久内
+	// 启动(完成时间未知时)、账单在请求完成后多久内落库; 不是"开始时间 ±窗口"。
+	UsageMatchWindowSeconds int `mapstructure:"usage_match_window_seconds"`
 	// InputStoreMaxChars: 用户净输入全文留存的最大字符数(脱敏后截断), 0 = 不留存全文。
 	InputStoreMaxChars int `mapstructure:"input_store_max_chars"`
 }

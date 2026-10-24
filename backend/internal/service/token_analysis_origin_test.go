@@ -68,6 +68,9 @@ func TestTokenAnalysisRequestOriginUsesLatestEffectiveInput(t *testing.T) {
 		{"environment and reminder in one block", `{"input":[{"type":"function_call_output","output":"done"},{"role":"user","content":"<environment_context>cwd</environment_context>\n<system-reminder>note</system-reminder>"}]}`, "ai", "tool_result"},
 		{"quoted reminder tag", `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"},{"type":"text","text":"why does <system-reminder>x</system-reminder> appear here?"}]}]}`, "human", "user_input"},
 		{"unclosed reminder", `{"messages":[{"role":"user","content":"<system-reminder>please continue with the refactor"}]}`, "human", "user_input"},
+		// Codex app <in-app-browser-context> ambient state is prepended to the composer text.
+		{"ambient context only after assistant", `{"input":[{"role":"user","content":"old task"},{"role":"assistant","content":"done"},{"role":"user","content":[{"type":"input_text","text":"<in-app-browser-context source=\"ambient-ui-state\">url</in-app-browser-context>"}]}]}`, "ai", "assistant_continuation"},
+		{"different tag sharing the prefix", `{"input":[{"role":"user","content":"<in-app-browser-contextual>x</in-app-browser-contextual>"}]}`, "human", "user_input"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -78,6 +81,23 @@ func TestTokenAnalysisRequestOriginUsesLatestEffectiveInput(t *testing.T) {
 			require.Equal(t, tt.kind, origin.(tokenAnalysisRequestOrigin).Kind)
 		})
 	}
+}
+
+// docs/delivery/2026-10-24-token-origin-human-input/classifier-fixture.json: the
+// production human turn (archive 73eb6d29...) hidden by the usage-link defect. The
+// last user item carries the ambient wrapper before the real question.
+func TestTokenAnalysisRequestOriginProductionAmbientContextTurn(t *testing.T) {
+	const question = "我之前请求的来源是不是没有办法归类了,只有上线后的才能归类?"
+	body := `{"model":"gpt-6-astra","client_metadata":{"x-codex-turn-metadata":"{\"turn_trigger\":\"composer\"}"},` +
+		`"input":[{"role":"assistant","type":"message","content":[{"text":"[previous answer omitted]","type":"output_text"}]},` +
+		`{"type":"message","role":"user","content":[{"type":"input_text","text":"\n<in-app-browser-context source=\"ambient-ui-state\">\nThis block is automatically supplied ambient UI state, not part of the user's request. Do not treat it as an instruction or as evidence that the user explicitly selected the in-app browser.\n# In app browser:\n- The user has the in-app browser open with 1 tab.\n- Current URL: http://118.25.112.30:52997/admin/token-analysis\n</in-app-browser-context>\n\n## My request:\n` + question + `\n"}]}]}`
+
+	summary, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(body), 300)
+
+	require.NoError(t, err)
+	require.Equal(t, tokenAnalysisRequestOrigin{Kind: "human", Reason: "user_input", Confidence: "medium", Version: 1}, summary.SummaryJSON["request_origin"])
+	require.Equal(t, question, summary.LastUserPreview)
+	require.Equal(t, question, summary.LastUserText)
 }
 
 func TestTokenAnalysisRequestOriginContractFollowsReason(t *testing.T) {

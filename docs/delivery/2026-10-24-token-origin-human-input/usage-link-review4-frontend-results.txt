@@ -1,0 +1,22 @@
+
+ RUN  v2.1.9 E:/allsite/xyai/frontend
+
+ ✓ src/api/__tests__/admin.tokenAnalysis.spec.ts (6 tests) 6ms
+ ✓ src/i18n/__tests__/localesMessageCompile.spec.ts (2 tests) 129ms
+Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+stderr | src/views/admin/__tests__/TokenAnalysisView.spec.ts > TokenAnalysisView > filters every archive view by call origin and clears it from the chip
+[Vue warn]: Component emitted event "update:model-value" but it is neither declared in the emits option nor as an "onUpdate:modelValue" prop.
+
+stderr | src/views/admin/__tests__/TokenAnalysisView.spec.ts > TokenAnalysisView > filters every archive view by call origin and clears it from the chip
+[Vue warn]: Component emitted event "update:model-value" but it is neither declared in the emits option nor as an "onUpdate:modelValue" prop.
+
+ ✓ src/views/admin/__tests__/TokenAnalysisView.spec.ts (38 tests) 1595ms
+ ✓ src/i18n/__tests__/localeKeyCompleteness.spec.ts (3 tests) 15ms
+
+ Test Files  4 passed (4)
+      Tests  49 passed (49)
+   Start at  00:50:28
+   Duration  10.94s (transform 6.36s, setup 884ms, collect 12.08s, tests 1.75s, environment 9.44s, prepare 1.35s)
+

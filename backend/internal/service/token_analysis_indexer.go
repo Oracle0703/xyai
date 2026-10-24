@@ -55,6 +55,11 @@ func (s *TokenAnalysisService) indexRange(ctx context.Context, req TokenAnalysis
 	if err := roots.flush(ctx, s.repo); err != nil {
 		return nil, err
 	}
+	// 关联在文件扫描之后按库内行进行: 请求行入库时多半尚未完成或账单未落库,
+	// 之前未关联的行每轮重试, 不需要重读 JSONL。
+	if err := s.linkUsageRange(ctx, start, end.AddDate(0, 0, 1)); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -249,6 +254,9 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 		return 0, 0, 1, "", nil
 	}
 	archiveID = event.ArchiveID
+	if event.Event == "response" {
+		return 0, 1, 0, archiveID, s.recordTokenAnalysisResponse(ctx, event)
+	}
 	if event.Event != "request" {
 		return 0, 1, 0, archiveID, nil
 	}
@@ -258,6 +266,7 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	// 一旦带 NUL 该行会永久失败。
 	event.ArchiveID = sanitizeTokenAnalysisText(event.ArchiveID)
 	archiveID = event.ArchiveID
+	event.ClientRequestID = sanitizeTokenAnalysisText(event.ClientRequestID)
 	event.BodySHA256 = sanitizeTokenAnalysisText(event.BodySHA256)
 	event.Method = sanitizeTokenAnalysisText(event.Method)
 	event.Endpoint = sanitizeTokenAnalysisText(event.Endpoint)
@@ -291,34 +300,24 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 		bodySummary.Model = event.Model
 	}
 
-	// count_tokens 是不计费的探测请求, 不参与用量匹配: 它与紧邻的真实请求
-	// 用户/密钥/模型/时间几乎相同, 会匹配到同一条 usage_logs, 概览和用户/
-	// 项目聚合会把该条计费 token 累加两次。入库 endpoint 还原 /count_tokens
-	// 后缀 -- 归一化会把它折叠成 /v1/messages, 否则库内无法与真实请求区分。
+	// count_tokens 是不计费的探测请求, 关联轮次不为它找账单(否则会与紧邻真实
+	// 请求关联到同一条 usage_logs, 聚合累加两次)。入库 endpoint 还原
+	// /count_tokens 后缀 -- 归一化会把它折叠成 /v1/messages, 否则库内无法区分。
 	endpoint := firstNonEmptyTokenAnalysisString(event.Endpoint, event.Path)
 	if isCountTokens && !strings.HasSuffix(strings.TrimRight(endpoint, "/"), "/count_tokens") {
 		endpoint = strings.TrimRight(endpoint, "/") + "/count_tokens"
-	}
-	var match *TokenAnalysisUsageMatch
-	if !isCountTokens {
-		match, err = s.repo.FindNearestUsageLog(ctx, eventTime, event.UserID, event.APIKeyID, firstNonEmptyTokenAnalysisString(bodySummary.Model, event.Model), tokenAnalysisUsageMatchWindow(s.cfg))
-		if err != nil {
-			return 0, 0, 0, archiveID, err
-		}
-	}
-	usage := TokenAnalysisUsageSignals{}
-	var usageLogID *int64
-	var confidence int16
-	if match != nil {
-		usage = match.UsageSignals()
-		usageLogID = &match.UsageLogID
-		confidence = match.MatchConfidence
 	}
 	sameBodyCount, err := s.repo.CountSameBodyRecent(ctx, event.BodySHA256, event.UserID, event.APIKeyID, eventTime, tokenAnalysisDuplicateWindow)
 	if err != nil {
 		return 0, 0, 0, archiveID, err
 	}
-	score, reasons := ScoreTokenAnalysisRisk(bodySummary, usage, TokenAnalysisDuplicateSignals{SameBodyRecentCount: sameBodyCount})
+	// 请求行入库时尚无账单: 先按 body 侧信号评分, 关联轮次拿到 usage 后用同一
+	// 重复数重算(见 linkUsageCandidate)。
+	if bodySummary.SummaryJSON == nil {
+		bodySummary.SummaryJSON = map[string]any{}
+	}
+	bodySummary.SummaryJSON[tokenAnalysisSameBodyCountKey] = sameBodyCount
+	score, reasons := ScoreTokenAnalysisRisk(bodySummary, TokenAnalysisUsageSignals{}, TokenAnalysisDuplicateSignals{SameBodyRecentCount: sameBodyCount})
 
 	// 项目归因: 直接命中则学习仓库根; Copilot 等只有路径线索时与已知根
 	// 做前缀匹配。未归因留空, 由聚合层显式呈现为 unattributed。
@@ -337,8 +336,7 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 
 	summary := &TokenAnalysisRequestSummary{
 		ArchiveID:            event.ArchiveID,
-		UsageLogID:           usageLogID,
-		MatchConfidence:      confidence,
+		ClientRequestID:      event.ClientRequestID,
 		EventTime:            eventTime,
 		UserID:               event.UserID,
 		APIKeyID:             event.APIKeyID,

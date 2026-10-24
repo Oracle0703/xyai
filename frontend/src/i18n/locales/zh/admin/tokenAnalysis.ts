@@ -4,7 +4,7 @@ export default {
     description: '查看部门用量、缓存命中和疑似浪费请求',
     indexNow: '索引当前范围',
     riskMin: '风险分',
-    includeUnmatched: '包含未匹配归档',
+    includeUnmatched: '排行含未关联请求',
     indexStatus: '索引状态',
     processed: '已处理',
     failed: '失败',
@@ -22,7 +22,7 @@ export default {
     moreFilters: '更多筛选',
     reset: '重置',
     query: '查询',
-    includeUnmatchedHelp: '包含未匹配到计费记录的归档请求; 影响用户/项目排行与请求明细, 概览始终包含未匹配请求',
+    includeUnmatchedHelp: '用户/项目排行的请求数计入尚未关联计费记录的请求(Token/费用只统计已关联请求)。请求明细始终展示全部已索引请求并标注计费关联状态, 概览始终包含未关联请求',
     activeFilters: '已筛选',
     noActiveFilters: '未设置额外筛选',
     removeFilter: '移除筛选 {name}',
@@ -46,7 +46,7 @@ export default {
     overview: '概览',
     help: {
       archivedRequests: '统计已归档且已索引的请求样本, 并非全量请求; 与同期计费请求数对比可看出归档覆盖率。',
-      matchedOnly: '只统计已匹配到计费记录的请求, 未匹配请求计为 0。'
+      matchedOnly: '只统计已关联到计费记录的请求; 未关联请求的 Token/费用未知, 不计入。'
     },
     matchedUnmatched: '已匹配 / 未匹配',
     riskReasonKinds: '风险类型',
@@ -67,12 +67,15 @@ export default {
     outputInputRatioHelp: '输出 Token ÷ 输入 Token。低于 {threshold} 标红, 提示大输入、低产出。',
     requestDetailsHint: '点击行查看详情与输入全文',
     requestOrigin: {
-      label: '请求来源',
+      label: '本次调用来源',
       human: '人工',
       ai: 'AI',
       inferred: '规则推断',
       notIdentified: '尚未识别',
-      hint: '按请求结构推断，人工表示本轮有新的用户输入；AI 表示工具续执行或自动任务。',
+      filterAll: '来源: 全部',
+      filterOption: '来源: {name}',
+      filterHint: '按本次调用来源筛选概览、排行与请求明细; “尚未识别”含上线前尚未重新索引的旧记录。计费趋势与同期计费请求数不受影响',
+      hint: '来源按本次调用的请求结构推断：人工表示本轮有新的用户输入；AI 表示工具续执行或自动任务。“最近用户输入”是对话里最近一条用户正文，同一轮的工具续执行会显示相同内容。',
       humanHint: '“人工”依据请求中的用户输入结构推断，不能证明由本人手动发送。Claude Code、Copilot 等客户端的子 Agent、自动压缩、标题生成等内部请求，以及脚本/程序直接以普通用户消息调用接口的请求，都没有显式标记，也可能显示为人工。历史未识别记录显示 —。',
       reason: '判断依据',
       confidence: '推断置信度',
@@ -94,6 +97,32 @@ export default {
         unsupported_shape: '请求结构暂不支持识别',
         body_truncated: '归档请求体已截断，无法可靠识别本轮来源',
         count_tokens: 'Token 计数探测请求(count_tokens)，不是模型调用'
+      }
+    },
+    usageLink: {
+      title: '计费关联',
+      status: '关联状态',
+      method: '关联方式',
+      usageLogId: '账单 ID',
+      completedAt: '完成时间',
+      responseStatus: '响应状态',
+      unknownHint: '未关联到计费记录, Token 与费用未知, 不代表零消耗',
+      statuses: {
+        linked: '已关联',
+        unlinked: '未关联计费',
+        failed: '请求失败',
+        not_billable: '不计费'
+      },
+      statusHints: {
+        linked: 'Token 与费用来自已关联的计费记录',
+        unlinked: '尚未找到唯一对应的计费记录(可能仍在落库或无法唯一确定), Token 与费用未知; 后续索引会自动重试',
+        failed: '响应状态非 2xx, 通常不产生计费; Token 与费用未知',
+        not_billable: 'Token 计数探测请求, 不计费'
+      },
+      methods: {
+        request_id: '请求 ID 精确关联',
+        timing: '按开始/完成时间推断',
+        legacy_window: '旧时间窗口(待复核)'
       }
     },
     requestDetail: '请求详情',
@@ -196,7 +225,7 @@ export default {
     cost: '费用',
     risk: '风险',
     usage: '用量',
-    preview: '请求预览',
+    preview: '最近用户输入',
     matched: '已匹配',
     unmatchedRate: '未匹配率',
     riskReasons: '风险原因分布',

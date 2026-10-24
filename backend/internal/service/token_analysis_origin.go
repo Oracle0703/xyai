@@ -234,34 +234,57 @@ func tokenAnalysisIsTextBlock(block map[string]any) bool {
 }
 
 // Client-injected wrappers that carry no new user intent: Codex
-// <environment_context>, and Claude Code <system-reminder> (seen in production
-// beside user text and as reminder-only continuations after an assistant turn).
-var tokenAnalysisInjectedContextTags = []string{"environment_context", "system-reminder"}
+// <environment_context>, the Codex app's <in-app-browser-context> ambient UI
+// state (prepended to the composer text, seen in production), and Claude Code
+// <system-reminder> (seen beside user text and as reminder-only continuations
+// after an assistant turn).
+var tokenAnalysisInjectedContextTags = []string{"environment_context", "in-app-browser-context", "system-reminder"}
+
+// The Codex app introduces the user's own text with this heading after the
+// ambient context; it is client framing only when a wrapper precedes it.
+const tokenAnalysisMyRequestHeading = "## My request:"
 
 // tokenAnalysisInjectedContextOnly reports whether text consists solely of one
 // or more complete injected wrappers. Text outside a wrapper, or an unclosed
 // wrapper, keeps the whole block as user input.
 func tokenAnalysisInjectedContextOnly(text string) bool {
-	rest := strings.TrimSpace(text)
-	if rest == "" {
-		return false
-	}
-	for rest != "" {
+	rest, stripped := stripTokenAnalysisInjectedPrefix(text)
+	return stripped && rest == ""
+}
+
+// stripTokenAnalysisInjectedPrefix removes the complete injected wrappers that
+// lead the text, where clients put them. A wrapper later in the text or an
+// unclosed one is kept: it may be the user quoting the tag.
+func stripTokenAnalysisInjectedPrefix(text string) (rest string, stripped bool) {
+	rest = strings.TrimSpace(text)
+	for {
 		tail, ok := cutTokenAnalysisInjectedWrapper(rest)
 		if !ok {
-			return false
+			break
 		}
-		rest = strings.TrimSpace(tail)
+		rest, stripped = strings.TrimSpace(tail), true
 	}
-	return true
+	if stripped {
+		if body, ok := strings.CutPrefix(rest, tokenAnalysisMyRequestHeading); ok {
+			rest = strings.TrimSpace(body)
+		}
+	}
+	return rest, stripped
 }
 
 func cutTokenAnalysisInjectedWrapper(text string) (tail string, ok bool) {
 	for _, tag := range tokenAnalysisInjectedContextTags {
-		if inner, found := strings.CutPrefix(text, "<"+tag+">"); found {
-			_, tail, closed := strings.Cut(inner, "</"+tag+">")
-			return tail, closed
+		after, found := strings.CutPrefix(text, "<"+tag)
+		// "<tag>" or "<tag attr=...>"; "<tag-other>" is a different element.
+		if !found || after == "" || !strings.ContainsRune("> \t\r\n", rune(after[0])) {
+			continue
 		}
+		end := strings.IndexByte(after, '>')
+		if end < 0 {
+			return "", false
+		}
+		_, tail, closed := strings.Cut(after[end+1:], "</"+tag+">")
+		return tail, closed
 	}
 	return "", false
 }

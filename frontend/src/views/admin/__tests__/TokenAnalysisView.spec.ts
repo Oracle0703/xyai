@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import TokenAnalysisView from '../TokenAnalysisView.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import Select from '@/components/common/Select.vue'
 import Pagination from '@/components/common/Pagination.vue'
 
 const api = vi.hoisted(() => ({
@@ -172,6 +173,9 @@ describe('TokenAnalysisView', () => {
           risk_reasons: [{ code: 'huge_input_tiny_output', message: 'large input tiny output', score: 45 }],
           last_user_preview: 'hello',
           match_confidence: 3,
+          usage_log_id: 11,
+          usage_link_status: 'linked',
+          usage_match_method: 'request_id',
           client_project: 'lag-killer',
           client_branch: 'main',
           has_input: true,
@@ -308,6 +312,63 @@ describe('TokenAnalysisView', () => {
     expect(detail.text()).toContain('admin.tokenAnalysis.requestOrigin.humanHint')
     expect(api.listRequests).toHaveBeenCalledTimes(1)
     expect(api.getRequestInput).not.toHaveBeenCalled()
+  })
+
+  it('shows unknown usage with the billing link status instead of zero tokens', async () => {
+    const base = {
+      event_time: '2026-05-19T01:00:00Z',
+      user_email: 'link@example.com',
+      model: 'gpt-6-astra',
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      actual_cost: 0,
+      risk_score: 0,
+      risk_reasons: [],
+      match_confidence: 0,
+      has_input: false
+    }
+    api.listRequests.mockResolvedValue(pageOf([
+      { ...base, id: 1, archive_id: 'linked', usage_log_id: 9, usage_link_status: 'linked', usage_match_method: 'timing', input_tokens: 294, output_tokens: 547, cache_read_tokens: 156288, actual_cost: 0.186578, match_confidence: 3 },
+      { ...base, id: 2, archive_id: 'unlinked', usage_link_status: 'unlinked' },
+      { ...base, id: 3, archive_id: 'failed', usage_link_status: 'failed', response_status: 502 },
+      { ...base, id: 4, archive_id: 'probe', usage_link_status: 'not_billable', endpoint: '/v1/messages/count_tokens' },
+      // 旧接口没有 usage_link_status: 无 usage_log_id 按未关联处理。
+      { ...base, id: 5, archive_id: 'old-api' }
+    ], 5))
+    const wrapper = mountView()
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="token-analysis-request-details"] tbody tr')
+    const usageCell = (index: number) => rows[index].findAll('td')[5]
+    expect(usageCell(0).text()).toContain('157,129')
+    expect(usageCell(0).text()).toContain('$0.1866')
+    expect(usageCell(0).find('[data-testid="request-usage-link"]').exists()).toBe(false)
+    ;(['unlinked', 'failed', 'not_billable', 'unlinked'] as const).forEach((status, offset) => {
+      const cell = usageCell(offset + 1)
+      expect(cell.text()).toContain('—')
+      expect(cell.text()).not.toContain('$0')
+      const tag = cell.get('[data-testid="request-usage-link"]')
+      expect(tag.text()).toBe(`admin.tokenAnalysis.usageLink.statuses.${status}`)
+      expect(tag.attributes('title')).toBe(`admin.tokenAnalysis.usageLink.statusHints.${status}`)
+    })
+
+    await rows[1].trigger('click')
+    await flushPromises()
+    let detail = wrapper.get('[data-testid="request-usage-link-detail"]')
+    expect(detail.text()).not.toMatch(/\d/)
+    expect(detail.text()).toContain('admin.tokenAnalysis.usageLink.statusHints.unlinked')
+    const drawer = wrapper.get('[data-testid="token-analysis-request-drawer"]')
+    expect(drawer.text()).toContain('admin.tokenAnalysis.usageLink.title')
+    expect(drawer.text()).not.toContain('admin.tokenAnalysis.usageLink.methods')
+
+    await rows[0].trigger('click')
+    await flushPromises()
+    detail = wrapper.get('[data-testid="request-usage-link-detail"]')
+    expect(detail.text()).toContain('547')
+    expect(detail.text()).not.toContain('admin.tokenAnalysis.usageLink.statusHints')
+    expect(wrapper.get('[data-testid="token-analysis-request-drawer"]').text()).toContain('admin.tokenAnalysis.usageLink.methods.timing')
   })
 
   it('hides the manual index action for sub admins', async () => {
@@ -943,6 +1004,31 @@ describe('TokenAnalysisView', () => {
     const lastCall = api.listRequests.mock.calls.at(-1)![0]
     expect(lastCall.project).toBeUndefined()
     expect(lastCall.risk_reason).toBe('huge_input_tiny_output')
+  })
+
+  it('filters every archive view by call origin and clears it from the chip', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const originSelect = wrapper.get('[data-testid="token-analysis-origin-filter"]').findComponent(Select)
+    expect((originSelect.props('options') as Array<{ value: string }>).map((option) => option.value)).toEqual(['', 'human', 'ai', 'unknown'])
+
+    originSelect.vm.$emit('update:model-value', 'ai')
+    await flushPromises()
+    for (const call of [api.getSummary, api.listUsers, api.listProjects, api.listRequests]) {
+      expect(call).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'ai' }))
+    }
+    const chips = wrapper.get('[data-testid="token-analysis-active-filters"]')
+    expect(chips.text()).toContain('admin.tokenAnalysis.requestOrigin.label: admin.tokenAnalysis.requestOrigin.ai')
+
+    originSelect.vm.$emit('update:model-value', 'unknown')
+    await flushPromises()
+    expect(api.listRequests).toHaveBeenLastCalledWith(expect.objectContaining({ origin: 'unknown' }))
+    expect(chips.text()).toContain('admin.tokenAnalysis.requestOrigin.notIdentified')
+
+    await chips.get('button[aria-label="admin.tokenAnalysis.removeFilter"]').trigger('click')
+    await flushPromises()
+    expect(api.listRequests.mock.calls.at(-1)![0].origin).toBeUndefined()
+    expect(originSelect.props('modelValue')).toBe('')
   })
 
   it('resets dimension filters and dates back to today', async () => {

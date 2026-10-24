@@ -4,7 +4,7 @@ export default {
     description: 'View department usage, cache hits, and suspicious token waste requests',
     indexNow: 'Index Range',
     riskMin: 'Risk',
-    includeUnmatched: 'Include unmatched',
+    includeUnmatched: 'Rankings include unlinked',
     indexStatus: 'Index status',
     processed: 'Processed',
     failed: 'Failed',
@@ -22,7 +22,7 @@ export default {
     moreFilters: 'More filters',
     reset: 'Reset',
     query: 'Search',
-    includeUnmatchedHelp: 'Include archived requests without a matching billing record; affects the user/project rankings and request list. The overview always includes them.',
+    includeUnmatchedHelp: 'Count requests not yet linked to a billing record in the user/project ranking request counts (tokens and cost only include linked requests). The request list always shows every indexed request with its billing link status; the overview always includes them.',
     activeFilters: 'Filtered by',
     noActiveFilters: 'No extra filters',
     removeFilter: 'Remove filter {name}',
@@ -46,7 +46,7 @@ export default {
     overview: 'Overview',
     help: {
       archivedRequests: 'Archived and indexed request samples, not all requests. Compare with billed requests to see archive coverage.',
-      matchedOnly: 'Only requests matched to a billing record are counted; unmatched requests count as 0.'
+      matchedOnly: 'Only requests linked to a billing record are counted; tokens and cost of unlinked requests are unknown and excluded.'
     },
     matchedUnmatched: 'Matched / Unmatched',
     riskReasonKinds: 'Risk types',
@@ -67,12 +67,15 @@ export default {
     outputInputRatioHelp: 'Output tokens ÷ input tokens. Below {threshold} is shown in red: large input, little output.',
     requestDetailsHint: 'Click a row for details and the full input',
     requestOrigin: {
-      label: 'Request origin',
+      label: 'Origin of this call',
       human: 'Human',
       ai: 'AI',
       inferred: 'Rule inference',
       notIdentified: 'Not identified yet',
-      hint: 'Inferred from request structure. Human means new user input in this turn; AI means tool continuation or an automated task.',
+      filterAll: 'Origin: all',
+      filterOption: 'Origin: {name}',
+      filterHint: 'Filters the overview, rankings and request list by the origin of each call; "Not identified yet" includes older records indexed before origin detection. The billing trend and billed request count are not affected.',
+      hint: 'Inferred from the structure of this call. Human means new user input in this turn; AI means tool continuation or an automated task. "Latest user input" is the most recent user text in the conversation, so tool continuations in the same turn show the same text.',
       humanHint: 'Human is inferred from the user input structure and does not prove a person manually sent the request. Internal requests from clients such as Claude Code or Copilot (subagents, auto-compaction, title generation), and scripts or programs that call the API with plain user messages, carry no explicit marker and may also show as Human. Unclassified historical records show —.',
       reason: 'Reason',
       confidence: 'Inference confidence',
@@ -94,6 +97,32 @@ export default {
         unsupported_shape: 'This request structure is not supported for origin inference',
         body_truncated: 'The archived request body is truncated, so this turn cannot be classified reliably',
         count_tokens: 'Token-count probe (count_tokens), not a model call'
+      }
+    },
+    usageLink: {
+      title: 'Billing link',
+      status: 'Link status',
+      method: 'Link method',
+      usageLogId: 'Usage log ID',
+      completedAt: 'Completed at',
+      responseStatus: 'Response status',
+      unknownHint: 'Not linked to a billing record; tokens and cost are unknown, not zero',
+      statuses: {
+        linked: 'Linked',
+        unlinked: 'Not linked',
+        failed: 'Failed',
+        not_billable: 'Not billable'
+      },
+      statusHints: {
+        linked: 'Tokens and cost come from the linked billing record',
+        unlinked: 'No unique billing record found yet (it may still be landing or be ambiguous); tokens and cost are unknown and indexing retries automatically',
+        failed: 'Non-2xx response, usually not billed; tokens and cost are unknown',
+        not_billable: 'Token counting probe, not billed'
+      },
+      methods: {
+        request_id: 'Exact request ID',
+        timing: 'Inferred from start/completion time',
+        legacy_window: 'Legacy time window (pending review)'
       }
     },
     requestDetail: 'Request Detail',
@@ -195,7 +224,7 @@ export default {
     cost: 'Cost',
     risk: 'Risk',
     usage: 'Usage',
-    preview: 'Request Preview',
+    preview: 'Latest user input',
     matched: 'Matched',
     unmatchedRate: 'Unmatched Rate',
     riskReasons: 'Risk Reasons',

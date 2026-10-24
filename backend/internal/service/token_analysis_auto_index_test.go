@@ -58,14 +58,14 @@ func TestTokenAnalysisAutoIndexIndexesToday(t *testing.T) {
 	require.Equal(t, "auto1", repo.upserts[0].ArchiveID)
 }
 
-// blockingTokenAnalysisRepoStub 在 FindNearestUsageLog 阻塞直到 ctx 取消,
-// 模拟一轮长索引(每行索引都会经过 usage 匹配)。
+// blockingTokenAnalysisRepoStub 在 FindUsageLink 阻塞直到 ctx 取消,
+// 模拟一轮长索引(扫描后的关联轮次逐行查找账单)。
 type blockingTokenAnalysisRepoStub struct {
 	tokenAnalysisRepoStub
 	entered chan struct{}
 }
 
-func (r *blockingTokenAnalysisRepoStub) FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*TokenAnalysisUsageMatch, error) {
+func (r *blockingTokenAnalysisRepoStub) FindUsageLink(ctx context.Context, query TokenAnalysisUsageLinkQuery) (*TokenAnalysisUsageMatch, error) {
 	select {
 	case r.entered <- struct{}{}:
 	default:

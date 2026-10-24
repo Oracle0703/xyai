@@ -18,6 +18,21 @@ const (
 	TokenAnalysisRiskGiantToolOutput       = "giant_tool_output"
 )
 
+// 计费关联方式(usage_match_method)与对外关联状态(usage_link_status)。
+// 存量行 method 为空: 已关联的是旧"开始时间 ±窗口"结果, 由关联轮次复核。
+// released 是内部状态: 弱关联被精确证据夺走账单, 等待重新关联并重算风险。
+const (
+	TokenAnalysisUsageMatchRequestID    = "request_id"
+	TokenAnalysisUsageMatchTiming       = "timing"
+	TokenAnalysisUsageMatchLegacyWindow = "legacy_window"
+	TokenAnalysisUsageMatchReleased     = "released"
+
+	TokenAnalysisUsageLinked      = "linked"
+	TokenAnalysisUsageUnlinked    = "unlinked"
+	TokenAnalysisUsageFailed      = "failed"
+	TokenAnalysisUsageNotBillable = "not_billable"
+)
+
 type TokenAnalysisRiskReason struct {
 	Code    string         `json:"code"`
 	Message string         `json:"message"`
@@ -28,6 +43,7 @@ type TokenAnalysisRiskReason struct {
 type TokenAnalysisRequestSummary struct {
 	ID                   int64                     `json:"id"`
 	ArchiveID            string                    `json:"archive_id"`
+	ClientRequestID      string                    `json:"client_request_id,omitempty"`
 	UsageLogID           *int64                    `json:"usage_log_id,omitempty"`
 	MatchConfidence      int16                     `json:"match_confidence"`
 	EventTime            time.Time                 `json:"event_time"`
@@ -124,6 +140,9 @@ type TokenAnalysisFilters struct {
 	RiskMin          int64      `json:"risk_min,omitempty"`
 	RiskReason       string     `json:"risk_reason,omitempty"`
 	IncludeUnmatched bool       `json:"include_unmatched,omitempty"`
+	// Origin 按本次调用来源过滤: human/ai 匹配 summary_json.request_origin.kind;
+	// unknown 含 kind=unknown 与尚未写入来源的旧行(与页面显示 "—" 一致)。
+	Origin string `json:"origin,omitempty"`
 	// Project 按客户端项目过滤; 特殊值 "unattributed" 表示未归因(client_project 为空)。
 	Project string `json:"project,omitempty"`
 	// UserEmail 按成员邮箱模糊搜索, 仅作用于项目消耗排行与请求明细(两表均 JOIN users)。
@@ -196,10 +215,16 @@ type TokenAnalysisProjectUsage struct {
 }
 
 type TokenAnalysisRequestItem struct {
-	ID                   int64                     `json:"id"`
-	ArchiveID            string                    `json:"archive_id"`
-	UsageLogID           *int64                    `json:"usage_log_id,omitempty"`
-	MatchConfidence      int16                     `json:"match_confidence"`
+	ID              int64  `json:"id"`
+	ArchiveID       string `json:"archive_id"`
+	UsageLogID      *int64 `json:"usage_log_id,omitempty"`
+	MatchConfidence int16  `json:"match_confidence"`
+	// UsageLinkStatus 区分已关联/未关联/请求失败/不计费; 非 linked 时 Token 与
+	// 费用字段为 0 只是占位, 不代表真实零消耗。UsageMatchMethod 仅 linked 时有值。
+	UsageLinkStatus      string                    `json:"usage_link_status"`
+	UsageMatchMethod     string                    `json:"usage_match_method,omitempty"`
+	CompletedAt          *time.Time                `json:"completed_at,omitempty"`
+	ResponseStatus       *int                      `json:"response_status,omitempty"`
 	EventTime            time.Time                 `json:"event_time"`
 	UserID               *int64                    `json:"user_id,omitempty"`
 	UserEmail            string                    `json:"user_email"`
@@ -244,6 +269,7 @@ type TokenAnalysisRequestItem struct {
 type TokenAnalysisUsageMatch struct {
 	UsageLogID          int64
 	MatchConfidence     int16
+	Method              string
 	InputTokens         int
 	OutputTokens        int
 	CacheReadTokens     int
@@ -261,6 +287,78 @@ func (m TokenAnalysisUsageMatch) UsageSignals() TokenAnalysisUsageSignals {
 		TotalCost:           m.TotalCost,
 		ActualCost:          m.ActualCost,
 	}
+}
+
+// TokenAnalysisResponseFacts 是归档 response 行的完成事实, 用于计费关联。
+type TokenAnalysisResponseFacts struct {
+	ArchiveID    string
+	CompletedAt  time.Time
+	Status       int
+	OutputTokens *int64
+	// ResponseID 是响应体里的上游 response.id; WS 上游计费以它为 request_id。
+	ResponseID string
+}
+
+// TokenAnalysisUsageLinkQuery 描述一次计费关联查找。精确关联键为
+// "client:<ClientRequestID>" 与 ResponseID(同 api_key_id 下唯一)。时序兜底只在
+// ExactOnly=false 时进行, 见仓储 findUsageByTiming 的约束。
+type TokenAnalysisUsageLinkQuery struct {
+	ArchiveID       string
+	ClientRequestID string
+	ResponseID      string
+	StartedAt       time.Time
+	CompletedAt     *time.Time
+	OutputTokens    *int64
+	UserID          *int64
+	APIKeyID        *int64
+	Model           string
+	ExactOnly       bool
+	Window          time.Duration
+}
+
+// TokenAnalysisUsageLinkState 是查找前读到的关联状态与复核版本。写入和确认都按它
+// 做条件更新: 这一行已被其他索引实例改过、或其后又出现新的复核事件(完成事实变化、
+// 账单被夺回)时放弃, 陈旧结果既不能覆盖较新的关联, 也不能确认掉新的复核任务。
+// KeepPending: 写入后不确认该版本, 复核任务继续保留(仍在等待晚到账单)。
+type TokenAnalysisUsageLinkState struct {
+	UsageLogID  *int64
+	Method      string
+	Version     int64
+	KeepPending bool
+}
+
+// TokenAnalysisUsageLinkWrite 是一次关联写入的结果: Applied=false 表示账单已被
+// 其他请求认领或本行状态已变(并发索引); Displaced 表示精确关联从弱关联行夺回了账单。
+type TokenAnalysisUsageLinkWrite struct {
+	Applied   bool
+	Displaced bool
+}
+
+// TokenAnalysisUsageLinkCandidate 是待关联或待复核旧关联的已索引请求, 附带
+// 重算风险分所需的 body 侧信号(关联变化会改变依赖 usage 的风险原因)。
+type TokenAnalysisUsageLinkCandidate struct {
+	ID              int64
+	ArchiveID       string
+	ClientRequestID string
+	ResponseID      string
+	EventTime       time.Time
+	CompletedAt     *time.Time
+	ResponseStatus  *int
+	OutputTokens    *int64
+	UserID          *int64
+	APIKeyID        *int64
+	Model           string
+	UsageLogID      *int64
+	Method          string
+	// LinkVersion 为读到的复核版本; LinkPending 表示该版本尚未确认(完成事实变化
+	// 或账单被夺回), 需要不受日期范围限制地重新关联。RetryUntil 为等待晚到账单的截止时间。
+	LinkVersion int64
+	LinkPending bool
+	RetryUntil  *time.Time
+	BodySHA256  string
+	Body        TokenAnalysisBodySummary
+	// SameBodyRecentCount 为索引时计入风险的重复数; 旧行未记录时为 nil。
+	SameBodyRecentCount *int
 }
 
 type TokenAnalysisIndexRequest struct {
@@ -299,7 +397,20 @@ type TokenAnalysisIndexState struct {
 
 type TokenAnalysisRepository interface {
 	UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error
-	FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*TokenAnalysisUsageMatch, error)
+	// RecordResponse 写入归档 response 行的完成事实; 请求行尚未入库(跨日文件
+	// 逆序索引)时暂存, 由 MergePendingResponses 补合并。
+	RecordResponse(ctx context.Context, facts TokenAnalysisResponseFacts) error
+	// MergePendingResponses 把已有请求行的暂存完成事实写回, 并清理过期暂存。
+	MergePendingResponses(ctx context.Context) error
+	// ListUsageLinkCandidates 按 id 续读 [start,end) 内非 count_tokens 的待关联行:
+	// 未关联、旧窗口关联、被夺回账单的行, 以及可被精确证据纠正的时序关联行。
+	ListUsageLinkCandidates(ctx context.Context, start, end time.Time, afterID int64, limit int) ([]TokenAnalysisUsageLinkCandidate, error)
+	FindUsageLink(ctx context.Context, query TokenAnalysisUsageLinkQuery) (*TokenAnalysisUsageMatch, error)
+	// SetUsageLink 写入关联结果与重算后的风险; match 为 nil 表示解除关联。按 expected
+	// 条件更新, 认领在数据库内按账单加锁原子完成; 除非 KeepPending, 同时确认读到的版本。
+	SetUsageLink(ctx context.Context, archiveID string, expected TokenAnalysisUsageLinkState, match *TokenAnalysisUsageMatch, riskScore int, riskReasons []TokenAnalysisRiskReason) (TokenAnalysisUsageLinkWrite, error)
+	// ClearUsageLinkPending 在复核后无需改动时确认读到的复核版本; 版本已变化时不生效。
+	ClearUsageLinkPending(ctx context.Context, archiveID string, version int64) error
 	CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error)
 	GetSummary(ctx context.Context, filters TokenAnalysisFilters) (*TokenAnalysisSummary, error)
 	// CountBilledRequests 统计同期 usage_logs 计费请求数(覆盖率分母)。
@@ -323,18 +434,23 @@ type TokenAnalysisRepository interface {
 }
 
 type tokenAnalysisArchiveEvent struct {
-	ArchiveID string `json:"archive_id"`
-	Event     string `json:"event"`
-	Timestamp string `json:"timestamp"`
-	Method    string `json:"method"`
-	Path      string `json:"path"`
-	Endpoint  string `json:"endpoint"`
-	UserID    *int64 `json:"user_id"`
-	APIKeyID  *int64 `json:"api_key_id"`
-	GroupID   *int64 `json:"group_id"`
-	AccountID *int64 `json:"account_id"`
-	Model     string `json:"model"`
-	UserAgent string `json:"user_agent"`
+	ArchiveID       string `json:"archive_id"`
+	ClientRequestID string `json:"client_request_id"`
+	Event           string `json:"event"`
+	Timestamp       string `json:"timestamp"`
+	// Status/Usage/ResponseID 只出现在 response 行。
+	Status     int            `json:"status"`
+	Usage      map[string]any `json:"usage"`
+	ResponseID string         `json:"response_id"`
+	Method     string         `json:"method"`
+	Path       string         `json:"path"`
+	Endpoint   string         `json:"endpoint"`
+	UserID     *int64         `json:"user_id"`
+	APIKeyID   *int64         `json:"api_key_id"`
+	GroupID    *int64         `json:"group_id"`
+	AccountID  *int64         `json:"account_id"`
+	Model      string         `json:"model"`
+	UserAgent  string         `json:"user_agent"`
 	// Headers 只取归档 header 白名单中与解析相关的键: content_type 用于
 	// 识别 multipart 归档体(/v1/images/edits 图改图等)。
 	Headers struct {

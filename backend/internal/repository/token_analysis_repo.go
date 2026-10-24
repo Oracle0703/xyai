@@ -40,7 +40,8 @@ INSERT INTO token_analysis_request_summaries (
     request_body_size, request_body_truncated, body_sha256,
     message_count, system_chars, user_chars, last_user_preview, tools_count, image_count,
     summary_json, risk_score, risk_reasons, source_file, source_offset,
-    client_workdir, client_project, client_branch, attribution_source
+    client_workdir, client_project, client_branch, attribution_source,
+    client_request_id
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8,
@@ -48,11 +49,14 @@ INSERT INTO token_analysis_request_summaries (
     $12, $13, $14,
     $15, $16, $17, $18, $19, $20,
     $21::jsonb, $22, $23::jsonb, $24, $25,
-    $26, $27, $28, $29
+    $26, $27, $28, $29,
+    $30
 )
 ON CONFLICT (archive_id) DO UPDATE SET
     usage_log_id = EXCLUDED.usage_log_id,
     match_confidence = EXCLUDED.match_confidence,
+    usage_match_method = '',
+    client_request_id = EXCLUDED.client_request_id,
     event_time = EXCLUDED.event_time,
     user_id = EXCLUDED.user_id,
     api_key_id = EXCLUDED.api_key_id,
@@ -109,6 +113,7 @@ ON CONFLICT (archive_id) DO UPDATE SET
 		summary.ClientProject,
 		summary.ClientBranch,
 		summary.AttributionSource,
+		summary.ClientRequestID,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert token analysis request summary: %w", err)
@@ -116,52 +121,309 @@ ON CONFLICT (archive_id) DO UPDATE SET
 	return nil
 }
 
-func (r *tokenAnalysisRepository) FindNearestUsageLog(ctx context.Context, eventTime time.Time, userID, apiKeyID *int64, model string, window time.Duration) (*service.TokenAnalysisUsageMatch, error) {
-	start := eventTime.Add(-window)
-	end := eventTime.Add(window)
-	args := []any{start, end, eventTime}
-	where := []string{"created_at >= $1", "created_at <= $2"}
-	confidenceParts := make([]string, 0, 3)
-	if userID != nil {
-		args = append(args, *userID)
-		placeholder := fmt.Sprintf("$%d", len(args))
-		where = append(where, "user_id = "+placeholder)
-		confidenceParts = append(confidenceParts, "1")
+func (r *tokenAnalysisRepository) RecordResponse(ctx context.Context, facts service.TokenAnalysisResponseFacts) error {
+	if strings.TrimSpace(facts.ArchiveID) == "" {
+		return nil
 	}
-	if apiKeyID != nil {
-		args = append(args, *apiKeyID)
-		placeholder := fmt.Sprintf("$%d", len(args))
-		where = append(where, "api_key_id = "+placeholder)
-		confidenceParts = append(confidenceParts, "1")
+	var status any
+	if facts.Status > 0 {
+		status = facts.Status
 	}
-	if strings.TrimSpace(model) != "" {
-		args = append(args, strings.TrimSpace(model))
-		placeholder := fmt.Sprintf("$%d", len(args))
-		where = append(where, "(model = "+placeholder+" OR requested_model = "+placeholder+" OR upstream_model = "+placeholder+")")
-		confidenceParts = append(confidenceParts, "1")
+	args := []any{facts.ArchiveID, facts.CompletedAt, status, nullableInt64(facts.OutputTokens), facts.ResponseID}
+	// 完成事实变化时登记一次复核(不受请求日期范围限制): 跨日请求的 response 在
+	// 后一日文件里, 弱关联也要按新的状态/完成时间复核; 精确关联与探测行不需要。
+	result, err := r.db.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries
+SET completed_at = $2, response_status = $3, response_output_tokens = $4, response_id = $5,
+    `+tokenAnalysisUsageLinkRecheckWhen("", tokenAnalysisResponseFactsChanged("", "$2", "$3", "$5"))+`
+WHERE archive_id = $1`, args...)
+	if err != nil {
+		return fmt.Errorf("record token analysis response: %w", err)
 	}
-	confidenceExpr := "1"
-	if len(confidenceParts) > 0 {
-		confidenceExpr = strings.Join(confidenceParts, " + ")
+	if updated, err := result.RowsAffected(); err != nil || updated > 0 {
+		return err
 	}
+	// 请求行在前一日文件里且尚未索引(跨日文件逆序回填): 暂存, 请求行入库后合并。
+	if _, err := r.db.ExecContext(ctx, `
+INSERT INTO token_analysis_pending_responses (archive_id, completed_at, response_status, response_output_tokens, response_id)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (archive_id) DO UPDATE SET
+    completed_at = EXCLUDED.completed_at,
+    response_status = EXCLUDED.response_status,
+    response_output_tokens = EXCLUDED.response_output_tokens,
+    response_id = EXCLUDED.response_id,
+    recorded_at = NOW()`, args...); err != nil {
+		return fmt.Errorf("stash token analysis response: %w", err)
+	}
+	return nil
+}
 
-	query := `
+// tokenAnalysisResponseFactsChanged 判断写回的完成事实是否改变了未精确关联的行
+// (SET 表达式读到的是更新前的列值)。
+func tokenAnalysisResponseFactsChanged(alias, completedAt, status, responseID string) string {
+	return `(` + alias + `completed_at IS DISTINCT FROM ` + completedAt + ` OR ` + alias + `response_status IS DISTINCT FROM ` + status +
+		` OR ` + alias + `response_id <> ` + responseID + `)
+        AND ` + alias + `usage_match_method <> 'request_id' AND ` + alias + `endpoint NOT LIKE '%/count_tokens'`
+}
+
+// 复核事件后, 带关联键的成功请求等待晚到账单的时长; 期满仍无证据即确认未关联。
+const tokenAnalysisUsageLinkRetryWindow = 48 * time.Hour
+
+// tokenAnalysisUsageLinkRecheckWhen 在 cond 成立时登记一次复核: 版本加一并重置
+// 等待晚到账单的截止时间(SET 片段, 列不带别名前缀时 alias 传空)。
+func tokenAnalysisUsageLinkRecheckWhen(alias, cond string) string {
+	return fmt.Sprintf(`usage_link_version = %[1]susage_link_version + CASE WHEN %[2]s THEN 1 ELSE 0 END,
+    usage_link_retry_until = CASE WHEN %[2]s THEN NOW() + INTERVAL '%[3]d seconds' ELSE %[1]susage_link_retry_until END`,
+		alias, cond, int64(tokenAnalysisUsageLinkRetryWindow.Seconds()))
+}
+
+// 请求行一直没有入库(归档队列丢弃)的暂存完成事实保留期。
+const tokenAnalysisPendingResponseTTL = 7 * 24 * time.Hour
+
+func (r *tokenAnalysisRepository) MergePendingResponses(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, `
+WITH merged AS (
+    UPDATE token_analysis_request_summaries s
+    SET completed_at = p.completed_at,
+        response_status = p.response_status,
+        response_output_tokens = p.response_output_tokens,
+        response_id = p.response_id,
+        `+tokenAnalysisUsageLinkRecheckWhen("s.", tokenAnalysisResponseFactsChanged("s.", "p.completed_at", "p.response_status", "p.response_id"))+`
+    FROM token_analysis_pending_responses p
+    WHERE s.archive_id = p.archive_id
+    RETURNING s.archive_id
+)
+DELETE FROM token_analysis_pending_responses p
+WHERE p.archive_id IN (SELECT archive_id FROM merged) OR p.recorded_at < $1`, time.Now().Add(-tokenAnalysisPendingResponseTTL)); err != nil {
+		return fmt.Errorf("merge token analysis pending responses: %w", err)
+	}
+	return nil
+}
+
+func (r *tokenAnalysisRepository) ListUsageLinkCandidates(ctx context.Context, start, end time.Time, afterID int64, limit int) ([]service.TokenAnalysisUsageLinkCandidate, error) {
+	rows, err := r.db.QueryContext(ctx, `
 SELECT
-    id,
-    input_tokens,
-    output_tokens,
-    cache_read_tokens,
-    cache_creation_tokens,
-    total_cost,
-    actual_cost,
-    (` + confidenceExpr + `)::smallint AS confidence
-FROM usage_logs
-WHERE ` + strings.Join(where, " AND ") + `
-ORDER BY ABS(EXTRACT(EPOCH FROM (created_at - $3::timestamptz))) ASC, id DESC
-LIMIT 1`
+    s.id, s.archive_id, s.client_request_id, s.response_id, s.event_time, s.completed_at, s.response_status,
+    s.response_output_tokens, s.user_id, s.api_key_id, s.model, s.usage_log_id, s.usage_match_method,
+    s.usage_link_version, s.usage_link_version <> s.usage_link_checked_version, s.usage_link_retry_until, s.body_sha256,
+    s.system_chars, s.user_chars, s.tools_count,
+    COALESCE((s.summary_json->>'tool_message_count')::bigint, 0),
+    COALESCE((s.summary_json->>'tool_output_bytes')::bigint, 0),
+    COALESCE((s.summary_json->>'max_tool_output_bytes')::bigint, 0),
+    (s.summary_json->>'same_body_recent_count')::int
+FROM token_analysis_request_summaries s
+WHERE s.id > $3
+    AND (s.usage_link_version <> s.usage_link_checked_version OR (s.event_time >= $1 AND s.event_time < $2))
+    AND s.endpoint NOT LIKE '%/count_tokens'
+    AND (s.usage_link_version <> s.usage_link_checked_version OR s.usage_match_method IN ('', 'released')
+        OR (s.usage_match_method = 'timing' AND (s.client_request_id <> '' OR s.response_id <> '')))
+ORDER BY s.id
+LIMIT $4`, start, end, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list token analysis usage link candidates: %w", err)
+	}
+	defer rows.Close()
 
-	var match service.TokenAnalysisUsageMatch
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+	candidates := make([]service.TokenAnalysisUsageLinkCandidate, 0)
+	for rows.Next() {
+		var c service.TokenAnalysisUsageLinkCandidate
+		var completedAt, retryUntil sql.NullTime
+		var status, sameBody sql.NullInt32
+		var outputTokens, userID, apiKeyID, usageLogID, toolMessages sql.NullInt64
+		if err := rows.Scan(
+			&c.ID, &c.ArchiveID, &c.ClientRequestID, &c.ResponseID, &c.EventTime, &completedAt, &status,
+			&outputTokens, &userID, &apiKeyID, &c.Model, &usageLogID, &c.Method,
+			&c.LinkVersion, &c.LinkPending, &retryUntil, &c.BodySHA256,
+			&c.Body.SystemChars, &c.Body.UserChars, &c.Body.ToolsCount,
+			&toolMessages, &c.Body.ToolOutputBytes, &c.Body.MaxToolOutputBytes,
+			&sameBody,
+		); err != nil {
+			return nil, fmt.Errorf("scan token analysis usage link candidate: %w", err)
+		}
+		if completedAt.Valid {
+			c.CompletedAt = &completedAt.Time
+		}
+		if retryUntil.Valid {
+			c.RetryUntil = &retryUntil.Time
+		}
+		if status.Valid {
+			n := int(status.Int32)
+			c.ResponseStatus = &n
+		}
+		c.OutputTokens = nullableInt64Ptr(outputTokens)
+		c.UserID = nullableInt64Ptr(userID)
+		c.APIKeyID = nullableInt64Ptr(apiKeyID)
+		c.UsageLogID = nullableInt64Ptr(usageLogID)
+		c.Body.ToolMessageCount = int(toolMessages.Int64)
+		if sameBody.Valid {
+			n := int(sameBody.Int32)
+			c.SameBodyRecentCount = &n
+		}
+		candidates = append(candidates, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate token analysis usage link candidates: %w", err)
+	}
+	return candidates, nil
+}
+
+const (
+	// 归档与计费由同一进程按 time.Now 记录: usage 推算的转发开始时间
+	// (created_at - duration_ms)不早于归档请求开始, 只留毫秒取整余量。计费任务
+	// 排队只会让推算值变晚, 所以它只作下界, 不作确认归属的上界。
+	tokenAnalysisUsageLinkStartSlack = 500 * time.Millisecond
+	// 计费任务在转发结束后提交, 归档 response 行在处理器返回后写入: 账单落库
+	// 不会明显早于完成时间。
+	tokenAnalysisUsageLinkCompletionSlack = 2 * time.Second
+	// 完成时间未知(旧行)时账单落库时间的扫描上限, 只为收窄索引范围扫描。
+	tokenAnalysisUsageLinkMaxDuration = 2 * time.Hour
+	tokenAnalysisUsageMatchColumns    = `ul.id, ul.input_tokens, ul.output_tokens, ul.cache_read_tokens,
+    ul.cache_creation_tokens, ul.total_cost, ul.actual_cost`
+	tokenAnalysisUsageForwardStart = "(ul.created_at - COALESCE(ul.duration_ms, 0) * INTERVAL '1 millisecond')"
+	// 附加计费(联网搜索、视频/音频、Gemini 缓存)不是请求的主账单, 不参与时序兜底。
+	tokenAnalysisUsageNotAddOnBill = `ul.request_id NOT LIKE ALL (ARRAY['web_search:%', 'grok-video:%', 'grok_audio:%', 'grok_realtime:%', 'gcache:%'])`
+)
+
+// FindUsageLink 先按关联键精确关联: "client:<client_request_id>"(HTTP 转发)与上游
+// response.id(WS 上游), 两者在同一 api_key_id 下唯一; 精确证据可夺回只被弱关联
+// 占用的账单。ExactOnly 为 false 时再做时序兜底。
+func (r *tokenAnalysisRepository) FindUsageLink(ctx context.Context, q service.TokenAnalysisUsageLinkQuery) (*service.TokenAnalysisUsageMatch, error) {
+	if q.APIKeyID != nil {
+		keys := make([]any, 0, 2)
+		if q.ClientRequestID != "" {
+			keys = append(keys, "client:"+q.ClientRequestID)
+		}
+		if q.ResponseID != "" {
+			keys = append(keys, q.ResponseID)
+		}
+		if len(keys) > 0 {
+			match, err := r.findUsageByRequestID(ctx, q, keys)
+			if err != nil || match != nil {
+				return match, err
+			}
+		}
+	}
+	if q.ExactOnly {
+		return nil, nil
+	}
+	return r.findUsageByTiming(ctx, q)
+}
+
+func (r *tokenAnalysisRepository) findUsageByRequestID(ctx context.Context, q service.TokenAnalysisUsageLinkQuery, keys []any) (*service.TokenAnalysisUsageMatch, error) {
+	placeholders := make([]string, len(keys))
+	for i := range keys {
+		placeholders[i] = fmt.Sprintf("$%d", i+3)
+	}
+	query := `
+SELECT ` + tokenAnalysisUsageMatchColumns + `
+FROM usage_logs ul
+WHERE ul.api_key_id = $1 AND ul.request_id IN (` + strings.Join(placeholders, ", ") + `)
+    AND NOT EXISTS (
+        SELECT 1 FROM token_analysis_request_summaries o
+        WHERE o.usage_log_id = ul.id AND o.archive_id <> $2 AND o.usage_match_method = 'request_id')
+ORDER BY ul.id
+LIMIT 1`
+	row := r.db.QueryRowContext(ctx, query, append([]any{*q.APIKeyID, q.ArchiveID}, keys...)...)
+	return scanTokenAnalysisUsageMatch(row, service.TokenAnalysisUsageMatchRequestID, 3)
+}
+
+// findUsageByTiming 在没有精确证据时按时序推断, 只接受无歧义的结果:
+//   - 账单合理: 同用户/密钥/模型; 推算转发开始不早于请求开始; 有完成时间时账单
+//     耗时不超过请求耗时、在完成时间附近落库; 旧行(无完成时间)要求转发在开始后
+//     window 内启动。
+//   - 账单未被他行占用, 也不属于另一条带关联键请求的精确账单。
+//   - 归属唯一: 没有其他尚未确认关联的同键请求同样能解释这笔账单。计费排队会让
+//     顺序请求在时序上无法区分, 此时保留未关联, 不猜测。
+//
+// 有关联键的新请求只看上游原生 ID(不含 ':')的账单: client: 账单归精确关联。
+func (r *tokenAnalysisRepository) findUsageByTiming(ctx context.Context, q service.TokenAnalysisUsageLinkQuery) (*service.TokenAnalysisUsageMatch, error) {
+	fs := tokenAnalysisUsageForwardStart
+	slackMs := tokenAnalysisUsageLinkStartSlack.Milliseconds()
+	windowMs := q.Window.Milliseconds()
+	completionSlackMs := tokenAnalysisUsageLinkCompletionSlack.Milliseconds()
+	maxDurationMs := tokenAnalysisUsageLinkMaxDuration.Milliseconds()
+
+	args := []any{q.StartedAt.Add(-tokenAnalysisUsageLinkStartSlack), q.StartedAt}
+	where := []string{"ul.created_at >= $1", fs + " >= $1"}
+	var distance string
+	if q.CompletedAt != nil {
+		args = append(args, *q.CompletedAt, q.CompletedAt.Add(-tokenAnalysisUsageLinkCompletionSlack), q.CompletedAt.Add(q.Window),
+			q.CompletedAt.Sub(q.StartedAt).Milliseconds()+slackMs)
+		where = append(where, "ul.created_at BETWEEN $4 AND $5", "COALESCE(ul.duration_ms, 0) <= $6")
+		distance = "ABS(EXTRACT(EPOCH FROM (ul.created_at - $3::timestamptz))), ABS(EXTRACT(EPOCH FROM (" + fs + " - $2::timestamptz)))"
+	} else {
+		args = append(args, q.StartedAt.Add(q.Window), q.StartedAt.Add(tokenAnalysisUsageLinkMaxDuration))
+		where = append(where, fs+" <= $3", "ul.created_at <= $4")
+		distance = "ABS(EXTRACT(EPOCH FROM (" + fs + " - $2::timestamptz)))"
+	}
+	add := func(expr string, value any) string {
+		args = append(args, value)
+		return fmt.Sprintf(expr, len(args))
+	}
+	confidence := int16(0)
+	if q.UserID != nil {
+		where = append(where, add("ul.user_id = $%d", *q.UserID))
+		confidence++
+	}
+	if q.APIKeyID != nil {
+		where = append(where, add("ul.api_key_id = $%d", *q.APIKeyID))
+		confidence++
+	}
+	if model := strings.TrimSpace(q.Model); model != "" {
+		placeholder := add("$%d", model)
+		where = append(where, "(ul.model = "+placeholder+" OR ul.requested_model = "+placeholder+" OR ul.upstream_model = "+placeholder+")")
+		confidence++
+	}
+	if confidence == 0 {
+		confidence = 1
+	}
+	if q.ClientRequestID != "" {
+		where = append(where, "strpos(ul.request_id, ':') = 0")
+	}
+	me := add("$%d", q.ArchiveID)
+	where = append(where, tokenAnalysisUsageNotAddOnBill,
+		`NOT EXISTS (
+        SELECT 1 FROM token_analysis_request_summaries o
+        WHERE o.usage_log_id = ul.id AND o.archive_id <> `+me+`)`,
+		`NOT EXISTS (
+        SELECT 1 FROM token_analysis_request_summaries o
+        WHERE o.archive_id <> `+me+` AND (
+            (o.client_request_id <> '' AND ul.request_id LIKE 'client:%' AND o.client_request_id = substr(ul.request_id, 8))
+            OR (o.response_id <> '' AND o.response_id = ul.request_id)))`,
+		fmt.Sprintf(`NOT EXISTS (
+        SELECT 1 FROM token_analysis_request_summaries c
+        WHERE c.archive_id <> %[1]s
+            AND c.user_id = ul.user_id AND c.api_key_id = ul.api_key_id
+            AND c.model IN (ul.model, ul.requested_model, ul.upstream_model)
+            AND c.endpoint NOT LIKE '%%/count_tokens'
+            AND (c.response_status IS NULL OR c.response_status BETWEEN 200 AND 299)
+            AND (c.usage_log_id IS NULL OR c.usage_match_method IN ('', 'released'))
+            AND (c.client_request_id = '' OR (c.response_id = '' AND strpos(ul.request_id, ':') = 0))
+            AND c.event_time >= ul.created_at - INTERVAL '%[2]d milliseconds'
+            AND c.event_time <= %[3]s + INTERVAL '%[4]d milliseconds'
+            AND CASE WHEN c.completed_at IS NULL
+                THEN %[3]s <= c.event_time + INTERVAL '%[5]d milliseconds'
+                ELSE ul.created_at BETWEEN c.completed_at - INTERVAL '%[6]d milliseconds' AND c.completed_at + INTERVAL '%[5]d milliseconds'
+                    AND COALESCE(ul.duration_ms, 0) <= EXTRACT(EPOCH FROM (c.completed_at - c.event_time)) * 1000 + %[4]d
+            END)`, me, maxDurationMs, fs, slackMs, windowMs, completionSlackMs),
+	)
+	orderBy := distance + ", ul.id"
+	if q.OutputTokens != nil {
+		orderBy = add("CASE WHEN ul.output_tokens = $%d THEN 0 ELSE 1 END, ", *q.OutputTokens) + orderBy
+	}
+	query := `
+SELECT ` + tokenAnalysisUsageMatchColumns + `
+FROM usage_logs ul
+WHERE ` + strings.Join(where, "\n    AND ") + `
+ORDER BY ` + orderBy + `
+LIMIT 1`
+	row := r.db.QueryRowContext(ctx, query, args...)
+	return scanTokenAnalysisUsageMatch(row, service.TokenAnalysisUsageMatchTiming, confidence)
+}
+
+func scanTokenAnalysisUsageMatch(row *sql.Row, method string, confidence int16) (*service.TokenAnalysisUsageMatch, error) {
+	match := service.TokenAnalysisUsageMatch{Method: method, MatchConfidence: confidence}
+	err := row.Scan(
 		&match.UsageLogID,
 		&match.InputTokens,
 		&match.OutputTokens,
@@ -169,15 +431,108 @@ LIMIT 1`
 		&match.CacheCreationTokens,
 		&match.TotalCost,
 		&match.ActualCost,
-		&match.MatchConfidence,
 	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("find nearest usage log: %w", err)
+		return nil, fmt.Errorf("find token analysis usage link: %w", err)
 	}
 	return &match, nil
+}
+
+// 条件更新: 只有关联状态与复核版本仍是查找前读到的值时才写入($7/$8/$9 为读到的
+// usage_log_id、usage_match_method 与版本), 陈旧结果既不能覆盖其他索引实例刚写入的
+// 关联, 也不能确认其后登记的复核; $10 为 true 时不确认版本(继续等待晚到账单)。
+const tokenAnalysisSetUsageLinkSQL = `
+UPDATE token_analysis_request_summaries
+SET usage_log_id = $2, match_confidence = $3, usage_match_method = $4, risk_score = $5, risk_reasons = $6::jsonb,
+    usage_link_checked_version = CASE WHEN $10::boolean THEN usage_link_checked_version ELSE $9 END
+WHERE archive_id = $1 AND usage_log_id IS NOT DISTINCT FROM $7 AND usage_match_method = $8 AND usage_link_version = $9`
+
+// SetUsageLink 认领账单时按账单 ID 取事务级咨询锁: 多个索引实例并发认领同一账单
+// 时串行执行, 后到者在锁内看到先到者已提交的认领而放弃。精确关联可夺回仅被
+// 弱关联(时序/旧窗口)占用的账单, 原占用行置为 released 并登记复核, 由下一轮
+// 不受日期范围限制地重关联或解除、重算风险。所有写入按 expected 条件更新。
+func (r *tokenAnalysisRepository) SetUsageLink(ctx context.Context, archiveID string, expected service.TokenAnalysisUsageLinkState, match *service.TokenAnalysisUsageMatch, riskScore int, riskReasons []service.TokenAnalysisRiskReason) (service.TokenAnalysisUsageLinkWrite, error) {
+	reasons, err := json.Marshal(riskReasons)
+	if err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("marshal token analysis risk reasons: %w", err)
+	}
+	if match == nil {
+		result, err := r.db.ExecContext(ctx, tokenAnalysisSetUsageLinkSQL, archiveID, nil, int16(0), "", riskScore, string(reasons),
+			nullableInt64(expected.UsageLogID), expected.Method, expected.Version, expected.KeepPending)
+		if err != nil {
+			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("clear token analysis usage link: %w", err)
+		}
+		updated, err := result.RowsAffected()
+		if err != nil {
+			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("clear token analysis usage link: %w", err)
+		}
+		return service.TokenAnalysisUsageLinkWrite{Applied: updated > 0}, nil
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("begin token analysis usage link: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('token_analysis_usage_claim:' || $1::text, 0))`, match.UsageLogID); err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("lock token analysis usage claim: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, `
+SELECT usage_match_method FROM token_analysis_request_summaries
+WHERE usage_log_id = $1 AND archive_id <> $2
+FOR UPDATE`, match.UsageLogID, archiveID)
+	if err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("check token analysis usage claim: %w", err)
+	}
+	displaced := false
+	for rows.Next() {
+		var method string
+		if err := rows.Scan(&method); err != nil {
+			_ = rows.Close()
+			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("scan token analysis usage claim: %w", err)
+		}
+		if method == service.TokenAnalysisUsageMatchRequestID || match.Method != service.TokenAnalysisUsageMatchRequestID {
+			_ = rows.Close()
+			return service.TokenAnalysisUsageLinkWrite{}, nil
+		}
+		displaced = true
+	}
+	if err := rows.Close(); err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("check token analysis usage claim: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, tokenAnalysisSetUsageLinkSQL, archiveID, match.UsageLogID, match.MatchConfidence, match.Method, riskScore, string(reasons),
+		nullableInt64(expected.UsageLogID), expected.Method, expected.Version, expected.KeepPending)
+	if err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("set token analysis usage link: %w", err)
+	}
+	if updated, err := result.RowsAffected(); err != nil || updated == 0 {
+		return service.TokenAnalysisUsageLinkWrite{}, err
+	}
+	if displaced {
+		if _, err := tx.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries
+SET usage_log_id = NULL, match_confidence = 0, usage_match_method = 'released',
+    `+tokenAnalysisUsageLinkRecheckWhen("", "TRUE")+`
+WHERE usage_log_id = $1 AND archive_id <> $2`, match.UsageLogID, archiveID); err != nil {
+			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("release token analysis usage claim: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("commit token analysis usage link: %w", err)
+	}
+	return service.TokenAnalysisUsageLinkWrite{Applied: true, Displaced: displaced}, nil
+}
+
+func (r *tokenAnalysisRepository) ClearUsageLinkPending(ctx context.Context, archiveID string, version int64) error {
+	if _, err := r.db.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries SET usage_link_checked_version = $2
+WHERE archive_id = $1 AND usage_link_version = $2 AND usage_link_checked_version <> $2`, archiveID, version); err != nil {
+		return fmt.Errorf("clear token analysis usage link pending: %w", err)
+	}
+	return nil
 }
 
 func (r *tokenAnalysisRepository) CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error) {
@@ -503,7 +858,7 @@ func (r *tokenAnalysisRepository) ListRequests(ctx context.Context, filters serv
 	queryArgs = append(queryArgs, params.Limit(), params.Offset())
 	query := `
 SELECT
-    s.id, s.archive_id, s.usage_log_id, s.match_confidence, s.event_time,
+    s.id, s.archive_id, s.usage_log_id, s.match_confidence, s.usage_match_method, s.completed_at, s.response_status, s.event_time,
     s.user_id, COALESCE(u.email, '') AS user_email,
     s.api_key_id, COALESCE(k.name, '') AS api_key_name,
     s.account_id, s.group_id, s.model, s.endpoint, s.method,
@@ -786,12 +1141,17 @@ func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenA
 	var item service.TokenAnalysisRequestItem
 	var usageLogID, userID, apiKeyID, accountID, groupID sql.NullInt64
 	var qualityScore sql.NullInt16
+	var completedAt sql.NullTime
+	var responseStatus sql.NullInt32
 	var summaryRaw, reasonsRaw []byte
 	if err := rows.Scan(
 		&item.ID,
 		&item.ArchiveID,
 		&usageLogID,
 		&item.MatchConfidence,
+		&item.UsageMatchMethod,
+		&completedAt,
+		&responseStatus,
 		&item.EventTime,
 		&userID,
 		&item.UserEmail,
@@ -836,6 +1196,13 @@ func scanTokenAnalysisRequestItem(rows tokenAnalysisRowsScanner) (service.TokenA
 	}
 	if usageLogID.Valid {
 		item.UsageLogID = &usageLogID.Int64
+	}
+	if completedAt.Valid {
+		item.CompletedAt = &completedAt.Time
+	}
+	if responseStatus.Valid {
+		status := int(responseStatus.Int32)
+		item.ResponseStatus = &status
 	}
 	if userID.Valid {
 		item.UserID = &userID.Int64
@@ -903,6 +1270,12 @@ func buildTokenAnalysisWhere(filters service.TokenAnalysisFilters, alias string)
 		} else {
 			add(prefix+"client_project = $%d", project)
 		}
+	}
+	switch filters.Origin {
+	case "human", "ai":
+		add(prefix+"summary_json->'request_origin'->>'kind' = $%d", filters.Origin)
+	case "unknown":
+		where = append(where, "COALESCE("+prefix+"summary_json->'request_origin'->>'kind', '') NOT IN ('human', 'ai')")
 	}
 	if !filters.IncludeUnmatched {
 		where = append(where, prefix+"usage_log_id IS NOT NULL")

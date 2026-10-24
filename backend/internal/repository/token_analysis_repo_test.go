@@ -22,7 +22,8 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 	userID := int64(22)
 	now := time.Date(2026, 5, 19, 10, 0, 0, 0, time.UTC)
 
-	mock.ExpectExec("INSERT INTO token_analysis_request_summaries").
+	// 重新索引请求行即重置关联方式, 由扫描后的关联轮次重新关联。
+	mock.ExpectExec(`INSERT INTO token_analysis_request_summaries[\s\S]*usage_match_method = '',\s+client_request_id = EXCLUDED.client_request_id`).
 		WithArgs(
 			"arch-1", usageID, int16(3), now,
 			userID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
@@ -31,6 +32,7 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 			2, 10, 20, "hello", 1, 0,
 			sqlmock.AnyArg(), 50, sqlmock.AnyArg(), "2026-05-19.jsonl", sqlmock.AnyArg(),
 			"e:/code/demo", "demo", "main", "cc_system_prompt",
+			"cid-1",
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -42,54 +44,259 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 		RiskReasons: []service.TokenAnalysisRiskReason{{Code: "x", Message: "y", Score: 50}},
 		SummaryJSON: map[string]any{"shape": "chat"}, SourceFile: "2026-05-19.jsonl",
 		ClientWorkdir: "e:/code/demo", ClientProject: "demo", ClientBranch: "main", AttributionSource: "cc_system_prompt",
+		ClientRequestID: "cid-1",
 	})
 
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestTokenAnalysisRepositoryFindNearestUsageLog(t *testing.T) {
+// 来源筛选: human/ai 精确匹配 kind; unknown 同时包含未写入来源的旧行, 与页面 "—" 一致。
+func TestBuildTokenAnalysisWhereOriginFilter(t *testing.T) {
+	where, args := buildTokenAnalysisWhere(service.TokenAnalysisFilters{Origin: "human", IncludeUnmatched: true}, "s")
+	require.Contains(t, where, "s.summary_json->'request_origin'->>'kind' = $1")
+	require.Equal(t, []any{"human"}, args)
+
+	where, args = buildTokenAnalysisWhere(service.TokenAnalysisFilters{Origin: "unknown", IncludeUnmatched: true}, "s")
+	require.Contains(t, where, "COALESCE(s.summary_json->'request_origin'->>'kind', '') NOT IN ('human', 'ai')")
+	require.Empty(t, args)
+
+	where, _ = buildTokenAnalysisWhere(service.TokenAnalysisFilters{IncludeUnmatched: true}, "s")
+	require.Equal(t, []string{"1=1"}, where)
+}
+
+var tokenAnalysisUsageMatchRow = []string{"id", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_cost", "actual_cost"}
+
+// 精确关联键: client:<id> 与上游 response.id; 只被精确关联占用的账单才挡住认领。
+func TestTokenAnalysisRepositoryFindUsageLinkByRequestID(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
 	defer db.Close()
-
 	repo := NewTokenAnalysisRepository(db)
-	userID := int64(22)
 	apiKeyID := int64(33)
-	now := time.Date(2026, 5, 19, 10, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery("FROM usage_logs").
-		WithArgs(now.Add(-10*time.Second), now.Add(10*time.Second), now, userID, apiKeyID, "gpt-4.1").
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_cost", "actual_cost", "confidence",
-		}).AddRow(int64(99), 1000, 20, 500, 100, 0.5, 0.6, int16(3)))
+	mock.ExpectQuery(`WHERE ul.api_key_id = \$1 AND ul.request_id IN \(\$3, \$4\)[\s\S]*o.archive_id <> \$2 AND o.usage_match_method = 'request_id'`).
+		WithArgs(apiKeyID, "arch-1", "client:cid-1", "resp_1").
+		WillReturnRows(sqlmock.NewRows(tokenAnalysisUsageMatchRow).AddRow(int64(99), 294, 547, 156288, 0, 0.18, 0.186578))
 
-	got, err := repo.FindNearestUsageLog(context.Background(), now, &userID, &apiKeyID, "gpt-4.1", 10*time.Second)
+	got, err := repo.FindUsageLink(context.Background(), service.TokenAnalysisUsageLinkQuery{
+		ArchiveID: "arch-1", ClientRequestID: "cid-1", ResponseID: "resp_1", APIKeyID: &apiKeyID, ExactOnly: true,
+	})
 
 	require.NoError(t, err)
-	require.NotNil(t, got)
-	require.Equal(t, int64(99), got.UsageLogID)
-	require.Equal(t, int16(3), got.MatchConfidence)
-	require.Equal(t, 500, got.CacheReadTokens)
+	require.Equal(t, &service.TokenAnalysisUsageMatch{
+		UsageLogID: 99, MatchConfidence: 3, Method: service.TokenAnalysisUsageMatchRequestID,
+		InputTokens: 294, OutputTokens: 547, CacheReadTokens: 156288, TotalCost: 0.18, ActualCost: 0.186578,
+	}, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestTokenAnalysisRepositoryFindNearestUsageLogNoRows(t *testing.T) {
+// 只接受精确证据时, 精确未命中不再做时序兜底。
+func TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
 	defer db.Close()
-
 	repo := NewTokenAnalysisRepository(db)
-	now := time.Date(2026, 5, 19, 10, 0, 0, 0, time.UTC)
+	apiKeyID := int64(33)
 
-	mock.ExpectQuery("FROM usage_logs").
-		WithArgs(now.Add(-10*time.Second), now.Add(10*time.Second), now).
-		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`ul.request_id IN \(\$3\)`).WithArgs(apiKeyID, "arch-1", "client:cid-1").WillReturnError(sql.ErrNoRows)
 
-	got, err := repo.FindNearestUsageLog(context.Background(), now, nil, nil, "", 10*time.Second)
+	got, err := repo.FindUsageLink(context.Background(), service.TokenAnalysisUsageLinkQuery{
+		ArchiveID: "arch-1", ClientRequestID: "cid-1", APIKeyID: &apiKeyID, ExactOnly: true,
+	})
 
 	require.NoError(t, err)
 	require.Nil(t, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 有关联键且已完成: 精确未命中后按完成时间兜底, 只看上游原生 ID 账单, 排除附加计费、
+// 他行占用、他行精确账单, 并要求没有其他未确认请求能解释同一账单。
+func TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewTokenAnalysisRepository(db)
+	userID, apiKeyID, output := int64(22), int64(33), int64(547)
+	start := time.Date(2026, 10, 24, 6, 11, 12, 654557512, time.UTC)
+	done := start.Add(18547 * time.Millisecond)
+
+	mock.ExpectQuery(`ul.request_id IN \(\$3\)`).WithArgs(apiKeyID, "arch-1", "client:cid-1").WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(`ul.created_at BETWEEN \$4 AND \$5\s+AND COALESCE\(ul.duration_ms, 0\) <= \$6[\s\S]*`+
+		`strpos\(ul.request_id, ':'\) = 0\s+AND ul.request_id NOT LIKE ALL[\s\S]*`+
+		`o.usage_log_id = ul.id AND o.archive_id <> \$10[\s\S]*o.client_request_id = substr\(ul.request_id, 8\)[\s\S]*`+
+		`c.usage_log_id IS NULL OR c.usage_match_method IN \('', 'released'\)[\s\S]*`+
+		`ORDER BY CASE WHEN ul.output_tokens = \$11 THEN 0 ELSE 1 END, ABS`).
+		WithArgs(start.Add(-500*time.Millisecond), start, done, done.Add(-2*time.Second), done.Add(10*time.Second), int64(18547+500),
+			userID, apiKeyID, "gpt-6-astra", "arch-1", output).
+		WillReturnRows(sqlmock.NewRows(tokenAnalysisUsageMatchRow).AddRow(int64(7), 294, 547, 156288, 0, 0.18, 0.186578))
+
+	got, err := repo.FindUsageLink(context.Background(), service.TokenAnalysisUsageLinkQuery{
+		ArchiveID: "arch-1", ClientRequestID: "cid-1", StartedAt: start, CompletedAt: &done, OutputTokens: &output,
+		UserID: &userID, APIKeyID: &apiKeyID, Model: "gpt-6-astra", Window: 10 * time.Second,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(7), got.UsageLogID)
+	require.Equal(t, service.TokenAnalysisUsageMatchTiming, got.Method)
+	require.Equal(t, int16(3), got.MatchConfidence)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 存量行: 无关联键/完成时间, 转发须在开始后窗口内启动; 竞争请求的合理性按其自身有无完成时间判断。
+func TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewTokenAnalysisRepository(db)
+	start := time.Date(2026, 10, 24, 6, 11, 12, 0, time.UTC)
+
+	mock.ExpectQuery(`<= \$3\s+AND ul.created_at <= \$4\s+AND ul.request_id NOT LIKE ALL[\s\S]*CASE WHEN c.completed_at IS NULL`).
+		WithArgs(start.Add(-500*time.Millisecond), start, start.Add(10*time.Second), start.Add(2*time.Hour), "arch-1").
+		WillReturnError(sql.ErrNoRows)
+
+	got, err := repo.FindUsageLink(context.Background(), service.TokenAnalysisUsageLinkQuery{
+		ArchiveID: "arch-1", StartedAt: start, Window: 10 * time.Second,
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 请求行尚未入库的 response 暂存; 合并后删除已合并与过期暂存。
+func TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewTokenAnalysisRepository(db)
+	done := time.Date(2026, 10, 24, 6, 11, 31, 0, time.UTC)
+	output := int64(547)
+
+	mock.ExpectExec(`SET completed_at = \$2, response_status = \$3, response_output_tokens = \$4, response_id = \$5,\s+`+
+		`usage_link_version = usage_link_version \+ CASE WHEN \(completed_at IS DISTINCT FROM \$2 OR response_status IS DISTINCT FROM \$3 OR response_id <> \$5\)\s+AND usage_match_method <> 'request_id'[\s\S]*`+
+		`usage_link_retry_until = CASE WHEN [\s\S]* THEN NOW\(\) \+ INTERVAL '172800 seconds' ELSE usage_link_retry_until END`).
+		WithArgs("arch-1", done, 200, output, "resp_1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`SET completed_at`).WithArgs("arch-2", done, nil, nil, "").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO token_analysis_pending_responses`).WithArgs("arch-2", done, nil, nil, "").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE token_analysis_request_summaries s[\s\S]*usage_link_version = s.usage_link_version \+ CASE WHEN \(s.completed_at IS DISTINCT FROM p.completed_at[\s\S]*FROM token_analysis_pending_responses p[\s\S]*DELETE FROM token_analysis_pending_responses p\s+WHERE p.archive_id IN \(SELECT archive_id FROM merged\) OR p.recorded_at < \$1`).
+		WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+
+	ctx := context.Background()
+	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{ArchiveID: "arch-1", CompletedAt: done, Status: 200, OutputTokens: &output, ResponseID: "resp_1"}))
+	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{ArchiveID: "arch-2", CompletedAt: done}))
+	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{}))
+	require.NoError(t, repo.MergePendingResponses(ctx))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 认领在事务内按账单加咨询锁; 写入按读到的关联状态与复核版本条件更新。精确关联
+// 夺回弱关联占用的账单并为原行登记复核; 时序关联遇到占用、或本行已被改过时放弃。
+func TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewTokenAnalysisRepository(db)
+	ctx := context.Background()
+	exact := &service.TokenAnalysisUsageMatch{UsageLogID: 99, MatchConfidence: 3, Method: service.TokenAnalysisUsageMatchRequestID}
+	timing := &service.TokenAnalysisUsageMatch{UsageLogID: 99, MatchConfidence: 3, Method: service.TokenAnalysisUsageMatchTiming}
+	readV2 := service.TokenAnalysisUsageLinkState{Version: 2}
+	holders := func(methods ...string) *sqlmock.Rows {
+		rows := sqlmock.NewRows([]string{"usage_match_method"})
+		for _, method := range methods {
+			rows.AddRow(method)
+		}
+		return rows
+	}
+	const setLink = `SET usage_log_id = \$2, match_confidence = \$3, usage_match_method = \$4, risk_score = \$5, risk_reasons = \$6::jsonb,\s+` +
+		`usage_link_checked_version = CASE WHEN \$10::boolean THEN usage_link_checked_version ELSE \$9 END\s+` +
+		`WHERE archive_id = \$1 AND usage_log_id IS NOT DISTINCT FROM \$7 AND usage_match_method = \$8 AND usage_link_version = \$9`
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`pg_advisory_xact_lock\(hashtextextended\('token_analysis_usage_claim:' \|\| \$1::text, 0\)\)`).WithArgs(int64(99)).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`WHERE usage_log_id = \$1 AND archive_id <> \$2\s+FOR UPDATE`).WithArgs(int64(99), "arch-1").WillReturnRows(holders(service.TokenAnalysisUsageMatchTiming))
+	mock.ExpectExec(setLink).
+		WithArgs("arch-1", int64(99), int16(3), service.TokenAnalysisUsageMatchRequestID, 45, sqlmock.AnyArg(), nil, "", int64(2), false).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`SET usage_log_id = NULL, match_confidence = 0, usage_match_method = 'released',\s+usage_link_version = usage_link_version \+ CASE WHEN TRUE THEN 1 ELSE 0 END`).
+		WithArgs(int64(99), "arch-1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	write, err := repo.SetUsageLink(ctx, "arch-1", readV2, exact, 45, []service.TokenAnalysisRiskReason{{Code: "huge_input_tiny_output", Score: 45}})
+	require.NoError(t, err)
+	require.Equal(t, service.TokenAnalysisUsageLinkWrite{Applied: true, Displaced: true}, write)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`pg_advisory_xact_lock`).WithArgs(int64(99)).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`FOR UPDATE`).WithArgs(int64(99), "arch-2").WillReturnRows(holders(service.TokenAnalysisUsageMatchRequestID))
+	mock.ExpectRollback()
+	write, err = repo.SetUsageLink(ctx, "arch-2", readV2, timing, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	require.False(t, write.Applied)
+
+	// 读到的状态或版本已过期(其他实例刚写入或登记了新复核): 条件更新 0 行, 不提交。
+	mock.ExpectBegin()
+	mock.ExpectExec(`pg_advisory_xact_lock`).WithArgs(int64(99)).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`FOR UPDATE`).WithArgs(int64(99), "arch-4").WillReturnRows(holders())
+	mock.ExpectExec(setLink).WithArgs("arch-4", int64(99), int16(3), service.TokenAnalysisUsageMatchTiming, 0, "[]", nil, "", int64(2), false).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+	write, err = repo.SetUsageLink(ctx, "arch-4", readV2, timing, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	require.False(t, write.Applied)
+
+	// 解除关联但继续等待晚到账单: 不确认版本; 确认按读到的版本条件更新。
+	stale := int64(41)
+	mock.ExpectExec(setLink).WithArgs("arch-3", nil, int16(0), "", 0, "[]", stale, "", int64(5), true).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`SET usage_link_checked_version = \$2\s+WHERE archive_id = \$1 AND usage_link_version = \$2 AND usage_link_checked_version <> \$2`).WithArgs("arch-3", int64(5)).WillReturnResult(sqlmock.NewResult(0, 1))
+	write, err = repo.SetUsageLink(ctx, "arch-3", service.TokenAnalysisUsageLinkState{UsageLogID: &stale, Version: 5, KeepPending: true}, nil, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	require.True(t, write.Applied)
+	require.NoError(t, repo.ClearUsageLinkPending(ctx, "arch-3", 5))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 候选含未关联/旧窗口/被夺回的行, 以及可被精确证据纠正的时序关联行; 旧行缺重复数时为 nil。
+func TestTokenAnalysisRepositoryListUsageLinkCandidates(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewTokenAnalysisRepository(db)
+	start := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 0, 1)
+	event := start.Add(6 * time.Hour)
+
+	mock.ExpectQuery(`WHERE s.id > \$3\s+AND \(s.usage_link_version <> s.usage_link_checked_version OR \(s.event_time >= \$1 AND s.event_time < \$2\)\)\s+AND s.endpoint NOT LIKE '%/count_tokens'\s+`+
+		`AND \(s.usage_link_version <> s.usage_link_checked_version OR s.usage_match_method IN \('', 'released'\)\s+OR \(s.usage_match_method = 'timing' AND \(s.client_request_id <> '' OR s.response_id <> ''\)\)\)\s+ORDER BY s.id`).
+		WithArgs(start, end, int64(0), 500).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "archive_id", "client_request_id", "response_id", "event_time", "completed_at", "response_status",
+			"response_output_tokens", "user_id", "api_key_id", "model", "usage_log_id", "usage_match_method",
+			"usage_link_version", "usage_link_pending", "usage_link_retry_until", "body_sha256",
+			"system_chars", "user_chars", "tools_count", "tool_message_count", "tool_output_bytes", "max_tool_output_bytes", "same_body",
+		}).
+			AddRow(int64(5), "legacy", "", "", event, nil, nil, nil, int64(2), int64(9), "gpt-6-astra", int64(41), "", int64(0), false, nil, "sha", 10, 20, 3, int64(0), int64(0), int64(0), nil).
+			AddRow(int64(6), "new", "cid-1", "resp_1", event, event.Add(time.Minute), int32(502), int64(547), int64(2), int64(9), "gpt-6-astra", nil, "released", int64(3), true, event.Add(48*time.Hour), "sha2", 0, 5, 0, int64(12), int64(600000), int64(524288), int32(2)))
+
+	got, err := repo.ListUsageLinkCandidates(context.Background(), start, end, 0, 500)
+
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, int64(41), *got[0].UsageLogID)
+	require.Nil(t, got[0].CompletedAt)
+	require.Nil(t, got[0].ResponseStatus)
+	require.Nil(t, got[0].SameBodyRecentCount)
+	require.Equal(t, 3, got[0].Body.ToolsCount)
+	require.Equal(t, "cid-1", got[1].ClientRequestID)
+	require.Equal(t, "resp_1", got[1].ResponseID)
+	require.Equal(t, 502, *got[1].ResponseStatus)
+	require.Equal(t, service.TokenAnalysisUsageMatchReleased, got[1].Method)
+	require.True(t, got[1].LinkPending)
+	require.Equal(t, int64(3), got[1].LinkVersion)
+	require.Equal(t, event.Add(48*time.Hour), *got[1].RetryUntil)
+	require.False(t, got[0].LinkPending)
+	require.Nil(t, got[0].RetryUntil)
+	require.Equal(t, int64(547), *got[1].OutputTokens)
+	require.Equal(t, 2, *got[1].SameBodyRecentCount)
+	require.Equal(t, 12, got[1].Body.ToolMessageCount)
+	require.Equal(t, int64(524288), got[1].Body.MaxToolOutputBytes)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -315,7 +522,7 @@ func TestTokenAnalysisRepositoryCountBilledRequests(t *testing.T) {
 	end := start.AddDate(0, 0, 1)
 	userID := int64(22)
 
-	// 模型过滤与 FindNearestUsageLog 同口径: model/requested_model/upstream_model 任一命中。
+	// 模型过滤与 FindUsageLink 同口径: model/requested_model/upstream_model 任一命中。
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM usage_logs WHERE[\s\S]*\(model = \$4 OR requested_model = \$4 OR upstream_model = \$4\)`).
 		WithArgs(start, end, userID, "gpt-5.5").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(42)))

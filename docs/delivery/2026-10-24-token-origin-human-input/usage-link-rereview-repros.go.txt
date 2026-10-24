@@ -1,0 +1,145 @@
+//go:build integration
+
+package repository
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRereviewTimingClaimRechecksLateFailedResponse(t *testing.T) {
+	for _, responseID := range []string{"", "resp_failed_owner"} {
+		t.Run("response_id="+responseID, func(t *testing.T) {
+			day := time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)
+			f := newTokenAnalysisLinkFixture(t, day)
+			start := day.Add(6 * time.Hour)
+			f.request("rereview-failed", "", start)
+			other := f.usage("client:unrelated", start.Add(time.Second), 900, 547)
+			f.link()
+			f.requireLinked("rereview-failed", other, service.TokenAnalysisUsageMatchTiming)
+			f.responseWithID("rereview-failed", start.Add(2*time.Second), 502, responseID)
+			f.link()
+			got, method := f.linked("rereview-failed")
+			if got != nil {
+				t.Logf("after 502: bill=%d method=%s unrelated=%d", *got, method, other)
+			}
+			f.requireUnlinked("rereview-failed")
+		})
+	}
+}
+
+func TestRereviewStaleTimingCannotOverwriteExactClaim(t *testing.T) {
+	day := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	start := day.Add(6 * time.Hour)
+	done := start.Add(2 * time.Second)
+	f.request("rereview-race", "cid-rereview", start)
+	f.response("rereview-race", done, 200)
+	neighbor := f.usage("resp_neighbor", done.Add(10*time.Millisecond), 1900, 547)
+	q := service.TokenAnalysisUsageLinkQuery{ArchiveID: "rereview-race", ClientRequestID: "cid-rereview", StartedAt: start, CompletedAt: &done, UserID: &f.userID, APIKeyID: &f.apiKeyID, Model: tokenAnalysisLinkModel, Window: 10 * time.Second}
+	stale, err := f.repo.FindUsageLink(f.ctx, q)
+	require.NoError(t, err)
+	require.NotNil(t, stale)
+	require.Equal(t, neighbor, stale.UsageLogID)
+	require.Equal(t, service.TokenAnalysisUsageMatchTiming, stale.Method)
+	own := f.usage("client:cid-rereview", done.Add(time.Second), 1900, 547)
+	exact, err := f.repo.FindUsageLink(f.ctx, q)
+	require.NoError(t, err)
+	require.NotNil(t, exact)
+	_, err = f.repo.SetUsageLink(f.ctx, "rereview-race", exact, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	f.requireLinked("rereview-race", own, service.TokenAnalysisUsageMatchRequestID)
+	// Another indexer now commits its older FindUsageLink result.
+	write, err := f.repo.SetUsageLink(f.ctx, "rereview-race", stale, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	t.Logf("stale timing accepted=%v own=%d neighbor=%d", write.Applied, own, neighbor)
+	f.requireLinked("rereview-race", own, service.TokenAnalysisUsageMatchRequestID)
+}
+
+func TestRereviewStaleReleaseCannotClearExactClaim(t *testing.T) {
+	day := time.Date(2026, 11, 13, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	start := day.Add(6 * time.Hour)
+	done := start.Add(2 * time.Second)
+	f.request("rereview-clear", "cid-clear", start)
+	f.response("rereview-clear", done, 200)
+	wrong := f.usage("client:unrelated", start.Add(-time.Hour), 900, 547)
+	_, err := integrationDB.ExecContext(f.ctx, `UPDATE token_analysis_request_summaries SET usage_log_id=$1 WHERE archive_id='rereview-clear'`, wrong)
+	require.NoError(t, err)
+	q := service.TokenAnalysisUsageLinkQuery{ArchiveID: "rereview-clear", ClientRequestID: "cid-clear", StartedAt: start, CompletedAt: &done, UserID: &f.userID, APIKeyID: &f.apiKeyID, Model: tokenAnalysisLinkModel, Window: 10 * time.Second}
+	stale, err := f.repo.FindUsageLink(f.ctx, q)
+	require.NoError(t, err)
+	require.Nil(t, stale)
+	own := f.usage("client:cid-clear", done.Add(time.Second), 1900, 547)
+	exact, err := f.repo.FindUsageLink(f.ctx, q)
+	require.NoError(t, err)
+	require.NotNil(t, exact)
+	_, err = f.repo.SetUsageLink(f.ctx, "rereview-clear", exact, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	f.requireLinked("rereview-clear", own, service.TokenAnalysisUsageMatchRequestID)
+	_, err = f.repo.SetUsageLink(f.ctx, "rereview-clear", stale, 0, []service.TokenAnalysisRiskReason{})
+	require.NoError(t, err)
+	f.requireLinked("rereview-clear", own, service.TokenAnalysisUsageMatchRequestID)
+}
+
+func TestRereviewAscendingSingleDayIndexLinksCrossDayRequest(t *testing.T) {
+	day := time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	dir := t.TempDir()
+	f.svc = service.NewTokenAnalysisService(f.repo, &config.Config{Gateway: config.GatewayConfig{RequestArchive: config.GatewayRequestArchiveConfig{Dir: dir}}, TokenAnalysis: config.TokenAnalysisConfig{IndexEnabled: true, UsageMatchWindowSeconds: 10}}, nil)
+	start := day.Add(24*time.Hour - time.Second)
+	done := start.Add(21 * time.Second)
+	write := func(name string, event map[string]any) {
+		data, err := json.Marshal(event)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), append(data, '\n'), 0600))
+	}
+	write("2026-11-14.jsonl", map[string]any{"archive_id": "rereview-midnight", "client_request_id": "cid-midnight", "event": "request", "timestamp": start.Format(time.RFC3339Nano), "endpoint": "/v1/responses", "path": "/v1/responses", "user_id": f.userID, "api_key_id": f.apiKeyID, "model": tokenAnalysisLinkModel, "body": `{"model":"gpt-6-astra","input":"human question"}`})
+	write("2026-11-15.jsonl", map[string]any{"archive_id": "rereview-midnight", "event": "response", "timestamp": done.Format(time.RFC3339Nano), "status": 200, "response_id": "resp_midnight"})
+	bill := f.usage("resp_midnight", done.Add(10*time.Millisecond), 21000, 547)
+	for _, date := range []string{"2026-11-14", "2026-11-15", "2026-11-15"} {
+		_, err := f.svc.IndexRange(f.ctx, service.TokenAnalysisIndexRequest{StartDate: date, EndDate: date, Timezone: "UTC"})
+		require.NoError(t, err)
+	}
+	var responseID string
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT response_id FROM token_analysis_request_summaries WHERE archive_id='rereview-midnight'`).Scan(&responseID))
+	require.Equal(t, "resp_midnight", responseID)
+	f.requireLinked("rereview-midnight", bill, service.TokenAnalysisUsageMatchRequestID)
+}
+
+func TestRereviewDisplacedPreviousDayRiskIsRecomputed(t *testing.T) {
+	day := time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC)
+	f := newTokenAnalysisLinkFixture(t, day)
+	start := day.Add(-time.Second)
+	done := day.Add(20 * time.Second)
+	f.request("rereview-risk-old", "", start)
+	f.response("rereview-risk-old", done, 200)
+	bill := f.usage("resp_risk_owner", done.Add(10*time.Millisecond), 20000, 80)
+	_, err := integrationDB.ExecContext(f.ctx, `UPDATE usage_logs SET input_tokens=100000, cache_read_tokens=0 WHERE id=$1`, bill)
+	require.NoError(t, err)
+	previous := day.AddDate(0, 0, -1).Format("2006-01-02")
+	_, err = f.svc.IndexRange(f.ctx, service.TokenAnalysisIndexRequest{StartDate: previous, EndDate: previous, Timezone: "UTC"})
+	require.NoError(t, err)
+	f.requireLinked("rereview-risk-old", bill, service.TokenAnalysisUsageMatchTiming)
+	var before int
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT risk_score FROM token_analysis_request_summaries WHERE archive_id='rereview-risk-old'`).Scan(&before))
+	require.Equal(t, 70, before)
+	f.request("rereview-risk-owner", "cid-risk-owner", day)
+	f.responseWithID("rereview-risk-owner", done, 200, "resp_risk_owner")
+	f.link()
+	f.requireLinked("rereview-risk-owner", bill, service.TokenAnalysisUsageMatchRequestID)
+	oldBill, method := f.linked("rereview-risk-old")
+	require.Nil(t, oldBill)
+	var after int
+	var reasons string
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT risk_score,risk_reasons::text FROM token_analysis_request_summaries WHERE archive_id='rereview-risk-old'`).Scan(&after, &reasons))
+	t.Logf("displaced previous day: method=%s score=%d reasons=%s", method, after, reasons)
+	require.Zero(t, after, "usage-only risk must disappear when its bill is removed")
+}

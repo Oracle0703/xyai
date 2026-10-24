@@ -64,6 +64,10 @@ const usageLogsEffectiveRequestedModelIndex = "idx_usage_logs_effective_requeste
 const usageLogsEffectiveUpstreamModelIndex = "idx_usage_logs_effective_upstream_model_created"
 const usageLogsUpstreamRequestIDIndexMigration = "233_add_usage_log_upstream_request_id_index_notx.sql"
 const usageLogsUpstreamRequestIDIndex = "idx_usage_logs_upstream_request_id"
+const tokenAnalysisUsageLinkKeysIndexMigration = "248_token_analysis_usage_link_keys_index_notx.sql"
+const tokenAnalysisClientRequestIDIndex = "idx_token_analysis_client_request_id"
+const tokenAnalysisResponseIDIndex = "idx_token_analysis_response_id"
+const tokenAnalysisUsageLinkPendingIndex = "idx_token_analysis_usage_link_pending"
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -309,6 +313,13 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return nil
 	case usageLogsUpstreamRequestIDIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamRequestIDIndex)
+	case tokenAnalysisUsageLinkKeysIndexMigration:
+		for _, indexName := range []string{tokenAnalysisClientRequestIDIndex, tokenAnalysisResponseIDIndex, tokenAnalysisUsageLinkPendingIndex} {
+			if err := dropInvalidIndexIfPresent(ctx, db, indexName); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return nil
 	}

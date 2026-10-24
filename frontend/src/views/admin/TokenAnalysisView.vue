@@ -44,6 +44,15 @@
               @update:model-value="onRiskMinChange"
             />
           </div>
+          <div class="w-full sm:w-40" :title="t('admin.tokenAnalysis.requestOrigin.filterHint')" data-testid="token-analysis-origin-filter">
+            <Select
+              :model-value="filters.origin ?? ''"
+              :options="originOptions"
+              :searchable="false"
+              :aria-label="t('admin.tokenAnalysis.requestOrigin.label')"
+              @update:model-value="onOriginChange"
+            />
+          </div>
           <button
             type="button"
             class="btn btn-secondary inline-flex items-center gap-1.5"
@@ -257,6 +266,7 @@ import { adminAPI } from '@/api/admin'
 import type {
   TokenAnalysisArchiveFile,
   TokenAnalysisIndexStatus,
+  TokenAnalysisOriginFilter,
   TokenAnalysisProjectUsage,
   TokenAnalysisQueryParams,
   TokenAnalysisRequestInput,
@@ -365,6 +375,18 @@ const riskMinOptions = computed(() => [
   { value: 60, label: t('admin.tokenAnalysis.riskMinAtLeast', { n: 60 }) }
 ])
 
+const originOptions = computed(() => [
+  { value: '', label: t('admin.tokenAnalysis.requestOrigin.filterAll') },
+  ...(['human', 'ai', 'unknown'] as const).map((value) => ({
+    value,
+    label: t('admin.tokenAnalysis.requestOrigin.filterOption', { name: originName(value) })
+  }))
+])
+
+function originName(origin: TokenAnalysisOriginFilter): string {
+  return origin === 'unknown' ? t('admin.tokenAnalysis.requestOrigin.notIdentified') : t(`admin.tokenAnalysis.requestOrigin.${origin}`)
+}
+
 type IdFilterKey = 'user_id' | 'api_key_id' | 'account_id' | 'group_id'
 const idFilterFields = computed<Array<{ key: IdFilterKey; label: string }>>(() => [
   { key: 'user_id', label: t('admin.tokenAnalysis.filterUserId') },
@@ -378,7 +400,7 @@ const advancedActiveCount = computed(() => {
   return idFilterFields.value.filter((field) => f[field.key]).length + (f.include_unmatched ? 1 : 0)
 })
 
-type FilterChipKey = 'user_email' | 'project' | 'model' | 'risk_reason' | 'risk_min' | 'include_unmatched' | IdFilterKey
+type FilterChipKey = 'user_email' | 'project' | 'model' | 'origin' | 'risk_reason' | 'risk_min' | 'include_unmatched' | IdFilterKey
 
 const activeFilterChips = computed(() => {
   const f = appliedFilters.value
@@ -389,6 +411,7 @@ const activeFilterChips = computed(() => {
     chips.push({ key: 'project', label: `${t('admin.tokenAnalysis.project')}: ${project}` })
   }
   if (f.model) chips.push({ key: 'model', label: `${t('admin.tokenAnalysis.model')}: ${f.model}` })
+  if (f.origin) chips.push({ key: 'origin', label: `${t('admin.tokenAnalysis.requestOrigin.label')}: ${originName(f.origin)}` })
   if (f.risk_reason) chips.push({ key: 'risk_reason', label: `${t('admin.tokenAnalysis.riskReason')}: ${riskLabel(f.risk_reason)}` })
   if (f.risk_min) chips.push({ key: 'risk_min', label: t('admin.tokenAnalysis.riskMinAtLeast', { n: f.risk_min }) })
   for (const field of idFilterFields.value) {
@@ -660,6 +683,11 @@ function onRiskMinChange(value: string | number | boolean | null) {
   void reloadAll()
 }
 
+function onOriginChange(value: string | number | boolean | null) {
+  filters.origin = value === 'human' || value === 'ai' || value === 'unknown' ? value : undefined
+  void reloadAll()
+}
+
 function clearFilter(key: FilterChipKey) {
   if (key === 'risk_min') filters.risk_min = 0
   else if (key === 'include_unmatched') filters.include_unmatched = false
@@ -672,6 +700,7 @@ function resetDimensionFilters(dates: Pick<TokenAnalysisQueryParams, 'start_date
     user_email: undefined,
     project: undefined,
     model: undefined,
+    origin: undefined,
     risk_reason: undefined,
     user_id: undefined,
     api_key_id: undefined,

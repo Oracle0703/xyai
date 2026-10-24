@@ -1,0 +1,30 @@
+2026/10/24 14:47:33 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestReview3CrossDayLateBillRemainsRetryable
+    token_analysis_review3_temp_test.go:40: response indexed before bill arrives: pending=false
+    token_analysis_review3_temp_test.go:44: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:110
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review3_temp_test.go:44
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestReview3CrossDayLateBillRemainsRetryable
+        	Messages:   	review3-midnight
+--- FAIL: TestReview3CrossDayLateBillRemainsRetryable (0.10s)
+=== RUN   TestReview3NewResponseInvalidatesStaleTimingWrite
+    token_analysis_review3_temp_test.go:67: stale write after 502: applied=true pending=false bill=37
+    token_analysis_review3_temp_test.go:70: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_usage_link_integration_test.go:118
+        	            				E:/allsite/xyai/backend/internal/repository/token_analysis_review3_temp_test.go:70
+        	Error:      	Expected nil, but got: (*int64)(0x1578b0c07d10)
+        	Test:       	TestReview3NewResponseInvalidatesStaleTimingWrite
+        	Messages:   	review3-response-race
+--- FAIL: TestReview3NewResponseInvalidatesStaleTimingWrite (0.06s)
+=== RUN   TestReview3StaleClearCannotAcknowledgeNewDisplacement
+    token_analysis_review3_temp_test.go:114: after stale clear and follow-up index: method=released pending=false risk=70
+    token_analysis_review3_temp_test.go:115: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/token_analysis_review3_temp_test.go:115
+        	Error:      	Should be zero, but was 70
+        	Test:       	TestReview3StaleClearCannotAcknowledgeNewDisplacement
+        	Messages:   	displaced row must lose usage-only risk
+--- FAIL: TestReview3StaleClearCannotAcknowledgeNewDisplacement (0.06s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	1.849s
+FAIL

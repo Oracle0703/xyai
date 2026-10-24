@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -141,6 +142,7 @@ func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer arc
 			responseRecord.BodyTruncated = captureWriter.Truncated()
 			responseRecord.Stream = captureWriter.Stream()
 			responseRecord.Usage = captureWriter.Usage()
+			responseRecord.ResponseID = captureWriter.ResponseID()
 		}
 		writer.Enqueue(responseRecord)
 	}
@@ -213,28 +215,30 @@ func normalizeRequestArchiveConfig(cfg config.GatewayRequestArchiveConfig) confi
 }
 
 type requestArchiveRecord struct {
-	ArchiveID     string         `json:"archive_id"`
-	Event         string         `json:"event"`
-	Timestamp     string         `json:"timestamp"`
-	Method        string         `json:"method,omitempty"`
-	Path          string         `json:"path,omitempty"`
-	Endpoint      string         `json:"endpoint,omitempty"`
-	UserID        *int64         `json:"user_id,omitempty"`
-	APIKeyID      *int64         `json:"api_key_id,omitempty"`
-	GroupID       *int64         `json:"group_id,omitempty"`
-	AccountID     *int64         `json:"account_id,omitempty"`
-	Model         string         `json:"model,omitempty"`
-	ClientIP      string         `json:"client_ip,omitempty"`
-	UserAgent     string         `json:"user_agent,omitempty"`
-	Headers       map[string]any `json:"headers,omitempty"`
-	Status        int            `json:"status,omitempty"`
-	DurationMs    int64          `json:"duration_ms,omitempty"`
-	Stream        bool           `json:"stream,omitempty"`
-	Body          string         `json:"body,omitempty"`
-	BodySize      int64          `json:"body_size"`
-	BodySHA256    string         `json:"body_sha256,omitempty"`
-	BodyTruncated bool           `json:"body_truncated,omitempty"`
-	Usage         map[string]any `json:"usage,omitempty"`
+	ArchiveID       string         `json:"archive_id"`
+	ClientRequestID string         `json:"client_request_id,omitempty"` // 与 usage_logs.request_id 的 "client:" 键同源
+	Event           string         `json:"event"`
+	Timestamp       string         `json:"timestamp"`
+	Method          string         `json:"method,omitempty"`
+	Path            string         `json:"path,omitempty"`
+	Endpoint        string         `json:"endpoint,omitempty"`
+	UserID          *int64         `json:"user_id,omitempty"`
+	APIKeyID        *int64         `json:"api_key_id,omitempty"`
+	GroupID         *int64         `json:"group_id,omitempty"`
+	AccountID       *int64         `json:"account_id,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	ClientIP        string         `json:"client_ip,omitempty"`
+	UserAgent       string         `json:"user_agent,omitempty"`
+	Headers         map[string]any `json:"headers,omitempty"`
+	Status          int            `json:"status,omitempty"`
+	DurationMs      int64          `json:"duration_ms,omitempty"`
+	Stream          bool           `json:"stream,omitempty"`
+	Body            string         `json:"body,omitempty"`
+	BodySize        int64          `json:"body_size"`
+	BodySHA256      string         `json:"body_sha256,omitempty"`
+	BodyTruncated   bool           `json:"body_truncated,omitempty"`
+	Usage           map[string]any `json:"usage,omitempty"`
+	ResponseID      string         `json:"response_id,omitempty"` // 上游 response.id, WS 上游计费的 request_id
 }
 
 func buildArchiveRecord(c *gin.Context, archiveID, event string, ts time.Time) requestArchiveRecord {
@@ -248,6 +252,9 @@ func buildArchiveRecord(c *gin.Context, archiveID, event string, ts time.Time) r
 		return record
 	}
 	record.Method = c.Request.Method
+	if id, _ := c.Request.Context().Value(ctxkey.ClientRequestID).(string); strings.TrimSpace(id) != "" {
+		record.ClientRequestID = strings.TrimSpace(id)
+	}
 	if c.Request.URL != nil {
 		record.Path = c.Request.URL.Path
 	}
@@ -497,6 +504,8 @@ type requestArchiveResponseWriter struct {
 	usage     map[string]any
 	sseBuffer string
 	jsonTail  []byte
+	// responseID 为 Responses 协议 SSE 事件里最后出现的 response.id。
+	responseID string
 }
 
 func newRequestArchiveResponseWriter(w gin.ResponseWriter, limit int64) *requestArchiveResponseWriter {
@@ -593,6 +602,17 @@ func (w *requestArchiveResponseWriter) Usage() map[string]any {
 	return w.usage
 }
 
+// ResponseID 在 Usage 之后调用(Usage 会冲洗末尾 SSE 行); 非流式 Responses 对象
+// 取顶层 id, 尾部窗口不是完整 JSON 时放弃。
+func (w *requestArchiveResponseWriter) ResponseID() string {
+	if w.responseID == "" && len(w.jsonTail) > 0 && gjson.ValidBytes(w.jsonTail) {
+		if values := gjson.GetManyBytes(w.jsonTail, "object", "id"); values[0].String() == "response" {
+			w.responseID = values[1].String()
+		}
+	}
+	return w.responseID
+}
+
 func (w *requestArchiveResponseWriter) isEventStream() bool {
 	return strings.Contains(strings.ToLower(w.Header().Get("Content-Type")), "text/event-stream")
 }
@@ -648,6 +668,11 @@ func (w *requestArchiveResponseWriter) captureSSELineUsage(line string) {
 	payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 	if payload == "" || payload == "[DONE]" {
 		return
+	}
+	if strings.Contains(payload, `"response"`) {
+		if id := gjson.Get(payload, "response.id").String(); id != "" {
+			w.responseID = id
+		}
 	}
 	if usage := extractArchiveUsageFromJSON([]byte(payload)); usage != nil {
 		w.usage = usage
