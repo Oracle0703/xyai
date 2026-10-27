@@ -1,0 +1,35 @@
+//go:build integration
+
+package repository
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+func TestCodexAuditClientFamilyWriteChecksObservedInput(t *testing.T) {
+	ctx := context.Background()
+	repo := NewTokenAnalysisRepository(integrationDB)
+	archive := fmt.Sprintf("codex-audit-family-%d", time.Now().UnixNano())
+	t.Cleanup(func() { _, _ = integrationDB.ExecContext(ctx, "DELETE FROM token_analysis_request_summaries WHERE archive_id=$1", archive) })
+	row := &service.TokenAnalysisRequestSummary{ArchiveID: archive, EventTime: time.Now().UTC(), UserAgent: "Codex Desktop/0.160.0", ClientFamily: "other", ClientFamilyVersion: 5}
+	require.NoError(t, repo.UpsertRequestSummary(ctx, row))
+	var id int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT id FROM token_analysis_request_summaries WHERE archive_id=$1", archive).Scan(&id))
+	stale := service.TokenAnalysisClientFamilyRow{ID: id, UserAgent: row.UserAgent, Family: "codex"}
+	// Another indexer updates the observed input and rule version before this result is committed.
+	row.UserAgent, row.ClientFamily, row.ClientFamilyVersion = "hertz", "hertz", 9
+	require.NoError(t, repo.UpsertRequestSummary(ctx, row))
+	require.NoError(t, repo.UpdateClientFamilies(ctx, 7, []service.TokenAnalysisClientFamilyRow{stale}))
+	var ua, family string
+	var version int32
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT user_agent,client_family,client_family_version FROM token_analysis_request_summaries WHERE archive_id=$1", archive).Scan(&ua, &family, &version))
+	require.Equal(t, "hertz", ua)
+	require.Equal(t, "hertz", family, "a computed result must not overwrite a changed input snapshot")
+	require.EqualValues(t, 9, version)
+}

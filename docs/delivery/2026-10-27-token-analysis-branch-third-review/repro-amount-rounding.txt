@@ -1,0 +1,23 @@
+package service
+
+import (
+    "testing"
+    "github.com/shopspring/decimal"
+    "github.com/stretchr/testify/require"
+)
+
+// Default decimal.Div rounds both prices to 16 places before multiplying by R.
+// This fixture is below a 1,048,576-token context and uses 10-place stored costs.
+func TestCodexRereviewAmountRoundsOnlyAtFinalTenPlaces(t *testing.T) {
+    p:=testTokenAnalysisClsRow(1,"p",0,800000,0)
+    c:=testTokenAnalysisClsRow(2,"c",60,1000000,1024)
+    c.Usage.InputCost=decimal.RequireFromString("1.0000000000")
+    c.Usage.CacheReadCost=decimal.RequireFromString("0.0001024001")
+    f:=testTokenAnalysisClsFacts([]TokenAnalysisClassificationRow{p,c}, []TokenAnalysisStoredEdge{{ChildArchiveID:"c",ParentArchiveID:"p",Kind:TokenAnalysisEdgeFullPrefix,MatchedItems:4}})
+    result:=testTokenAnalysisClassify(t,f,"c")
+    require.NotNil(t,result.Amount)
+    require.Equal(t,int64(798976),*result.RecoverableTokens)
+    // exact = 798976 * (1/1000000 - 0.0001024001/1024)
+    //       = 0.719078321975; half-away-from-zero rounding to 10 places = 0.7190783220.
+    require.True(t,decimal.RequireFromString("0.7190783220").Equal(*result.Amount),"actual=%s",result.Amount.String())
+}

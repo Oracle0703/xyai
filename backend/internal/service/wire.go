@@ -443,10 +443,12 @@ func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpirySe
 }
 
 // ProvideTokenAnalysisService 创建 TokenAnalysisService 并启动自动索引循环
-// (token_analysis.auto_index_interval_seconds, 0=仅手动)。
-func ProvideTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
+// (token_analysis.auto_index_interval_seconds, 0=仅手动)与分类作业(每分钟, 单实例锁)。
+func ProvideTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService, locks LeaderLockCache, db *sql.DB) *TokenAnalysisService {
 	svc := NewTokenAnalysisService(repo, cfg, settings)
+	svc.SetLeaderLock(locks, db)
 	svc.StartAutoIndex()
+	svc.StartClassification()
 	return svc
 }
 

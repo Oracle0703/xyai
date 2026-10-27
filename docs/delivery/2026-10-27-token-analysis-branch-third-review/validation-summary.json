@@ -1,0 +1,79 @@
+{
+  "review_date": "2026-10-27",
+  "branch": "feature/hy/10221_token_risk_classification",
+  "head": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "local_main": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "scope": "All 55 changed backend/deploy files, including untracked additions",
+  "review_status": "changes_requested",
+  "findings": [
+    {
+      "id": "T1",
+      "priority": "P2",
+      "kind": "invalidation generation ABA",
+      "reproduced": true
+    }
+  ],
+  "focused_top_level_tests": {
+    "unit": {
+      "pass": 178,
+      "fail": 0,
+      "skip": 0
+    },
+    "integration": {
+      "pass": 50,
+      "fail": 0,
+      "skip": 0,
+      "integration_tagged_top_level": 29
+    }
+  },
+  "unit_routes_note": "No matching tests; package compiled",
+  "previous_independent_service_replay": {
+    "pass": 3,
+    "fail": 0,
+    "skip": 0,
+    "final_body_hash_subcases": [
+      "standard",
+      "passthrough"
+    ]
+  },
+  "new_independent_reproduction": {
+    "test": "TestCodexAuditInvalidationSequenceCannotReuseDeletedGeneration",
+    "exit_code": 1,
+    "failed_at_correct_behavior_assertion": true,
+    "observed": "old seq=1, P/C queue rows=0, child versions=6/6, cause=missed_with_eligible_parent"
+  },
+  "build": {
+    "exit_code": 0,
+    "artifact_executed": false,
+    "artifact_copied_to_repo": false
+  },
+  "gofmt_clean": true,
+  "git_diff_check_exit_code": 0,
+  "source_hashes": {
+    "files": 55,
+    "drift": [],
+    "changed_file_set_unchanged": true
+  },
+  "cleanup": {
+    "temporary_review_tests": [],
+    "isolated_postgresql_stopped": true,
+    "postmaster_pid_absent": true
+  },
+  "database": "Local isolated PostgreSQL 18.1; synthetic fixtures only",
+  "verification_limits": [
+    "No production access",
+    "Not PostgreSQL 15 acceptance",
+    "No full-repository test suite",
+    "No browser verification",
+    "No load tests",
+    "No production reindex or deployment"
+  ],
+  "repository_writes": "Review report and evidence plus backend wiki only; no implementation, formal test, or design changes",
+  "commands": [
+    "go test -tags=unit -p 1 -count=1 -json -run 'TokenAnalysis|BootstrapSecrets|SecuritySecret|GenerateHexSecret|SecretNotFound|MigrationExecutionMode|ApplyMigrationsFS|OpenAI.*Plugin' ./internal/config ./internal/service ./internal/repository ./internal/server/middleware ./internal/handler/admin ./internal/server/routes",
+    "go test -tags=integration -p 1 -count=1 -json -run 'TestTokenAnalysis' ./internal/repository",
+    "go test -tags=unit -p 1 -count=1 -v -run 'TestCodexRereview' ./internal/service",
+    "go test -tags=integration -p 1 -count=1 -v -run 'TestCodexAuditInvalidationSequence' ./internal/repository",
+    "go build -o E:/tmp/token-analysis-branch-third-review-20261027/sub2api-audit.exe ./cmd/server"
+  ]
+}

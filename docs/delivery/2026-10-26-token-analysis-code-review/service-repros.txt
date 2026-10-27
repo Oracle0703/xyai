@@ -1,0 +1,24 @@
+2026/10/26 10:45:04 Timezone initialized: UTC (UTC offset: +00:00)
+--- FAIL: TestCodexAuditToolSearchOutputPayload (0.00s)
+    zz_codex_token_analysis_audit_test.go:17: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/service/zz_codex_token_analysis_audit_test.go:17
+        	Error:      	"0" is not greater than "524288"
+        	Test:       	TestCodexAuditToolSearchOutputPayload
+        	Messages:   	tool_search_output carries its result in tools, not output
+--- FAIL: TestCodexAuditClientFamilyRemapAfterCaughtUp (0.00s)
+    zz_codex_token_analysis_audit_test.go:30: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/service/zz_codex_token_analysis_audit_test.go:30
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestCodexAuditClientFamilyRemapAfterCaughtUp
+        	Messages:   	late old-version rows must eventually be revisited after rolling deployment
+--- FAIL: TestCodexAuditPluginTransportMustRemainUnknown (0.00s)
+    zz_codex_token_analysis_audit_test.go:47: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/service/zz_codex_token_analysis_audit_test.go:47
+        	Error:      	Expected nil, but got: &service.TokenAnalysisForwardFacts{ForwardPath:"openai_responses", CacheKeyHandling:"scoped", UpstreamCacheKeyHash:"bfd59c62bafd3d4063ac1f8083f0c8fc", UsageCacheSource:"upstream_parsed"}
+        	Test:       	TestCodexAuditPluginTransportMustRemainUnknown
+        	Messages:   	design section 11.1 requires unverified plugin-routed accounts to remain unknown
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/service	1.258s
+FAIL

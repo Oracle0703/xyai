@@ -9,6 +9,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +23,11 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 	userID := int64(22)
 	now := time.Date(2026, 5, 19, 10, 0, 0, 0, time.UTC)
 
-	// 重新索引请求行即重置关联方式, 由扫描后的关联轮次重新关联。
+	// 新行在事务内写入: 先锁定读取旧指纹(不存在), 再写入。重新索引请求行即重置
+	// 关联方式, 由扫描后的关联轮次重新关联。不可比较的指纹不需要计算候选。
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT fp_version, prefix_end_hash, prefix_tail1_hash, items_end_hash, cand_input_version, cand_checked_version\s+FROM token_analysis_request_summaries WHERE archive_id = \$1 FOR UPDATE`).
+		WithArgs("arch-1").WillReturnError(sql.ErrNoRows)
 	mock.ExpectExec(`INSERT INTO token_analysis_request_summaries[\s\S]*usage_match_method = '',\s+client_request_id = EXCLUDED.client_request_id`).
 		WithArgs(
 			"arch-1", usageID, int16(3), now,
@@ -32,11 +37,16 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 			2, 10, 20, "hello", 1, 0,
 			sqlmock.AnyArg(), 50, sqlmock.AnyArg(), "2026-05-19.jsonl", sqlmock.AnyArg(),
 			"e:/code/demo", "demo", "main", "cc_system_prompt",
-			"cid-1",
+			"cid-1", "Codex Desktop/0.160.0", "codex", int32(7),
+			nil, nil,
+			int32(0), "unsupported:body_truncated", nil, nil, nil, nil, 0, false,
+			int64(0), int64(0), "unsupported:body_truncated", false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-1"}`)
+	mock.ExpectCommit()
 
-	err = repo.UpsertRequestSummary(context.Background(), &service.TokenAnalysisRequestSummary{
+	upserted, err := repo.UpsertRequestSummary(context.Background(), &service.TokenAnalysisRequestSummary{
 		ArchiveID: "arch-1", UsageLogID: &usageID, MatchConfidence: 3, EventTime: now,
 		UserID: &userID, Model: "gpt-4.1", Endpoint: "/v1/chat/completions", Method: "POST",
 		RequestBodySize: 1200, BodySHA256: "abc", MessageCount: 2, SystemChars: 10,
@@ -44,10 +54,12 @@ func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 		RiskReasons: []service.TokenAnalysisRiskReason{{Code: "x", Message: "y", Score: 50}},
 		SummaryJSON: map[string]any{"shape": "chat"}, SourceFile: "2026-05-19.jsonl",
 		ClientWorkdir: "e:/code/demo", ClientProject: "demo", ClientBranch: "main", AttributionSource: "cc_system_prompt",
-		ClientRequestID: "cid-1",
+		ClientRequestID: "cid-1", UserAgent: "Codex Desktop/0.160.0", ClientFamily: "codex", ClientFamilyVersion: 7,
+		Fingerprint: service.TokenAnalysisFingerprint{State: "unsupported:body_truncated"},
 	})
 
 	require.NoError(t, err)
+	require.False(t, upserted.CandidatesDue)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -173,17 +185,35 @@ func TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives(t *test
 	done := time.Date(2026, 10, 24, 6, 11, 31, 0, time.UTC)
 	output := int64(547)
 
+	mock.ExpectBegin()
 	mock.ExpectExec(`SET completed_at = \$2, response_status = \$3, response_output_tokens = \$4, response_id = \$5,\s+`+
+		`forward_path = \$6, cache_key_handling = \$7, upstream_cache_key_hash = \$8, usage_cache_source = \$9,\s+`+
+		`upstream_items_hash = \$10, upstream_root_hash = \$11,\s+`+
 		`usage_link_version = usage_link_version \+ CASE WHEN \(completed_at IS DISTINCT FROM \$2 OR response_status IS DISTINCT FROM \$3 OR response_id <> \$5\)\s+AND usage_match_method <> 'request_id'[\s\S]*`+
 		`usage_link_retry_until = CASE WHEN [\s\S]* THEN NOW\(\) \+ INTERVAL '172800 seconds' ELSE usage_link_retry_until END`).
-		WithArgs("arch-1", done, 200, output, "resp_1").WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`SET completed_at`).WithArgs("arch-2", done, nil, nil, "").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`INSERT INTO token_analysis_pending_responses`).WithArgs("arch-2", done, nil, nil, "").WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE token_analysis_request_summaries s[\s\S]*usage_link_version = s.usage_link_version \+ CASE WHEN \(s.completed_at IS DISTINCT FROM p.completed_at[\s\S]*FROM token_analysis_pending_responses p[\s\S]*DELETE FROM token_analysis_pending_responses p\s+WHERE p.archive_id IN \(SELECT archive_id FROM merged\) OR p.recorded_at < \$1`).
-		WithArgs(sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+		WithArgs("arch-1", done, 200, output, "resp_1", "openai_responses", "scoped", "0123456789abcdef0123456789abcdef", "upstream_parsed", "11111111111111111111111111111111", "22222222222222222222222222222222").WillReturnResult(sqlmock.NewResult(0, 1))
+	// 完成事实是分类输入: 同一事务内给本行及其子孙加分类版本。
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-1"}`)
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec(`SET completed_at`).WithArgs("arch-2", done, nil, nil, "", "", "", "", "", "", "").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO token_analysis_pending_responses[\s\S]*forward_path = EXCLUDED.forward_path[\s\S]*upstream_root_hash = EXCLUDED.upstream_root_hash`).WithArgs("arch-2", done, nil, nil, "", "", "", "", "", "", "").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectQuery(`UPDATE token_analysis_request_summaries s[\s\S]*forward_path = p.forward_path[\s\S]*usage_link_version = s.usage_link_version \+ CASE WHEN \(s.completed_at IS DISTINCT FROM p.completed_at[\s\S]*FROM token_analysis_pending_responses p[\s\S]*DELETE FROM token_analysis_pending_responses p\s+WHERE p.archive_id IN \(SELECT archive_id FROM merged\) OR p.recorded_at < \$1\s+\)\s+SELECT archive_id FROM merged`).
+		WithArgs(sqlmock.AnyArg()).WillReturnRows(sqlmock.NewRows([]string{"archive_id"}).AddRow("arch-2"))
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-2"}`)
+	mock.ExpectCommit()
 
 	ctx := context.Background()
-	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{ArchiveID: "arch-1", CompletedAt: done, Status: 200, OutputTokens: &output, ResponseID: "resp_1"}))
+	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{
+		ArchiveID: "arch-1", CompletedAt: done, Status: 200, OutputTokens: &output, ResponseID: "resp_1",
+		Forward: service.TokenAnalysisForwardFacts{
+			ForwardPath: "openai_responses", CacheKeyHandling: "scoped",
+			UpstreamCacheKeyHash: "0123456789abcdef0123456789abcdef", UsageCacheSource: "upstream_parsed",
+			UpstreamItemsHash: "11111111111111111111111111111111", UpstreamRootHash: "22222222222222222222222222222222",
+		},
+	}))
 	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{ArchiveID: "arch-2", CompletedAt: done}))
 	require.NoError(t, repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{}))
 	require.NoError(t, repo.MergePendingResponses(ctx))
@@ -217,8 +247,10 @@ func TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically(t *testing.T) {
 	mock.ExpectQuery(`WHERE usage_log_id = \$1 AND archive_id <> \$2\s+FOR UPDATE`).WithArgs(int64(99), "arch-1").WillReturnRows(holders(service.TokenAnalysisUsageMatchTiming))
 	mock.ExpectExec(setLink).
 		WithArgs("arch-1", int64(99), int16(3), service.TokenAnalysisUsageMatchRequestID, 45, sqlmock.AnyArg(), nil, "", int64(2), false).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`SET usage_log_id = NULL, match_confidence = 0, usage_match_method = 'released',\s+usage_link_version = usage_link_version \+ CASE WHEN TRUE THEN 1 ELSE 0 END`).
-		WithArgs(int64(99), "arch-1").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SET usage_log_id = NULL, match_confidence = 0, usage_match_method = 'released',\s+usage_link_version = usage_link_version \+ CASE WHEN TRUE THEN 1 ELSE 0 END[\s\S]*RETURNING archive_id`).
+		WithArgs(int64(99), "arch-1").WillReturnRows(sqlmock.NewRows([]string{"archive_id"}).AddRow("arch-0"))
+	// 写入行与被夺回的行在同一事务内加分类版本。
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-1","arch-0"}`)
 	mock.ExpectCommit()
 	write, err := repo.SetUsageLink(ctx, "arch-1", readV2, exact, 45, []service.TokenAnalysisRiskReason{{Code: "huge_input_tiny_output", Score: 45}})
 	require.NoError(t, err)
@@ -244,8 +276,14 @@ func TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically(t *testing.T) {
 
 	// 解除关联但继续等待晚到账单: 不确认版本; 确认按读到的版本条件更新。
 	stale := int64(41)
+	mock.ExpectBegin()
 	mock.ExpectExec(setLink).WithArgs("arch-3", nil, int16(0), "", 0, "[]", stale, "", int64(5), true).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-3"}`)
+	mock.ExpectCommit()
+	mock.ExpectBegin()
 	mock.ExpectExec(`SET usage_link_checked_version = \$2\s+WHERE archive_id = \$1 AND usage_link_version = \$2 AND usage_link_checked_version <> \$2`).WithArgs("arch-3", int64(5)).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-3"}`)
+	mock.ExpectCommit()
 	write, err = repo.SetUsageLink(ctx, "arch-3", service.TokenAnalysisUsageLinkState{UsageLogID: &stale, Version: 5, KeepPending: true}, nil, 0, []service.TokenAnalysisRiskReason{})
 	require.NoError(t, err)
 	require.True(t, write.Applied)
@@ -613,5 +651,39 @@ func TestTokenAnalysisRepositoryDeleteUserInput(t *testing.T) {
 	require.NoError(t, repo.DeleteUserInput(context.Background(), "arch-1"))
 	// 空 archive_id 不发 SQL。
 	require.NoError(t, repo.DeleteUserInput(context.Background(), " "))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// expectTokenAnalysisClassificationDirty 期望源写入事务给本行加分类版本并登记失效(子孙
+// 由作业在提交后传播)。ids 是 pq 数组的文本形式。
+func expectTokenAnalysisClassificationDirty(mock sqlmock.Sqlmock, ids string) {
+	mock.ExpectExec(`WITH locked AS \([\s\S]*ORDER BY id\s+FOR UPDATE\s+\)\s+UPDATE token_analysis_request_summaries s\s+SET cls_input_version = s.cls_input_version \+ 1`).
+		WithArgs(ids).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO token_analysis_cls_invalidations \(archive_id\)\s+SELECT unnest\(\$1::text\[\]\)\s+ON CONFLICT \(archive_id\) DO UPDATE SET seq = nextval\('token_analysis_cls_invalidation_seq'\)`).
+		WithArgs(ids).WillReturnResult(sqlmock.NewResult(0, 1))
+}
+
+// 源写入事务遇到死锁时整体重试(审核 R3): 第一次在语句处被 PG 选为死锁受害者, 第二次成功。
+func TestTokenAnalysisRepositoryRetriesDeadlockedTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	defer db.Close()
+	repo := NewTokenAnalysisRepository(db)
+
+	const clear = `SET usage_link_checked_version = \$2\s+WHERE archive_id = \$1 AND usage_link_version = \$2 AND usage_link_checked_version <> \$2`
+	mock.ExpectBegin()
+	mock.ExpectExec(clear).WithArgs("arch-1", int64(3)).WillReturnError(&pq.Error{Code: "40P01", Message: "deadlock detected"})
+	mock.ExpectRollback()
+	mock.ExpectBegin()
+	mock.ExpectExec(clear).WithArgs("arch-1", int64(3)).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectTokenAnalysisClassificationDirty(mock, `{"arch-1"}`)
+	mock.ExpectCommit()
+	require.NoError(t, repo.ClearUsageLinkPending(context.Background(), "arch-1", 3))
+
+	// 非冲突错误不重试。
+	mock.ExpectBegin()
+	mock.ExpectExec(clear).WithArgs("arch-1", int64(4)).WillReturnError(&pq.Error{Code: "23505", Message: "unique violation"})
+	mock.ExpectRollback()
+	require.Error(t, repo.ClearUsageLinkPending(context.Background(), "arch-1", 4))
 	require.NoError(t, mock.ExpectationsWereMet())
 }

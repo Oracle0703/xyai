@@ -1,0 +1,2 @@
+ok  	github.com/Wei-Shaw/sub2api/internal/handler/admin	1.593s
+ok  	github.com/Wei-Shaw/sub2api/internal/server/routes	1.000s [no tests to run]

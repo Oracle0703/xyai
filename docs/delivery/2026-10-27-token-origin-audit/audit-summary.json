@@ -1,0 +1,28 @@
+{
+  "production_sha": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "window_start": "2026-10-26T09:00:00+08:00",
+  "window_end_exclusive": "2026-10-27T09:00:00+08:00",
+  "population": 60065,
+  "stored_human": 3591,
+  "stored_ai": 56387,
+  "stored_unknown": 87,
+  "missing_origin": 0,
+  "human_label_census": 3591,
+  "explicit_metadata_identified": 87,
+  "additional_high_confidence_shape_identified": 391,
+  "unique_identified": 478,
+  "remaining_human_labels_not_proven": 3113,
+  "identified_over_human_percent": 13.311055416318574,
+  "identified_over_population_percent": 0.7958045450761675,
+  "ai_sample": 470,
+  "confirmed_human_to_ai_errors_in_ai_sample": 0,
+  "archive_read_bytes_total": 8872057311,
+  "unique_raw_records_read": 4061,
+  "initial_line_cap_errors": 3,
+  "final_extraction_errors": 0,
+  "limits": [
+    "This is a conservative detection ratio based on client protocol semantics, not a ground-truth accuracy estimate.",
+    "Remaining human-labelled records are not all verified correct.",
+    "AI labels were sampled by endpoint; 0/470 does not prove zero error in the population."
+  ]
+}

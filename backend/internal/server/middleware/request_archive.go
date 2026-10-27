@@ -144,6 +144,7 @@ func newRequestArchiveHandler(cfg config.GatewayRequestArchiveConfig, writer arc
 			responseRecord.Usage = captureWriter.Usage()
 			responseRecord.ResponseID = captureWriter.ResponseID()
 		}
+		responseRecord.TokenAnalysis = service.TokenAnalysisForwardFactsFromContext(c)
 		writer.Enqueue(responseRecord)
 	}
 }
@@ -239,6 +240,8 @@ type requestArchiveRecord struct {
 	BodyTruncated   bool           `json:"body_truncated,omitempty"`
 	Usage           map[string]any `json:"usage,omitempty"`
 	ResponseID      string         `json:"response_id,omitempty"` // 上游 response.id, WS 上游计费的 request_id
+	// TokenAnalysis 是最后一次转发尝试的缓存相关事实(只有原生 OpenAI Responses 路径写入)。
+	TokenAnalysis *service.TokenAnalysisForwardFacts `json:"token_analysis,omitempty"`
 }
 
 func buildArchiveRecord(c *gin.Context, archiveID, event string, ts time.Time) requestArchiveRecord {

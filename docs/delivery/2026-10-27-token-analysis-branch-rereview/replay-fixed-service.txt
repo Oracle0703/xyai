@@ -1,0 +1,49 @@
+package service
+
+import (
+    "crypto/sha256"
+    "encoding/hex"
+    "encoding/json"
+    "os"
+    "path/filepath"
+    "strings"
+    "testing"
+    "github.com/stretchr/testify/require"
+)
+
+func TestCodexAuditArchiveBodyMustMatchDigest(t *testing.T) {
+    original:=`{"input":[{"role":"user","content":"A"}]}`
+    changed:=strings.Replace(original,`"A"`,`"B"`,1)
+    digest:=sha256.Sum256([]byte(original)); hash:=hex.EncodeToString(digest[:])
+    line,err:=json.Marshal(map[string]any{"event":"request","archive_id":"audit-c","body":changed,"body_sha256":hash,"body_truncated":false})
+    require.NoError(t,err)
+    dir:=t.TempDir();require.NoError(t,os.WriteFile(filepath.Join(dir,"audit.jsonl"),line,0600))
+    start,length:=int64(0),int64(len(line))
+    _,ok:=readTokenAnalysisArchiveRequest(dir,TokenAnalysisCandidateRematchRow{ArchiveID:"audit-c",SourceFile:"audit.jsonl",SourceLineStart:&start,SourceLineLength:&length,BodySHA256:hash})
+    require.False(t,ok,"body changed while metadata hash stayed unchanged; the reader must reject it")
+}
+
+func TestCodexAuditPlainTextMustRemainPriceable(t *testing.T) {
+    body:=[]byte(`{"model":"gpt-5.5","input":[{"role":"user","content":"plain text only"}]}`)
+    summary,err:=SummarizeTokenAnalysisRequest("/v1/responses",body,300)
+    require.NoError(t,err)
+    p:=testTokenAnalysisClsRow(1,"p",0,9000,0)
+    c:=testTokenAnalysisClsRow(2,"c",60,60000,2000)
+    c.ImageCount=summary.ImageCount
+    f:=testTokenAnalysisClsFacts([]TokenAnalysisClassificationRow{p,c},[]TokenAnalysisStoredEdge{{ChildArchiveID:"c",ParentArchiveID:"p",Kind:TokenAnalysisEdgeFullPrefix,MatchedItems:1}})
+    res:=testTokenAnalysisClassify(t,f,"c")
+    require.Equal(t,TokenAnalysisPriceRowExact,res.PriceEvidence,"plain string content is not an image and must not disable amount calculation")
+    require.NotNil(t,res.Amount)
+}
+
+func TestCodexAuditUntruncatedArchiveLineCanBeRematched(t *testing.T) {
+    body:=`{"input":[{"role":"user","content":"`+strings.Repeat("<",23<<20)+`"}]}`
+    require.Less(t,len(body),40<<20,"body is below runtime 40 MiB limit")
+    digest:=sha256.Sum256([]byte(body));hash:=hex.EncodeToString(digest[:])
+    line,err:=json.Marshal(map[string]any{"event":"request","archive_id":"audit-large","body":body,"body_sha256":hash,"body_truncated":false})
+    require.NoError(t,err);require.Greater(t,len(line),128<<20)
+    dir:=t.TempDir();require.NoError(t,os.WriteFile(filepath.Join(dir,"audit.jsonl"),line,0600))
+    start,length:=int64(0),int64(len(line));end:=length
+    _,ok:=readTokenAnalysisArchiveRequest(dir,TokenAnalysisCandidateRematchRow{ArchiveID:"audit-large",SourceFile:"audit.jsonl",SourceLineStart:&start,SourceLineLength:&length,SourceOffset:&end,BodySHA256:hash})
+    require.True(t,ok,"a supported untruncated request must not become body_unavailable because of outer JSON escaping")
+}

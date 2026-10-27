@@ -68,6 +68,19 @@ const tokenAnalysisUsageLinkKeysIndexMigration = "248_token_analysis_usage_link_
 const tokenAnalysisClientRequestIDIndex = "idx_token_analysis_client_request_id"
 const tokenAnalysisResponseIDIndex = "idx_token_analysis_response_id"
 const tokenAnalysisUsageLinkPendingIndex = "idx_token_analysis_usage_link_pending"
+const tokenAnalysisPrefixFingerprintIndexesMigration = "252_token_analysis_prefix_fingerprint_indexes_notx.sql"
+
+const tokenAnalysisClassificationIndexesMigration = "254_token_analysis_classification_indexes_notx.sql"
+const tokenAnalysisClassificationPendingIndex = "idx_token_analysis_cls_pending"
+const tokenAnalysisClassificationDueIndexMigration = "260_token_analysis_cls_due_index_notx.sql"
+const tokenAnalysisClassificationDueIndex = "idx_token_analysis_cls_due"
+
+var tokenAnalysisPrefixFingerprintIndexes = []string{
+	"idx_token_analysis_prefix_end_hash",
+	"idx_token_analysis_prefix_tail1_hash",
+	"idx_token_analysis_items_end_hash",
+	"idx_token_analysis_cand_pending",
+}
 
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
@@ -320,6 +333,17 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 			}
 		}
 		return nil
+	case tokenAnalysisPrefixFingerprintIndexesMigration:
+		for _, indexName := range tokenAnalysisPrefixFingerprintIndexes {
+			if err := dropInvalidIndexIfPresent(ctx, db, indexName); err != nil {
+				return err
+			}
+		}
+		return nil
+	case tokenAnalysisClassificationIndexesMigration:
+		return dropInvalidIndexIfPresent(ctx, db, tokenAnalysisClassificationPendingIndex)
+	case tokenAnalysisClassificationDueIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, tokenAnalysisClassificationDueIndex)
 	default:
 		return nil
 	}

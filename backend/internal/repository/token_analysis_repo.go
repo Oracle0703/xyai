@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type tokenAnalysisRepository struct {
@@ -20,19 +21,45 @@ func NewTokenAnalysisRepository(db *sql.DB) service.TokenAnalysisRepository {
 	return &tokenAnalysisRepository{db: db}
 }
 
-func (r *tokenAnalysisRepository) UpsertRequestSummary(ctx context.Context, summary *service.TokenAnalysisRequestSummary) error {
+func (r *tokenAnalysisRepository) UpsertRequestSummary(ctx context.Context, summary *service.TokenAnalysisRequestSummary) (service.TokenAnalysisSummaryUpsert, error) {
 	if summary == nil {
-		return nil
+		return service.TokenAnalysisSummaryUpsert{}, nil
 	}
 	summaryJSON, err := json.Marshal(nonNilMap(summary.SummaryJSON))
 	if err != nil {
-		return fmt.Errorf("marshal token analysis summary json: %w", err)
+		return service.TokenAnalysisSummaryUpsert{}, fmt.Errorf("marshal token analysis summary json: %w", err)
 	}
 	riskReasons, err := json.Marshal(summary.RiskReasons)
 	if err != nil {
-		return fmt.Errorf("marshal token analysis risk reasons: %w", err)
+		return service.TokenAnalysisSummaryUpsert{}, fmt.Errorf("marshal token analysis risk reasons: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx, `
+	var upserted service.TokenAnalysisSummaryUpsert
+	err = r.inTx(ctx, "token analysis summary upsert", func(tx *sql.Tx) (bool, error) {
+		var err error
+		upserted, err = upsertTokenAnalysisSummaryTx(ctx, tx, summary, string(summaryJSON), string(riskReasons))
+		return err == nil, err
+	})
+	if err != nil {
+		return service.TokenAnalysisSummaryUpsert{}, err
+	}
+	return upserted, nil
+}
+
+func upsertTokenAnalysisSummaryTx(ctx context.Context, tx *sql.Tx, summary *service.TokenAnalysisRequestSummary, summaryJSON, riskReasons string) (service.TokenAnalysisSummaryUpsert, error) {
+	// 有 API Key 的行先取候选锁: 本行可能成为同 Key 后续请求的新父请求, 与它们的候选
+	// 查找串行(设计 5.5); 锁在行锁之前取, 加锁顺序统一。
+	if summary.APIKeyID != nil {
+		if err := lockTokenAnalysisCandidates(ctx, tx, *summary.APIKeyID); err != nil {
+			return service.TokenAnalysisSummaryUpsert{}, err
+		}
+	}
+	prev, err := lockTokenAnalysisFingerprintState(ctx, tx, summary.ArchiveID)
+	if err != nil {
+		return service.TokenAnalysisSummaryUpsert{}, err
+	}
+	plan := planTokenAnalysisCandidateVersions(prev, summary.Fingerprint)
+	fp := summary.Fingerprint
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO token_analysis_request_summaries (
     archive_id, usage_log_id, match_confidence, event_time,
     user_id, api_key_id, account_id, group_id,
@@ -41,7 +68,11 @@ INSERT INTO token_analysis_request_summaries (
     message_count, system_chars, user_chars, last_user_preview, tools_count, image_count,
     summary_json, risk_score, risk_reasons, source_file, source_offset,
     client_workdir, client_project, client_branch, attribution_source,
-    client_request_id
+    client_request_id, user_agent, client_family, client_family_version,
+    source_line_start, source_line_length,
+    fp_version, fp_state, prefix_end_hash, prefix_tail1_hash, items_end_hash, client_cache_key_hash,
+    prefix_items, has_continuation_ref,
+    cand_input_version, cand_checked_version, cand_state, cand_overflow
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8,
@@ -50,7 +81,11 @@ INSERT INTO token_analysis_request_summaries (
     $15, $16, $17, $18, $19, $20,
     $21::jsonb, $22, $23::jsonb, $24, $25,
     $26, $27, $28, $29,
-    $30
+    $30, $31, $32, $33,
+    $34, $35,
+    $36, $37, $38, $39, $40, $41,
+    $42, $43,
+    $44, $45, $46, FALSE
 )
 ON CONFLICT (archive_id) DO UPDATE SET
     usage_log_id = EXCLUDED.usage_log_id,
@@ -83,7 +118,24 @@ ON CONFLICT (archive_id) DO UPDATE SET
     client_workdir = EXCLUDED.client_workdir,
     client_project = EXCLUDED.client_project,
     client_branch = EXCLUDED.client_branch,
-    attribution_source = EXCLUDED.attribution_source`,
+    attribution_source = EXCLUDED.attribution_source,
+    user_agent = EXCLUDED.user_agent,
+    client_family = EXCLUDED.client_family,
+    client_family_version = EXCLUDED.client_family_version,
+    source_line_start = EXCLUDED.source_line_start,
+    source_line_length = EXCLUDED.source_line_length,
+    fp_version = EXCLUDED.fp_version,
+    fp_state = EXCLUDED.fp_state,
+    prefix_end_hash = EXCLUDED.prefix_end_hash,
+    prefix_tail1_hash = EXCLUDED.prefix_tail1_hash,
+    items_end_hash = EXCLUDED.items_end_hash,
+    client_cache_key_hash = EXCLUDED.client_cache_key_hash,
+    prefix_items = EXCLUDED.prefix_items,
+    has_continuation_ref = EXCLUDED.has_continuation_ref,
+    cand_input_version = EXCLUDED.cand_input_version,
+    cand_checked_version = EXCLUDED.cand_checked_version,
+    cand_state = CASE WHEN $47::boolean THEN token_analysis_request_summaries.cand_state ELSE EXCLUDED.cand_state END,
+    cand_overflow = CASE WHEN $47::boolean THEN token_analysis_request_summaries.cand_overflow ELSE FALSE END`,
 		summary.ArchiveID,
 		nullableInt64(summary.UsageLogID),
 		summary.MatchConfidence,
@@ -104,9 +156,9 @@ ON CONFLICT (archive_id) DO UPDATE SET
 		summary.LastUserPreview,
 		summary.ToolsCount,
 		summary.ImageCount,
-		string(summaryJSON),
+		summaryJSON,
 		summary.RiskScore,
-		string(riskReasons),
+		riskReasons,
 		summary.SourceFile,
 		nullableInt64(summary.SourceOffset),
 		summary.ClientWorkdir,
@@ -114,11 +166,62 @@ ON CONFLICT (archive_id) DO UPDATE SET
 		summary.ClientBranch,
 		summary.AttributionSource,
 		summary.ClientRequestID,
+		summary.UserAgent,
+		summary.ClientFamily,
+		summary.ClientFamilyVersion,
+		nullableInt64(summary.SourceLineStart),
+		nullableInt64(summary.SourceLineLength),
+		fp.Version,
+		fp.State,
+		nullableBytes(fp.PrefixEndHash),
+		nullableBytes(fp.PrefixTail1Hash),
+		nullableBytes(fp.ItemsEndHash),
+		nullableBytes(fp.ClientCacheKeyHash),
+		fp.PrefixItems,
+		fp.HasContinuationRef,
+		plan.inputVersion,
+		plan.checkedVersion,
+		plan.state,
+		plan.keepState,
 	)
 	if err != nil {
-		return fmt.Errorf("upsert token analysis request summary: %w", err)
+		return service.TokenAnalysisSummaryUpsert{}, fmt.Errorf("upsert token analysis request summary: %w", err)
 	}
-	return nil
+	if plan.clearEdges {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM token_analysis_prefix_edges WHERE child_archive_id = $1`, summary.ArchiveID); err != nil {
+			return service.TokenAnalysisSummaryUpsert{}, fmt.Errorf("clear token analysis prefix edges: %w", err)
+		}
+	}
+	if plan.bumpChildren {
+		if _, err := tx.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries
+SET cand_input_version = cand_input_version + 1, cls_dep_version = cls_dep_version + 1
+WHERE archive_id IN (SELECT child_archive_id FROM token_analysis_prefix_edges WHERE parent_archive_id = $1)`,
+			summary.ArchiveID); err != nil {
+			return service.TokenAnalysisSummaryUpsert{}, fmt.Errorf("mark token analysis candidate children: %w", err)
+		}
+	}
+	if plan.fingerprintChanged && summary.APIKeyID != nil {
+		// 晚到的父请求: 同 Key、之后 L 窗口内、相同指纹版本且已有指纹的行可能漏选了本行,
+		// 标为待重新匹配。尚未补算指纹的行(首次回填)与旧版本指纹的行不受影响, 它们
+		// 处理到时会自行查找本行。
+		if _, err := tx.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries
+SET cand_input_version = cand_input_version + 1, cls_dep_version = cls_dep_version + 1
+WHERE api_key_id = $1 AND event_time > $2 AND event_time <= $3
+    AND fp_version = $4 AND prefix_end_hash IS NOT NULL AND archive_id <> $5`,
+			*summary.APIKeyID, summary.EventTime, summary.EventTime.Add(service.TokenAnalysisCandidateLookback), fp.Version, summary.ArchiveID); err != nil {
+			return service.TokenAnalysisSummaryUpsert{}, fmt.Errorf("mark token analysis late parent candidates: %w", err)
+		}
+	}
+	// 摘要重写可能改变自身的分类输入, 并影响以本行为父或祖先的子孙。
+	if err := markTokenAnalysisClassificationDirty(ctx, tx, []string{summary.ArchiveID}); err != nil {
+		return service.TokenAnalysisSummaryUpsert{}, err
+	}
+	return service.TokenAnalysisSummaryUpsert{
+		CandInputVersion: plan.inputVersion,
+		CandidatesDue:    fp.Comparable() && plan.inputVersion != plan.checkedVersion,
+	}, nil
 }
 
 func (r *tokenAnalysisRepository) RecordResponse(ctx context.Context, facts service.TokenAnalysisResponseFacts) error {
@@ -129,33 +232,51 @@ func (r *tokenAnalysisRepository) RecordResponse(ctx context.Context, facts serv
 	if facts.Status > 0 {
 		status = facts.Status
 	}
-	args := []any{facts.ArchiveID, facts.CompletedAt, status, nullableInt64(facts.OutputTokens), facts.ResponseID}
+	args := []any{facts.ArchiveID, facts.CompletedAt, status, nullableInt64(facts.OutputTokens), facts.ResponseID,
+		facts.Forward.ForwardPath, facts.Forward.CacheKeyHandling, facts.Forward.UpstreamCacheKeyHash, facts.Forward.UsageCacheSource,
+		facts.Forward.UpstreamItemsHash, facts.Forward.UpstreamRootHash}
 	// 完成事实变化时登记一次复核(不受请求日期范围限制): 跨日请求的 response 在
 	// 后一日文件里, 弱关联也要按新的状态/完成时间复核; 精确关联与探测行不需要。
-	result, err := r.db.ExecContext(ctx, `
+	// 完成事实与转发记录是分类输入: 同一事务内给本行及其子孙加分类版本。
+	return r.inTx(ctx, "token analysis response", func(tx *sql.Tx) (bool, error) {
+		result, err := tx.ExecContext(ctx, `
 UPDATE token_analysis_request_summaries
 SET completed_at = $2, response_status = $3, response_output_tokens = $4, response_id = $5,
+    forward_path = $6, cache_key_handling = $7, upstream_cache_key_hash = $8, usage_cache_source = $9,
+    upstream_items_hash = $10, upstream_root_hash = $11,
     `+tokenAnalysisUsageLinkRecheckWhen("", tokenAnalysisResponseFactsChanged("", "$2", "$3", "$5"))+`
 WHERE archive_id = $1`, args...)
-	if err != nil {
-		return fmt.Errorf("record token analysis response: %w", err)
-	}
-	if updated, err := result.RowsAffected(); err != nil || updated > 0 {
-		return err
-	}
-	// 请求行在前一日文件里且尚未索引(跨日文件逆序回填): 暂存, 请求行入库后合并。
-	if _, err := r.db.ExecContext(ctx, `
-INSERT INTO token_analysis_pending_responses (archive_id, completed_at, response_status, response_output_tokens, response_id)
-VALUES ($1, $2, $3, $4, $5)
+		if err != nil {
+			return false, fmt.Errorf("record token analysis response: %w", err)
+		}
+		updated, err := result.RowsAffected()
+		if err != nil {
+			return false, fmt.Errorf("record token analysis response: %w", err)
+		}
+		if updated > 0 {
+			return true, markTokenAnalysisClassificationDirty(ctx, tx, []string{facts.ArchiveID})
+		}
+		// 请求行在前一日文件里且尚未索引(跨日文件逆序回填): 暂存, 请求行入库后合并。
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO token_analysis_pending_responses (archive_id, completed_at, response_status, response_output_tokens, response_id,
+    forward_path, cache_key_handling, upstream_cache_key_hash, usage_cache_source, upstream_items_hash, upstream_root_hash)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (archive_id) DO UPDATE SET
     completed_at = EXCLUDED.completed_at,
     response_status = EXCLUDED.response_status,
     response_output_tokens = EXCLUDED.response_output_tokens,
     response_id = EXCLUDED.response_id,
+    forward_path = EXCLUDED.forward_path,
+    cache_key_handling = EXCLUDED.cache_key_handling,
+    upstream_cache_key_hash = EXCLUDED.upstream_cache_key_hash,
+    usage_cache_source = EXCLUDED.usage_cache_source,
+    upstream_items_hash = EXCLUDED.upstream_items_hash,
+    upstream_root_hash = EXCLUDED.upstream_root_hash,
     recorded_at = NOW()`, args...); err != nil {
-		return fmt.Errorf("stash token analysis response: %w", err)
-	}
-	return nil
+			return false, fmt.Errorf("stash token analysis response: %w", err)
+		}
+		return true, nil
+	})
 }
 
 // tokenAnalysisResponseFactsChanged 判断写回的完成事实是否改变了未精确关联的行
@@ -181,23 +302,51 @@ func tokenAnalysisUsageLinkRecheckWhen(alias, cond string) string {
 const tokenAnalysisPendingResponseTTL = 7 * 24 * time.Hour
 
 func (r *tokenAnalysisRepository) MergePendingResponses(ctx context.Context) error {
-	if _, err := r.db.ExecContext(ctx, `
+	return r.inTx(ctx, "token analysis pending responses", func(tx *sql.Tx) (bool, error) {
+		rows, err := tx.QueryContext(ctx, `
 WITH merged AS (
     UPDATE token_analysis_request_summaries s
     SET completed_at = p.completed_at,
         response_status = p.response_status,
         response_output_tokens = p.response_output_tokens,
         response_id = p.response_id,
+        forward_path = p.forward_path,
+        cache_key_handling = p.cache_key_handling,
+        upstream_cache_key_hash = p.upstream_cache_key_hash,
+        usage_cache_source = p.usage_cache_source,
+        upstream_items_hash = p.upstream_items_hash,
+        upstream_root_hash = p.upstream_root_hash,
         `+tokenAnalysisUsageLinkRecheckWhen("s.", tokenAnalysisResponseFactsChanged("s.", "p.completed_at", "p.response_status", "p.response_id"))+`
     FROM token_analysis_pending_responses p
     WHERE s.archive_id = p.archive_id
     RETURNING s.archive_id
+), deleted AS (
+    DELETE FROM token_analysis_pending_responses p
+    WHERE p.archive_id IN (SELECT archive_id FROM merged) OR p.recorded_at < $1
 )
-DELETE FROM token_analysis_pending_responses p
-WHERE p.archive_id IN (SELECT archive_id FROM merged) OR p.recorded_at < $1`, time.Now().Add(-tokenAnalysisPendingResponseTTL)); err != nil {
-		return fmt.Errorf("merge token analysis pending responses: %w", err)
+SELECT archive_id FROM merged`, time.Now().Add(-tokenAnalysisPendingResponseTTL))
+		if err != nil {
+			return false, fmt.Errorf("merge token analysis pending responses: %w", err)
+		}
+		merged, err := scanTokenAnalysisArchiveIDs(rows)
+		if err != nil {
+			return false, fmt.Errorf("merge token analysis pending responses: %w", err)
+		}
+		return true, markTokenAnalysisClassificationDirty(ctx, tx, merged)
+	})
+}
+
+func scanTokenAnalysisArchiveIDs(rows *sql.Rows) ([]string, error) {
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
 	}
-	return nil
+	return out, rows.Err()
 }
 
 func (r *tokenAnalysisRepository) ListUsageLinkCandidates(ctx context.Context, start, end time.Time, afterID int64, limit int) ([]service.TokenAnalysisUsageLinkCandidate, error) {
@@ -459,80 +608,101 @@ func (r *tokenAnalysisRepository) SetUsageLink(ctx context.Context, archiveID st
 	if err != nil {
 		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("marshal token analysis risk reasons: %w", err)
 	}
-	if match == nil {
-		result, err := r.db.ExecContext(ctx, tokenAnalysisSetUsageLinkSQL, archiveID, nil, int16(0), "", riskScore, string(reasons),
-			nullableInt64(expected.UsageLogID), expected.Method, expected.Version, expected.KeepPending)
-		if err != nil {
-			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("clear token analysis usage link: %w", err)
+	// 关联结果是分类输入: 写入行与被夺回的行在同一事务内加分类版本。
+	var write service.TokenAnalysisUsageLinkWrite
+	err = r.inTx(ctx, "token analysis usage link", func(tx *sql.Tx) (bool, error) {
+		write = service.TokenAnalysisUsageLinkWrite{}
+		if match == nil {
+			result, err := tx.ExecContext(ctx, tokenAnalysisSetUsageLinkSQL, archiveID, nil, int16(0), "", riskScore, string(reasons),
+				nullableInt64(expected.UsageLogID), expected.Method, expected.Version, expected.KeepPending)
+			if err != nil {
+				return false, fmt.Errorf("clear token analysis usage link: %w", err)
+			}
+			if updated, err := result.RowsAffected(); err != nil || updated == 0 {
+				return false, err
+			}
+			write.Applied = true
+			return true, markTokenAnalysisClassificationDirty(ctx, tx, []string{archiveID})
 		}
-		updated, err := result.RowsAffected()
-		if err != nil {
-			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("clear token analysis usage link: %w", err)
-		}
-		return service.TokenAnalysisUsageLinkWrite{Applied: updated > 0}, nil
-	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("begin token analysis usage link: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('token_analysis_usage_claim:' || $1::text, 0))`, match.UsageLogID); err != nil {
-		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("lock token analysis usage claim: %w", err)
-	}
-	rows, err := tx.QueryContext(ctx, `
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('token_analysis_usage_claim:' || $1::text, 0))`, match.UsageLogID); err != nil {
+			return false, fmt.Errorf("lock token analysis usage claim: %w", err)
+		}
+		rows, err := tx.QueryContext(ctx, `
 SELECT usage_match_method FROM token_analysis_request_summaries
 WHERE usage_log_id = $1 AND archive_id <> $2
 FOR UPDATE`, match.UsageLogID, archiveID)
-	if err != nil {
-		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("check token analysis usage claim: %w", err)
-	}
-	displaced := false
-	for rows.Next() {
-		var method string
-		if err := rows.Scan(&method); err != nil {
-			_ = rows.Close()
-			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("scan token analysis usage claim: %w", err)
+		if err != nil {
+			return false, fmt.Errorf("check token analysis usage claim: %w", err)
 		}
-		if method == service.TokenAnalysisUsageMatchRequestID || match.Method != service.TokenAnalysisUsageMatchRequestID {
-			_ = rows.Close()
-			return service.TokenAnalysisUsageLinkWrite{}, nil
+		displaced := false
+		for rows.Next() {
+			var method string
+			if err := rows.Scan(&method); err != nil {
+				_ = rows.Close()
+				return false, fmt.Errorf("scan token analysis usage claim: %w", err)
+			}
+			if method == service.TokenAnalysisUsageMatchRequestID || match.Method != service.TokenAnalysisUsageMatchRequestID {
+				_ = rows.Close()
+				return false, nil
+			}
+			displaced = true
 		}
-		displaced = true
-	}
-	if err := rows.Close(); err != nil {
-		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("check token analysis usage claim: %w", err)
-	}
-	result, err := tx.ExecContext(ctx, tokenAnalysisSetUsageLinkSQL, archiveID, match.UsageLogID, match.MatchConfidence, match.Method, riskScore, string(reasons),
-		nullableInt64(expected.UsageLogID), expected.Method, expected.Version, expected.KeepPending)
-	if err != nil {
-		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("set token analysis usage link: %w", err)
-	}
-	if updated, err := result.RowsAffected(); err != nil || updated == 0 {
-		return service.TokenAnalysisUsageLinkWrite{}, err
-	}
-	if displaced {
-		if _, err := tx.ExecContext(ctx, `
+		if err := rows.Close(); err != nil {
+			return false, fmt.Errorf("check token analysis usage claim: %w", err)
+		}
+		result, err := tx.ExecContext(ctx, tokenAnalysisSetUsageLinkSQL, archiveID, match.UsageLogID, match.MatchConfidence, match.Method, riskScore, string(reasons),
+			nullableInt64(expected.UsageLogID), expected.Method, expected.Version, expected.KeepPending)
+		if err != nil {
+			return false, fmt.Errorf("set token analysis usage link: %w", err)
+		}
+		if updated, err := result.RowsAffected(); err != nil || updated == 0 {
+			return false, err
+		}
+		changed := []string{archiveID}
+		if displaced {
+			released, err := tx.QueryContext(ctx, `
 UPDATE token_analysis_request_summaries
 SET usage_log_id = NULL, match_confidence = 0, usage_match_method = 'released',
     `+tokenAnalysisUsageLinkRecheckWhen("", "TRUE")+`
-WHERE usage_log_id = $1 AND archive_id <> $2`, match.UsageLogID, archiveID); err != nil {
-			return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("release token analysis usage claim: %w", err)
+WHERE usage_log_id = $1 AND archive_id <> $2
+RETURNING archive_id`, match.UsageLogID, archiveID)
+			if err != nil {
+				return false, fmt.Errorf("release token analysis usage claim: %w", err)
+			}
+			ids, err := scanTokenAnalysisArchiveIDs(released)
+			if err != nil {
+				return false, fmt.Errorf("release token analysis usage claim: %w", err)
+			}
+			changed = append(changed, ids...)
 		}
+		if err := markTokenAnalysisClassificationDirty(ctx, tx, changed); err != nil {
+			return false, err
+		}
+		write = service.TokenAnalysisUsageLinkWrite{Applied: true, Displaced: displaced}
+		return true, nil
+	})
+	if err != nil {
+		return service.TokenAnalysisUsageLinkWrite{}, err
 	}
-	if err := tx.Commit(); err != nil {
-		return service.TokenAnalysisUsageLinkWrite{}, fmt.Errorf("commit token analysis usage link: %w", err)
-	}
-	return service.TokenAnalysisUsageLinkWrite{Applied: true, Displaced: displaced}, nil
+	return write, nil
 }
 
 func (r *tokenAnalysisRepository) ClearUsageLinkPending(ctx context.Context, archiveID string, version int64) error {
-	if _, err := r.db.ExecContext(ctx, `
+	// 关联确认是分类门禁之一: 确认后本行及子孙需重新分类。
+	return r.inTx(ctx, "token analysis usage link pending", func(tx *sql.Tx) (bool, error) {
+		result, err := tx.ExecContext(ctx, `
 UPDATE token_analysis_request_summaries SET usage_link_checked_version = $2
-WHERE archive_id = $1 AND usage_link_version = $2 AND usage_link_checked_version <> $2`, archiveID, version); err != nil {
-		return fmt.Errorf("clear token analysis usage link pending: %w", err)
-	}
-	return nil
+WHERE archive_id = $1 AND usage_link_version = $2 AND usage_link_checked_version <> $2`, archiveID, version)
+		if err != nil {
+			return false, fmt.Errorf("clear token analysis usage link pending: %w", err)
+		}
+		updated, err := result.RowsAffected()
+		if err != nil || updated == 0 {
+			return false, err
+		}
+		return true, markTokenAnalysisClassificationDirty(ctx, tx, []string{archiveID})
+	})
 }
 
 func (r *tokenAnalysisRepository) CountSameBodyRecent(ctx context.Context, bodySHA256 string, userID, apiKeyID *int64, eventTime time.Time, window time.Duration) (int, error) {
@@ -1086,6 +1256,65 @@ func (r *tokenAnalysisRepository) DeleteUserInput(ctx context.Context, archiveID
 	}
 	if _, err := r.db.ExecContext(ctx, `DELETE FROM token_analysis_user_inputs WHERE archive_id = $1`, archiveID); err != nil {
 		return fmt.Errorf("delete token analysis user input: %w", err)
+	}
+	return nil
+}
+
+func (r *tokenAnalysisRepository) ListStaleClientFamilies(ctx context.Context, version int32, afterID int64, limit int) ([]service.TokenAnalysisClientFamilyRow, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	// 按主键游标续读, 每遍只扫一次表。
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, user_agent, client_family_version
+FROM token_analysis_request_summaries
+WHERE id > $2 AND client_family_version <> 0 AND client_family_version <> $1
+ORDER BY id
+LIMIT $3`, version, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list stale token analysis client families: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]service.TokenAnalysisClientFamilyRow, 0, limit)
+	for rows.Next() {
+		var row service.TokenAnalysisClientFamilyRow
+		if err := rows.Scan(&row.ID, &row.UserAgent, &row.Version); err != nil {
+			return nil, fmt.Errorf("scan stale token analysis client family: %w", err)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate stale token analysis client families: %w", err)
+	}
+	return out, nil
+}
+
+func (r *tokenAnalysisRepository) UpdateClientFamilies(ctx context.Context, version int32, rows []service.TokenAnalysisClientFamilyRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	ids := make([]int64, len(rows))
+	families := make([]string, len(rows))
+	userAgents := make([]string, len(rows))
+	versions := make([]int64, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
+		families[i] = row.Family
+		userAgents[i] = row.UserAgent
+		versions[i] = int64(row.Version)
+	}
+	// 只改 UA 与规则版本仍等于读出快照的行: 期间被重新索引或被其他规则实例改过的行
+	// 跳过, 由下一遍重新读取计算(版本是规则哈希, 不能按大小比较先后)。
+	if _, err := r.db.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries s
+SET client_family = t.family, client_family_version = $5
+FROM (
+    SELECT unnest($1::bigint[]) AS id, unnest($2::text[]) AS family,
+           unnest($3::text[]) AS user_agent, unnest($4::int[]) AS version
+) t
+WHERE s.id = t.id AND s.user_agent = t.user_agent AND s.client_family_version = t.version`,
+		pq.Array(ids), pq.Array(families), pq.Array(userAgents), pq.Array(versions), version); err != nil {
+		return fmt.Errorf("update token analysis client families: %w", err)
 	}
 	return nil
 }

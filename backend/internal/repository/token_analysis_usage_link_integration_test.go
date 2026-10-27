@@ -53,7 +53,7 @@ func newTokenAnalysisLinkFixture(t *testing.T, day time.Time) *tokenAnalysisLink
 // request 写入一条已索引请求(来源为人工, 与真实索引一致不带账单)。
 func (f *tokenAnalysisLinkFixture) request(archiveID, clientRequestID string, start time.Time) {
 	f.t.Helper()
-	require.NoError(f.t, f.repo.UpsertRequestSummary(f.ctx, &service.TokenAnalysisRequestSummary{
+	requireTokenAnalysisUpsert(f.t, f.repo, f.ctx, &service.TokenAnalysisRequestSummary{
 		ArchiveID: archiveID, ClientRequestID: clientRequestID, EventTime: start,
 		UserID: &f.userID, APIKeyID: &f.apiKeyID, Model: tokenAnalysisLinkModel, Endpoint: "/v1/responses", Method: "POST",
 		SummaryJSON: map[string]any{
@@ -61,7 +61,7 @@ func (f *tokenAnalysisLinkFixture) request(archiveID, clientRequestID string, st
 			"same_body_recent_count": 0,
 		},
 		RiskReasons: []service.TokenAnalysisRiskReason{},
-	}))
+	})
 }
 
 func (f *tokenAnalysisLinkFixture) response(archiveID string, completedAt time.Time, status int) {
@@ -578,10 +578,10 @@ func TestTokenAnalysisListRequestsFiltersByOrigin(t *testing.T) {
 	day := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
 	f := newTokenAnalysisLinkFixture(t, day)
 	upsert := func(archiveID string, summary map[string]any) {
-		require.NoError(t, f.repo.UpsertRequestSummary(f.ctx, &service.TokenAnalysisRequestSummary{
+		requireTokenAnalysisUpsert(t, f.repo, f.ctx, &service.TokenAnalysisRequestSummary{
 			ArchiveID: archiveID, EventTime: day.Add(time.Hour), UserID: &f.userID, APIKeyID: &f.apiKeyID,
 			Model: tokenAnalysisLinkModel, Endpoint: "/v1/responses", SummaryJSON: summary, RiskReasons: []service.TokenAnalysisRiskReason{},
-		}))
+		})
 	}
 	upsert("human", map[string]any{"request_origin": map[string]any{"kind": "human", "reason": "user_input", "confidence": "medium", "version": 1}})
 	upsert("ai", map[string]any{"request_origin": map[string]any{"kind": "ai", "reason": "tool_result", "confidence": "high", "version": 1}})

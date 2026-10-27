@@ -1,0 +1,216 @@
+{
+  "review_date": "2026-10-27",
+  "branch": "feature/hy/10221_token_risk_classification",
+  "head": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "local_main": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "scope": "All 58 changed backend/deploy files, including untracked additions; 13 files changed since fourth review",
+  "review_status": "approved_with_nonblocking_test_feedback",
+  "new_P1_P2_findings": 0,
+  "nonblocking_findings": [
+    {
+      "priority": "P3",
+      "kind": "Lifecycle stale-write assertions omit ClsDepVersion and do not isolate the intended CAS guards",
+      "location": "backend/internal/repository/token_analysis_classification_integration_test.go:217-222",
+      "business_bug": false
+    }
+  ],
+  "previous_independent_replays": {
+    "fourth_review_F1_F2_top_level_pass": 2,
+    "namespace_subcases_pass": 2,
+    "third_review_ABA_top_level_pass": 1,
+    "second_review_service_top_level_pass": 3,
+    "propagation_helper_renamed_for_replay": true,
+    "correct_behavior_assertions_preserved": true
+  },
+  "isolated_CAS_verification": {
+    "top_level_pass": 1,
+    "subcases_pass": [
+      "input_only",
+      "dependency_only",
+      "parent_only",
+      "candidate_only"
+    ],
+    "positive_and_negative_controls": true
+  },
+  "focused_top_level_tests": {
+    "unit": {
+      "pass": 180,
+      "fail": 0,
+      "skip": 0
+    },
+    "integration": {
+      "pass": 52,
+      "fail": 0,
+      "skip": 0,
+      "integration_tagged_top_level": 31
+    }
+  },
+  "unit_routes_note": "No matching tests; package compiled",
+  "build": {
+    "exit_code": 0,
+    "artifact_executed": false,
+    "artifact_copied_to_repo": false
+  },
+  "gofmt_clean": true,
+  "git_diff_check_exit_code": 0,
+  "source_hashes": {
+    "files": 58,
+    "drift": [],
+    "changed_file_set_unchanged": true
+  },
+  "cleanup": {
+    "temporary_review_tests": [],
+    "isolated_postgresql_stopped": true,
+    "all_review_cluster_postmaster_pids_absent": true
+  },
+  "database": "Local isolated PostgreSQL 18.1; synthetic fixtures only",
+  "environment_recovery": "Initial initdb timed out after 60 seconds during filesystem sync; reinitialized a new disposable cluster using initdb --no-sync; all database tests executed without skips",
+  "verification_limits": [
+    "No production access",
+    "Not PostgreSQL 15 acceptance",
+    "No full-repository suite",
+    "No browser verification",
+    "No load tests",
+    "No rolling upgrade or historical repair acceptance",
+    "No reindex or deployment"
+  ],
+  "repository_writes": "Review report and evidence plus backend/security/data wiki only; no implementation, formal test, or design changes",
+  "executions": [
+    {
+      "mode": "unit",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "-p",
+        "1",
+        "-count=1",
+        "-json",
+        "-run",
+        "TokenAnalysis|BootstrapSecrets|SecuritySecret|GenerateHexSecret|SecretNotFound|MigrationExecutionMode|ApplyMigrationsFS|OpenAI.*Plugin",
+        "./internal/config",
+        "./internal/service",
+        "./internal/repository",
+        "./internal/server/middleware",
+        "./internal/handler/admin",
+        "./internal/server/routes"
+      ],
+      "exit_code": 0,
+      "log": "unit-tests.jsonl"
+    },
+    {
+      "mode": "integration",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-json",
+        "-run",
+        "TestTokenAnalysis",
+        "./internal/repository"
+      ],
+      "exit_code": 0,
+      "log": "integration-tests.jsonl"
+    },
+    {
+      "mode": "stale-consumer",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexFourthReviewStaleConsumer",
+        "./internal/repository"
+      ],
+      "exit_code": 0,
+      "log": "stale-consumer-repro.log"
+    },
+    {
+      "mode": "namespace",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexFourthReviewNamespaceChildrenCount",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "log": "namespace-repro.log"
+    },
+    {
+      "mode": "replay",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexAuditInvalidationSequence",
+        "./internal/repository"
+      ],
+      "exit_code": 0,
+      "log": "aba-replay.log"
+    },
+    {
+      "mode": "cas",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexAuditClassificationCAS",
+        "./internal/repository"
+      ],
+      "exit_code": 0,
+      "log": "cas-verification.log"
+    },
+    {
+      "mode": "service-replay",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexRereview",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "log": "service-replay.log"
+    },
+    {
+      "mode": "build",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "E:\\tmp\\token-analysis-branch-fifth-review-20261027\\sub2api-audit.exe",
+        "./cmd/server"
+      ],
+      "exit_code": 0,
+      "log": "build.log"
+    }
+  ]
+}

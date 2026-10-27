@@ -132,7 +132,7 @@ func tokenAnalysisOriginFromItems(value any, gemini bool) tokenAnalysisRequestOr
 		}
 		typ, _ := item["type"].(string)
 		switch {
-		case strings.HasSuffix(typ, "_call_output") || typ == "tool_search_output":
+		case tokenAnalysisIsToolOutputItemType(typ):
 			return tokenAnalysisOrigin("tool_result")
 		case typ == "agent_message":
 			return tokenAnalysisOrigin("agent_message")
@@ -194,7 +194,7 @@ func tokenAnalysisOriginFromUserContent(content any, gemini bool) (origin tokenA
 		}
 		typ, _ := block["type"].(string)
 		switch {
-		case typ == "tool_result" || (gemini && (block["functionResponse"] != nil || block["function_response"] != nil)):
+		case tokenAnalysisIsToolResultBlock(block, gemini):
 			tool = true
 		case tokenAnalysisIsTextBlock(block):
 			text, ok := block["text"].(string)
@@ -224,6 +224,19 @@ func tokenAnalysisOriginFromUserContent(content any, gemini bool) (origin tokenA
 		return tokenAnalysisOrigin("tool_result"), false
 	}
 	return tokenAnalysisOrigin("no_signal"), injected
+}
+
+// tokenAnalysisIsToolOutputItemType 是 Responses 顶层工具输出条目的共享定义,
+// 来源分类与摘要器的工具输出统计共用。
+func tokenAnalysisIsToolOutputItemType(typ string) bool {
+	return strings.HasSuffix(typ, "_call_output") || typ == "tool_search_output"
+}
+
+// tokenAnalysisIsToolResultBlock 是消息内容块中工具结果的共享定义: Anthropic
+// tool_result, 以及 Gemini parts 中的 functionResponse/function_response。
+func tokenAnalysisIsToolResultBlock(block map[string]any, gemini bool) bool {
+	typ, _ := block["type"].(string)
+	return typ == "tool_result" || (gemini && (block["functionResponse"] != nil || block["function_response"] != nil))
 }
 
 // tokenAnalysisIsTextBlock is the shared definition of a text content block for

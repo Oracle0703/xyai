@@ -319,7 +319,7 @@ API 模块分布:
 
 管理端 Token Analysis 计费用量趋势:
 
-- 索引状态展示的既有歧义：标签数字是 `archiveFiles.length`（当前目录文件数），不是错误数；`last_error` 为历史粘性错误，仍被 `tokenAnalysisIndexState` 映射为非运行态 `error`，状态卡无条件显示，最近水位仅展示前 5 条。它不能证明本轮执行失败；区分当前运行状态与历史失败、补充错误来源文件的建议尚未实施，见 `docs/reviews/2026-10-25-token-analysis-index-errors-investigation-cn.md`。
+- 索引状态展示的既有歧义：标签数字是 `archiveFiles.length`（当前目录文件数），不是错误数；`last_error` 为历史粘性错误，仍被 `tokenAnalysisIndexState` 映射为非运行态 `error`，状态卡无条件显示，最近水位仅展示前 5 条。失败合计来自最近更新的 50 个水位，不是本轮/所选日期失败数，历史文件退出窗口会使合计下降。它不能证明本轮执行失败或历史错误恢复；区分当前运行状态与历史失败、展示错误来源及统计范围的建议尚未实施，机制见 `docs/reviews/2026-10-25-token-analysis-index-errors-investigation-cn.md`，页面 8 行与全库 14 行的生产复核见 `docs/reviews/2026-10-27-token-analysis-eight-index-errors-investigation-cn.md`。
 
 - 页面布局: 顶部筛选卡(共用 `DateRangePicker` + 邮箱/项目/模型/风险分, ID 类与"排行含未关联请求"收在"更多筛选"; 已应用筛选按最近一次提交的快照 `appliedFilters` 显示为可移除标签, 概览/列表/排序翻页续查/趋势/索引触发也都只读该快照, 排序翻页不提交输入框草稿; 已知例外: 索引完成轮询仍调用 `reloadAll` 并提交当前草稿, 待分离提交与刷新入口, 见 `docs/reviews/2026-10-24-token-analysis-request-origin-implementation-review-cn.md` 的 P3; 右侧索引状态胶囊与"索引当前范围") → `TokenAnalysisOverview.vue`(5 张 KPI 卡、Token 构成条、风险原因条形列表, 点击条目切换全局 `risk_reason`) → 四个标签页(用户排行+趋势 / 项目 / 请求明细 / 索引与归档)。标签页用 `v-show`, 各列表仍在 `reloadAll` 中一次加载, 计数显示在标签上。数据加载、竞态与索引轮询仍集中在 View, 目录组件只做展示。默认日期取浏览器本地日(与请求 `timezone` 一致), 不用 UTC 日期。
 - 请求明细组件 `components/admin/token-analysis/TokenAnalysisRequestTable.vue` 从 `summary_json.request_origin` 展示“人工 / AI”，`TokenAnalysisRequestDrawer.vue` 显示依据、推断程度和版本；公共 `requestOrigin.ts` 校验 v1 合同，缺字段、坏数据、未知版本显示“—/尚未识别”，不按预览或重复次数猜测。人工仅表示本轮新用户输入的规则推断；历史行需服务端重新索引才有分类。无新接口或逐行读取，详情全文仍按点击懒加载。组件合同见该目录 README，完整设计见 `docs/features/token-analysis-request-origin-design-cn.md`。

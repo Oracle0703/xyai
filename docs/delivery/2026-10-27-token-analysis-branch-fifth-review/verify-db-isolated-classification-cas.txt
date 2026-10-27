@@ -1,0 +1,142 @@
+//go:build integration
+
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+// This verifies individual CAS guards; it is not a claim of a business defect.
+// Keep this outside the repository until the main reviewer runs it in isolated PG.
+func TestCodexAuditClassificationCASGuardsAreIndependentlyEffective(t *testing.T) {
+	for _, dimension := range []string{"input_only", "dependency_only", "parent_only", "candidate_only"} {
+		t.Run(dimension, func(t *testing.T) {
+			f := newTokenAnalysisClassificationFixture(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			f.request("-p", 0, "P", 2)
+			f.request("-c", 60, "C", 3)
+			f.edges("-c", "-p")
+			f.complete("-p", 9000, 0)
+			f.complete("-c", 60000, 2000)
+			f.drain()
+			_, err := f.svc.RunClassification(ctx)
+			require.NoError(t, err)
+
+			load := func() (service.TokenAnalysisClassificationRow, service.TokenAnalysisClassificationRow) {
+				rows, err := f.repo.LoadClassificationRows(ctx, []string{f.prefix + "-c", f.prefix + "-p"})
+				require.NoError(t, err)
+				require.Len(t, rows, 2)
+				var child, parent service.TokenAnalysisClassificationRow
+				for _, r := range rows {
+					if r.ArchiveID == f.prefix+"-c" {
+						child = r
+					} else {
+						parent = r
+					}
+				}
+				return child, parent
+			}
+			result := func(c, p service.TokenAnalysisClassificationRow) service.TokenAnalysisClassificationResult {
+				parentVersion := p.ClsInputVersion
+				return service.TokenAnalysisClassificationResult{
+					ArchiveID: c.ArchiveID, ClsInputVersion: c.ClsInputVersion, ClsDepVersion: c.ClsDepVersion,
+					CandCheckedVersion: c.CandCheckedVersion, ParentArchiveID: p.ArchiveID, ParentClsVersion: &parentVersion,
+					RuleVersion: service.TokenAnalysisClassificationRuleVersion,
+					ClsState: service.TokenAnalysisClsClassified, CacheObsState: service.TokenAnalysisObsCold,
+					Cause: service.TokenAnalysisCauseMissedWithEligibleParent,
+					PrefixEvidence: service.TokenAnalysisPrefixFull, CacheEligibility: service.TokenAnalysisEligibleAssumed,
+					PriceEvidence: service.TokenAnalysisPriceRowExact,
+				}
+			}
+			beforeChild, beforeParent := load()
+			require.Greater(t, beforeChild.ClsDepVersion, int64(0), "the fixture must exercise a nonzero dependency version")
+			stale := result(beforeChild, beforeParent)
+			// Positive control proves every unrelated guard and the result shape match.
+			written, err := f.repo.WriteClassifications(ctx, []service.TokenAnalysisClassificationResult{stale})
+			require.NoError(t, err)
+			require.Equal(t, 1, written)
+
+			switch dimension {
+			case "input_only":
+				require.NoError(t, f.repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{
+					ArchiveID: beforeChild.ArchiveID, CompletedAt: f.base.Add(65 * time.Second), Status: 200,
+					Forward: tokenAnalysisClassificationNativeFacts(testFingerprintHash("GC")),
+				}))
+			case "dependency_only":
+				// The actual propagation helper changes C's dependency version only;
+				// it must not mutate input, candidates, or P's input version.
+				var tx *sql.Tx
+				tx, err = integrationDB.BeginTx(ctx, nil)
+				require.NoError(t, err)
+				defer func() { _ = tx.Rollback() }()
+				require.NoError(t, propagateTokenAnalysisClassification(ctx, tx, []string{beforeChild.ArchiveID}))
+				require.NoError(t, tx.Commit())
+			case "parent_only":
+				// Real source registration changes P's input. Do not drain: C's own
+				// guards must remain exact so only the parent predicate rejects.
+				require.NoError(t, f.repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{
+					ArchiveID: beforeParent.ArchiveID, CompletedAt: f.base.Add(5 * time.Second), Status: 200,
+					Forward: tokenAnalysisClassificationNativeFacts(testFingerprintHash("GP")),
+				}))
+			case "candidate_only":
+				// Controlled guard probe: advance only the aligned candidate pair.
+				// A normal edge replacement also changes input, which would mask
+				// whether the candidate-checked predicate itself is effective.
+				_, err = integrationDB.ExecContext(ctx, `
+UPDATE token_analysis_request_summaries
+SET cand_input_version=cand_input_version+1, cand_checked_version=cand_checked_version+1
+WHERE archive_id=$1`, beforeChild.ArchiveID)
+				require.NoError(t, err)
+			}
+			afterChild, afterParent := load()
+			if dimension == "input_only" {
+				require.Equal(t, beforeChild.ClsInputVersion+1, afterChild.ClsInputVersion)
+			} else {
+				require.Equal(t, beforeChild.ClsInputVersion, afterChild.ClsInputVersion)
+			}
+			switch dimension {
+			case "input_only":
+				require.Equal(t, beforeChild.ClsDepVersion, afterChild.ClsDepVersion)
+				require.Equal(t, beforeChild.CandCheckedVersion, afterChild.CandCheckedVersion)
+				require.Equal(t, beforeChild.CandInputVersion, afterChild.CandInputVersion)
+				require.Equal(t, beforeParent.ClsInputVersion, afterParent.ClsInputVersion)
+			case "dependency_only":
+				require.Equal(t, beforeChild.ClsDepVersion+1, afterChild.ClsDepVersion)
+				require.Equal(t, beforeChild.CandCheckedVersion, afterChild.CandCheckedVersion)
+				require.Equal(t, beforeChild.CandInputVersion, afterChild.CandInputVersion)
+				require.Equal(t, beforeParent.ClsInputVersion, afterParent.ClsInputVersion)
+			case "parent_only":
+				require.Equal(t, beforeChild.ClsDepVersion, afterChild.ClsDepVersion)
+				require.Equal(t, beforeChild.CandCheckedVersion, afterChild.CandCheckedVersion)
+				require.Equal(t, beforeChild.CandInputVersion, afterChild.CandInputVersion)
+				require.Equal(t, beforeParent.ClsInputVersion+1, afterParent.ClsInputVersion)
+			case "candidate_only":
+				require.Equal(t, beforeChild.ClsDepVersion, afterChild.ClsDepVersion)
+				require.Equal(t, beforeChild.CandCheckedVersion+1, afterChild.CandCheckedVersion)
+				require.Equal(t, beforeChild.CandInputVersion+1, afterChild.CandInputVersion)
+				require.Equal(t, beforeParent.ClsInputVersion, afterParent.ClsInputVersion)
+			}
+			written, err = f.repo.WriteClassifications(ctx, []service.TokenAnalysisClassificationResult{stale})
+			require.NoError(t, err)
+			require.Zero(t, written, "only the named CAS dimension is stale")
+			// Refreshing that one dimension restores writability; no other change
+			// is required, so the rejection cannot be an unrelated stale guard.
+			written, err = f.repo.WriteClassifications(ctx, []service.TokenAnalysisClassificationResult{result(afterChild, afterParent)})
+			require.NoError(t, err)
+			require.Equal(t, 1, written)
+			var input, checked, dep, depChecked int64
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `
+SELECT cls_input_version,cls_checked_version,cls_dep_version,cls_dep_checked_version
+FROM token_analysis_request_summaries WHERE archive_id=$1`, beforeChild.ArchiveID).Scan(&input, &checked, &dep, &depChecked))
+			require.Equal(t, input, checked)
+			require.Equal(t, dep, depChecked)
+		})
+	}
+}

@@ -1,0 +1,48 @@
+package service
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/stretchr/testify/require"
+)
+
+func TestCodexAuditToolSearchOutputPayload(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.2","input":[{"type":"tool_search_output","call_id":"s1","execution":"client","status":"completed","tools":[{"type":"namespace","name":"example","description":"` + strings.Repeat("x", 524288) + `","tools":[]}]}]}`)
+	got, err := SummarizeTokenAnalysisRequest("/v1/responses", body, 300)
+	require.NoError(t, err)
+	require.Equal(t, 1, got.ToolMessageCount)
+	require.Greater(t, got.ToolOutputBytes, int64(524288), "tool_search_output carries its result in tools, not output")
+}
+
+func TestCodexAuditClientFamilyRemapAfterCaughtUp(t *testing.T) {
+	repo := &tokenAnalysisRepoStub{}
+	svc := NewTokenAnalysisService(repo, &config.Config{}, nil)
+	n, err := svc.refreshTokenAnalysisClientFamilies(context.Background(), 10)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	// A still-running instance with the prior rules writes after the new instance caught up.
+	repo.staleFamilies = []TokenAnalysisClientFamilyRow{{ID: 77, UserAgent: "Codex Desktop/0.160.0"}}
+	n, err = svc.refreshTokenAnalysisClientFamilies(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "late old-version rows must eventually be revisited after rolling deployment")
+}
+
+func TestCodexAuditPluginTransportMustRemainUnknown(t *testing.T) {
+	manager := &PluginManager{}
+	manager.route.Store(&pluginRoute{pluginID: 1, rolloutPercent: 100, unavailable: "review fixture"})
+	c := newTokenAnalysisForwardTestContext()
+	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.144.1")
+	cfg := &config.Config{}
+	cfg.TokenAnalysis.FingerprintSecret = "review-only-synthetic-fingerprint-secret"
+	svc := &OpenAIGatewayService{cfg: cfg, pluginManager: manager, httpUpstream: &httpUpstreamRecorder{}, toolCorrector: NewCodexToolCorrector()}
+	account := newTestOAuthAccount(4501, map[string]any{})
+	account.Status, account.Schedulable, account.Concurrency = StatusActive, true, 1
+	account.Credentials = map[string]any{"access_token": "synthetic-token", "chatgpt_account_id": "synthetic-account"}
+	require.True(t, manager.ShouldRouteOpenAIOAuth(account))
+	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","stream":false,"prompt_cache_key":"client-session","input":[{"type":"message","role":"user","content":"hi"}]}`))
+	require.Error(t, err)
+	require.Nil(t, TokenAnalysisForwardFactsFromContext(c), "design section 11.1 requires unverified plugin-routed accounts to remain unknown")
+}

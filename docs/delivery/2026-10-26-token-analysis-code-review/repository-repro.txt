@@ -1,0 +1,19 @@
+2026/10/26 10:44:48 Timezone initialized: UTC (UTC offset: +00:00)
+--- FAIL: TestCodexAuditClientFamilyWriteChecksObservedInput (0.02s)
+    zz_codex_token_analysis_audit_integration_test.go:33: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/zz_codex_token_analysis_audit_integration_test.go:33
+        	Error:      	Not equal: 
+        	            	expected: "hertz"
+        	            	actual  : "codex"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-hertz
+        	            	+codex
+        	Test:       	TestCodexAuditClientFamilyWriteChecksObservedInput
+        	Messages:   	a computed result must not overwrite a changed input snapshot
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	2.335s
+FAIL

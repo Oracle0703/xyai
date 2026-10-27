@@ -1,0 +1,62 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+)
+
+// No real network: the real Forward pipeline writes into httpUpstreamRecorder.
+// Distinct cache keys sent upstream must remain distinct in eligibility evidence.
+func TestCodexBranchAuditNativeAPIKeyCacheWhitespace(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		passthrough bool
+		path        string
+	}{
+		{"standard", false, TokenAnalysisForwardPathOpenAIResponses},
+		{"passthrough", true, TokenAnalysisForwardPathOpenAIResponsesPassthrough},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var sentKeys, hashes []string
+			for _, key := range []string{"cache-key", " cache-key "} {
+				upstream := &httpUpstreamRecorder{resp: &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body: io.NopCloser(strings.NewReader(
+						`{"id":"resp_audit","model":"gpt-5.6-sol","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`,
+					)),
+				}}
+				svc := newOpenAIImageGenerationControlTestService(upstream)
+				svc.cfg.TokenAnalysis.FingerprintSecret = "review-only-synthetic-fingerprint-secret"
+				c, _ := newOpenAIImageGenerationControlTestContext(true, "review-client/1.0")
+				account := newOpenAIImageGenerationControlTestAccount()
+				account.Extra = map[string]any{"openai_passthrough": tc.passthrough}
+				body, err := json.Marshal(map[string]any{
+					"model": "gpt-5.6-sol", "stream": false, "prompt_cache_key": key,
+					"input": []any{map[string]any{"role": "user", "content": "hello"}},
+				})
+				require.NoError(t, err)
+				_, err = svc.Forward(context.Background(), c, account, body)
+				require.NoError(t, err)
+				require.NotNil(t, upstream.lastReq)
+				sent := gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String()
+				require.Equal(t, key, sent, "the complete Forward pipeline preserves cache-key whitespace on the actual upstream body")
+				facts := TokenAnalysisForwardFactsFromContext(c)
+				require.NotNil(t, facts)
+				require.Equal(t, tc.path, facts.ForwardPath)
+				require.NotEmpty(t, facts.UpstreamCacheKeyHash)
+				sentKeys = append(sentKeys, sent)
+				hashes = append(hashes, facts.UpstreamCacheKeyHash)
+			}
+			require.NotEqual(t, sentKeys[0], sentKeys[1], "upstream cache keys differ")
+			require.NotEqual(t, hashes[0], hashes[1], "eligibility evidence must hash the exact final body cache key, without TrimSpace")
+		})
+	}
+}

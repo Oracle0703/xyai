@@ -1,0 +1,212 @@
+//go:build integration
+
+package repository
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+// These are review-only repros. Run in an isolated database, never production.
+func waitAuditDBCondition(ctx context.Context, query string, args ...any) error {
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var ready bool
+		if err := integrationDB.QueryRowContext(ctx, query, args...).Scan(&ready); err != nil {
+			return err
+		}
+		if ready {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func TestCodexAuditConcurrentParentInsertLeavesChildClean(t *testing.T) {
+	f := newTokenAnalysisFingerprintFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	gate := time.Now().UnixNano()%1_000_000_000 + 1_000_000_000
+	control, err := integrationDB.Conn(ctx)
+	require.NoError(t, err)
+	defer control.Close()
+	_, err = control.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, gate)
+	require.NoError(t, err)
+	released := false
+	release := func() {
+		if !released {
+			_, _ = control.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, gate)
+			released = true
+		}
+	}
+	defer release()
+	fn := fmt.Sprintf("codex_audit_parent_gate_%d", gate)
+	trigger := fn + "_trigger"
+	// Generated fixture identifiers consist only of digits, hyphens and a fixed prefix.
+	_, err = integrationDB.ExecContext(ctx, fmt.Sprintf(`
+CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(%d::bigint);
+    RETURN NEW;
+END $$;
+CREATE TRIGGER %s BEFORE UPDATE OF cls_input_version ON token_analysis_request_summaries
+FOR EACH ROW WHEN (NEW.archive_id = '%s-p' AND NEW.cls_input_version > OLD.cls_input_version)
+EXECUTE FUNCTION %s();`, fn, gate, trigger, f.prefix, fn))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(context.Background(), fmt.Sprintf(`DROP TRIGGER IF EXISTS %s ON token_analysis_request_summaries; DROP FUNCTION IF EXISTS %s();`, trigger, fn))
+	})
+	parentDone := make(chan error, 1)
+	go func() {
+		_, err := f.repo.UpsertRequestSummary(ctx, &service.TokenAnalysisRequestSummary{
+			ArchiveID: f.prefix + "-p", EventTime: f.base, UserID: &f.userID, APIKeyID: &f.apiKeyID,
+			Endpoint: "/v1/responses", Fingerprint: testFingerprint("P2", "P1", "G2", 2),
+		})
+		parentDone <- err
+	}()
+	// P has already executed its mark-later UPDATE and is now inside its final
+	// classification bump, but P's new row remains uncommitted.
+	require.NoError(t, waitAuditDBCondition(ctx, `
+SELECT EXISTS (SELECT 1 FROM pg_locks
+ WHERE locktype='advisory' AND classid=0 AND objid=$1::oid AND NOT granted)`, gate))
+	child := f.upsert("-c", 1, testFingerprint("C3", "P2", "G3", 3))
+	q := service.TokenAnalysisPrefixCandidateQuery{
+		ArchiveID: f.prefix + "-c", APIKeyID: f.apiKeyID, FPVersion: 77,
+		From: f.base.Add(-time.Hour), To: f.base.Add(time.Minute),
+		PrefixHashes: [][]byte{testFingerprintHash("P1"), testFingerprintHash("P2"), testFingerprintHash("C3")},
+		ItemsHashes: [][]byte{testFingerprintHash("G1"), testFingerprintHash("G2"), testFingerprintHash("G3")},
+	}
+	candidates, err := f.repo.FindPrefixCandidates(ctx, q)
+	require.NoError(t, err)
+	require.Empty(t, candidates, "P is deliberately still uncommitted")
+	applied, err := f.repo.ReplacePrefixEdges(ctx, service.TokenAnalysisPrefixEdgeWrite{
+		ArchiveID: f.prefix + "-c", ExpectedCandVersion: child.CandInputVersion, State: service.TokenAnalysisCandidateStateOK,
+	})
+	require.NoError(t, err)
+	require.True(t, applied)
+	release()
+	require.NoError(t, <-parentDone)
+	candidates, err = f.repo.FindPrefixCandidates(ctx, q)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1, "the committed parent is now a matching candidate")
+	input, checked, _ := f.versions("-c")
+	require.NotEqual(t, input, checked, "a child that missed a concurrently committing parent must remain due for rematch")
+}
+
+func TestCodexAuditSourceLockOrderDoesNotDeadlockClassification(t *testing.T) {
+	f := newTokenAnalysisClassificationFixture(t)
+	// A late historical parent has a larger insertion id than its child.
+	f.request("-c", 60, "C", 3)
+	f.request("-p", 0, "P", 2)
+	f.edges("-c", "-p")
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	rows, err := f.repo.LoadClassificationRows(ctx, []string{f.prefix + "-c", f.prefix + "-p"})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	results := make([]service.TokenAnalysisClassificationResult, 0, 2)
+	for _, row := range rows {
+		results = append(results, service.TokenAnalysisClassificationResult{
+			ArchiveID: row.ArchiveID, ClsInputVersion: row.ClsInputVersion,
+			CandCheckedVersion: row.CandCheckedVersion, RuleVersion: service.TokenAnalysisClassificationRuleVersion,
+			ClsState: "classified", CacheObsState: service.TokenAnalysisObsNoUsage,
+		})
+	}
+	sourceTx, err := integrationDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer sourceTx.Rollback()
+	var sourcePID int
+	require.NoError(t, sourceTx.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&sourcePID))
+	// This is the first UPDATE made by RecordResponse before it calls bump.
+	_, err = sourceTx.ExecContext(ctx, `UPDATE token_analysis_request_summaries SET response_status=200 WHERE archive_id=$1`, f.prefix+"-p")
+	require.NoError(t, err)
+	classificationDone := make(chan error, 1)
+	go func() {
+		_, err := f.repo.WriteClassifications(ctx, results)
+		classificationDone <- err
+	}()
+	// The actual bulk writer has locked low-id C and is waiting for high-id P.
+	require.NoError(t, waitAuditDBCondition(ctx, `
+SELECT EXISTS (SELECT 1 FROM pg_stat_activity a
+ WHERE $1::integer = ANY(pg_blocking_pids(a.pid))
+   AND a.wait_event_type='Lock' AND a.query LIKE '%jsonb_to_recordset%')`, sourcePID))
+	sourceErr := bumpTokenAnalysisClassification(ctx, sourceTx, []string{f.prefix + "-p"})
+	_ = sourceTx.Rollback()
+	classificationErr := <-classificationDone
+	t.Logf("source propagation result: %v; classification writer result: %v", sourceErr, classificationErr)
+	require.NoError(t, sourceErr, "source already owns high-id P before sorted propagation tries low-id C")
+	require.NoError(t, classificationErr, "bulk classifier uses the opposite effective lock order")
+}
+
+func TestCodexAuditUsageDeletionWhileParentDirtyStillInvalidatesChild(t *testing.T) {
+	f := newTokenAnalysisClassificationFixture(t)
+	// A historical parent can have a larger insertion id than C. When batches
+	// split these ids, C is classified before P's own pending row is processed.
+	f.request("-c", 60, "C", 3)
+	f.request("-p", 0, "P", 2)
+	f.edges("-c", "-p")
+	pUsage := f.complete("-p", 9000, 0)
+	f.complete("-c", 60000, 2000)
+	rows, err := f.repo.LoadClassificationRows(f.ctx, []string{f.prefix + "-c", f.prefix + "-p"})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	var parent, child service.TokenAnalysisClassificationRow
+	for _, row := range rows {
+		if row.ArchiveID == f.prefix+"-p" {
+			parent = row
+		} else {
+			child = row
+		}
+	}
+	require.NotZero(t, parent.ID)
+	require.Less(t, child.ID, parent.ID)
+	parentVersion := parent.ClsInputVersion
+	// Confirm only C, exactly as an earlier id-bounded classification batch may
+	// do. Eligibility depends on P's source facts, not P's own checked version.
+	written, err := f.repo.WriteClassifications(f.ctx, []service.TokenAnalysisClassificationResult{{
+		ArchiveID: child.ArchiveID, ClsInputVersion: child.ClsInputVersion,
+		CandCheckedVersion: child.CandCheckedVersion, RuleVersion: service.TokenAnalysisClassificationRuleVersion,
+		ClsState: "classified", CacheObsState: service.TokenAnalysisObsCold,
+		Cause: service.TokenAnalysisCauseMissedWithEligibleParent,
+		PrefixEvidence: service.TokenAnalysisPrefixFull, CacheEligibility: service.TokenAnalysisEligibleAssumed,
+		PriceEvidence: service.TokenAnalysisPriceRowExact,
+		ParentArchiveID: parent.ArchiveID, ParentClsVersion: &parentVersion,
+	}})
+	require.NoError(t, err)
+	require.Equal(t, 1, written)
+	pInput, pChecked := f.clsVersions("-p")
+	cInput, cChecked := f.clsVersions("-c")
+	require.NotEqual(t, pInput, pChecked, "P has not reached its classification batch yet")
+	require.Equal(t, cInput, cChecked, "C was already classified using current P facts")
+	_, err = integrationDB.ExecContext(f.ctx, `DELETE FROM usage_logs WHERE id=$1`, pUsage)
+	require.NoError(t, err)
+	// This is the production job's actual ordering: classification then sweep.
+	_, err = f.svc.RunClassification(f.ctx)
+	require.NoError(t, err)
+	var parentObs string
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx,
+		`SELECT cache_obs_state FROM token_analysis_request_summaries WHERE archive_id=$1`, parent.ArchiveID).Scan(&parentObs))
+	require.Equal(t, service.TokenAnalysisObsNoUsage, parentObs)
+	marked, err := f.repo.MarkClassificationStale(f.ctx, service.TokenAnalysisClassificationRuleVersion, 0, parent.ID)
+	require.NoError(t, err)
+	cInput, cChecked = f.clsVersions("-c")
+	var childCause string
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx,
+		`SELECT cause FROM token_analysis_request_summaries WHERE archive_id=$1`, child.ArchiveID).Scan(&childCause))
+	t.Logf("sweep marked=%d; child versions=%d/%d; child cause=%s; parent observation=%s", marked, cInput, cChecked, childCause, parentObs)
+	// A fix may immediately reclassify C or leave it dirty for the next batch.
+	// Keeping it clean with an eligible-parent result after P's bill vanished
+	// means the deletion notification was lost permanently.
+	require.True(t, cInput != cChecked || childCause != service.TokenAnalysisCauseMissedWithEligibleParent,
+		"deleting P's usage while P is dirty must invalidate or recompute C, even when P was classified no_usage before the sweep")
+}

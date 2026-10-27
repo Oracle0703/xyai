@@ -68,13 +68,109 @@ type TokenAnalysisRequestSummary struct {
 	RiskReasons          []TokenAnalysisRiskReason `json:"risk_reasons"`
 	// ClientWorkdir/ClientProject/ClientBranch/AttributionSource 为离线提取的
 	// 项目归因字段, 见 docs/features/token-analysis-project-attribution-design-cn.md。
-	ClientWorkdir     string    `json:"client_workdir"`
-	ClientProject     string    `json:"client_project"`
-	ClientBranch      string    `json:"client_branch"`
-	AttributionSource string    `json:"attribution_source"`
-	IndexedAt         time.Time `json:"indexed_at"`
-	SourceFile        string    `json:"source_file"`
-	SourceOffset      *int64    `json:"source_offset,omitempty"`
+	ClientWorkdir     string `json:"client_workdir"`
+	ClientProject     string `json:"client_project"`
+	ClientBranch      string `json:"client_branch"`
+	AttributionSource string `json:"attribution_source"`
+	// UserAgent/ClientFamily 取自归档事件, 未关联计费的行也有; ClientFamilyVersion
+	// 是映射规则版本, 0 表示未识别(该列上线前索引的历史行)。
+	UserAgent           string    `json:"user_agent"`
+	ClientFamily        string    `json:"client_family"`
+	ClientFamilyVersion int32     `json:"client_family_version"`
+	IndexedAt           time.Time `json:"indexed_at"`
+	SourceFile          string    `json:"source_file"`
+	SourceOffset        *int64    `json:"source_offset,omitempty"`
+	// SourceLineStart/SourceLineLength 是该行在归档文件中的起点与字节长度(含换行),
+	// 供重新匹配时重读原文; SourceOffset 是行尾之后的位置(续读水位口径)。
+	SourceLineStart  *int64 `json:"-"`
+	SourceLineLength *int64 `json:"-"`
+	// Fingerprint 是前缀指纹; 不经接口返回。
+	Fingerprint TokenAnalysisFingerprint `json:"-"`
+}
+
+// TokenAnalysisSummaryUpsert 是写入摘要后的候选快照状态: CandidatesDue 表示需要
+// 计算候选边, 写回时以 CandInputVersion 作条件。
+type TokenAnalysisSummaryUpsert struct {
+	CandInputVersion int64
+	CandidatesDue    bool
+}
+
+// 候选边类型, 见风险分类设计 5.4。
+const (
+	TokenAnalysisEdgeFullPrefix      = "full_prefix"
+	TokenAnalysisEdgePrefixMinusTail = "prefix_minus_tail"
+	TokenAnalysisEdgeItemsLink       = "items_link"
+
+	TokenAnalysisCandidateStateOK              = "ok"
+	TokenAnalysisCandidateStateTieOverflow     = "unknown:tie_overflow"
+	TokenAnalysisCandidateStateBodyUnavailable = "unknown:body_unavailable"
+	TokenAnalysisCandidateStateNoAPIKey        = "unsupported:no_api_key"
+)
+
+// TokenAnalysisPrefixCandidateQuery 查找子请求的候选父请求: 同 Key、同指纹版本、
+// [From, To) 内, 前缀链末端/去尾哈希或关联链末端哈希出现在子请求链中。
+type TokenAnalysisPrefixCandidateQuery struct {
+	ArchiveID    string
+	APIKeyID     int64
+	FPVersion    int32
+	From         time.Time
+	To           time.Time
+	PrefixHashes [][]byte
+	ItemsHashes  [][]byte
+}
+
+type TokenAnalysisPrefixCandidate struct {
+	ArchiveID       string
+	EventTime       time.Time
+	PrefixItems     int
+	PrefixEndHash   []byte
+	PrefixTail1Hash []byte
+	ItemsEndHash    []byte
+}
+
+type TokenAnalysisPrefixEdge struct {
+	ParentArchiveID string
+	Kind            string
+	MatchedItems    int
+}
+
+// TokenAnalysisPrefixEdgeWrite 以 ExpectedCandVersion 为条件整体替换子请求的候选边。
+type TokenAnalysisPrefixEdgeWrite struct {
+	ArchiveID           string
+	ExpectedCandVersion int64
+	Edges               []TokenAnalysisPrefixEdge
+	State               string
+	Overflow            bool
+	// Query 非 nil 时, 仓储先取该 API Key 的候选锁, 再在同一事务内查找候选并交给 Select
+	// 选边(结果覆盖 Edges/Overflow, overflow 时 State 记为 tie_overflow)。摘要写入持有同一
+	// 把锁, 因此并发提交的新父请求要么被这次查找看到, 要么在提交时把本行标为待重新匹配。
+	Query  *TokenAnalysisPrefixCandidateQuery
+	Select func([]TokenAnalysisPrefixCandidate) ([]TokenAnalysisPrefixEdge, bool)
+}
+
+// TokenAnalysisCandidateRematchRow 是需要重新匹配的行(候选快照版本不一致)。
+type TokenAnalysisCandidateRematchRow struct {
+	ArchiveID        string
+	CandInputVersion int64
+	SourceFile       string
+	SourceOffset     *int64
+	SourceLineStart  *int64
+	SourceLineLength *int64
+	BodySHA256       string
+	// 存下的指纹: 重读原文算出的指纹必须与之相同, 才能为这份快照确认候选。
+	FPVersion       int32
+	PrefixEndHash   []byte
+	PrefixTail1Hash []byte
+	ItemsEndHash    []byte
+}
+
+// TokenAnalysisClientFamilyRow 是客户端族重新映射的一行。UserAgent/Version 是读出时
+// 的快照, 写回时作为条件; Family 是按当前规则算出的新族。
+type TokenAnalysisClientFamilyRow struct {
+	ID        int64
+	UserAgent string
+	Version   int32
+	Family    string
 }
 
 type TokenAnalysisBodySummary struct {
@@ -297,6 +393,8 @@ type TokenAnalysisResponseFacts struct {
 	OutputTokens *int64
 	// ResponseID 是响应体里的上游 response.id; WS 上游计费以它为 request_id。
 	ResponseID string
+	// Forward 是转发侧记录; 非原生路径或旧归档行为零值。
+	Forward TokenAnalysisForwardFacts
 }
 
 // TokenAnalysisUsageLinkQuery 描述一次计费关联查找。精确关联键为
@@ -396,7 +494,14 @@ type TokenAnalysisIndexState struct {
 }
 
 type TokenAnalysisRepository interface {
-	UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error
+	// UpsertRequestSummary 写入摘要; 指纹新增或变化时在同一事务内给自身加候选版本,
+	// 并把同 Key 之后 L 窗口内已有指纹的行标为待重新匹配(晚到的父请求)。
+	// 有 API Key 的行在事务开头取该 Key 的候选锁(见 TokenAnalysisPrefixEdgeWrite.Query)。
+	UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) (TokenAnalysisSummaryUpsert, error)
+	// ReplacePrefixEdges 在候选版本仍等于期望值时整体替换候选边并确认版本; 版本已变时不写, 返回 false。
+	// 带 Query 时在候选锁内查找候选再选边。
+	ReplacePrefixEdges(ctx context.Context, write TokenAnalysisPrefixEdgeWrite) (bool, error)
+	ListCandidateRematch(ctx context.Context, limit int) ([]TokenAnalysisCandidateRematchRow, error)
 	// RecordResponse 写入归档 response 行的完成事实; 请求行尚未入库(跨日文件
 	// 逆序索引)时暂存, 由 MergePendingResponses 补合并。
 	RecordResponse(ctx context.Context, facts TokenAnalysisResponseFacts) error
@@ -431,6 +536,28 @@ type TokenAnalysisRepository interface {
 	DeleteUserInput(ctx context.Context, archiveID string) error
 	// GetUserInput 按 archive_id 取单条净输入(无记录返回 nil, nil)。
 	GetUserInput(ctx context.Context, archiveID string) (*TokenAnalysisUserInput, error)
+	// ListStaleClientFamilies 按 id 续读 afterID 之后已识别(版本非 0)但规则版本不是
+	// version 的行, 带回读出时的 UA 与版本快照。
+	ListStaleClientFamilies(ctx context.Context, version int32, afterID int64, limit int) ([]TokenAnalysisClientFamilyRow, error)
+	// UpdateClientFamilies 写回重新映射的客户端族; 只更新 UA 与版本仍等于读出快照的行,
+	// 期间被重新索引或被其他实例改过的行跳过, 由下一轮重新读取。
+	UpdateClientFamilies(ctx context.Context, version int32, rows []TokenAnalysisClientFamilyRow) error
+	// ListClassificationDue 按 id 续读 afterID 之后分类版本未对齐的行(带当前关联的账单)。
+	ListClassificationDue(ctx context.Context, afterID int64, limit int) ([]TokenAnalysisClassificationRow, error)
+	// LoadClassificationRows 按 archive_id 读取祖先的分类事实; 不存在的行不返回。
+	LoadClassificationRows(ctx context.Context, archiveIDs []string) ([]TokenAnalysisClassificationRow, error)
+	// LoadPrefixEdges 读取这些子请求的全部候选边(含关联边)。
+	LoadPrefixEdges(ctx context.Context, childArchiveIDs []string) ([]TokenAnalysisStoredEdge, error)
+	// WriteClassifications 按设计 10.3 条件写回: 子请求的 cls_input_version 与
+	// cand_checked_version 未变, 有父请求时父请求的 cls_input_version 也未变。返回写入行数。
+	WriteClassifications(ctx context.Context, results []TokenAnalysisClassificationResult) (int, error)
+	// MaxSummaryID 返回摘要表当前最大 id(维护扫描的终点)。
+	MaxSummaryID(ctx context.Context) (int64, error)
+	// MarkClassificationStale 在 (fromID, toID] 内给已对齐但规则版本不是 ruleVersion 的行加分类版本。
+	MarkClassificationStale(ctx context.Context, ruleVersion int32, fromID, toID int64) (int64, error)
+	// DrainClassificationInvalidations 处理一批失效登记(账单被删除、外键置空时由触发器写入):
+	// 给登记行的子孙加分类版本后删除登记。返回处理条数。
+	DrainClassificationInvalidations(ctx context.Context, limit int) (int, error)
 }
 
 type tokenAnalysisArchiveEvent struct {
@@ -460,4 +587,6 @@ type tokenAnalysisArchiveEvent struct {
 	BodySize      int64  `json:"body_size"`
 	BodySHA256    string `json:"body_sha256"`
 	BodyTruncated bool   `json:"body_truncated"`
+	// TokenAnalysis 只出现在 response 行: 最后一次转发尝试的缓存相关事实。
+	TokenAnalysis *TokenAnalysisForwardFacts `json:"token_analysis"`
 }

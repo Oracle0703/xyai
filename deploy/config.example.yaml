@@ -864,6 +864,15 @@ token_analysis:
   max_preview_chars: 300
   # usage_logs 匹配窗口（秒）
   usage_match_window_seconds: 10
+  # User-Agent → 客户端族的有序规则（正则、不区分大小写、首个命中生效，未命中归为 other）。
+  # 留空使用内置规则（codex/claude_code/copilot/cursor/cline_like/gemini_cli/opencode/hertz/sdk_script）；
+  # 一旦配置即整体替换内置规则。修改后重启生效，已索引的行按存下的 UA 自动重新映射。
+  # 多实例部署必须使用相同规则，否则各实例会互相改写客户端族。
+  # client_family_rules:
+  #   - family: codex
+  #     pattern: "codex"
+  #   - family: sdk_script
+  #     pattern: "go-http-client|python-requests"
 
 # =============================================================================
 # HTTP 写接口幂等配置

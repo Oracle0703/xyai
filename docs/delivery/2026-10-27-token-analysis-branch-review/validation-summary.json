@@ -1,0 +1,45 @@
+{
+  "unit": {
+    "pass": 169,
+    "fail": 0,
+    "skip": 0,
+    "packages": [
+      {
+        "package": "github.com/Wei-Shaw/sub2api/internal/config",
+        "tests": 2
+      },
+      {
+        "package": "github.com/Wei-Shaw/sub2api/internal/handler/admin",
+        "tests": 4
+      },
+      {
+        "package": "github.com/Wei-Shaw/sub2api/internal/repository",
+        "tests": 61
+      },
+      {
+        "package": "github.com/Wei-Shaw/sub2api/internal/server/middleware",
+        "tests": 1
+      },
+      {
+        "package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "tests": 101
+      }
+    ]
+  },
+  "integration": {
+    "pass": 42,
+    "fail": 0,
+    "skip": 0,
+    "packages": [
+      {
+        "package": "github.com/Wei-Shaw/sub2api/internal/repository",
+        "tests": 42
+      }
+    ]
+  },
+  "source_files_checked": 51,
+  "source_changes_since_final_snapshot": [],
+  "temporary_test_files": [],
+  "postgres_stopped": true,
+  "build_binary_exists": true
+}

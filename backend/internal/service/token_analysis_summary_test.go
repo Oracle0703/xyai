@@ -101,6 +101,20 @@ func TestTokenAnalysisSummarizeClaudeMessages(t *testing.T) {
 	require.Equal(t, 1, got.ToolsCount)
 }
 
+// Codex 把工具定义放在 input 的 additional_tools 条目(namespace 内嵌叶子工具)里,
+// 顶层 tools 可能缺失; tools_count 统计全部叶子工具定义。结构取自生产样本。
+func TestTokenAnalysisSummarizeCountsCodexAdditionalTools(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.6-sol","input":[
+		{"type":"additional_tools","id":"at_1","role":"developer","tools":[{"type":"namespace","name":"functions","description":"d","tools":[{"type":"custom","name":"exec","description":"d"},{"type":"function","name":"apply_patch","description":"d"}]}]},
+		{"role":"user","content":[{"type":"input_text","text":"fix it"}]}
+	],"tools":[{"type":"tool_search"},{"type":"namespace","name":"empty","tools":[]}]}`)
+	got, err := SummarizeTokenAnalysisRequest("/v1/responses", body, 300)
+	require.NoError(t, err)
+	require.Equal(t, 3, got.ToolsCount, "2 leaf tools in additional_tools + top-level tool_search; empty namespace counts 0")
+	require.Equal(t, 2, got.MessageCount, "additional_tools carries role=developer and counts as a message, as before")
+	require.Equal(t, len("fix it"), got.UserChars)
+}
+
 func TestTokenAnalysisSummarizeGeminiContents(t *testing.T) {
 	body := []byte(`{
 		"contents":[
@@ -291,11 +305,104 @@ func TestTokenAnalysisSummarizeStripsLeadingClientContext(t *testing.T) {
 	require.Equal(t, "fix it", got.LastUserPreview)
 }
 
-func TestTokenAnalysisSummarizeUserCharsStillCountsToolResults(t *testing.T) {
-	// oversized_system_prompt 依赖 UserChars, 预览口径修正不改变它的累计方式。
-	body := []byte(`{"messages":[{"role":"user","content":"hi"},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"0123456789"}]}]}`)
-	got, err := SummarizeTokenAnalysisRequest("/v1/messages", body, 300)
-	require.NoError(t, err)
-	require.Equal(t, "hi", got.LastUserPreview)
-	require.Equal(t, len("hi")+len("0123456789"), got.UserChars)
+// 各协议的工具输出计入工具字段(字节为输出值的 JSON 编码长度), UserChars 只计
+// 用户角色的非工具文本; assistant 文本、函数调用、reasoning 不计入。
+func TestTokenAnalysisSummarizeToolOutputsAcrossProtocols(t *testing.T) {
+	tests := []struct {
+		name          string
+		endpoint      string
+		body          string
+		userChars     int
+		toolMessages  int
+		toolBytes     int64
+		maxToolBytes  int64
+		messageCount  int
+		systemChars   int
+		lastUserInput string
+	}{
+		{
+			name:      "anthropic tool_result is not user text",
+			endpoint:  "/v1/messages",
+			body:      `{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"0123456789"},{"type":"text","text":"more"}]}]}`,
+			userChars: len("hi") + len("more"), toolMessages: 1, toolBytes: int64(len(`"0123456789"`)), maxToolBytes: int64(len(`"0123456789"`)),
+			messageCount: 3, lastUserInput: "more",
+		},
+		{
+			name:      "responses tool outputs and non-user items",
+			endpoint:  "/v1/responses",
+			body:      `{"instructions":"sys","input":[{"role":"user","content":[{"type":"input_text","text":"fix it"}]},{"type":"reasoning","summary":[{"type":"summary_text","text":"thinking"}],"content":[{"type":"reasoning_text","text":"hidden"}]},{"role":"assistant","content":[{"type":"output_text","text":"I will read"}]},{"type":"function_call","name":"shell","arguments":"{\"cmd\":\"ls\"}"},{"type":"function_call_output","call_id":"c1","output":"abcdef"},{"type":"custom_tool_call_output","call_id":"c2","output":"` + strings.Repeat("y", 100) + `"},{"type":"agent_message","content":"child said hi"}]}`,
+			userChars: len("fix it"), toolMessages: 2, toolBytes: int64(len(`"abcdef"`) + 102), maxToolBytes: 102,
+			messageCount: 2, systemChars: len("sys"), lastUserInput: "fix it",
+		},
+		{
+			// 真实协议结构: tool_search_output 的发现结果在 tools, 没有 output。
+			name:      "responses tool_search_output carries tools",
+			endpoint:  "/v1/responses",
+			body:      `{"input":[{"role":"user","content":"find tools"},{"type":"tool_search_call","call_id":"s1","arguments":{"query":"agent"},"execution":"client","status":"completed"},{"type":"tool_search_output","call_id":"s1","execution":"client","status":"completed","tools":[{"type":"namespace","name":"github","description":"` + strings.Repeat("d", 2000) + `"}]}]}`,
+			userChars: len("find tools"), toolMessages: 1,
+			toolBytes:    int64(len(`[{"description":"` + strings.Repeat("d", 2000) + `","name":"github","type":"namespace"}]`)),
+			maxToolBytes: int64(len(`[{"description":"` + strings.Repeat("d", 2000) + `","name":"github","type":"namespace"}]`)),
+			messageCount: 1, lastUserInput: "find tools",
+		},
+		{
+			name:      "gemini functionResponse",
+			endpoint:  "/v1beta/models/gemini-2.5-pro:generateContent",
+			body:      `{"contents":[{"role":"user","parts":[{"text":"fix it"}]},{"role":"model","parts":[{"functionCall":{"name":"read"}}]},{"role":"user","parts":[{"functionResponse":{"name":"read","response":{"text":"tool output"}}}]}]}`,
+			userChars: len("fix it"), toolMessages: 1, toolBytes: int64(len(`{"name":"read","response":{"text":"tool output"}}`)), maxToolBytes: int64(len(`{"name":"read","response":{"text":"tool output"}}`)),
+			messageCount: 3, lastUserInput: "fix it",
+		},
+		{
+			name:      "chat legacy function role",
+			endpoint:  "/v1/chat/completions",
+			body:      `{"messages":[{"role":"user","content":"fix it"},{"role":"function","name":"read","content":"abc"}]}`,
+			userChars: len("fix it"), toolMessages: 1, toolBytes: int64(len(`"abc"`)), maxToolBytes: int64(len(`"abc"`)),
+			messageCount: 2, lastUserInput: "fix it",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SummarizeTokenAnalysisRequest(tt.endpoint, []byte(tt.body), 300)
+			require.NoError(t, err)
+			require.Equal(t, tt.userChars, got.UserChars)
+			require.Equal(t, tt.toolMessages, got.ToolMessageCount)
+			require.Equal(t, tt.toolBytes, got.ToolOutputBytes)
+			require.Equal(t, tt.maxToolBytes, got.MaxToolOutputBytes)
+			require.Equal(t, tt.messageCount, got.MessageCount)
+			require.Equal(t, tt.systemChars, got.SystemChars)
+			require.Equal(t, tt.lastUserInput, got.LastUserText)
+			require.EqualValues(t, tt.toolMessages, got.SummaryJSON["tool_message_count"])
+		})
+	}
+}
+
+// namespace 的子工具与 apicompat 适配器口径一致: 非空 tools 优先, 否则回退 children(2026-10-27 第四轮复核 F2)。
+func TestTokenAnalysisToolCountNamespaceChildren(t *testing.T) {
+	functions := func(n int) string {
+		parts := make([]string, n)
+		for i := range parts {
+			parts[i] = fmt.Sprintf(`{"type":"function","name":"f%d","parameters":{"type":"object"}}`, i)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	for name, tc := range map[string]struct {
+		namespace string
+		want      int
+	}{
+		"children only":                     {`{"type":"namespace","name":"ns","children":` + functions(10) + `}`, 10},
+		"empty tools falls back":            {`{"type":"namespace","name":"ns","tools":[],"children":` + functions(10) + `}`, 10},
+		"tools win over children":           {`{"type":"namespace","name":"ns","tools":` + functions(3) + `,"children":` + functions(10) + `}`, 3},
+		"empty namespace":                   {`{"type":"namespace","name":"ns","tools":[]}`, 0},
+		"children on non-namespace ignored": {`{"type":"function","name":"g","children":` + functions(10) + `}`, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := []byte(`{"model":"gpt-5.5","tools":[` + tc.namespace + `],"input":[{"role":"user","content":"hi"}]}`)
+			got, err := SummarizeTokenAnalysisRequest("/v1/responses", body, 100)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got.ToolsCount)
+			additional := []byte(`{"model":"gpt-5.5","input":[{"type":"additional_tools","role":"developer","tools":[` + tc.namespace + `]},{"role":"user","content":"hi"}]}`)
+			got, err = SummarizeTokenAnalysisRequest("/v1/responses", additional, 100)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got.ToolsCount, "additional_tools uses the same leaf counting")
+		})
+	}
 }

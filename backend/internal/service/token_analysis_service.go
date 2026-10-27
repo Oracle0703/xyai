@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
@@ -25,6 +26,14 @@ type TokenAnalysisService struct {
 	backgroundWG      sync.WaitGroup
 	autoIndexStop     chan struct{}
 	autoIndexStopOnce sync.Once
+	// clientFamilies 按 token_analysis.client_family_rules(为空用内置规则)映射 UA;
+	// clientFamilyRefresh 是规则变化后重新映射的扫描进度。
+	clientFamilies      *tokenAnalysisClientFamilyMatcher
+	clientFamilyRefresh tokenAnalysisClientFamilyRefresh
+	// lockCache/db 是分类作业单实例锁的后端; classificationSweep 是维护扫描进度。
+	lockCache           LeaderLockCache
+	db                  *sql.DB
+	classificationSweep tokenAnalysisClassificationSweep
 }
 
 func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, settings *SettingService) *TokenAnalysisService {
@@ -35,7 +44,8 @@ func NewTokenAnalysisService(repo TokenAnalysisRepository, cfg *config.Config, s
 	return &TokenAnalysisService{
 		repo: repo, cfg: cfg, settings: settings,
 		lifecycleCtx: lifecycleCtx, lifecycleCancel: lifecycleCancel,
-		autoIndexStop: make(chan struct{}),
+		autoIndexStop:  make(chan struct{}),
+		clientFamilies: newTokenAnalysisClientFamilyMatcher(cfg.TokenAnalysis.ClientFamilyRules),
 	}
 }
 

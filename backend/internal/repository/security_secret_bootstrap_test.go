@@ -64,6 +64,24 @@ func TestEnsureBootstrapSecretsGenerateAndPersistJWTSecret(t *testing.T) {
 	require.Equal(t, cfg.JWT.Secret, stored.Value)
 }
 
+// 指纹密钥与 JWT 密钥同一机制引导: 首次生成并持久化, 之后各实例读到同一个值;
+// 配置了 JWT 密钥(提前返回的分支)时也必须引导。
+func TestEnsureBootstrapSecretsTokenAnalysisFingerprintSecret(t *testing.T) {
+	client := newSecuritySecretTestClient(t)
+	cfg := &config.Config{JWT: config.JWTConfig{Secret: "configured-jwt-secret-32bytes-long!!"}}
+
+	require.NoError(t, ensureBootstrapSecrets(context.Background(), client, cfg))
+	require.GreaterOrEqual(t, len([]byte(cfg.TokenAnalysis.FingerprintSecret)), 32)
+	stored, err := client.SecuritySecret.Query().Where(securitysecret.KeyEQ(securitySecretKeyTokenAnalysisFingerprint)).Only(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, cfg.TokenAnalysis.FingerprintSecret, stored.Value)
+
+	other := &config.Config{}
+	require.NoError(t, ensureBootstrapSecrets(context.Background(), client, other))
+	require.Equal(t, cfg.TokenAnalysis.FingerprintSecret, other.TokenAnalysis.FingerprintSecret)
+	require.NotEqual(t, other.JWT.Secret, other.TokenAnalysis.FingerprintSecret)
+}
+
 func TestEnsureBootstrapSecretsLoadExistingJWTSecret(t *testing.T) {
 	client := newSecuritySecretTestClient(t)
 	_, err := client.SecuritySecret.Create().SetKey(securitySecretKeyJWT).SetValue("existing-jwt-secret-32bytes-long!!!!").Save(context.Background())

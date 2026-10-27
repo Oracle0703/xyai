@@ -776,6 +776,28 @@ func TestLoadDefaultTokenAnalysisConfig(t *testing.T) {
 	require.Equal(t, 300, cfg.TokenAnalysis.MaxPreviewChars)
 	require.Equal(t, 300, cfg.TokenAnalysis.AutoIndexIntervalSeconds)
 	require.Equal(t, 10, cfg.TokenAnalysis.UsageMatchWindowSeconds)
+	require.Empty(t, cfg.TokenAnalysis.ClientFamilyRules, "empty means built-in rules")
+}
+
+func TestValidateTokenAnalysisClientFamilyRules(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	cfg.TokenAnalysis.ClientFamilyRules = []TokenAnalysisClientFamilyRule{{Family: "internal_tool", Pattern: `^tauri-plugin-http/`}}
+	require.NoError(t, cfg.Validate())
+
+	cfg.TokenAnalysis.ClientFamilyRules = []TokenAnalysisClientFamilyRule{{Family: "Bad-Name", Pattern: `x`}}
+	require.EqualError(t, cfg.Validate(), "token_analysis.client_family_rules[0].family must match ^[a-z0-9_]{1,32}$")
+
+	cfg.TokenAnalysis.ClientFamilyRules = []TokenAnalysisClientFamilyRule{{Family: "ok", Pattern: ""}}
+	require.EqualError(t, cfg.Validate(), "token_analysis.client_family_rules[0].pattern must not be empty")
+
+	cfg.TokenAnalysis.ClientFamilyRules = []TokenAnalysisClientFamilyRule{{Family: "ok", Pattern: `(`}}
+	require.ErrorContains(t, cfg.Validate(), "token_analysis.client_family_rules[0].pattern is invalid")
+
+	cfg.TokenAnalysis.ClientFamilyRules = make([]TokenAnalysisClientFamilyRule, maxTokenAnalysisClientFamilyRules+1)
+	require.EqualError(t, cfg.Validate(), "token_analysis.client_family_rules must not exceed 64 rules")
 }
 
 func TestLoadDefaultGatewayRequestInterceptConfig(t *testing.T) {

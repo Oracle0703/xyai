@@ -1,0 +1,122 @@
+//go:build integration
+
+package repository
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/stretchr/testify/require"
+)
+
+// Review-only: run in the isolated integration DB. No production execution.
+func TestCodexAuditNewEdgeCannotMissConcurrentParentFactChange(t *testing.T) {
+	f := newTokenAnalysisClassificationFixture(t)
+	// Migration 251 intentionally declares no FK on prefix_edges. Confirm the
+	// actual isolated schema: otherwise inserting C -> P could acquire KEY SHARE
+	// on the held P, and this trigger location would not prove the intended race.
+	var edgeForeignKeys int
+	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `
+SELECT count(*) FROM pg_constraint
+WHERE conrelid='token_analysis_prefix_edges'::regclass AND contype='f'`).Scan(&edgeForeignKeys))
+	require.Zero(t, edgeForeignKeys, "this repro requires the current migration251 schema without edge foreign keys")
+	f.request("-p", 0, "P", 2)
+	f.request("-c", 60, "C", 3)
+	f.complete("-p", 9000, 0)
+	f.complete("-c", 60000, 2000)
+	_, err := f.svc.RunClassification(f.ctx)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	gate := time.Now().UnixNano()%1_000_000_000 + 1_000_000_000
+	control, err := integrationDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = control.Close() }()
+	_, err = control.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, gate)
+	require.NoError(t, err)
+	released := false
+	release := func() {
+		if !released {
+			_, _ = control.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, gate)
+			released = true
+		}
+	}
+	defer release()
+	fn := fmt.Sprintf("ta_audit_fact_gate_%d", gate)
+	trigger := fn + "_trigger"
+	_, err = integrationDB.ExecContext(ctx, fmt.Sprintf(`
+CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM pg_advisory_xact_lock(%d::bigint);
+    RETURN NEW;
+END $$;
+CREATE TRIGGER %s BEFORE UPDATE OF cls_input_version ON token_analysis_request_summaries
+FOR EACH ROW WHEN (NEW.archive_id = '%s-p' AND NEW.cls_input_version > OLD.cls_input_version)
+EXECUTE FUNCTION %s();`, fn, gate, trigger, f.prefix, fn))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(context.Background(), fmt.Sprintf(`DROP TRIGGER IF EXISTS %s ON token_analysis_request_summaries; DROP FUNCTION IF EXISTS %s();`, trigger, fn))
+	})
+	pBefore, _ := f.clsVersions("-p")
+	facts := tokenAnalysisClassificationNativeFacts(testFingerprintHash("GP"))
+	facts.UpstreamCacheKeyHash = "fedcba9876543210fedcba9876543210"
+	parentDone := make(chan error, 1)
+	go func() {
+		parentDone <- f.repo.RecordResponse(ctx, service.TokenAnalysisResponseFacts{
+			ArchiveID: f.prefix + "-p", CompletedAt: f.base.Add(6 * time.Second), Status: 200, Forward: facts,
+		})
+	}()
+	// P holds its source row, and its dependency discovery has already observed
+	// no child edges. The final cls_input_version update is paused at the gate.
+	require.NoError(t, waitTokenAnalysisDBCondition(ctx, `
+SELECT EXISTS (SELECT 1 FROM pg_locks
+ WHERE locktype='advisory' AND classid=0 AND objid=$1::oid AND NOT granted)`, gate))
+	var candVersion int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT cand_input_version FROM token_analysis_request_summaries WHERE archive_id=$1`, f.prefix+"-c").Scan(&candVersion))
+	q := service.TokenAnalysisPrefixCandidateQuery{
+		ArchiveID: f.prefix + "-c", APIKeyID: f.apiKeyID, FPVersion: 77,
+		From: f.base.Add(-time.Hour), To: f.base.Add(time.Minute),
+		PrefixHashes: [][]byte{testFingerprintHash("H1"), testFingerprintHash("P"), testFingerprintHash("C")},
+		ItemsHashes: [][]byte{testFingerprintHash("G1"), testFingerprintHash("GP"), testFingerprintHash("GC")},
+	}
+	// Use the production Query/Select path, including its same-key advisory lock.
+	// RecordResponse does not take that lock, so this edge can commit while P is held.
+	applied, err := f.repo.ReplacePrefixEdges(ctx, service.TokenAnalysisPrefixEdgeWrite{
+		ArchiveID: f.prefix + "-c", ExpectedCandVersion: candVersion, State: service.TokenAnalysisCandidateStateOK,
+		Query: &q,
+		Select: func(candidates []service.TokenAnalysisPrefixCandidate) ([]service.TokenAnalysisPrefixEdge, bool) {
+			var edges []service.TokenAnalysisPrefixEdge
+			for _, p := range candidates {
+				edges = append(edges, service.TokenAnalysisPrefixEdge{ParentArchiveID: p.ArchiveID, Kind: service.TokenAnalysisEdgeFullPrefix, MatchedItems: p.PrefixItems})
+			}
+			return edges, false
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, applied)
+	// MVCC readers see P's old cache key. C can be classified as eligible because
+	// SKIP LOCKED applies only to C, and the parent version EXISTS does not lock P.
+	_, err = f.svc.RunClassification(ctx)
+	require.NoError(t, err)
+	var childCause string
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT cause FROM token_analysis_request_summaries WHERE archive_id=$1`, f.prefix+"-c").Scan(&childCause))
+	require.Equal(t, service.TokenAnalysisCauseMissedWithEligibleParent, childCause)
+	release()
+	require.NoError(t, <-parentDone)
+	_, err = f.svc.RunClassification(ctx)
+	require.NoError(t, err)
+	pAfter, _ := f.clsVersions("-p")
+	require.Greater(t, pAfter, pBefore)
+	cInput, cChecked := f.clsVersions("-c")
+	var usedParentVersion int64
+	require.NoError(t, integrationDB.QueryRowContext(ctx,
+		`SELECT cause,parent_cls_version_used FROM token_analysis_request_summaries WHERE archive_id=$1`, f.prefix+"-c").Scan(&childCause, &usedParentVersion))
+	t.Logf("parent version %d -> %d; child %d/%d; used parent=%d; cause=%s", pBefore, pAfter, cInput, cChecked, usedParentVersion, childCause)
+	require.True(t, cInput != cChecked || childCause != service.TokenAnalysisCauseMissedWithEligibleParent,
+		"a newly attached child must be invalidated or recomputed after its parent's concurrent cache-key change")
+}

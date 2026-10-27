@@ -1,0 +1,55 @@
+package service
+
+import (
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"github.com/stretchr/testify/require"
+)
+
+// The repository's actual namespace adapter supports children as the fallback
+// when tools is absent or empty. Token Analysis must count the same leaf tools.
+func TestCodexFourthReviewNamespaceChildrenCount(t *testing.T) {
+	for _, emptyTools := range []bool{false, true} {
+		name := "children_only"
+		if emptyTools {
+			name = "empty_tools_with_children"
+		}
+		t.Run(name, func(t *testing.T) {
+			children := make([]any, 0, 10)
+			for i := 0; i < 10; i++ {
+				children = append(children, map[string]any{
+					"type": "function", "name": fmt.Sprintf("f%d", i),
+					"parameters": map[string]any{"type": "object", "properties": map[string]any{}},
+				})
+			}
+			namespace := map[string]any{"type": "namespace", "name": "review", "children": children}
+			if emptyTools {
+				namespace["tools"] = []any{}
+			}
+			root := map[string]any{
+				"model": "gpt-5.5", "tools": []any{namespace},
+				"input": []any{map[string]any{"role": "user", "content": "hello"}},
+			}
+			body, err := json.Marshal(root)
+			require.NoError(t, err)
+			summary, err := SummarizeTokenAnalysisRequest("/v1/responses", body, 300)
+			require.NoError(t, err)
+			mapping, changed, err := apicompat.FlattenResponsesNamespaces(root)
+			require.NoError(t, err)
+			require.True(t, changed, "the real adapter accepts this namespace representation")
+			require.Len(t, mapping, 10)
+			require.Len(t, root["tools"], 10, "the actual adapter emits all ten function tools")
+			score, reasons := ScoreTokenAnalysisRisk(summary, TokenAnalysisUsageSignals{InputTokens: 20000, OutputTokens: 100}, TokenAnalysisDuplicateSignals{})
+			found := false
+			for _, reason := range reasons {
+				if reason.Code == TokenAnalysisRiskToolHeavyShortOutput { found = true }
+			}
+			t.Logf("adapter tools=%d, summary tools=%d, score=%d, tool-heavy reason=%v", len(root["tools"].([]any)), summary.ToolsCount, score, found)
+			if summary.ToolsCount != 10 { t.Errorf("supported namespace must count 10 leaves; got %d", summary.ToolsCount) }
+			require.True(t, found, "ten tools with 20000 input and 100 output must keep the existing tool-heavy risk reason")
+		})
+	}
+}

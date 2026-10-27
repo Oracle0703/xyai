@@ -382,10 +382,15 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		if buildErr != nil {
 			return nil, buildErr
 		}
+		recordTokenAnalysisNativeForwardFacts(c, s.tokenAnalysisFingerprintSecret(), TokenAnalysisForwardPathOpenAIResponsesPassthrough, upstreamReq)
 
 		upstreamStart := time.Now()
-		resp, err = s.doOpenAIUpstream(upstreamReq, proxyURL, account)
+		var viaPlugin bool
+		resp, viaPlugin, err = s.doOpenAIUpstreamReportingTransport(upstreamReq, proxyURL, account)
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+		if viaPlugin {
+			markTokenAnalysisForwardFactsViaPlugin(c)
+		}
 		if err != nil {
 			// Transport-level failure (proxy/DNS/TCP/TLS — no HTTP response). Convert to
 			// a failover so the handler switches to a healthy account.

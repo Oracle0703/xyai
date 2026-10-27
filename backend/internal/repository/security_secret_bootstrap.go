@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	securitySecretKeyJWT        = "jwt_secret"
-	securitySecretReadRetryMax  = 5
-	securitySecretReadRetryWait = 10 * time.Millisecond
+	securitySecretKeyJWT = "jwt_secret"
+	// securitySecretKeyTokenAnalysisFingerprint 是 Token Analysis 缓存键/前缀指纹的 HMAC 密钥。
+	securitySecretKeyTokenAnalysisFingerprint = "token_analysis_fingerprint_secret"
+	securitySecretReadRetryMax                = 5
+	securitySecretReadRetryWait               = 10 * time.Millisecond
 )
 
 var readRandomBytes = rand.Read
@@ -31,7 +33,23 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 	if cfg == nil {
 		return fmt.Errorf("nil config")
 	}
+	if err := ensureJWTSecret(ctx, client, cfg); err != nil {
+		return err
+	}
 
+	// 指纹密钥只在库内生成和共享, 不接受配置文件注入。
+	secret, created, err := getOrCreateGeneratedSecuritySecret(ctx, client, securitySecretKeyTokenAnalysisFingerprint, 32)
+	if err != nil {
+		return fmt.Errorf("ensure token analysis fingerprint secret: %w", err)
+	}
+	cfg.TokenAnalysis.FingerprintSecret = secret
+	if created {
+		log.Println("Token analysis fingerprint secret generated and persisted to database.")
+	}
+	return nil
+}
+
+func ensureJWTSecret(ctx context.Context, client *ent.Client, cfg *config.Config) error {
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	if cfg.JWT.Secret != "" {
 		storedSecret, err := createSecuritySecretIfAbsent(ctx, client, securitySecretKeyJWT, cfg.JWT.Secret)

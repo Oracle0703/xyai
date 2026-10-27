@@ -1,0 +1,205 @@
+{
+  "review_date": "2026-10-27",
+  "branch": "feature/hy/10221_token_risk_classification",
+  "head": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "local_main": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "scope": "All 56 changed backend/deploy files, including untracked additions",
+  "review_status": "changes_requested",
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P2",
+      "kind": "Stale invalidation consumer commits parent version propagation after deleting zero queue rows",
+      "reproduced": true,
+      "observed": "queue=0 child versions=6/6 parent version now=7 used=6 stale delete rows=0"
+    },
+    {
+      "id": "F2",
+      "priority": "P2",
+      "kind": "Namespace children alias omitted from leaf tool counting",
+      "reproduced": true,
+      "observed": "adapter tools=10; summary tools=1 or 0; risk score=0; tool-heavy reason=false"
+    }
+  ],
+  "previous_T1_ABA_replay": {
+    "pass": 1,
+    "observed": "child versions=7/7, cause=cache_key_changed:gateway",
+    "adaptation": "Removed only obsolete require oldSeq==1 precondition"
+  },
+  "focused_top_level_tests": {
+    "unit": {
+      "pass": 178,
+      "fail": 0,
+      "skip": 0
+    },
+    "integration": {
+      "pass": 51,
+      "fail": 0,
+      "skip": 0,
+      "integration_tagged_top_level": 30
+    }
+  },
+  "unit_routes_note": "No matching tests; package compiled",
+  "previous_service_replay": {
+    "pass": 3,
+    "fail": 0,
+    "final_body_hash_subcases": [
+      "standard",
+      "passthrough"
+    ]
+  },
+  "new_independent_reproductions": {
+    "failed_top_level": 2,
+    "namespace_failed_subcases": 2,
+    "failure_type": "Correct-behavior assertions, not timeouts or setup errors"
+  },
+  "build": {
+    "exit_code": 0,
+    "artifact_executed": false,
+    "artifact_copied_to_repo": false
+  },
+  "gofmt_clean": true,
+  "git_diff_check_exit_code": 0,
+  "source_hashes": {
+    "files": 56,
+    "drift": [],
+    "changed_file_set_unchanged": true
+  },
+  "cleanup": {
+    "temporary_review_tests": [],
+    "isolated_postgresql_stopped": true,
+    "postmaster_pid_absent": true
+  },
+  "database": "Local isolated PostgreSQL 18.1; synthetic fixtures only",
+  "verification_limits": [
+    "No production access",
+    "Not PostgreSQL 15 acceptance",
+    "No full-repository test suite",
+    "No browser verification",
+    "No load tests",
+    "No rolling-upgrade acceptance from an active 257 build",
+    "No production reindex or deployment"
+  ],
+  "repository_writes": "Review report and evidence plus backend wiki only; no implementation, formal test, or design changes",
+  "executions": [
+    {
+      "mode": "unit",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "-p",
+        "1",
+        "-count=1",
+        "-json",
+        "-run",
+        "TokenAnalysis|BootstrapSecrets|SecuritySecret|GenerateHexSecret|SecretNotFound|MigrationExecutionMode|ApplyMigrationsFS|OpenAI.*Plugin",
+        "./internal/config",
+        "./internal/service",
+        "./internal/repository",
+        "./internal/server/middleware",
+        "./internal/handler/admin",
+        "./internal/server/routes"
+      ],
+      "exit_code": 0,
+      "log": "unit-tests.jsonl"
+    },
+    {
+      "mode": "integration",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-json",
+        "-run",
+        "TestTokenAnalysis",
+        "./internal/repository"
+      ],
+      "exit_code": 0,
+      "log": "integration-tests.jsonl"
+    },
+    {
+      "mode": "replay",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexAuditInvalidationSequence",
+        "./internal/repository"
+      ],
+      "exit_code": 0,
+      "log": "aba-replay.log"
+    },
+    {
+      "mode": "namespace",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexFourthReviewNamespaceChildrenCount",
+        "./internal/service"
+      ],
+      "exit_code": 1,
+      "log": "namespace-repro.log"
+    },
+    {
+      "mode": "service-replay",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexRereview",
+        "./internal/service"
+      ],
+      "exit_code": 0,
+      "log": "service-replay.log"
+    },
+    {
+      "mode": "build",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "E:\\tmp\\token-analysis-branch-fourth-review-20261027\\sub2api-audit.exe",
+        "./cmd/server"
+      ],
+      "exit_code": 0,
+      "log": "build.log"
+    },
+    {
+      "mode": "stale-consumer",
+      "command": [
+        "go",
+        "test",
+        "-tags=integration",
+        "-p",
+        "1",
+        "-count=1",
+        "-v",
+        "-run",
+        "TestCodexFourthReviewStaleConsumer",
+        "./internal/repository"
+      ],
+      "exit_code": 1,
+      "log": "stale-consumer-repro.log"
+    }
+  ]
+}

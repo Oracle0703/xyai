@@ -829,3 +829,16 @@ func TestAsyncWriterCloseDuringConcurrentEnqueueDoesNotPanic(t *testing.T) {
 	// 幂等 Close。
 	require.NotPanics(t, w.Close)
 }
+
+// 转发侧记录随 response 行以 token_analysis 键写出(索引器按同名字段读取); 没有记录时省略。
+func TestRequestArchiveRecordSerializesTokenAnalysisFacts(t *testing.T) {
+	raw, err := json.Marshal(requestArchiveRecord{Event: "response", TokenAnalysis: &service.TokenAnalysisForwardFacts{
+		ForwardPath: service.TokenAnalysisForwardPathOpenAIResponses, CacheKeyHandling: service.TokenAnalysisCacheKeyScoped,
+	}})
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"token_analysis":{"forward_path":"openai_responses","cache_key_handling":"scoped"}`)
+
+	raw, err = json.Marshal(requestArchiveRecord{Event: "response"})
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "token_analysis")
+}

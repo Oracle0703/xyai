@@ -20,10 +20,22 @@ type lockedTokenAnalysisRepoStub struct {
 	mu sync.Mutex
 }
 
-func (r *lockedTokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
+func (r *lockedTokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) (TokenAnalysisSummaryUpsert, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.tokenAnalysisRepoStub.UpsertRequestSummary(ctx, summary)
+}
+
+func (r *lockedTokenAnalysisRepoStub) FindPrefixCandidates(ctx context.Context, query TokenAnalysisPrefixCandidateQuery) ([]TokenAnalysisPrefixCandidate, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.tokenAnalysisRepoStub.FindPrefixCandidates(ctx, query)
+}
+
+func (r *lockedTokenAnalysisRepoStub) ReplacePrefixEdges(ctx context.Context, write TokenAnalysisPrefixEdgeWrite) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.tokenAnalysisRepoStub.ReplacePrefixEdges(ctx, write)
 }
 
 func (r *lockedTokenAnalysisRepoStub) upsertCount() int {

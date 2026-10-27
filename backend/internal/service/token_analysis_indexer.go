@@ -276,8 +276,13 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 	if err != nil {
 		return 0, 0, 0, archiveID, fmt.Errorf("parse archive timestamp %s: %w", event.Timestamp, err)
 	}
-	bodySummary, err := SummarizeTokenAnalysisRequest(event.Endpoint, []byte(event.Body), tokenAnalysisMaxPreviewChars(s.cfg))
-	if err != nil {
+	// 请求体只解码一次, 摘要与前缀指纹共用(UseNumber 保留数字原始字面量)。
+	var bodySummary TokenAnalysisBodySummary
+	root, err := parseTokenAnalysisRequestBody([]byte(event.Body))
+	if err == nil {
+		bodySummary = summarizeTokenAnalysisRoot(event.Endpoint, root, tokenAnalysisMaxPreviewChars(s.cfg))
+	} else {
+		err = fmt.Errorf("parse request body: %w", err)
 		if mpSummary, ok := SummarizeTokenAnalysisMultipartRequest(event.Endpoint, event.Headers.ContentType, []byte(event.Body), tokenAnalysisMaxPreviewChars(s.cfg)); ok {
 			// /v1/images/edits 等 multipart 归档体不是 JSON("--boundary" 开头,
 			// JSON 解析必报 invalid character '-'): 按 form 字段解析 prompt/
@@ -334,6 +339,18 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 		}
 	}
 
+	userAgent := normalizeTokenAnalysisUserAgent(event.UserAgent)
+	fingerprint, chains := computeTokenAnalysisFingerprint(tokenAnalysisFingerprintInput{
+		Secret:      s.cfg.TokenAnalysis.FingerprintSecret,
+		Endpoint:    endpoint,
+		Root:        root,
+		Truncated:   event.BodyTruncated,
+		Degraded:    root == nil,
+		CountTokens: isCountTokens,
+	})
+	// offset 是行尾之后的位置(续读水位口径); 行首与长度另存, 供重新匹配时直接读回。
+	lineStart := offset - int64(len(line))
+	lineLength := int64(len(line))
 	summary := &TokenAnalysisRequestSummary{
 		ArchiveID:            event.ArchiveID,
 		ClientRequestID:      event.ClientRequestID,
@@ -361,12 +378,23 @@ func (s *TokenAnalysisService) indexArchiveLine(ctx context.Context, file string
 		ClientProject:        attribution.Project,
 		ClientBranch:         attribution.Branch,
 		AttributionSource:    attribution.Source,
+		UserAgent:            userAgent,
+		ClientFamily:         s.clientFamilies.Match(userAgent),
+		ClientFamilyVersion:  s.clientFamilies.version,
 		IndexedAt:            time.Now().UTC(),
 		SourceFile:           filepath.Base(file),
 		SourceOffset:         &offset,
+		SourceLineStart:      &lineStart,
+		SourceLineLength:     &lineLength,
+		Fingerprint:          fingerprint,
 	}
-	if err := s.repo.UpsertRequestSummary(ctx, summary); err != nil {
+	upserted, err := s.repo.UpsertRequestSummary(ctx, summary)
+	if err != nil {
 		return 0, 0, 0, archiveID, err
+	}
+	if upserted.CandidatesDue {
+		// 失败只记录日志: 行保持待重新匹配, 由自动索引的重新匹配任务补算。
+		logTokenAnalysisCandidateError(archiveID, s.computeTokenAnalysisCandidates(ctx, archiveID, event.APIKeyID, eventTime, fingerprint, chains, upserted.CandInputVersion))
 	}
 	// 净输入留存: 原始 JSONL 按保留期删除后, 全文仍可供"输入是否符合标准"类
 	// 分析回溯; 质量字段由后续评估任务回填, 这里只存原料。

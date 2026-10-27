@@ -21,7 +21,7 @@ func TestTokenAnalysisIndexerIndexesOnlyRequestEvents(t *testing.T) {
 	file := filepath.Join(dir, "2026-05-19.jsonl")
 	err := os.WriteFile(file, []byte(
 		`{"archive_id":"a1","client_request_id":"cid-1","event":"request","timestamp":"2026-05-19T01:02:03Z","method":"POST","endpoint":"/v1/chat/completions","user_id":7,"api_key_id":9,"model":"gpt-4.1","body":"{\"model\":\"gpt-4.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}","body_size":64,"body_sha256":"hash1"}`+"\n"+
-			`{"archive_id":"a1","client_request_id":"cid-1","event":"response","timestamp":"2026-05-19T01:02:04Z","status":200,"usage":{"completion_tokens":20},"response_id":"resp_1"}`+"\n"),
+			`{"archive_id":"a1","client_request_id":"cid-1","event":"response","timestamp":"2026-05-19T01:02:04Z","status":200,"usage":{"completion_tokens":20},"response_id":"resp_1","token_analysis":{"forward_path":"openai_responses","cache_key_handling":"scoped","upstream_cache_key_hash":"0123456789abcdef0123456789abcdef","usage_cache_source":"upstream_parsed"}}`+"\n"),
 		0o600,
 	)
 	require.NoError(t, err)
@@ -49,7 +49,14 @@ func TestTokenAnalysisIndexerIndexesOnlyRequestEvents(t *testing.T) {
 	require.Equal(t, "cid-1", repo.upserts[0].ClientRequestID)
 	require.Len(t, repo.responses, 1)
 	outputTokens := int64(20)
-	require.Equal(t, TokenAnalysisResponseFacts{ArchiveID: "a1", CompletedAt: time.Date(2026, 5, 19, 1, 2, 4, 0, time.UTC), Status: 200, OutputTokens: &outputTokens, ResponseID: "resp_1"}, repo.responses[0])
+	require.Equal(t, TokenAnalysisResponseFacts{
+		ArchiveID: "a1", CompletedAt: time.Date(2026, 5, 19, 1, 2, 4, 0, time.UTC), Status: 200, OutputTokens: &outputTokens, ResponseID: "resp_1",
+		// 转发侧记录随 response 行进入完成事实。
+		Forward: TokenAnalysisForwardFacts{
+			ForwardPath: TokenAnalysisForwardPathOpenAIResponses, CacheKeyHandling: TokenAnalysisCacheKeyScoped,
+			UpstreamCacheKeyHash: "0123456789abcdef0123456789abcdef", UsageCacheSource: TokenAnalysisUsageCacheSourceUpstreamParsed,
+		},
+	}, repo.responses[0])
 	require.Len(t, repo.usageLookups, 1)
 	require.Equal(t, "cid-1", repo.usageLookups[0].ClientRequestID)
 	require.Equal(t, "resp_1", repo.usageLookups[0].ResponseID)
@@ -139,8 +146,14 @@ func TestTokenAnalysisIndexerExtractsProjectAttribution(t *testing.T) {
 	require.Equal(t, "E:/code/lag-killer", codex.ClientWorkdir)
 	require.Equal(t, "lag-killer", codex.ClientProject)
 	require.Equal(t, "env-context", codex.AttributionSource)
+	// 客户端识别取自归档事件 UA, 不依赖计费关联。
+	require.Equal(t, "Codex Desktop/0.136.0", codex.UserAgent)
+	require.Equal(t, "codex", codex.ClientFamily)
+	require.NotZero(t, codex.ClientFamilyVersion)
 
 	copilot := repo.upserts[1]
+	require.Equal(t, "copilot", copilot.ClientFamily)
+	require.Equal(t, codex.ClientFamilyVersion, copilot.ClientFamilyVersion)
 	require.Equal(t, "lag-killer", copilot.ClientProject)
 	require.Equal(t, ProjectAttributionSourceKnownRoot, copilot.AttributionSource)
 	require.Equal(t, "e:/code/lag-killer", copilot.ClientWorkdir)
@@ -178,14 +191,170 @@ type tokenAnalysisRepoStub struct {
 	// requestItems/requestFilters 供请求明细口径测试注入返回值并记录过滤条件。
 	requestItems   []TokenAnalysisRequestItem
 	requestFilters *TokenAnalysisFilters
+	// staleFamilies 是待重新映射的行; familyUpdates 记录写回, familyListCalls 计查询次数。
+	staleFamilies   []TokenAnalysisClientFamilyRow
+	familyUpdates   []TokenAnalysisClientFamilyRow
+	familyListCalls int
+	// 候选边: candidateQueries 记录查询, edgeWrites 按子请求记录最后一次写回, rematchRows 是待重新匹配的行。
+	candidateQueries []TokenAnalysisPrefixCandidateQuery
+	edgeWrites       map[string]TokenAnalysisPrefixEdgeWrite
+	rematchRows      []TokenAnalysisCandidateRematchRow
+	// 分类: clsRows 是全部行(按 id 排序后作待分类来源), clsEdges 是边表; clsWrites
+	// 记录写回, clsRowLoads/clsEdgeLoads 记录每次加载的 id, staleMarks 记录维护扫描区间。
+	clsRows      []TokenAnalysisClassificationRow
+	clsEdges     []TokenAnalysisStoredEdge
+	clsWrites    []TokenAnalysisClassificationResult
+	clsRowLoads  [][]string
+	clsEdgeLoads [][]string
+	clsMaxID     int64
+	staleMarks   [][2]int64
+	drainCalls   int
 }
 
-func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
+func (r *tokenAnalysisRepoStub) ListClassificationDue(ctx context.Context, afterID int64, limit int) ([]TokenAnalysisClassificationRow, error) {
+	var out []TokenAnalysisClassificationRow
+	for _, row := range r.clsRows {
+		if row.ID > afterID && len(out) < limit {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+func (r *tokenAnalysisRepoStub) LoadClassificationRows(ctx context.Context, archiveIDs []string) ([]TokenAnalysisClassificationRow, error) {
+	r.clsRowLoads = append(r.clsRowLoads, archiveIDs)
+	var out []TokenAnalysisClassificationRow
+	for _, id := range archiveIDs {
+		for _, row := range r.clsRows {
+			if row.ArchiveID == id {
+				out = append(out, row)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (r *tokenAnalysisRepoStub) LoadPrefixEdges(ctx context.Context, childArchiveIDs []string) ([]TokenAnalysisStoredEdge, error) {
+	r.clsEdgeLoads = append(r.clsEdgeLoads, childArchiveIDs)
+	var out []TokenAnalysisStoredEdge
+	for _, id := range childArchiveIDs {
+		for _, e := range r.clsEdges {
+			if e.ChildArchiveID == id {
+				out = append(out, e)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (r *tokenAnalysisRepoStub) WriteClassifications(ctx context.Context, results []TokenAnalysisClassificationResult) (int, error) {
+	r.clsWrites = append(r.clsWrites, results...)
+	return len(results), nil
+}
+
+func (r *tokenAnalysisRepoStub) MaxSummaryID(ctx context.Context) (int64, error) {
+	return r.clsMaxID, nil
+}
+
+func (r *tokenAnalysisRepoStub) MarkClassificationStale(ctx context.Context, ruleVersion int32, fromID, toID int64) (int64, error) {
+	r.staleMarks = append(r.staleMarks, [2]int64{fromID, toID})
+	return 0, nil
+}
+
+func (r *tokenAnalysisRepoStub) ListStaleClientFamilies(ctx context.Context, version int32, afterID int64, limit int) ([]TokenAnalysisClientFamilyRow, error) {
+	r.familyListCalls++
+	var out []TokenAnalysisClientFamilyRow
+	for _, row := range r.staleFamilies {
+		if row.ID > afterID && row.Version != 0 && row.Version != version && len(out) < limit {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+// UpdateClientFamilies 仿仓储的快照条件: 只有 UA 与版本仍等于读出值的行被写回。
+func (r *tokenAnalysisRepoStub) UpdateClientFamilies(ctx context.Context, version int32, rows []TokenAnalysisClientFamilyRow) error {
+	for _, row := range rows {
+		for i := range r.staleFamilies {
+			current := &r.staleFamilies[i]
+			if current.ID == row.ID && current.UserAgent == row.UserAgent && current.Version == row.Version {
+				current.Family, current.Version = row.Family, version
+				r.familyUpdates = append(r.familyUpdates, row)
+			}
+		}
+	}
+	return nil
+}
+
+// UpsertRequestSummary 记录写入; 可比较的指纹视为新行, 候选版本记为 1、待计算。
+func (r *tokenAnalysisRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) (TokenAnalysisSummaryUpsert, error) {
 	if summary == nil {
-		return nil
+		return TokenAnalysisSummaryUpsert{}, nil
 	}
 	r.upserts = append(r.upserts, *summary)
-	return nil
+	if !summary.Fingerprint.Comparable() {
+		return TokenAnalysisSummaryUpsert{}, nil
+	}
+	return TokenAnalysisSummaryUpsert{CandInputVersion: 1, CandidatesDue: true}, nil
+}
+
+// FindPrefixCandidates 仿仓储: 在已写入的行中按 Key、指纹版本、时间窗口与哈希筛选。
+func (r *tokenAnalysisRepoStub) FindPrefixCandidates(ctx context.Context, query TokenAnalysisPrefixCandidateQuery) ([]TokenAnalysisPrefixCandidate, error) {
+	r.candidateQueries = append(r.candidateQueries, query)
+	contains := func(list [][]byte, h []byte) bool {
+		for _, x := range list {
+			if len(h) > 0 && string(x) == string(h) {
+				return true
+			}
+		}
+		return false
+	}
+	var out []TokenAnalysisPrefixCandidate
+	for _, s := range r.upserts {
+		fp := s.Fingerprint
+		if !fp.Comparable() || s.ArchiveID == query.ArchiveID || s.APIKeyID == nil || *s.APIKeyID != query.APIKeyID ||
+			fp.Version != query.FPVersion || s.EventTime.Before(query.From) || !s.EventTime.Before(query.To) {
+			continue
+		}
+		if contains(query.PrefixHashes, fp.PrefixEndHash) || contains(query.PrefixHashes, fp.PrefixTail1Hash) || contains(query.ItemsHashes, fp.ItemsEndHash) {
+			out = append(out, TokenAnalysisPrefixCandidate{
+				ArchiveID: s.ArchiveID, EventTime: s.EventTime, PrefixItems: fp.PrefixItems,
+				PrefixEndHash: fp.PrefixEndHash, PrefixTail1Hash: fp.PrefixTail1Hash, ItemsEndHash: fp.ItemsEndHash,
+			})
+		}
+	}
+	return out, nil
+}
+
+// ReplacePrefixEdges 仿仓储: 带 Query 时先查找候选再由 Select 选边, 记录最终写入。
+func (r *tokenAnalysisRepoStub) ReplacePrefixEdges(ctx context.Context, write TokenAnalysisPrefixEdgeWrite) (bool, error) {
+	if r.edgeWrites == nil {
+		r.edgeWrites = map[string]TokenAnalysisPrefixEdgeWrite{}
+	}
+	if write.Query != nil {
+		candidates, err := r.FindPrefixCandidates(ctx, *write.Query)
+		if err != nil {
+			return false, err
+		}
+		write.Edges, write.Overflow = write.Select(candidates)
+		if write.Overflow {
+			write.State = TokenAnalysisCandidateStateTieOverflow
+		}
+	}
+	r.edgeWrites[write.ArchiveID] = write
+	return true, nil
+}
+
+func (r *tokenAnalysisRepoStub) DrainClassificationInvalidations(ctx context.Context, limit int) (int, error) {
+	r.drainCalls++
+	return 0, nil
+}
+
+func (r *tokenAnalysisRepoStub) ListCandidateRematch(ctx context.Context, limit int) ([]TokenAnalysisCandidateRematchRow, error) {
+	if len(r.rematchRows) > limit {
+		return r.rematchRows[:limit], nil
+	}
+	return r.rematchRows, nil
 }
 
 func testTokenAnalysisUsageMatch() *TokenAnalysisUsageMatch {
@@ -385,14 +554,15 @@ type cancelOnUpsertRepoStub struct {
 	cancel context.CancelFunc
 }
 
-func (r *cancelOnUpsertRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) error {
-	if err := r.tokenAnalysisRepoStub.UpsertRequestSummary(ctx, summary); err != nil {
-		return err
+func (r *cancelOnUpsertRepoStub) UpsertRequestSummary(ctx context.Context, summary *TokenAnalysisRequestSummary) (TokenAnalysisSummaryUpsert, error) {
+	upserted, err := r.tokenAnalysisRepoStub.UpsertRequestSummary(ctx, summary)
+	if err != nil {
+		return upserted, err
 	}
 	if r.cancel != nil {
 		r.cancel()
 	}
-	return nil
+	return upserted, nil
 }
 
 func TestTokenAnalysisIndexerStopsScanningSkippedLinesAfterCancel(t *testing.T) {

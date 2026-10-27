@@ -95,7 +95,7 @@
 
 源码核对得到、手册与本页共同遵守的几个事实:
 
-- 后台任务锁分两类: `LeaderLockCache` 的 Redis 键是 `leader:lock:` + 逻辑键（如 `dashboard:aggregation:leader`、`backup:scheduled:leader`、`payment:order:expiry:leader`、`jobs:openai-auto-reset-credit`）, 无续约、完成即释放, Redis 不可用回退 PG advisory; Ops 系列（`ops:metrics:collector:leader`、`ops:aggregation:hourly|daily:leader`、`ops:alert:evaluator:leader`、`ops:cleanup:leader`、`ops:scheduled_reports:leader`）是业务自行 `SETNX` 的裸键, 没有 `leader:lock:` 前缀; Channel Monitor V2 聚合只用 PG advisory。
+- 后台任务锁分两类: `LeaderLockCache` 的 Redis 键是 `leader:lock:` + 逻辑键（如 `dashboard:aggregation:leader`、`backup:scheduled:leader`、`token-analysis:classification:leader`(Token Analysis 分类作业, 每分钟, TTL 10 分钟, 仅 `index_enabled` 时启动)、`payment:order:expiry:leader`、`jobs:openai-auto-reset-credit`）, 无续约、完成即释放, Redis 不可用回退 PG advisory; Ops 系列（`ops:metrics:collector:leader`、`ops:aggregation:hourly|daily:leader`、`ops:alert:evaluator:leader`、`ops:cleanup:leader`、`ops:scheduled_reports:leader`）是业务自行 `SETNX` 的裸键, 没有 `leader:lock:` 前缀; Channel Monitor V2 聚合只用 PG advisory。
 - 无跨实例锁、多副本会重复执行的任务: TokenRefreshService（靠 per-account 锁与 provider 并发/QPS 门减轻）、Channel Monitor V1 runner（每实例都探测）、TokenAnalysis 自动索引、CN provider 余额检查、UsageCleanup 任务执行器（任务表抢活）。
 - 启动迁移的 PostgreSQL advisory lock ID 为 `694208311321144027`, `pg_try_advisory_lock` 每 500ms 轮询, 迁移总超时 10 分钟; 瞬时错误重试实现在 `backend/internal/repository/ent.go`, 不在 `migrations_runner.go`。
 - settings 没有统一缓存也没有 settings 级 Redis pub/sub: Panel 限流与网关运行态各 60s（出错 5s）, 请求归档 5s（出错 1s）, OpenAI API Key 健康熔断 30s, Ops 运行态 30s; 只有 Prompt Audit 配置额外用 Redis 频道 `sub2api:prompt_guard:config:invalidate`。
@@ -481,6 +481,13 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 性能：`ORGANIZATION_USAGE_ROLLUP_BENCH=1` 跑 `TestOrganizationUsageRollupIntegration_ProductionShapedBenchmark`（135 用户、每天 4.7 万日志、30 天）；`ORGANIZATION_USAGE_PERF_ROLLUP=1` 让既有部门性能/EXPLAIN 测试先发布汇总再测。
 - 本机嵌入式 PG 反复复用会残留其他套件提交的当天数据，`UsageLog`/订阅列表若干用例在同库重跑时失败；验证新改动时用新建空库跑全量。
 
+## 忘记密码与邮件重置地址
+
+- 管理后台 `/admin/settings` 的“注册设置”中，开启“邮件验证”和“忘记密码”后显示“前端地址”（数据库 setting `frontend_url`）。填写用户可访问的前端站点根地址，如 `https://example.com`，不带 `/login`、`/admin`、`/api/v1` 或 `/reset-password`；邮件发送还需在“邮件设置”配置可用 SMTP。
+- `backend/internal/service/setting_public.go` 的 `GetFrontendURL` 优先读取非空数据库设置，否则回退 `server.frontend_url`；两者都为空时忘密接口返回 `Password reset is not configured`。
+- `backend/internal/service/auth_service.go` 自动追加 `/reset-password`，`email_service.go` 再追加编码后的 `email`、`token` 查询参数；默认链接有效期 30 分钟。前端路由在 `frontend/src/router/index.ts`，无需另建重置页面。
+- 验证入口：核对上述地址、开关与 SMTP 配置；经授权向自有测试账号发重置邮件后检查链接与页面。接口成功响应本身不证明账号存在或邮件已送达（异步队列及防账号枚举）。
+
 ## 配置文件
 
 示例配置: `deploy/config.example.yaml`。
@@ -495,6 +502,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - `cors`: allowed origins 和 credentials。
 - `security`: URL allowlist, response headers, CSP, proxy probe, proxy fallback, `trust_forwarded_ip_for_api_key_acl` 与 `forwarded_client_ip_headers`。客户端 IP 兼容开关默认 `true` 以兼容反代/Docker 升级；自定义 header 最多 16 个、按配置顺序优先, 仅在该开关开启时有效。关闭后必须正确配置 `server.trusted_proxies`。
 - `gateway`: 上游超时, body size, request archive, request intercept, OpenAI WS, 调度, usage record, connection pool, Codex bridge。`max_body_size` 默认 256 MiB 供多模态/media, `text_max_body_size` 默认 32 MiB 并只用于 embeddings 与 alpha search 等纯文本入口。
+- `token_analysis.client_family_rules`: User-Agent → 客户端族的有序规则(`family` 须匹配 `^[a-z0-9_]{1,32}$`, `pattern` 为不区分大小写的正则, 至多 64 条); 留空用内置规则, 配置即整体替换, 重启生效。已识别行按存下的 UA 自动重新映射: 自动索引每轮按 id 游标处理一批, 扫完一遍隔 1 小时复查, 写回按读出的 UA 与版本快照条件提交。多实例必须配置相同规则, 规则不同的实例长期并存会互相改写客户端族, 只允许滚动发布期间短暂出现。
 - `gateway.grok.password_auth_enabled` 默认 `false`, 是 Grok 邮箱/密码转 SSO 再转 Build OAuth 的服务端能力开关；前端必须以 capabilities 响应为权威, 不能只根据本地状态显示入口。开启后 YesCaptcha 优先读取 `YESCAPTCHA_CLIENT_KEY`, 兼容旧名 `YESCAPTCHA_API_KEY`; 两者都缺失时密码授权返回 `GROK_OAUTH_CAPTCHA_KEY_REQUIRED`。密码和原始 SSO 只允许在单次授权链内短暂存在, 不写入配置、日志或账号凭据。
 - Channel Monitor 的 `channel_monitor_enabled`、`channel_monitor_mode`(`v1|v2`)和 `channel_monitor_hide_throughput` 都是数据库 settings, 不是 YAML 配置。`channel_monitor_mode` 默认 `v1`; V1 主动探测与 V2 被动聚合互斥。`CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR=1` 只跳过本节点 aggregator 的 `Start()`, 不改 mode、API guard 或数据库配置, 仅用于本地 seeded-data/demo 场景。
 - 管理端运行时设置 `enable_client_dateline_normalization` 默认 `true`, 仅影响 Anthropic OAuth/SetupToken 转发, 用于清理客户端 dateline 隐写指纹; 关闭后请求体保持原样透传。
@@ -551,6 +559,8 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 修改配置要同步代码默认值, 示例配置, 校验逻辑和文档。
 
 ## 部署入口
+
+- 2026-10-26，118 的 `/opt/sub2api` 已从 main `777960134` 快进部署至 `25bedc620`，包含子管理员账号操作员与额度展示增量。前后端构建、内外网健康检查、Token Analysis/账号/额度页面资源一致性通过；仅重启 sub2api，Redis/PostgreSQL/Nginx 的 PID 与启动时间未变，无手工 SQL 或生产业务写操作。本轮无新增 migration；记录见 `docs/delivery/2026-10-26-main-source-deployment.md`。
 
 - 2026-10-25，118 的 `/opt/sub2api` 已按 main `777960134` 完成 Token Analysis 关联修复源码部署。前后端构建、内外网健康及新版资源校验通过；只重启 sub2api，其他服务 PID 未变，迁移由应用启动处理，未手工 SQL 或历史重索引。执行证据见 `docs/delivery/2026-10-25-token-analysis-deployment.md`；此记录不替代生产样本恢复验收。
 

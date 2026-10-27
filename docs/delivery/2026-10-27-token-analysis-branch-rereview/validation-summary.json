@@ -1,0 +1,19 @@
+{
+  "unit": {
+    "pass": 175,
+    "fail": 0,
+    "skip": 0
+  },
+  "integration": {
+    "pass": 49,
+    "fail": 0,
+    "skip": 0
+  },
+  "source_files_checked": 54,
+  "source_changes": [],
+  "temporary_tests": [],
+  "postgres_stopped": true,
+  "integration_tagged_top_tests": 28,
+  "new_reproduction_top_tests": 4,
+  "build_passed": true
+}

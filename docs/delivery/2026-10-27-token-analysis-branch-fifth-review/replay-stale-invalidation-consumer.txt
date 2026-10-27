@@ -1,0 +1,113 @@
+//go:build integration
+
+package repository
+
+import (
+    "context"
+    "testing"
+    "time"
+
+    "github.com/Wei-Shaw/sub2api/internal/service"
+    "github.com/lib/pq"
+    "github.com/stretchr/testify/require"
+)
+
+// Controlled expansion of the CURRENT DrainClassificationInvalidations path:
+// read (id,seq) without locking, bump descendants, then conditionally delete.
+// A and C use real repository/service calls. B uses the real bump function and
+// the exact drain deletion statement, paused after discovery but before UPDATE.
+// This is independent of seq reuse: no new P source event is created after A
+// deletes the old marker. The late duplicate consumer itself advances P's version.
+func TestCodexFourthReviewStaleConsumerCannotInvalidateCleanChildWithoutNotification(t *testing.T) {
+    f:=newTokenAnalysisClassificationFixture(t)
+    f.request("-p",0,"P",2)
+    f.request("-c",60,"C",3)
+    f.complete("-p",9000,0)
+    f.complete("-c",60000,2000)
+    f.drain()
+    _,err:=f.svc.RunClassification(f.ctx)
+    require.NoError(t,err)
+    ctx,cancel:=context.WithTimeout(context.Background(),30*time.Second)
+    defer cancel()
+    parentID,childID:=f.prefix+"-p",f.prefix+"-c"
+    require.NoError(t,f.repo.RecordResponse(ctx,service.TokenAnalysisResponseFacts{
+        ArchiveID:parentID,CompletedAt:f.base.Add(5*time.Second),Status:200,
+        Forward:tokenAnalysisClassificationNativeFacts(testFingerprintHash("GP")),
+    }))
+    // B keeps its non-locking snapshot; A completes that generation first.
+    var oldSeq int64
+    require.NoError(t,integrationDB.QueryRowContext(ctx,`SELECT seq FROM token_analysis_cls_invalidations WHERE archive_id=$1`,parentID).Scan(&oldSeq))
+    _,err=f.repo.DrainClassificationInvalidations(ctx,10000)
+    require.NoError(t,err)
+    _,err=f.svc.RunClassification(ctx)
+    require.NoError(t,err)
+    var pending int
+    require.NoError(t,integrationDB.QueryRowContext(ctx,`SELECT count(*) FROM token_analysis_cls_invalidations WHERE archive_id=$1`,parentID).Scan(&pending))
+    require.Zero(t,pending)
+
+    bTx,err:=integrationDB.BeginTx(ctx,nil)
+    require.NoError(t,err)
+    defer func(){_ = bTx.Rollback()}()
+    wrapper:=&tokenAnalysisPauseBeforePropagationLock{tx:bTx,reached:make(chan struct{}),resume:make(chan struct{})}
+    resumed:=false
+    resumeB:=func(){if !resumed{close(wrapper.resume);resumed=true}}
+    defer resumeB()
+    bDone:=make(chan error,1)
+    var deleted int64
+    go func(){
+        err:=propagateTokenAnalysisClassification(ctx,wrapper,[]string{parentID})
+        if err==nil{
+            result,deleteErr:=bTx.ExecContext(ctx,`
+DELETE FROM token_analysis_cls_invalidations q
+USING (SELECT unnest($1::text[]) AS archive_id, unnest($2::bigint[]) AS seq) d
+WHERE q.archive_id=d.archive_id AND q.seq=d.seq`,pq.Array([]string{parentID}),pq.Array([]int64{oldSeq}))
+            err=deleteErr
+            if err==nil{deleted,err=result.RowsAffected()}
+        }
+        if err==nil{err=bTx.Commit()}else{_ = bTx.Rollback()}
+        bDone<-err
+    }()
+    select{case <-wrapper.reached:case <-ctx.Done():t.Fatal("B did not reach the post-discovery pause")}
+
+    // B has already found no children, but does not yet hold P's row lock.
+    // C now commits a real edge and finishes classification using P's current version.
+    var candVersion int64
+    require.NoError(t,integrationDB.QueryRowContext(ctx,`SELECT cand_input_version FROM token_analysis_request_summaries WHERE archive_id=$1`,childID).Scan(&candVersion))
+    query:=service.TokenAnalysisPrefixCandidateQuery{
+        ArchiveID:childID,APIKeyID:f.apiKeyID,FPVersion:77,From:f.base.Add(-time.Hour),To:f.base.Add(time.Minute),
+        PrefixHashes:[][]byte{testFingerprintHash("H1"),testFingerprintHash("P"),testFingerprintHash("C")},
+        ItemsHashes:[][]byte{testFingerprintHash("G1"),testFingerprintHash("GP"),testFingerprintHash("GC")},
+    }
+    applied,err:=f.repo.ReplacePrefixEdges(ctx,service.TokenAnalysisPrefixEdgeWrite{
+        ArchiveID:childID,ExpectedCandVersion:candVersion,State:service.TokenAnalysisCandidateStateOK,Query:&query,
+        Select:func(candidates []service.TokenAnalysisPrefixCandidate)([]service.TokenAnalysisPrefixEdge,bool){
+            var edges []service.TokenAnalysisPrefixEdge
+            for _,p:=range candidates{edges=append(edges,service.TokenAnalysisPrefixEdge{ParentArchiveID:p.ArchiveID,Kind:service.TokenAnalysisEdgeFullPrefix,MatchedItems:p.PrefixItems})}
+            return edges,false
+        },
+    })
+    require.NoError(t,err)
+    require.True(t,applied)
+    f.drain()
+    _,err=f.svc.RunClassification(ctx)
+    require.NoError(t,err)
+    var parentVersion,usedParentVersion int64
+    require.NoError(t,integrationDB.QueryRowContext(ctx,`SELECT p.cls_input_version,c.parent_cls_version_used FROM token_analysis_request_summaries p,token_analysis_request_summaries c WHERE p.archive_id=$1 AND c.archive_id=$2`,parentID,childID).Scan(&parentVersion,&usedParentVersion))
+    require.Equal(t,parentVersion,usedParentVersion)
+
+    resumeB()
+    select{case err=<-bDone:require.NoError(t,err);case <-ctx.Done():t.Fatal("B did not finish")}
+    require.Zero(t,deleted,"A already removed this queue generation")
+
+    // Even running another complete drain + classify round does not repair C.
+    f.drain()
+    _,err=f.svc.RunClassification(ctx)
+    require.NoError(t,err)
+    cInput,cChecked:=f.clsVersions("-c")
+    require.Equal(t,cInput,cChecked,"C looks clean to ListClassificationDue")
+    require.NoError(t,integrationDB.QueryRowContext(ctx,`SELECT count(*) FROM token_analysis_cls_invalidations WHERE archive_id=ANY($1::text[])`,pq.Array([]string{parentID,childID})).Scan(&pending))
+    require.Zero(t,pending,"no notification remains to repair C")
+    require.NoError(t,integrationDB.QueryRowContext(ctx,`SELECT p.cls_input_version,c.parent_cls_version_used FROM token_analysis_request_summaries p,token_analysis_request_summaries c WHERE p.archive_id=$1 AND c.archive_id=$2`,parentID,childID).Scan(&parentVersion,&usedParentVersion))
+    t.Logf("queue=%d child versions=%d/%d parent version now=%d used=%d stale delete rows=%d",pending,cInput,cChecked,parentVersion,usedParentVersion,deleted)
+    require.Equal(t,parentVersion,usedParentVersion,"a stale duplicate consumer must not permanently strand an already-clean child behind its parent's publication version")
+}

@@ -1,0 +1,70 @@
+[
+  {
+    "name": "population",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT jsonb_build_object('start','2026-10-26T09:00:00+08:00','end','2026-10-27T09:00:00+08:00','n',count(*),\n 'min_time',min(event_time),'max_time',max(event_time),\n 'missing_origin',count(*) FILTER(WHERE NOT(summary_json ? 'request_origin')),\n 'truncated',count(*) FILTER(WHERE request_body_truncated),\n 'linked',count(*) FILTER(WHERE usage_log_id IS NOT NULL),\n 'completed',count(*) FILTER(WHERE completed_at IS NOT NULL),\n 'failed_responses',count(*) FILTER(WHERE response_status<200 OR response_status>=300),\n 'pending_recheck',count(*) FILTER(WHERE usage_link_version<>usage_link_checked_version),\n 'precise',count(*) FILTER(WHERE usage_match_method='request_id'),\n 'timing',count(*) FILTER(WHERE usage_match_method='timing'))\n FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00';\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.417,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"n\": 60065, \"end\": \"2026-10-27T09:00:00+08:00\", \"start\": \"2026-10-26T09:00:00+08:00\", \"linked\": 57043, \"timing\": 0, \"precise\": 57043, \"max_time\": \"2026-10-27T08:59:57.849561+08:00\", \"min_time\": \"2026-10-26T09:00:15.313255+08:00\", \"completed\": 60053, \"truncated\": 68, \"missing_origin\": 0, \"pending_recheck\": 2703, \"failed_responses\": 288}\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "strata",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT coalesce(jsonb_agg(to_jsonb(x)),'[]') FROM (\n SELECT endpoint,coalesce(summary_json->'request_origin'->>'kind','missing') kind,\n coalesce(summary_json->'request_origin'->>'reason','missing') reason,\n count(*) n,count(*) FILTER(WHERE usage_log_id IS NULL) unlinked\n FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00' GROUP BY 1,2,3 ORDER BY 1,2,3) x;\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.182,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "[{\"n\": 2314, \"kind\": \"ai\", \"reason\": \"tool_result\", \"endpoint\": \"/v1/chat/completions\", \"unlinked\": 83}, {\"n\": 702, \"kind\": \"human\", \"reason\": \"user_input\", \"endpoint\": \"/v1/chat/completions\", \"unlinked\": 37}, {\"n\": 36, \"kind\": \"human\", \"reason\": \"user_input\", \"endpoint\": \"/v1/images/edits\", \"unlinked\": 5}, {\"n\": 8, \"kind\": \"human\", \"reason\": \"user_input\", \"endpoint\": \"/v1/images/generations\", \"unlinked\": 0}, {\"n\": 8, \"kind\": \"ai\", \"reason\": \"assistant_continuation\", \"endpoint\": \"/v1/messages\", \"unlinked\": 0}, {\"n\": 1045, \"kind\": \"ai\", \"reason\": \"tool_result\", \"endpoint\": \"/v1/messages\", \"unlinked\": 22}, {\"n\": 79, \"kind\": \"human\", \"reason\": \"user_input\", \"endpoint\": \"/v1/messages\", \"unlinked\": 37}, {\"n\": 19, \"kind\": \"unknown\", \"reason\": \"count_tokens\", \"endpoint\": \"/v1/messages/count_tokens\", \"unlinked\": 19}, {\"n\": 2145, \"kind\": \"ai\", \"reason\": \"agent_message\", \"endpoint\": \"/v1/responses\", \"unlinked\": 114}, {\"n\": 19, \"kind\": \"ai\", \"reason\": \"assistant_continuation\", \"endpoint\": \"/v1/responses\", \"unlinked\": 0}, {\"n\": 6047, \"kind\": \"ai\", \"reason\": \"automation\", \"endpoint\": \"/v1/responses\", \"unlinked\": 251}, {\"n\": 39, \"kind\": \"ai\", \"reason\": \"compaction\", \"endpoint\": \"/v1/responses\", \"unlinked\": 3}, {\"n\": 16019, \"kind\": \"ai\", \"reason\": \"subagent\", \"endpoint\": \"/v1/responses\", \"unlinked\": 1224}, {\"n\": 28731, \"kind\": \"ai\", \"reason\": \"tool_result\", \"endpoint\": \"/v1/responses\", \"unlinked\": 1012}, {\"n\": 2766, \"kind\": \"human\", \"reason\": \"user_input\", \"endpoint\": \"/v1/responses\", \"unlinked\": 195}, {\"n\": 68, \"kind\": \"unknown\", \"reason\": \"body_truncated\", \"endpoint\": \"/v1/responses\", \"unlinked\": 0}, {\"n\": 20, \"kind\": \"ai\", \"reason\": \"compaction\", \"endpoint\": \"/v1/responses/compact\", \"unlinked\": 20}]\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "billing_consistency",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nWITH s AS MATERIALIZED (SELECT * FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00'),\n j AS (SELECT s.*,u.id bill_id,u.request_id bill_request_id,u.user_id bill_user_id,u.api_key_id bill_api_key_id,\n (u.request_id='client:'||s.client_request_id OR (s.response_id<>'' AND u.request_id=s.response_id)) exact_key\n FROM s LEFT JOIN usage_logs u ON u.id=s.usage_log_id\n AND u.created_at>=TIMESTAMPTZ '2026-10-26T09:00:00+08:00'-INTERVAL '2 hours' AND u.created_at<TIMESTAMPTZ '2026-10-27T09:00:00+08:00'+INTERVAL '2 hours')\n SELECT jsonb_build_object('attached',count(*) FILTER(WHERE usage_log_id IS NOT NULL),\n 'joined',count(bill_id),'attached_outside_join_or_missing',count(*) FILTER(WHERE usage_log_id IS NOT NULL AND bill_id IS NULL),\n 'exact_link_key_mismatch',count(*) FILTER(WHERE usage_match_method='request_id' AND bill_id IS NOT NULL AND NOT exact_key),\n 'key_mismatch',count(*) FILTER(WHERE api_key_id IS NOT NULL AND bill_api_key_id<>api_key_id),\n 'user_mismatch',count(*) FILTER(WHERE user_id IS NOT NULL AND bill_user_id<>user_id),\n 'shared_bills', (SELECT count(*) FROM (SELECT usage_log_id FROM s WHERE usage_log_id IS NOT NULL GROUP BY 1 HAVING count(*)>1) d),\n 'extra_shared_rows',(SELECT coalesce(sum(n-1),0) FROM (SELECT count(*) n FROM s WHERE usage_log_id IS NOT NULL GROUP BY usage_log_id HAVING count(*)>1) d)) FROM j;\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.457,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"joined\": 57043, \"attached\": 57043, \"key_mismatch\": 0, \"shared_bills\": 0, \"user_mismatch\": 0, \"extra_shared_rows\": 0, \"exact_link_key_mismatch\": 0, \"attached_outside_join_or_missing\": 0}\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "test_request",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT coalesce(jsonb_agg(to_jsonb(x)),'[]') FROM (\n SELECT archive_id,event_time,summary_json->'request_origin' origin,usage_log_id,usage_match_method,response_status,\n completed_at,usage_link_version,usage_link_checked_version,usage_link_retry_until\n FROM token_analysis_request_summaries WHERE archive_id IN ('d5a496e050ad7291aa0c2f4f8f40eece','73eb6d29496d6c677054f5c797996d66')) x;\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.032,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "[{\"origin\": {\"kind\": \"human\", \"reason\": \"user_input\", \"version\": 1, \"confidence\": \"medium\"}, \"archive_id\": \"73eb6d29496d6c677054f5c797996d66\", \"event_time\": \"2026-10-24T14:11:12.654558+08:00\", \"completed_at\": null, \"usage_log_id\": 4297037, \"response_status\": null, \"usage_link_version\": 0, \"usage_match_method\": \"timing\", \"usage_link_retry_until\": null, \"usage_link_checked_version\": 0}, {\"origin\": {\"kind\": \"human\", \"reason\": \"user_input\", \"version\": 1, \"confidence\": \"medium\"}, \"archive_id\": \"d5a496e050ad7291aa0c2f4f8f40eece\", \"event_time\": \"2026-10-25T01:43:07.034675+08:00\", \"completed_at\": \"2026-10-25T01:43:13.933237+08:00\", \"usage_log_id\": 4304734, \"response_status\": 200, \"usage_link_version\": 1, \"usage_match_method\": \"request_id\", \"usage_link_retry_until\": \"2026-10-27T01:50:42.904442+08:00\", \"usage_link_checked_version\": 1}]\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "unlinked_breakdown",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nWITH s AS MATERIALIZED (SELECT * FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00' AND usage_log_id IS NULL),\n j AS (SELECT s.*,u.id exact_bill_id FROM s LEFT JOIN LATERAL(\n SELECT id FROM usage_logs u WHERE u.api_key_id=s.api_key_id\n AND ((s.client_request_id<>'' AND u.request_id='client:'||s.client_request_id) OR (s.response_id<>'' AND u.request_id=s.response_id))\n AND u.created_at>=TIMESTAMPTZ '2026-10-26T09:00:00+08:00'-INTERVAL '2 hours' AND u.created_at<TIMESTAMPTZ '2026-10-27T09:00:00+08:00'+INTERVAL '2 hours'\n LIMIT 1) u ON true)\n SELECT jsonb_build_object('unlinked',count(*),'pending',count(*) FILTER(WHERE usage_link_version<>usage_link_checked_version),\n 'failed',count(*) FILTER(WHERE response_status<200 OR response_status>=300),\n 'missing_response',count(*) FILTER(WHERE completed_at IS NULL),\n 'count_tokens',count(*) FILTER(WHERE endpoint LIKE '%/count_tokens'),\n 'compact',count(*) FILTER(WHERE endpoint LIKE '%/compact'),\n 'exact_bill_exists',count(exact_bill_id),\n 'exact_bill_exists_pending',count(*) FILTER(WHERE exact_bill_id IS NOT NULL AND usage_link_version<>usage_link_checked_version),\n 'exact_bill_exists_nonpending',count(*) FILTER(WHERE exact_bill_id IS NOT NULL AND usage_link_version=usage_link_checked_version),\n 'pending_expired',count(*) FILTER(WHERE usage_link_version<>usage_link_checked_version AND usage_link_retry_until<now())) FROM j;\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 1.01,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"failed\": 288, \"compact\": 20, \"pending\": 2703, \"unlinked\": 3022, \"count_tokens\": 19, \"pending_expired\": 0, \"missing_response\": 12, \"exact_bill_exists\": 0, \"exact_bill_exists_pending\": 0, \"exact_bill_exists_nonpending\": 0}\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "final_population",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT jsonb_build_object('n',count(*),'human',count(*) FILTER(WHERE summary_json->'request_origin'->>'kind'='human'),'ai',count(*) FILTER(WHERE summary_json->'request_origin'->>'kind'='ai'),'unknown',count(*) FILTER(WHERE summary_json->'request_origin'->>'kind'='unknown'),'missing',count(*) FILTER(WHERE NOT(summary_json ? 'request_origin')),'linked',count(*) FILTER(WHERE usage_log_id IS NOT NULL),'pending',count(*) FILTER(WHERE usage_link_version<>usage_link_checked_version),'min_version',min((summary_json->'request_origin'->>'version')::int),'max_version',max((summary_json->'request_origin'->>'version')::int)) FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00';\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.267,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"n\": 60065, \"ai\": 56387, \"human\": 3591, \"linked\": 57043, \"missing\": 0, \"pending\": 2703, \"unknown\": 87, \"max_version\": 1, \"min_version\": 1}\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "connection_check",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT jsonb_build_object('other_audit_connections',count(*),'other_audit_open_transactions',count(*) FILTER(WHERE xact_start IS NOT NULL)) FROM pg_stat_activity WHERE application_name='token_origin_audit_20261027' AND pid<>pg_backend_pid();\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.036,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"other_audit_connections\": 0, \"other_audit_open_transactions\": 0}\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "git_sha",
+    "exit_code": 0,
+    "stdout": "25bedc620d9783e065ec6efae45d56f984b6b01c\n",
+    "stderr": ""
+  },
+  {
+    "name": "service",
+    "exit_code": 0,
+    "stdout": "MainPID=3522741\nNRestarts=0\nActiveState=active\nActiveEnterTimestamp=Mon 2026-10-26 09:55:27 CST\n",
+    "stderr": ""
+  }
+]

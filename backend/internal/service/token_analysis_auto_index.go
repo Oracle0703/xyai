@@ -81,4 +81,26 @@ func (s *TokenAnalysisService) autoIndexOnce(baseCtx context.Context) {
 	if result != nil && (result.IndexedRows > 0 || result.FailedRows > 0) {
 		log.Printf("[TokenAnalysisAutoIndex] indexed=%d skipped=%d failed=%d files=%d", result.IndexedRows, result.SkippedRows, result.FailedRows, result.Files)
 	}
+	// 客户端族规则变化后, 每轮按存下的 UA 补映射一批旧版本行。
+	refreshed, err := s.refreshTokenAnalysisClientFamilies(ctx, tokenAnalysisClientFamilyRefreshBatch, time.Now())
+	if err != nil {
+		if ctx.Err() == nil {
+			log.Printf("[TokenAnalysisAutoIndex] refresh client families failed: %v", err)
+		}
+		return
+	}
+	if refreshed > 0 {
+		log.Printf("[TokenAnalysisAutoIndex] client families refreshed=%d", refreshed)
+	}
+	// 候选快照过期(晚到的父请求、指纹变化)的行按归档原文重新匹配一批。
+	rematched, err := s.rematchTokenAnalysisCandidates(ctx, tokenAnalysisCandidateRematchBatch)
+	if err != nil {
+		if ctx.Err() == nil {
+			log.Printf("[TokenAnalysisAutoIndex] rematch candidates failed: %v", err)
+		}
+		return
+	}
+	if rematched > 0 {
+		log.Printf("[TokenAnalysisAutoIndex] candidates rematched=%d", rematched)
+	}
 }

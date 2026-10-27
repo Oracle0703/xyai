@@ -1,0 +1,52 @@
+package service
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+// The fixture matches apicompat/responses_tool_output_media_test.go. Ordinary
+// OpenAI Responses preserves the image output; only CN/DeepSeek lifts it.
+func TestCodexRereviewToolImageBypassesPureTextGate(t *testing.T) {
+	const parentBody = `{"model":"gpt-5.5","input":[{"type":"function_call","call_id":"call_image","name":"view_image","arguments":"{}"},{"type":"function_call_output","call_id":"call_image","output":[{"type":"input_image","image_url":"data:image/png;base64,AQID"}]}]}`
+	const childBody = `{"model":"gpt-5.5","input":[{"type":"function_call","call_id":"call_image","name":"view_image","arguments":"{}"},{"type":"function_call_output","call_id":"call_image","output":[{"type":"input_image","image_url":"data:image/png;base64,AQID"}]},{"role":"user","content":"Describe this image"}]}`
+	const secret = "synthetic-review-secret"
+	parentSummary, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(parentBody), 300)
+	require.NoError(t, err)
+	childSummary, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(childBody), 300)
+	require.NoError(t, err)
+	// Non-fatal so the same test demonstrates the downstream classification bug.
+	if childSummary.ImageCount != 1 {
+		t.Errorf("tool output contains one input_image, but ImageCount=%d", childSummary.ImageCount)
+	}
+	p := testTokenAnalysisClsRow(1, "p", 0, 9000, 0)
+	c := testTokenAnalysisClsRow(2, "c", 60, 60000, 2000)
+	p.ImageCount, c.ImageCount = parentSummary.ImageCount, childSummary.ImageCount
+	var parentFingerprint TokenAnalysisFingerprint
+	for i, fixture := range []struct {
+		row  *TokenAnalysisClassificationRow
+		body string
+	}{{&p, parentBody}, {&c, childBody}} {
+		root, err := parseTokenAnalysisRequestBody([]byte(fixture.body))
+		require.NoError(t, err)
+		fp, chains := computeTokenAnalysisFingerprint(tokenAnalysisFingerprintInput{Secret: secret, Endpoint: "/v1/responses", Root: root})
+		require.True(t, fp.Comparable())
+		fixture.row.FPVersion = fp.Version
+		fixture.row.ItemsEndHash = fp.ItemsEndHash
+		fixture.row.UpstreamItemsHash, fixture.row.UpstreamRootHash = tokenAnalysisUpstreamPromptHashes(secret, "/v1/responses", []byte(fixture.body))
+		require.True(t, tokenAnalysisPromptItemsPreserved(fixture.row))
+		if i == 0 {
+			parentFingerprint = fp
+		} else {
+			require.Equal(t, parentFingerprint.PrefixEndHash, chains.prefix[parentFingerprint.PrefixItems-1])
+		}
+	}
+	account := newOpenAIImageGenerationControlTestAccount()
+	require.Equal(t, []byte(childBody), normalizeDeepSeekResponsesRequestBody(account, []byte(childBody)), "ordinary OpenAI preserves this valid output image")
+	f := testTokenAnalysisClsFacts([]TokenAnalysisClassificationRow{p, c}, []TokenAnalysisStoredEdge{{ChildArchiveID: "c", ParentArchiveID: "p", Kind: TokenAnalysisEdgeFullPrefix, MatchedItems: parentFingerprint.PrefixItems}})
+	res := testTokenAnalysisClassify(t, f, "c")
+	require.Equal(t, TokenAnalysisEligibleAssumed, res.CacheEligibility)
+	require.Equal(t, tokenAnalysisPriceImageInput, res.PriceEvidence, "a known multimodal request must not get row_exact when upstream omits the optional image-token breakdown")
+	require.Nil(t, res.Amount)
+}

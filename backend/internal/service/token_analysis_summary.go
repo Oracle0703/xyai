@@ -31,15 +31,19 @@ func sanitizeTokenAnalysisText(s string) string {
 }
 
 func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars int) (TokenAnalysisBodySummary, error) {
+	root, err := parseTokenAnalysisRequestBody(body)
+	if err != nil {
+		return TokenAnalysisBodySummary{}, fmt.Errorf("parse request body: %w", err)
+	}
+	return summarizeTokenAnalysisRoot(endpoint, root, maxPreviewChars), nil
+}
+
+// summarizeTokenAnalysisRoot 从已解码的请求体生成摘要; 索引器与指纹共用同一次解码。
+func summarizeTokenAnalysisRoot(endpoint string, root map[string]any, maxPreviewChars int) TokenAnalysisBodySummary {
 	if maxPreviewChars <= 0 {
 		maxPreviewChars = 300
 	}
 	endpoint = sanitizeTokenAnalysisText(endpoint)
-	var root map[string]any
-	if err := json.Unmarshal(body, &root); err != nil {
-		return TokenAnalysisBodySummary{}, fmt.Errorf("parse request body: %w", err)
-	}
-
 	summary := TokenAnalysisBodySummary{
 		Model:       tokenAnalysisString(root["model"]),
 		SummaryJSON: map[string]any{},
@@ -64,7 +68,7 @@ func SummarizeTokenAnalysisRequest(endpoint string, body []byte, maxPreviewChars
 	summary.SummaryJSON["shape"] = tokenAnalysisShape(root)
 	setTokenAnalysisRequestOrigin(&summary, classifyTokenAnalysisRequestOrigin(root))
 	finalizeTokenAnalysisBodySummary(endpoint, &summary, maxPreviewChars)
-	return summary, nil
+	return summary
 }
 
 // finalizeTokenAnalysisBodySummary 统一摘要尾部(JSON 与 multipart 两条解析
@@ -244,28 +248,75 @@ func summaryMessagesRequest(root map[string]any, summary *TokenAnalysisBodySumma
 		}
 		summary.MessageCount++
 		content := msg["content"]
-		text := tokenAnalysisExtractText(content)
 		summary.ImageCount += tokenAnalysisImageCount(content)
 		switch strings.ToLower(strings.TrimSpace(tokenAnalysisString(msg["role"]))) {
 		case "system", "developer":
-			summary.SystemChars += len([]rune(text))
+			summary.SystemChars += len([]rune(tokenAnalysisExtractText(content)))
 		case "user":
+			text := tokenAnalysisSplitToolResults(content, false, summary)
 			summary.UserChars += len([]rune(text))
 			if input := tokenAnalysisUserInputText(content); strings.TrimSpace(input) != "" {
 				summary.LastUserPreview = input
 			}
-		case "tool":
-			bytesLen := int64(0)
-			if raw, err := json.Marshal(content); err == nil {
-				bytesLen = int64(len(raw))
-			}
-			summary.ToolMessageCount++
-			summary.ToolOutputBytes += bytesLen
-			if bytesLen > summary.MaxToolOutputBytes {
-				summary.MaxToolOutputBytes = bytesLen
-			}
+		case "tool", "function":
+			recordTokenAnalysisToolOutput(summary, content)
 		}
 	}
+}
+
+// recordTokenAnalysisToolOutput 计入一条工具输出; 字节数取输出值的 JSON 编码长度,
+// 各协议同一口径。
+func recordTokenAnalysisToolOutput(summary *TokenAnalysisBodySummary, output any) {
+	bytesLen := int64(0)
+	if output != nil {
+		if raw, err := json.Marshal(output); err == nil {
+			bytesLen = int64(len(raw))
+		}
+	}
+	summary.ToolMessageCount++
+	summary.ToolOutputBytes += bytesLen
+	if bytesLen > summary.MaxToolOutputBytes {
+		summary.MaxToolOutputBytes = bytesLen
+	}
+}
+
+// tokenAnalysisResponsesToolOutputPayload 取 Responses 工具输出条目的结果字段:
+// tool_search_output 的发现结果在 tools, 其余 *_call_output 在 output。
+func tokenAnalysisResponsesToolOutputPayload(itemType string, item map[string]any) any {
+	if itemType == "tool_search_output" {
+		return item["tools"]
+	}
+	return item["output"]
+}
+
+// tokenAnalysisSplitToolResults 把用户角色内容中的工具结果块(Anthropic tool_result、
+// Gemini functionResponse)计入工具输出, 返回其余块的文本, 用于 UserChars。
+func tokenAnalysisSplitToolResults(content any, gemini bool, summary *TokenAnalysisBodySummary) string {
+	blocks := tokenAnalysisArray(content)
+	if blocks == nil {
+		if block, ok := content.(map[string]any); ok {
+			blocks = []any{block}
+		} else {
+			return tokenAnalysisExtractText(content)
+		}
+	}
+	rest := make([]any, 0, len(blocks))
+	for _, raw := range blocks {
+		block, ok := raw.(map[string]any)
+		if ok && tokenAnalysisIsToolResultBlock(block, gemini) {
+			switch {
+			case !gemini:
+				recordTokenAnalysisToolOutput(summary, block["content"])
+			case block["functionResponse"] != nil:
+				recordTokenAnalysisToolOutput(summary, block["functionResponse"])
+			default:
+				recordTokenAnalysisToolOutput(summary, block["function_response"])
+			}
+			continue
+		}
+		rest = append(rest, raw)
+	}
+	return tokenAnalysisExtractText(rest)
 }
 
 func summaryResponsesRequest(root map[string]any, summary *TokenAnalysisBodySummary) {
@@ -286,25 +337,29 @@ func summaryResponsesRequest(root map[string]any, summary *TokenAnalysisBodySumm
 			continue
 		}
 		role := strings.ToLower(strings.TrimSpace(tokenAnalysisString(item["role"])))
+		itemType := tokenAnalysisString(item["type"])
+		if role == "" && tokenAnalysisIsToolOutputItemType(itemType) {
+			// 工具输出不是用户文本; 结果所在字段随类型而定。输出里也可能带图片
+			// (如 function_call_output 的 input_image 块), 同样计入图片数。
+			payload := tokenAnalysisResponsesToolOutputPayload(itemType, item)
+			recordTokenAnalysisToolOutput(summary, payload)
+			summary.ImageCount += tokenAnalysisImageCount(payload)
+			continue
+		}
 		content := item["content"]
 		if content == nil {
 			content = item
 		}
-		text := tokenAnalysisExtractText(content)
 		summary.ImageCount += tokenAnalysisImageCount(content)
-		if role != "" || strings.EqualFold(tokenAnalysisString(item["type"]), "message") {
+		if role != "" || strings.EqualFold(itemType, "message") {
 			summary.MessageCount++
 		}
 		switch role {
 		case "system", "developer":
-			summary.SystemChars += len([]rune(text))
-		default:
-			if text != "" {
-				summary.UserChars += len([]rune(text))
-			}
-			if role != "user" {
-				continue
-			}
+			summary.SystemChars += len([]rune(tokenAnalysisExtractText(content)))
+		case "user":
+			// assistant 文本、函数调用、reasoning 等不是用户输入, 不计入 UserChars。
+			summary.UserChars += len([]rune(tokenAnalysisExtractText(content)))
 			if input := tokenAnalysisUserInputText(item["content"]); strings.TrimSpace(input) != "" {
 				summary.LastUserPreview = input
 			}
@@ -322,12 +377,12 @@ func summaryGeminiRequest(root map[string]any, summary *TokenAnalysisBodySummary
 		}
 		summary.MessageCount++
 		parts := content["parts"]
-		text := tokenAnalysisExtractText(parts)
 		summary.ImageCount += tokenAnalysisImageCount(parts)
 		role := strings.ToLower(strings.TrimSpace(tokenAnalysisString(content["role"])))
 		if role == "model" {
 			continue
 		}
+		text := tokenAnalysisSplitToolResults(parts, true, summary)
 		summary.UserChars += len([]rune(text))
 		if input := tokenAnalysisUserInputText(parts); strings.TrimSpace(input) != "" {
 			summary.LastUserPreview = input
@@ -343,7 +398,7 @@ func summaryImageRequest(root map[string]any, summary *TokenAnalysisBodySummary)
 	summary.LastUserPreview = tokenAnalysisUserInputText(prompt)
 	summary.ImageCount = tokenAnalysisNumberAsInt(root["n"])
 	if summary.ImageCount <= 0 {
-		summary.ImageCount = tokenAnalysisImageCount(root["image"])
+		summary.ImageCount = tokenAnalysisImageValueCount(root["image"])
 	}
 }
 
@@ -358,7 +413,7 @@ func summaryFallbackRequest(root map[string]any, summary *TokenAnalysisBodySumma
 // 净输入留存的来源: 跳过工具结果(tool_result/functionResponse 等非文本块)和
 // 文本开头的完整客户端注入包装(见 tokenAnalysisInjectedContextTags)。没有用户
 // 文本时返回空串, 调用方保留更早的用户输入, 因此同一 agent 轮次内的请求共享
-// 同一净输入。UserChars 仍按原口径累计, 风险规则不受影响。
+// 同一净输入。UserChars 另按"用户角色的非工具文本"累计(含注入包装), 与预览口径不同。
 func tokenAnalysisUserInputText(content any) string {
 	switch v := content.(type) {
 	case string:
@@ -427,15 +482,16 @@ func tokenAnalysisExtractText(value any) string {
 	return ""
 }
 
+// tokenAnalysisImageFields 是承载图片的字段(OpenAI image_url/input_image, Gemini inline/file data)。
+var tokenAnalysisImageFields = []string{"image", "image_url", "input_image", "inline_data", "inlineData", "file_data", "fileData"}
+
+// tokenAnalysisImageBlockTypes 是图片内容块类型; Anthropic 的图片块只有 type 与 source。
+var tokenAnalysisImageBlockTypes = map[string]bool{"image": true, "input_image": true, "image_url": true}
+
+// tokenAnalysisImageCount 统计消息内容中的图片: 只按图片字段与图片块类型计数。内容中的
+// 字符串是文本(Responses/Chat/Messages 都允许 content 为纯文本字符串), 不是图片。
 func tokenAnalysisImageCount(value any) int {
 	switch v := value.(type) {
-	case nil:
-		return 0
-	case string:
-		if strings.TrimSpace(v) == "" {
-			return 0
-		}
-		return 1
 	case []any:
 		total := 0
 		for _, item := range v {
@@ -444,14 +500,13 @@ func tokenAnalysisImageCount(value any) int {
 		return total
 	case map[string]any:
 		total := 0
-		for _, key := range []string{"image", "image_url", "input_image", "inline_data", "inlineData", "file_data"} {
+		for _, key := range tokenAnalysisImageFields {
 			if child, ok := v[key]; ok && child != nil {
-				if nested := tokenAnalysisImageCount(child); nested > 0 {
-					total += nested
-				} else {
-					total++
-				}
+				total += max(tokenAnalysisImageValueCount(child), 1)
 			}
+		}
+		if total == 0 && tokenAnalysisImageBlockTypes[strings.ToLower(tokenAnalysisString(v["type"]))] {
+			total = 1
 		}
 		if content := tokenAnalysisArray(v["content"]); content != nil {
 			total += tokenAnalysisImageCount(content)
@@ -464,9 +519,43 @@ func tokenAnalysisImageCount(value any) int {
 	return 0
 }
 
+// tokenAnalysisImageValueCount 统计图片字段的值: 非空字符串(URL/base64)是一张图, 数组逐项计数。
+func tokenAnalysisImageValueCount(value any) int {
+	switch v := value.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return 0
+		}
+		return 1
+	case []any:
+		total := 0
+		for _, item := range v {
+			total += tokenAnalysisImageValueCount(item)
+		}
+		return total
+	case map[string]any:
+		return 1
+	}
+	return 0
+}
+
 func tokenAnalysisToolCount(root map[string]any) int {
+	count := tokenAnalysisToolEntries(root["tools"])
+	count += len(tokenAnalysisArray(root["functions"]))
+	// Codex(Responses Lite)把工具定义放在 input 的 additional_tools 条目里, 不在顶层 tools。
+	for _, raw := range tokenAnalysisArray(root["input"]) {
+		if item, ok := raw.(map[string]any); ok && tokenAnalysisString(item["type"]) == "additional_tools" {
+			count += tokenAnalysisToolEntries(item["tools"])
+		}
+	}
+	return count
+}
+
+// tokenAnalysisToolEntries 统计可调用的工具定义数: Gemini function_declarations 逐个计,
+// namespace 等带嵌套 tools 的条目递归计其叶子, 其余条目各计 1。
+func tokenAnalysisToolEntries(value any) int {
 	count := 0
-	for _, raw := range tokenAnalysisArray(root["tools"]) {
+	for _, raw := range tokenAnalysisArray(value) {
 		tool, ok := raw.(map[string]any)
 		if !ok {
 			count++
@@ -476,10 +565,29 @@ func tokenAnalysisToolCount(root map[string]any) int {
 			count += len(declarations)
 			continue
 		}
+		if nested, isNested := tokenAnalysisNestedTools(tool); isNested {
+			count += tokenAnalysisToolEntries(nested)
+			continue
+		}
 		count++
 	}
-	count += len(tokenAnalysisArray(root["functions"]))
 	return count
+}
+
+// tokenAnalysisNestedTools 取容器条目(namespace、additional_tools)的子工具: 非空 tools 优先;
+// namespace 回退 children 别名, 与 apicompat 的 namespaceChildren 口径一致。只有 namespace
+// 才认 children, 不对任意对象的 children 字段递归。
+func tokenAnalysisNestedTools(tool map[string]any) ([]any, bool) {
+	tools, hasTools := tool["tools"].([]any)
+	if len(tools) > 0 {
+		return tools, true
+	}
+	if strings.EqualFold(tokenAnalysisString(tool["type"]), "namespace") {
+		if children, ok := tool["children"].([]any); ok {
+			return children, true
+		}
+	}
+	return tools, hasTools
 }
 
 func tokenAnalysisArray(value any) []any {

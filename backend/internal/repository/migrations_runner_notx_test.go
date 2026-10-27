@@ -7,6 +7,7 @@ import (
 	"testing/fstest"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -228,6 +229,106 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_effective_upstream_model_
 	}
 
 	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 前缀指纹索引迁移重试前先删除上次 CONCURRENTLY 失败留下的无效索引, 否则 IF NOT
+// EXISTS 会跳过它们, 留下不可用的索引。
+func TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisPrefixIndexesDropInvalidIndexesBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(tokenAnalysisPrefixFingerprintIndexesMigration).
+		WillReturnError(sql.ErrNoRows)
+	for _, indexName := range tokenAnalysisPrefixFingerprintIndexes {
+		mock.ExpectQuery("SELECT EXISTS \\(").
+			WithArgs(indexName).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+		mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + indexName).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+	}
+	for _, indexName := range tokenAnalysisPrefixFingerprintIndexes {
+		mock.ExpectExec("CREATE INDEX CONCURRENTLY IF NOT EXISTS " + indexName).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+	}
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(tokenAnalysisPrefixFingerprintIndexesMigration, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	content, err := migrations.FS.ReadFile(tokenAnalysisPrefixFingerprintIndexesMigration)
+	require.NoError(t, err)
+	fsys := fstest.MapFS{tokenAnalysisPrefixFingerprintIndexesMigration: &fstest.MapFile{Data: content}}
+
+	err = applyMigrationsFS(context.Background(), db, fsys)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisClassificationIndexDropsInvalidIndexBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(tokenAnalysisClassificationIndexesMigration).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs(tokenAnalysisClassificationPendingIndex).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + tokenAnalysisClassificationPendingIndex).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE INDEX CONCURRENTLY IF NOT EXISTS " + tokenAnalysisClassificationPendingIndex).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(tokenAnalysisClassificationIndexesMigration, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	content, err := migrations.FS.ReadFile(tokenAnalysisClassificationIndexesMigration)
+	require.NoError(t, err)
+	err = applyMigrationsFS(context.Background(), db, fstest.MapFS{tokenAnalysisClassificationIndexesMigration: &fstest.MapFile{Data: content}})
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisClassificationDueIndexDropsInvalidIndexBeforeRetry(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(tokenAnalysisClassificationDueIndexMigration).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT EXISTS \\(").
+		WithArgs(tokenAnalysisClassificationDueIndex).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + tokenAnalysisClassificationDueIndex).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("CREATE INDEX CONCURRENTLY IF NOT EXISTS " + tokenAnalysisClassificationDueIndex).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + tokenAnalysisClassificationPendingIndex).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("INSERT INTO schema_migrations \\(filename, checksum\\) VALUES \\(\\$1, \\$2\\)").
+		WithArgs(tokenAnalysisClassificationDueIndexMigration, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("SELECT pg_advisory_unlock\\(\\$1\\)").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	content, err := migrations.FS.ReadFile(tokenAnalysisClassificationDueIndexMigration)
+	require.NoError(t, err)
+	err = applyMigrationsFS(context.Background(), db, fstest.MapFS{tokenAnalysisClassificationDueIndexMigration: &fstest.MapFile{Data: content}})
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

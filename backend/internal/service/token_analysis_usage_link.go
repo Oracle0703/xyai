@@ -29,6 +29,7 @@ func (s *TokenAnalysisService) recordTokenAnalysisResponse(ctx context.Context, 
 		Status:       event.Status,
 		OutputTokens: tokenAnalysisArchiveOutputTokens(event.Usage),
 		ResponseID:   sanitizeTokenAnalysisText(strings.TrimSpace(event.ResponseID)),
+		Forward:      validTokenAnalysisForwardFacts(event.TokenAnalysis),
 	})
 }
 

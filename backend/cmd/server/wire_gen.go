@@ -271,7 +271,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	accountOperatorActivityService := service.NewAccountOperatorActivityService(accountRepository, emailService, settingService)
 	accountOperatorHandler := admin.NewAccountOperatorHandler(adminService, accountOperatorActivityService)
 	tokenAnalysisRepository := repository.NewTokenAnalysisRepository(db)
-	tokenAnalysisService := service.ProvideTokenAnalysisService(tokenAnalysisRepository, configConfig, settingService)
+	tokenAnalysisService := service.ProvideTokenAnalysisService(tokenAnalysisRepository, configConfig, settingService, leaderLockCache, db)
 	tokenAnalysisHandler := admin.NewTokenAnalysisHandler(tokenAnalysisService)
 	userAttributeHandler := admin.NewUserAttributeHandler(userAttributeService)
 	errorPassthroughRepository := repository.NewErrorPassthroughRepository(client)

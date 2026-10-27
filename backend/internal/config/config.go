@@ -1873,6 +1873,18 @@ type TokenAnalysisConfig struct {
 	UsageMatchWindowSeconds int `mapstructure:"usage_match_window_seconds"`
 	// InputStoreMaxChars: 用户净输入全文留存的最大字符数(脱敏后截断), 0 = 不留存全文。
 	InputStoreMaxChars int `mapstructure:"input_store_max_chars"`
+	// ClientFamilyRules: User-Agent → 客户端族的有序规则(不区分大小写, 首个命中生效);
+	// 为空时使用内置规则。设置后整体替换内置规则, 未命中归为 other。
+	ClientFamilyRules []TokenAnalysisClientFamilyRule `mapstructure:"client_family_rules"`
+	// FingerprintSecret 是缓存键/前缀指纹的 HMAC 密钥; 不从配置文件读取, 启动时由
+	// security_secrets 引导(不存在即生成), 所有实例共享。为空时不计算指纹。
+	FingerprintSecret string `mapstructure:"-"`
+}
+
+// TokenAnalysisClientFamilyRule 是一条客户端族映射规则。
+type TokenAnalysisClientFamilyRule struct {
+	Family  string `mapstructure:"family"`
+	Pattern string `mapstructure:"pattern"`
 }
 
 type OrganizationUsageConfig struct {
@@ -3463,6 +3475,9 @@ func (c *Config) Validate() error {
 	}
 	if c.TokenAnalysis.InputStoreMaxChars < 0 {
 		return fmt.Errorf("token_analysis.input_store_max_chars must be non-negative")
+	}
+	if err := validateTokenAnalysisClientFamilyRules(c.TokenAnalysis.ClientFamilyRules); err != nil {
+		return err
 	}
 	if c.PromptMetrics.MaxPromptBytes <= 0 {
 		return fmt.Errorf("prompt_metrics.max_prompt_bytes must be positive")

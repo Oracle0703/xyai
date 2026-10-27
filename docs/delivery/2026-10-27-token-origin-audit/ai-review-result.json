@@ -1,0 +1,4732 @@
+{
+  "production_sha": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "window_start": "2026-10-26T09:00:00+08:00",
+  "window_end_exclusive": "2026-10-27T09:00:00+08:00",
+  "sample_count": 470,
+  "confirmed_misclassifications": 0,
+  "strata_counts": {
+    "/v1/chat/completions": 150,
+    "/v1/responses": 150,
+    "/v1/responses/compact": 20,
+    "/v1/messages": 150
+  },
+  "signal_counts": {
+    "trailing_tool_result": 443,
+    "trailing_agent_message": 18,
+    "guardian_metadata_and_review_envelope": 7,
+    "subagent_metadata_and_delegated_task": 1,
+    "reminder_only_after_assistant": 1
+  },
+  "skipped_trailing_context_request_counts": {
+    "instructions": 150,
+    "injected_only": 1
+  },
+  "limitations": [
+    "Stratified deterministic sample, not all 56387 AI-labelled records.",
+    "No independent manual-operation log or ground-truth identity.",
+    "Extracted tail structure and redacted text excerpts are evidence; classifier replay was not used as correctness proof.",
+    "Client-supplied metadata can be spoofed or inaccurate; no contradictory new human-input evidence was observed in this sample."
+  ],
+  "records": [
+    {
+      "archive_id": "322702c22eb0b5202d976f6fb241f3f4",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 10051661364,
+      "line_sha256": "5f21d5000cd110e8c9da535717664119464692e1f48fca28b19878d71c38d836"
+    },
+    {
+      "archive_id": "78d457a26f8b7ae9fdfd6c26d2d42257",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 10414397751,
+      "line_sha256": "7c04731910de0410bfd8d079b54056914505f7fb4eeedf5c7dc823663fa68822"
+    },
+    {
+      "archive_id": "ce2023fe3c46adb7583309f80cd6fe78",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 10632186403,
+      "line_sha256": "32ca2b3dde7d78c22c32b9309bfd4e79c20c002d8649ece423c4ea2a33ca3757"
+    },
+    {
+      "archive_id": "71f9932720dba18b6ba0d50086ceda2f",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11158010233,
+      "line_sha256": "82adbfca9e0875abdce1fda5e4f316fda1a9ee2cf0a8d98712514f9473d204c3"
+    },
+    {
+      "archive_id": "dfb37c743604df14608c920792e5d032",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11160747648,
+      "line_sha256": "143c92bf180878e60dfd1cce9c1928fd36ca144facd36b413add7827aee12b13"
+    },
+    {
+      "archive_id": "5f5cd334ae14534e238c46af0390adc1",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11162753474,
+      "line_sha256": "a8afacc98c9b545bcadbad72fa5da76c7562aaea23644067c2fc3a627c5f83b7"
+    },
+    {
+      "archive_id": "6d6952cd9f513309b0bc27e6fae20501",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11166523705,
+      "line_sha256": "60dc4b3d0698b41d4722d2ec0b0d60a19eb2f9aab8e032c18dcd30226fee1fcc"
+    },
+    {
+      "archive_id": "fd5733c2c6007d58832f6001ff059f14",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11170703706,
+      "line_sha256": "d10d77c00c156a7fb72d8bba1fe7b93a23f2a95d1e6f8acf1cd51c477d48c17e"
+    },
+    {
+      "archive_id": "44788ca042d2568e2ec365c061343502",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11688049921,
+      "line_sha256": "6a155102e0eb6ee2b0d2efeda9d5af5fcddd912e0fda4d0bad572be5e7bd474c"
+    },
+    {
+      "archive_id": "32081c16407374abf7885674422ef737",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11692743840,
+      "line_sha256": "a2f8a997611a70db28f074c341b145ec2db2405e27fd6e1e2238c5620c6f56f5"
+    },
+    {
+      "archive_id": "280f0be295374434b95bd9c0f75b9027",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11695002279,
+      "line_sha256": "a8cf7d1cf14f57617d8f87deb7c1d0f86ef96269f60a0c1a6b94e103a8bc115a"
+    },
+    {
+      "archive_id": "19b4141f4580ded494e5227077d841c2",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11698525036,
+      "line_sha256": "d4f97f3e9011e7e17944b64f086fe7ec5e91b078d3570d3f17dbf8e05382692f"
+    },
+    {
+      "archive_id": "f90a03d5087b4d8dd7232c550523fb83",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 11702722143,
+      "line_sha256": "ac9c936b47d1ff0e733ab396b9f3d54289018dc22e64cf4af55308d63cd91224"
+    },
+    {
+      "archive_id": "9a07577aea03e7c288b47008df1def7f",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 12552760541,
+      "line_sha256": "72125a783373a2e21d3546d0b58a6627abee9652bb2d1fc6a85782a475cf5774"
+    },
+    {
+      "archive_id": "1d6a8d064e562d8d4ba4b7c7ce3ec89d",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13286039666,
+      "line_sha256": "498dd58e7ca48e5a0a26d739cb1c0e80e9cf1a95876d227cf77f02df5b9893be"
+    },
+    {
+      "archive_id": "3996fbede1198b52e16fa7ab329c1228",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13292191690,
+      "line_sha256": "4e4276a997db0780a78a0edcf59d381840525887c590ce5140a7611cc7192c1c"
+    },
+    {
+      "archive_id": "61b45a832d2664697e7932f7042f2e79",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13297974077,
+      "line_sha256": "dda40869061e9bac956fc53b302e308daa02607a9c069090d8f852e5a597b812"
+    },
+    {
+      "archive_id": "5a0fad2703ddb0cc69de61685ccedd94",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13302836319,
+      "line_sha256": "f218086014ac9eaa05e599586956eae027f56da20de90fcf3588e901c8dff33d"
+    },
+    {
+      "archive_id": "3946aa48fb105e4636ca4ecb8adf0a0c",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13323691679,
+      "line_sha256": "d2997a4706763884ca194f2d03fa48dd7cdc26c6f7214643f66249cd05723b4f"
+    },
+    {
+      "archive_id": "c1949e60661dff21f8163d3d18acc4ea",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13759953432,
+      "line_sha256": "6b2851c39f7a7c65092d4c4b6d077ee636999d3c83f670a99ef5b9acb0e8f3eb"
+    },
+    {
+      "archive_id": "b1fdd15fc5d084f0e448710ee10ab601",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13931084385,
+      "line_sha256": "ac4e9a2c448e905aaffbb89ac6c6bb876fdde9fb694f38f4b54297c0fb23fe6b"
+    },
+    {
+      "archive_id": "c936a9f1e56ead0bafbaba169bb7caa8",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13933895877,
+      "line_sha256": "bf1557cffcc5cf5c85f4dae69d88bd5509c9b6e84b976d2bdfb769bba4373a21"
+    },
+    {
+      "archive_id": "ab52139902547e5b5b4fdd46ff7bbf5f",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13944261241,
+      "line_sha256": "4936d4289ee6499104c497634664efb144e0ca6eab82968666d9b231b15eeb5c"
+    },
+    {
+      "archive_id": "041bdf7667791ebeefdd600bcfe10bcc",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13948047246,
+      "line_sha256": "7093839807aa0c949bb6bafa33a9078b1898eb8b5979df718e8f0457b83a75b2"
+    },
+    {
+      "archive_id": "5dc9a3d72b314ba26a923932bc135903",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13950583144,
+      "line_sha256": "b2eb2311b5a46a73447fedaf43df6a85d2c1f9a7abb2fffbda6e85496cee1486"
+    },
+    {
+      "archive_id": "5b465711a05e70e4c5af43de66771c5d",
+      "endpoint": "/v1/responses/compact",
+      "stored_reason": "compaction",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 13954541575,
+      "line_sha256": "62e9d57ad9e249660f68891793c0c3e0615a1fa12470e6d22c55b1224bffc578"
+    },
+    {
+      "archive_id": "8eabec0e8a713453d6b749b55f64ebc9",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 14801184503,
+      "line_sha256": "3e3c65b2ead068d64f647f9cbd567db6db1facfed1165ba776922ec125e9f47f"
+    },
+    {
+      "archive_id": "007cf2ccf9ac59b262cbc3f18d1bbd12",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 16364583828,
+      "line_sha256": "7c93c92f16113ab1c3242de27d1b4edebcea1fd50a8db5ce68ecd874a2fbb622"
+    },
+    {
+      "archive_id": "1dc2f9926ccc8d4407aa931240671c2d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 16553748250,
+      "line_sha256": "21d1173e68244cf53b8bc271b29ed206347ed88227ff62bd62c2336948360a90"
+    },
+    {
+      "archive_id": "f5ec11a7758864a8e53275c3f6ff7d9d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 16959863244,
+      "line_sha256": "76f6472887b1b4198e2a73ea4acfbe9f2a6dc2b8a9d9e1fc243ebea2b62baaa7"
+    },
+    {
+      "archive_id": "2e6abb33ce5a4190e1275e245487c8e5",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 17799048408,
+      "line_sha256": "de16d304675622d7313a806964d478d8d9054bc1cd8b368c33c27c3012bb4068"
+    },
+    {
+      "archive_id": "cb74cdc9887a2e5fe41eac5b38e3c069",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 19084825156,
+      "line_sha256": "f5e13b3f76f62081d40784a765883382ba0d38ea8c5aeea987d038b3defeb0f0"
+    },
+    {
+      "archive_id": "11414bf5390698ad5e131dd27764a9ad",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 20237485990,
+      "line_sha256": "d57a5e4731697a4e66a145d6df1f99570e1c1e308d1c6ebda19854efacf0189a"
+    },
+    {
+      "archive_id": "e3c765df86d282fe7515c5c107a0ee59",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 20651734549,
+      "line_sha256": "1f7a277274e2801523093a73ab2febdcc89398621d0afddf7f7a2ce774c274c4"
+    },
+    {
+      "archive_id": "c63ab1d831126031c7c09b7457323142",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 21105946570,
+      "line_sha256": "9ecf8a94862c1f22c502448642443bb91b28e8a03ff5839e34d9fc377c4844d1"
+    },
+    {
+      "archive_id": "82f6c9ecc1a665d7f76489f1c26235de",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 21306066878,
+      "line_sha256": "7c21fd7a765f26d741dd275f6fe30919d9ccc7a992a1363dc126cedb21459b52"
+    },
+    {
+      "archive_id": "fefb396f46643077f5af270493d98fd8",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 21998893187,
+      "line_sha256": "3d8de8dc67be2675e9bfc8683442b7fc4d9cc553511042addb9405cf07c62ab4"
+    },
+    {
+      "archive_id": "809ed3d97a6b7babc1ab11cfbd9755dd",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 23188037408,
+      "line_sha256": "0d229437ffd2679b535ba0fd5edf94d002d7d52443835739efd6731974e9964d"
+    },
+    {
+      "archive_id": "8aaa4411b2914058eddd03c08b6af45c",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 23295940743,
+      "line_sha256": "ab156d91dca970f32f9ed1ee4e10e0f8143137626ce35bb3435c5fc219e4e9b1"
+    },
+    {
+      "archive_id": "499518cfb221f8dbcc2561a46321f0ff",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 23849671049,
+      "line_sha256": "e3db2d25273141d8883fcc8fef4c5e4ba1f8140458240138d27492c9b2a3d365"
+    },
+    {
+      "archive_id": "f41ee271a728d0d0810f204abdd571dd",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 23907877750,
+      "line_sha256": "471d9a1f5daa703793745c306e747da9d900bf6be51bdfd4f89af7b791dc7d91"
+    },
+    {
+      "archive_id": "e6cd8c8e35f7498adf6a8aef1c2b346e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 24045998285,
+      "line_sha256": "12a8b7a96f6daa2944ff0fb149c145b84b5dafbfc46ddedada16374f8520d455"
+    },
+    {
+      "archive_id": "05df79b8144b103ab3178e5a48b44eec",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 24474031479,
+      "line_sha256": "47cb5758a07de5b9d7a39cbea724bc6b26c2309d3393431430712fec07fd4590"
+    },
+    {
+      "archive_id": "b451a48a43e2c768a36a7441d018f3b4",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 25716264060,
+      "line_sha256": "2267d3624f7d753a5a242ab5f48b185aeb9f51661f831bf622c2c9f891342aec"
+    },
+    {
+      "archive_id": "ccaf981b62e52f266ef095019374231d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 26158844032,
+      "line_sha256": "c2c2e6b1da2f4707d3f7d396043700bc3579eac5798115270c17f6f7168137e0"
+    },
+    {
+      "archive_id": "eb8a6b17e734f6258262485c2414e51b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 26371698680,
+      "line_sha256": "5b907351f401958328e5019115afb094e9548b74512adcd6d34e61003d42fbf1"
+    },
+    {
+      "archive_id": "1e907330732c330ed69a3dfde3e5c07a",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 26664879159,
+      "line_sha256": "873d432aa903db13787aa9c3eb8e06a9066ba8e833349b607339cd3cf1e61f71"
+    },
+    {
+      "archive_id": "8a5a385e48a2df47ac5c3845cf21ea85",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 26795467882,
+      "line_sha256": "4cc47d01413d303ff9ad6d55719447922e0c4e1463ceaae322965e4611a163ad"
+    },
+    {
+      "archive_id": "847d1015c9cf2e6487428a6b5c5f50a1",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 27301235831,
+      "line_sha256": "3d9a39f2d564f0f65b6268e257a6f0cb500fba3c498b340d437fa351417ecba4"
+    },
+    {
+      "archive_id": "de1e949dc7695372605c97cbd6b952a0",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 27354260624,
+      "line_sha256": "2b145721a09aeacde3ac71e6a0f294094e5bb799e8012d52be25c9ce398eb6e8"
+    },
+    {
+      "archive_id": "1936d5dbbc4c09d3f2234298016c483f",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 28006689495,
+      "line_sha256": "c719c9296f369f962cb504eb64e4ca12e9cff694d007c715cdcedd038259eab4"
+    },
+    {
+      "archive_id": "26dc48291df00d9958e1db8f13e9f9e4",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 28072560050,
+      "line_sha256": "b80280add611dd6ad6ceeebdfa5e742abe749eb8453fcbbe5317d4e441421047"
+    },
+    {
+      "archive_id": "ca5aa7a0b7f6eb253e1cceedca33c140",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 28641150030,
+      "line_sha256": "54102cfea04257557a6f024e248e05a3c59c6adbb99095218214a9ebbf1534eb"
+    },
+    {
+      "archive_id": "bbe406ebf831ab07df51c59c72c5f20e",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 28691547771,
+      "line_sha256": "ffc5991e8e1f06547a82501ff0633cfdea1826a38f52d0243d5c0601539d96d8"
+    },
+    {
+      "archive_id": "f6e68b45c9fa1187661e72aaab3c49bd",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 28704646196,
+      "line_sha256": "a88b30e966931d890cd076d941d59e528fc8563ee49ecc68f023dd17bd039cb1"
+    },
+    {
+      "archive_id": "df34a21b4abea3c703f1c9499ab2b899",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 28808116380,
+      "line_sha256": "0e5bd7ec4122e20ec8ee77681b0277c906ae66b61daa94aa92c71fe5bd75d45b"
+    },
+    {
+      "archive_id": "529246fb21fb2ea439069126b963a4f7",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 30340426142,
+      "line_sha256": "68eeb96c5606bd228fa2553508b9220da2dfae9667fb6d661099c52c5407e63a"
+    },
+    {
+      "archive_id": "ae53b9a9fed900e224d4588c8585e400",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 30842687746,
+      "line_sha256": "c7f046d13338f6ca86c99018a9afc1e7deadb60a5492f07262d04bb442821d9b"
+    },
+    {
+      "archive_id": "6bfd716f18d1e7ec05db3a1acb252b68",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 31143975320,
+      "line_sha256": "946d86d234903c2f7fb1621d0d6f728219502440ab7e80c93fc57dc1468b118a"
+    },
+    {
+      "archive_id": "030bf2c5e97857845578c43bf98b73f7",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 31817453764,
+      "line_sha256": "12a9af8edfef2ad73c094064c87169bd03a7de71905bf84c8b44c11ff583da05"
+    },
+    {
+      "archive_id": "2e67678d1881f286fd44b91af3ceb549",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 32006595563,
+      "line_sha256": "ef2d6b5bb6e3b2afbac024d357b16840f534fbb8b1df92d442c9e78e3bf23381"
+    },
+    {
+      "archive_id": "f930578ba28f98f4b75a63d9176dfdb8",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 32317656467,
+      "line_sha256": "ea4dbdcfd7c8acec2907f0f22ea0a7f4f50f2168796cc78293cd315980109c32"
+    },
+    {
+      "archive_id": "1e8336f64a77403cba60246a1ac7f0ca",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 32327664110,
+      "line_sha256": "d08f86e271c1013ec2ed3e131353b16399853aa72fe182374b9d8f4895ebf6cb"
+    },
+    {
+      "archive_id": "579f64f6c76171f0d75bd815dd086d71",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 32642393282,
+      "line_sha256": "e3a7096cf1772fe6819f2df47851538739e4e53893dca844baa63d6c562c6d19"
+    },
+    {
+      "archive_id": "5b2a815fc6375f91eb2652f050179c2d",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33057837009,
+      "line_sha256": "b4252eb213925da1828deed55f77deef079f0ce350e82e647966e9c48475be01"
+    },
+    {
+      "archive_id": "3564933b9ecc9a3f6a3831659ac466fc",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33113607796,
+      "line_sha256": "f1f1f467c851466a74baf3a24abcb6116ea4db4278e56acaafaec06d5d39cc27"
+    },
+    {
+      "archive_id": "cebd0820d40fbe3ba10f9851834a70c3",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33461281815,
+      "line_sha256": "3e93d274bb9227a554b86250ad7cbf950298ca3aed12a0a9a76e5b4de52e3de3"
+    },
+    {
+      "archive_id": "1c8a56a778aa50790eeb064bfecaf463",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33470878467,
+      "line_sha256": "46fb42d97a1e78542541c5734a78a4f74fc16f01b65ab4b416312db422b81021"
+    },
+    {
+      "archive_id": "9a8dded86b6736f955d762c05ef631af",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33473541124,
+      "line_sha256": "5ea48f6e6041fee4b5203f4c05b5a75d25d39dbcfeaf716961ce4627f7075c9f"
+    },
+    {
+      "archive_id": "014d995fe97b388cb1020826a4b72755",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33650540989,
+      "line_sha256": "2c658e0c0cadb6af3e4a0ef4a7e0beed4de767221a9c4cfbb7d166ad37ade617"
+    },
+    {
+      "archive_id": "4487f0e67d00c88e057dd4e192af36f9",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33725127505,
+      "line_sha256": "b1eca227e7f33d1ac12a5e00f7619f9cb478bbf188fdc6eae188159822b75018"
+    },
+    {
+      "archive_id": "464c0892e435f03aa541f469c2d5b6fd",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33825810115,
+      "line_sha256": "5850cc3ec37905fe8b6e4c825b91832e2a14369bd95466a47519049f8034f744"
+    },
+    {
+      "archive_id": "272ce193eea7b55b25f9d1a8239731fd",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 33906748342,
+      "line_sha256": "0e27603b286ea43466f69c13271b96605975c43be30bde6f855d0c1714fa5e58"
+    },
+    {
+      "archive_id": "ed73dcfc1cfa12827cfea2cbe2855c4a",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 34087449077,
+      "line_sha256": "be603c20b2b0d00b28242442d1f491964a3a2a61169a9facedd775d2df17f426"
+    },
+    {
+      "archive_id": "0cb7640272021f8960ee3c4b93979bea",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 34094837031,
+      "line_sha256": "5927149cb2c6071724b2dc60586a50702e43669ff2a2b852e8c54d31150e8a0d"
+    },
+    {
+      "archive_id": "ca1d0f4ede3ebf7a89a88528e61fc6ec",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 34132035318,
+      "line_sha256": "0ac75337ab41963aa95d5e98c2cb4203fc75e5344c73adf20ab6767555baf51b"
+    },
+    {
+      "archive_id": "19c474230afad0f11f6157acec772571",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 34357227240,
+      "line_sha256": "6fb4e536164bbe595d33929d93d167368174bbc83c9c86e4c254740265f990aa"
+    },
+    {
+      "archive_id": "cecdf89fa6929e6493e34f51ef1d9233",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 35667546059,
+      "line_sha256": "a9964941d9f85d33305655ebc78d454594739c3789f464a7206bce8c6bce08d8"
+    },
+    {
+      "archive_id": "f0fe408f646b6e10e798e34e32035735",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 36323013941,
+      "line_sha256": "6078eb761651a73810fe9799e69c0e99140a21dcbe513aa8faff0592a7125a49"
+    },
+    {
+      "archive_id": "59f0abe0bc8da3e721dd442e80352642",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 36783597882,
+      "line_sha256": "129de793faa4aec09e482c35daf528b1827565ea8fe33ffb0a2eca9d7b91b7de"
+    },
+    {
+      "archive_id": "e190ccbe3d82f17a343bc3507404cc99",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37113835864,
+      "line_sha256": "787d633d3b0112523fa9503e297cde2fbb31b6be9393589f8b4efda8bd4f5b8b"
+    },
+    {
+      "archive_id": "0635d3ccc84e66feb0be8afb57dcbef4",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37205565927,
+      "line_sha256": "c19e087b56dd4aa003ea4bfa474210f40b4782d99ded81c1fa94fc3072a2840a"
+    },
+    {
+      "archive_id": "e6e838b0e15c06b222f5d554ad954143",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37243228530,
+      "line_sha256": "c8b513caca3706ee7982e00236bffe96890394f5b10300167796083f92c9f915"
+    },
+    {
+      "archive_id": "f0bae58fc6cb198adc6eca095902b7c7",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37375915907,
+      "line_sha256": "339e4a9b391401b1df7d6feec03644c932c7f54fe5b1df52d1de6106ee723090"
+    },
+    {
+      "archive_id": "1cf6c9dcaae66671866d4644a365a183",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37715955703,
+      "line_sha256": "e4d8906aa9515868d7cdb8bae025534b7f8a6ad06fddd090da73b5e26c3afc48"
+    },
+    {
+      "archive_id": "dbdc764bd9d2da2f5625cf1536de26b9",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37840207836,
+      "line_sha256": "25d34a29441829d8af158bc96dddf66553e16e407fe5ecc547b3574bb7e2661c"
+    },
+    {
+      "archive_id": "655d6aaf9ed8a4f9fc820e682f120472",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 37994657385,
+      "line_sha256": "781b91dc42a296a7910ef5b19ecca940c1d3bdb225aa2d632da6830269b84814"
+    },
+    {
+      "archive_id": "cea7a0fabeea104c72742ff77319c2f2",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38324098292,
+      "line_sha256": "16db764b773e01133a7cffb9548bde7804ec0b2648664e4c320b97b12040b1b1"
+    },
+    {
+      "archive_id": "0410bb1931fc10888d9d0bc2cde1925b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38441303511,
+      "line_sha256": "107fd95558ec548ca0a1445ae792eb1f5360b19b611a1e39710c56786fb6b411"
+    },
+    {
+      "archive_id": "3d1c9f1c93adf8304a8ff0bfb04c7407",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38459391168,
+      "line_sha256": "25483ecef1cfa33ce58cc05ddae66e6633d101b15b0d0f684dba043723cb0785"
+    },
+    {
+      "archive_id": "fb21a605a1bc55ddb721c3c04d381bc2",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38512689873,
+      "line_sha256": "4d951b9cbd544623dcbe06dc538ea122508579f0e80e379c36c7aeed0eff13d3"
+    },
+    {
+      "archive_id": "8eac7e89cec32403dcea551aa0e4f81b",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38514855610,
+      "line_sha256": "e7b2b3c6425070215da7100baa0c38dbe804ce8c5742cd69c2ea52da51b12239"
+    },
+    {
+      "archive_id": "32212268df69e9b6bcd6430b041cf4ed",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38584667474,
+      "line_sha256": "493854fe9861d8be0ffe6637e1ee6fc4dbd4532eaffdaa621b63571cda825dbe"
+    },
+    {
+      "archive_id": "6a03191faacb19679b1477c97c2e1b30",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38749897052,
+      "line_sha256": "8046860a426a8dbfee15a744a7eef58a9b05adb9b94d23cdde531125c5b4ceb6"
+    },
+    {
+      "archive_id": "445c4d35611faf4ae581e0d4ad17f73d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38874458049,
+      "line_sha256": "2b9e37213313bf4e5f3c933c31d8f19eca36cbfd4107d8b4ee2badecc86e2e8f"
+    },
+    {
+      "archive_id": "e45e7a45795d2b8571cbbebc82445fe8",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 38882703278,
+      "line_sha256": "062eca85e118c30b50e0660fb9a2a3c06a208e7435423860a0703653d4ec06b0"
+    },
+    {
+      "archive_id": "fb0365e892165dc7e59571d8a59f5787",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39032697964,
+      "line_sha256": "395274aa16aa98a737bcf40ae6bc441d63afe78066c712d6c1b882ab82e9e0a5"
+    },
+    {
+      "archive_id": "12db5842e3fe8a8d8da475076d7e3669",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39282553419,
+      "line_sha256": "feb398703069714d59adf1db6804ce2de10ba48fc145e32ef0c1d740948d0ba8"
+    },
+    {
+      "archive_id": "70581bb109905e11795d890bbe933bb5",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39302254332,
+      "line_sha256": "eb9b2f8380e0e5c7c604a8673761a7e597aba4e5c9b98da97ca94feadf075643"
+    },
+    {
+      "archive_id": "90f1f815db63c8643ccef2d41bd058f1",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39306239776,
+      "line_sha256": "28b7d7e7ab32a679b49bd63e6f31ce03b14ac2175b4e01715c444e5aa423e2f7"
+    },
+    {
+      "archive_id": "6e0db76c3b55ceeb16d157d392f8e35d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39350332598,
+      "line_sha256": "2e877afbf41b219a835d8cbd5f1ad0b7a9694a93026e346c3c8c72effdef76ee"
+    },
+    {
+      "archive_id": "090d27ffc8a5063cbb7f36dae7542f75",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39366259814,
+      "line_sha256": "0278136c92a7b59a625c720d86a5d0f308b64fef7f53a24d0c7fc1ab0615d040"
+    },
+    {
+      "archive_id": "c55e84d5e567a289086c45864066a7e3",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39461623960,
+      "line_sha256": "bff7b55b8f12e09034a35c92700604243f039b21ca47690db427c4110ce7557f"
+    },
+    {
+      "archive_id": "11042bb82e5060f696287129135ae5ce",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39552406360,
+      "line_sha256": "6748777af5730078a13a63b7cb27040ecb906bab4ae5207570dcc5f417bd8885"
+    },
+    {
+      "archive_id": "7ef2b3f2da3f0deef630a4711093535d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39625975108,
+      "line_sha256": "deaecdc040c2238114d213f118e2904e3436effb2f6e6013cff332ed24c34972"
+    },
+    {
+      "archive_id": "c49c6b2aefe34818c15b060763b201bf",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39895783113,
+      "line_sha256": "60fca09a6b72684d93f35940c5a18bb9d02a2ce0405b35d55cf7d261fab880d1"
+    },
+    {
+      "archive_id": "6d9280728f0c0e403e0bd84ed7252ebb",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39912003822,
+      "line_sha256": "c29615d31656b505de7a0ca2489bb66cb9b8ccaeb551b5ac7deadce30250ac9f"
+    },
+    {
+      "archive_id": "9551373d757dc419e28551ff6d0cad9c",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39965840656,
+      "line_sha256": "93c9735657a8fab0b032a3e0b34e0c09fc5277a8442912fa58006563a997377b"
+    },
+    {
+      "archive_id": "8de849b5b38793157dc41569d39b7518",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 39973986223,
+      "line_sha256": "f521420e3f212177b2abfb7eef80a69b00e4c834a798a40dadbb22268fd6a41b"
+    },
+    {
+      "archive_id": "f13f033cb7bd9d57e2f6ca3ec4a9eac6",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40042452185,
+      "line_sha256": "c598bc409288976e4a8be6f65f93a218541d34ea51e9b1fc1e7f640d8e83b203"
+    },
+    {
+      "archive_id": "34ca37c608fb7c74f0c5aa040669a493",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40061109964,
+      "line_sha256": "304ca83cb61b2708aa0ea8f596a113ede3757e3d03de04b1db30a03fe8c3d78c"
+    },
+    {
+      "archive_id": "10b7202f1e5ef515d7e809b67a4ea028",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40085087653,
+      "line_sha256": "f31ab98d2b488b687b473372922fea2751434cbaa1f237337f6a129d335a0289"
+    },
+    {
+      "archive_id": "d8a6fc7193ccb39aa983276745d08989",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40123888822,
+      "line_sha256": "5e137f642a84bd3f319da83ce2412273f3a7ac90f137507739f279fc601513ce"
+    },
+    {
+      "archive_id": "8cf3f090a8451fbc672b4284eee42b1f",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40260261978,
+      "line_sha256": "bf17164d58a6d0b79d5139def7ae4ebfc57d088108304c2a4879a55b3e3b4e06"
+    },
+    {
+      "archive_id": "c28f4c58d14835c0ab0fd12a1229ad53",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40300297656,
+      "line_sha256": "68d89786ebcf2a2e5390278f76933324cee827b30bdc45c43980c3c8f1750bfe"
+    },
+    {
+      "archive_id": "dbf5339303111891d07444b2f0f610f3",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40307708923,
+      "line_sha256": "d2a2830cbd6e884d099455e256af22455204bda8eb76a0546152e09ae50da09e"
+    },
+    {
+      "archive_id": "25f6a8b15ea37e8ecfb5c446e6749bd9",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40388122074,
+      "line_sha256": "d0ad16b8086505819fcb0f5217c2e0f6c66828010d469f49a2a335225129a3f3"
+    },
+    {
+      "archive_id": "75862b7e33f5af5987ecb4dbc2d31513",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40448708469,
+      "line_sha256": "0735a23f17404817d4d4b8a486b0b6e2eacd3886a42ef870e170e98132261799"
+    },
+    {
+      "archive_id": "859361ef7f7171807b6ccf480b76dd9e",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40507160542,
+      "line_sha256": "50e497a70fb99e4b9df4947faae34c01c30496fe0c0812eacb7d1fe4e040dc67"
+    },
+    {
+      "archive_id": "7b88d358727f5347e523c7e85795cb83",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40532044069,
+      "line_sha256": "dc6fc9c24aba21fc8ff5b689f49d8930577eaabb8c1bfe378e03c3e2fdb91c88"
+    },
+    {
+      "archive_id": "00d8850f79d41d701789b70bcef437ff",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40733684849,
+      "line_sha256": "8f2953de839a8ad723d39027dec65ca86c344974313c98a3a31dcb6484ec9478"
+    },
+    {
+      "archive_id": "101ca0b5bf5cdf6093cef513ad0cd767",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40877219167,
+      "line_sha256": "f554136ed6b826682b60f13d47c19b19080fa789e6f8b43b2aaac7f51afd68c0"
+    },
+    {
+      "archive_id": "3c2d04268cbb7ea996f852d9bbc9edc1",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 40954238988,
+      "line_sha256": "505b8762220b6c91a7aa28c1bf986f0030591feabafe7e6315f7357ecbb13cd1"
+    },
+    {
+      "archive_id": "81ef8ef6d216eae12235c6329f86767d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 41020367979,
+      "line_sha256": "8266bc87e2c62ef32295d23f3c68fe6a081304b3142390a154da9e0e5299b531"
+    },
+    {
+      "archive_id": "7bfddd5f1b91bbf9a9ff85413e022570",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 41320239054,
+      "line_sha256": "94c1cbf5cd7624f7519339e393565ad020fefb924945f5f80826c407c1af5d95"
+    },
+    {
+      "archive_id": "f001607cbf2e8776e99d70e2911fec3b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 41458973782,
+      "line_sha256": "80b878f6187d19c348c2745ef564dc92dc33a5bc04a4208f22c05c2d89ebc907"
+    },
+    {
+      "archive_id": "b51b5c3726eb28ea20274b15b20be83a",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 41759508301,
+      "line_sha256": "98aed94ffd574a9118b6c590ad53b7a4fc75d310ec14f0eb8e79cb8730d9ef87"
+    },
+    {
+      "archive_id": "2f85241d54d15b306f035418f9c2b38c",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 41820494428,
+      "line_sha256": "399ab530efbb90ee23109106e08cba8dde56f262089f8799218b6d17ced29fdf"
+    },
+    {
+      "archive_id": "301c6283f7ca6193a8a83f00b15353d3",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 41870619985,
+      "line_sha256": "a43a63312d2ec1d59735a053e59715f6dd84a16a96f15e0de4dbed07aaad0a35"
+    },
+    {
+      "archive_id": "ac73410f20dfeb124c13f371525dda7b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 42511107037,
+      "line_sha256": "6d269c26fbb67629e756baf3f0093b858e0e346adc815051a486feda151baa54"
+    },
+    {
+      "archive_id": "67d733554de56eb49c3e3b90bb8e4cfe",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 42854307854,
+      "line_sha256": "7558a71fc58a3aba6b96ffbf69c3990fd0ed0b9e6dc1e95a0cc6e7250adde763"
+    },
+    {
+      "archive_id": "c74b968e8232ca40b5e5bcefdc8ee718",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 43530916092,
+      "line_sha256": "ccd66affaa58dd73cabcca52f1aeba380bc520087b1830e4d99832508064f5eb"
+    },
+    {
+      "archive_id": "d11278cfc5ee3019b6dda2ea0d6a4793",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 44130543151,
+      "line_sha256": "6696c41809b753935c562f45454345bad7bfebd421f09bbdd5b1577a36e40326"
+    },
+    {
+      "archive_id": "cdd96689dc752bbfe26ce383e4091600",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 44592044947,
+      "line_sha256": "98a69053b3b9996d1e5a9a0418b76d8d6b3e5ad8376d397506a6a0280d241715"
+    },
+    {
+      "archive_id": "1dfc390b8d2faf00161cf69f3f57a34e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 44593641113,
+      "line_sha256": "076b8d489338971eb7daf5d5ab2ca2dc6ac61ea03c875457e2152ce82b5da64b"
+    },
+    {
+      "archive_id": "fe8a5488a21e65e87fc13a8b01b32342",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 45305818192,
+      "line_sha256": "a9775f3fd7fd2e1c4b65c321671acd55b79c678e565e31b71808ec9d03d54390"
+    },
+    {
+      "archive_id": "5a3808aaea7d46db4ec96a0142fec72d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 45388722606,
+      "line_sha256": "57b474f5fbe9f37a7696d8d85111c4bc4b7b634899a1023f9c1453de8840e11a"
+    },
+    {
+      "archive_id": "ea78915598c68786fa6e245f7e2f9b2c",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 46489759610,
+      "line_sha256": "0c22e3ceb8d9b227266cc89879b2f055cf0fdb2920f6f46b25ab6fe7b867e749"
+    },
+    {
+      "archive_id": "4d6f76ef757fe4561048cf2254ca7c46",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 46522787365,
+      "line_sha256": "c52f774e4ddfd6e43160830556e5f9335adbc0e5b883c5c8caff7e4f78bc6059"
+    },
+    {
+      "archive_id": "1b78ed753068d9c43ec21c44157810ef",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47392498254,
+      "line_sha256": "ab42a6cb3e616a9f85edff2328f836e78460f08c087e0a0c18007e09a4e7df65"
+    },
+    {
+      "archive_id": "7c5d27d0877cd3403d43d531cb1179a8",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47393448785,
+      "line_sha256": "0d977b696b653eec8f86c4caeb939e61e67f3a730f18f6aaffdc465b79962711"
+    },
+    {
+      "archive_id": "6d28f6b2a3e8235ca6765f6a58b472a2",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47405354822,
+      "line_sha256": "3602f8000c6c017d16022600b96bb362b59d8b37f270c118119f88c8082fd4d6"
+    },
+    {
+      "archive_id": "6b783e2b554a9896d6075d8ee92d78b8",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47493633042,
+      "line_sha256": "9e90a967c457135ccee58bbb15dabd8cdaf1c9acaccfc2d78ab275afff3784f0"
+    },
+    {
+      "archive_id": "6d2e089a5d61dd649916f9ab255752ff",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47529072207,
+      "line_sha256": "615e1505fbe4de0071a015435c0b1408f132e30d6142bf8af929909a75213021"
+    },
+    {
+      "archive_id": "bedf982272448625fbf6a3063bb034fa",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47529856196,
+      "line_sha256": "cfe52c6da2db1a1456d57c6a87364c0f34e19c104a0d9f35f2772b88bb4972ba"
+    },
+    {
+      "archive_id": "06707348ed5b6af0939fb5ce560888d0",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47583145471,
+      "line_sha256": "605de1e1a019d105e27a202d9473dd291e980bf80c9153ad504af6098c8bea62"
+    },
+    {
+      "archive_id": "3664e5c925a199d23c0b252d878c7921",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47620810836,
+      "line_sha256": "7f74d429f5b190898ba2ef01fb218c1fc38482dc5fee29c2b1c3dacdbef4d665"
+    },
+    {
+      "archive_id": "8e2e2f146c21c4c86fd8bfa6718f2796",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47687416248,
+      "line_sha256": "9590415ea32518e0872dd6cbc18dcf82c3254295a4a5f8b63043422e712d1817"
+    },
+    {
+      "archive_id": "4ff05532b0d227d21df5d56aeff3e172",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47705784717,
+      "line_sha256": "e5cc5655b2ea09c8f16071422246dfe75489266739d44ebd5735768dcf4285f3"
+    },
+    {
+      "archive_id": "943b17abfc6060be61fc3bc69a25e956",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47787493053,
+      "line_sha256": "13f13497f3fc1c6d6ad4c88abeddb38fc8d15ed6194e90e63e1e3419c704272b"
+    },
+    {
+      "archive_id": "80049fa0d684f4969fced815e6ad200d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47868130016,
+      "line_sha256": "b17107921f400c570fa4dd66cf9fc0705f19c5eb6d715b67e28a4df5a1e7a446"
+    },
+    {
+      "archive_id": "90d4879191b36a935993b3ce295d4c4e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 47871384064,
+      "line_sha256": "f69a8be2942d84743a290514e45aecc5f45b8fcab88a622845efc4eb45165222"
+    },
+    {
+      "archive_id": "698a7f0158abe43812beff9eb78ea69d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 48341169339,
+      "line_sha256": "164610841f97c8b7c9c01bf17efe826fb23b590fc97e6820973c196f711ecce5"
+    },
+    {
+      "archive_id": "6d4a8bacc803e4990439befa44024a61",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 48449224157,
+      "line_sha256": "615a0b3f3e35b87d343bf24f8245d381a4ec65185e2bbc8e52d7d0bb10f231d8"
+    },
+    {
+      "archive_id": "d3d2c75849e8ba489179dd95d8b116a5",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 48539747914,
+      "line_sha256": "643008cade78134fa9e5278c459d103b1f6d3c536af414b871ca0ca01229ed3c"
+    },
+    {
+      "archive_id": "510b7e8547f626324958c857c16b5fb3",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 48948986672,
+      "line_sha256": "f633dd715dca380df541d3185ce30bb49e775c4b4d24c09b8e2d8c52f97c7d44"
+    },
+    {
+      "archive_id": "5a2586383d1dcf81bc07f69c786a288a",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 55426099717,
+      "line_sha256": "f10dae470180e58ad6005d485f870ca3325276314867fccc6b677873e685cd4a"
+    },
+    {
+      "archive_id": "dc84e9d172ef1d1a324f29bcda586a03",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 55632996130,
+      "line_sha256": "f0d9e899faceda3284ee022b5cac63e74192508c63acb95321fce73d22395105"
+    },
+    {
+      "archive_id": "2451c4d07aa724ce50f3b53ba68eb318",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 56228708604,
+      "line_sha256": "f5869c057a1f7d0152b184736ab2332517aebeca0b23f6bc8e8bd480e3cf9522"
+    },
+    {
+      "archive_id": "89c30a2b76c6886dbde2a197ad3be7a2",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 56639068609,
+      "line_sha256": "1076df8994a915232b132ac6c8429af7f3614b72e581c0ceb218ec92791c6541"
+    },
+    {
+      "archive_id": "4b0a933afcc0655e0932bc2bedbd3915",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 56805356594,
+      "line_sha256": "066a792b39d16df1c1d0e8735e75d0b986199e37e80b52b30c7d534b12281996"
+    },
+    {
+      "archive_id": "c94f71f9387b6f5906628c2cb31533ab",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 57155566860,
+      "line_sha256": "4b1cac1979862ae197b66988607c712465781c7f93abaa073f9f0f4b44e11d9a"
+    },
+    {
+      "archive_id": "cec88ed1934e829bfd253fda8bfc08f9",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 57281928111,
+      "line_sha256": "bf5fdbafd99972de9ce85ac81a096c5e72dd713ab72921bcfb4b542f772342bd"
+    },
+    {
+      "archive_id": "f86c54c1e3d09a4d734a51fc7c43ce91",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 57540015421,
+      "line_sha256": "c11c7604897d83c6c0f6af32bac1b93261425ba892ebd9e878dabddb98638291"
+    },
+    {
+      "archive_id": "5ac60f9702c5281f10601ab726cadae6",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 57775165828,
+      "line_sha256": "c9a2f2a787ca74847f8194de8d2f22318169fa04192a877313495952fa79d88d"
+    },
+    {
+      "archive_id": "3389a26cda909e1a8ae911db2580ae80",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 58099737419,
+      "line_sha256": "a5c3b279064b320867d91b05a30c19a08a3d7d88e21f3d91ae71f4c17a01747c"
+    },
+    {
+      "archive_id": "65985a570a0a7fd1f9f9ffd80ce232f3",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 58100848373,
+      "line_sha256": "a9a049930859b6b2688a8fb78fd9bfe7238924bdc2af848f10e326572f0fd536"
+    },
+    {
+      "archive_id": "3788f8622b093af49fde4aaf87c1e6a9",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 58108229266,
+      "line_sha256": "f64a824a0e9656f3c32b8165fb5db94dec81eef32d2f58ce29d18e64f680ee83"
+    },
+    {
+      "archive_id": "4c8475774978ffe919b7fe09e9fb8ee1",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 58328343410,
+      "line_sha256": "070f4db65bba4dc46f9c02d422fb532c8aa4945efdaccc743bfd24a1b96b89a5"
+    },
+    {
+      "archive_id": "12c3d4606e41ff675a3c4e244e9e5203",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 58934819276,
+      "line_sha256": "60c8800400edf6135fd7af84c9681ceb4cf93c3925ad5e8384c4384b28377298"
+    },
+    {
+      "archive_id": "b111c628f61d85fb18df8fae83bebc0d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59160318812,
+      "line_sha256": "aad78f07ea190f88bfb0c12325eec1bf4bd86f97f1eb471a89c881bfd5bcda36"
+    },
+    {
+      "archive_id": "0cfcf8ac7c60511cc5c5a6e1c7a6a4b5",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59263586807,
+      "line_sha256": "73a49c2fe83903aefaf06d50e2039fdbd62a526ad7cac9d9b1e47f2b0430fdb9"
+    },
+    {
+      "archive_id": "85a57a9761587304bbe9a55b6ab1ce3b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59303301258,
+      "line_sha256": "69f0595bd33d5f41b3763196ce69c24e50a8336e6d546be111b81b7016364936"
+    },
+    {
+      "archive_id": "0f0ea285002df90b981d56ea3a9e9e0a",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59339629992,
+      "line_sha256": "1600d928c416d089f57698e2a779a62ccd4501fea2c45749ba805a347238fddd"
+    },
+    {
+      "archive_id": "ab0b55c731eb4c66c64e83eb2a7114af",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59347418048,
+      "line_sha256": "f9d4e9296185befc86da2fcf352ba61be95581449994a39ac60d5aebf886a220"
+    },
+    {
+      "archive_id": "20c593da24cad8b6a96b6295dbb8d372",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59589080686,
+      "line_sha256": "6f00be561eb0a10dd08f250ee84cdeb4fdcf8fc70a8a047d693b51780458b070"
+    },
+    {
+      "archive_id": "e92a3a9335f7bb54369b88143bcc4c9f",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 59958589646,
+      "line_sha256": "600b136997de3cd36a5d21bad91495a264997eb4eb514bc237c372ec1d526c3c"
+    },
+    {
+      "archive_id": "72bc35ff706841b1b5d185916d553cd7",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 60104891809,
+      "line_sha256": "ade07f9d81798ecce8e3553dea345d1e4b924c8fcb7d0c94abd4134cd5035cbc"
+    },
+    {
+      "archive_id": "78a080fc04a68b26090de9759fb2f775",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 60126599534,
+      "line_sha256": "0eceb484c907257a04642d3d94ec50681dc6757c69872231aba3fd243bf88c23"
+    },
+    {
+      "archive_id": "2de92132f3e2f2168750b6d867fad666",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 60216881930,
+      "line_sha256": "25d411f47ca9b1f4192a1f855efcdc58736750bcc55a9c881d67c184b4af4db6"
+    },
+    {
+      "archive_id": "b872786f8748d560ff00f7186fb15e82",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 60410222979,
+      "line_sha256": "698f5a07936afc9a5d9373470f6c6acdaef7ca499a4fd48a5afc029015c7fd5b"
+    },
+    {
+      "archive_id": "04d76c2630e329d32a5452509da62375",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 60846822127,
+      "line_sha256": "d6c28ccc50512c926360a786d79d9f095e1d00613a79753c7bc88b343b24a3c6"
+    },
+    {
+      "archive_id": "db859cc0d91463ad94c23e3e72c47cc7",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 61458502165,
+      "line_sha256": "b86e60d705521d5b06e83537cb194255fbdee88dd4bd8e8fc045548d80976154"
+    },
+    {
+      "archive_id": "71fe2b0b4b8a2da659d5c6e6bf63d3cd",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 62604103766,
+      "line_sha256": "7c61dc6527e7ea9cc6c9f9cbc1e8eff225ebe4417188008ef18b573f73cd5a33"
+    },
+    {
+      "archive_id": "ab2de1dad6bb97460c42e728cc485c10",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 62771949664,
+      "line_sha256": "f64ff0be866466784f5b172dbf44e1ca2a399dd8a142ecd07a5dbc83523b22a5"
+    },
+    {
+      "archive_id": "f2dcd8c5eeaeec6a77b5814f1560cb0c",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 62808604777,
+      "line_sha256": "c71522ed2f966ebbc1d4d0815b1c74c3b84f3fb73c61c6404ac5ba8e5dc7c362"
+    },
+    {
+      "archive_id": "b23e64d2d6c597faf5726d7e5e94f589",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 63023138160,
+      "line_sha256": "5e57f2fb4409556e943c669d3119250c40cde8d89d39638b69365a24f2c8cf8a"
+    },
+    {
+      "archive_id": "207fcd747b8052d746d6ec06de543852",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 63324773258,
+      "line_sha256": "e656a8e47c468b56feee32b886c775c164b547880fa1e4954661581701990209"
+    },
+    {
+      "archive_id": "55c0e588cfb29324d57a675cbaaf1222",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 63737292930,
+      "line_sha256": "c10852988856d93ccaf9a1734f3d339448d138fc7de08817f57fa59b6116d0be"
+    },
+    {
+      "archive_id": "cc38c76248c8711ef796b6232d653db5",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 63900423000,
+      "line_sha256": "2b80e790646b0ddae9c97cc87b8f0bc517bdc0afd6ec6636b138cbd07c8e58f3"
+    },
+    {
+      "archive_id": "3707f9a922ba89ebcf91fe350d50fd91",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 64127835910,
+      "line_sha256": "0aff4bff7008ae0cf46a9fa93f7ed90fa0086f14e0692f209869b4894c3f18b4"
+    },
+    {
+      "archive_id": "96e9186f03da9bbf2cc1814b693baaf9",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 64202985292,
+      "line_sha256": "879c8884827c926ddb63c79b34807f6ef45fce39465459d701b956ca5b6ff105"
+    },
+    {
+      "archive_id": "71a71879ffd5b04ea6b17ccc7276f378",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 64316965765,
+      "line_sha256": "c6b706aab472cd934117afd234428499ffea04e5da513afb665a4f1f04ce4da8"
+    },
+    {
+      "archive_id": "a2c54e538df29f96f1bc856101ca5811",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 64576501594,
+      "line_sha256": "1c9c75f82146a9bd03068f69635236c97f99dd9ef606f7a94e916766b4052415"
+    },
+    {
+      "archive_id": "87ece171212b486f62864dd28fe9f1f2",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 64741716143,
+      "line_sha256": "c2e7081fa88679570a39d4ed3f88847b1e7a9e32ea52361e6808fd079e2297d1"
+    },
+    {
+      "archive_id": "d4ec72b0a0a5cf393f24e56baa0dd475",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65248848875,
+      "line_sha256": "e8d8bff46f24f0c7d1350004677903c17c5dd658d3f674344493a8df6c239586"
+    },
+    {
+      "archive_id": "be058ebfb29340689ecffdafe9bc5d86",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65321056635,
+      "line_sha256": "223304fd28045b8e4768490870f7a10bb12d7e3b2bf40045c7b76d32668a9e27"
+    },
+    {
+      "archive_id": "eb1cae21bdede90297c1884ef8d7b762",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65335643700,
+      "line_sha256": "6f2b4448c501210d0d0448c3bec2aeaea9a29e41807a5cada4f33612ed415580"
+    },
+    {
+      "archive_id": "54b13a280f2e0ab7055427dd8cbf3bfe",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65490974155,
+      "line_sha256": "678ba26f074099bbe282bf266639462def7a91abbc87903e1893e0a2aedbe187"
+    },
+    {
+      "archive_id": "d6fb124fc84d7f92a2a44bd3abe5fced",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65497343589,
+      "line_sha256": "63c07c192adfb31e8d2d4865e0bf651874ceccd65677905fa9e4aca86c3eaf4e"
+    },
+    {
+      "archive_id": "c605e145181082994eac89e0f8b4eb64",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65691595985,
+      "line_sha256": "488f8017b1adc61161a89ff8e27f86e63c46cc79a0fa729044e8e2970ac93546"
+    },
+    {
+      "archive_id": "1c352b238bacdd8abbad6304b0e1b42f",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65776725636,
+      "line_sha256": "50493b893e86ea50dd0367fd2280ed2c4738c92a206dd2a0222c0d6ca3da8a1f"
+    },
+    {
+      "archive_id": "4bb1834130d01d77679ff17e60ba539f",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 65929006166,
+      "line_sha256": "03a120ee1186c2320684a7446e1aafba4d13c28ec72ebc87abddb5f12df6422b"
+    },
+    {
+      "archive_id": "cb3348d8d15754d581d53a6adebb4e22",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 66091686589,
+      "line_sha256": "74dfe7e94e725b99ac18501284fac8896759e74e4340c6f549a252b4acc47a04"
+    },
+    {
+      "archive_id": "171628e0b62abfb8c91bda1e110f5064",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 67195663353,
+      "line_sha256": "8a2c91d780bfc01c2cf1d5dd415cc51db031163fc48f26a9f5c411355cbf91e0"
+    },
+    {
+      "archive_id": "41b9bfb4515cc2220fdb41ae13be67ec",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 67266709385,
+      "line_sha256": "afd8d379a19833918c53d25905df47083b79fd70301f96b109f13704c5251226"
+    },
+    {
+      "archive_id": "1ccb89555bab4ff31f75f3c25b38508a",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 67412657350,
+      "line_sha256": "3fd8cb26bccf9373e1ddf7c03733bb2caafb4c0a6f70036fc2dad77ec4a3a1be"
+    },
+    {
+      "archive_id": "142ffe566e2b50d4e603c584ad9eb9fe",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "subagent_metadata_and_delegated_task",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 67619207568,
+      "line_sha256": "834dc23c1cdb80bdc98ba36d95f1b3eb57373ee0c389c62a619e3291ac44ec2e"
+    },
+    {
+      "archive_id": "06805ba43eed05d4540dc2baed06f77c",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 67829588813,
+      "line_sha256": "9fbbb78286ca78653758885676402e65469b64d448bd740dd1e97af2a2aeb26e"
+    },
+    {
+      "archive_id": "4c69a5e11b715264ecdb2d3a2b5a9270",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 68014180405,
+      "line_sha256": "9d9663c368081c764b5da6dd9b77691b1aebba0ad4e7789c5e85934f5bd2576c"
+    },
+    {
+      "archive_id": "b5b6fc772ef8301acfe0d854167c61dd",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 68117445144,
+      "line_sha256": "b86b5b51c9bfae3e0b84db7cad237f4482f1a99f974489647bd4285deb65dad0"
+    },
+    {
+      "archive_id": "3f5dd7b48812cc409f5462b814678288",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 68806810585,
+      "line_sha256": "ea9777e2a8f13d54a0b988e06e5432c9123321656dd23818c8c42f5a883efa56"
+    },
+    {
+      "archive_id": "949e4f7f28c652d5007b6129e8ec6ead",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 69881865376,
+      "line_sha256": "4f5c41341ba81a11b55ae3b91fb6808c277f554728f94375b9bd7c2ce3a8cf56"
+    },
+    {
+      "archive_id": "d907d6a8fa4472c3f5f71ea72b616b12",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70083853575,
+      "line_sha256": "ce6ea0768720be7b80051a3093cd5251ddad0a17ba3ead5f1ca7fe835aac397b"
+    },
+    {
+      "archive_id": "f7efef1610a1fa90d57b8f7adf57dae0",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70185328152,
+      "line_sha256": "3ae7b56f1efc294a75913aa38977efe76ee9d43e194c4eade04b42632cda6459"
+    },
+    {
+      "archive_id": "02653dc30aff32e55a580070ba767542",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70242425128,
+      "line_sha256": "1ae59c7da0793b47bee85800bb2015a4f8333022be1e432c4b64c247b6c66a11"
+    },
+    {
+      "archive_id": "e727c7f3b8fdf6073fc9e53c8d00d4d7",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70298977625,
+      "line_sha256": "002e89b457f6067c5666bb74ab0aa6734111125a87e72f14cf4926a480027ef0"
+    },
+    {
+      "archive_id": "5c9f30698a9e6dd222f1c4cf75d61fe5",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70330154418,
+      "line_sha256": "7e308657ca37ef51698f1dce6c7f9eb3b606619147cb44834b51b7a57ba5670c"
+    },
+    {
+      "archive_id": "b94fb780256f75656cc8a4bb3cf820ee",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70420711494,
+      "line_sha256": "5f256f407708bb52ce1b6d01943dba27d921aec1fe290e62f281accb282d5f6c"
+    },
+    {
+      "archive_id": "19a64d5bb846978dd3296a9c92927d7a",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70491722589,
+      "line_sha256": "448efc1a525b60a10ff33a20f4b1dede7ea90fddbfe3174a339ad637682c4174"
+    },
+    {
+      "archive_id": "6cb8261942b8960fefa3b10c781af204",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70616272094,
+      "line_sha256": "64019cb70ddb9b053d0cbee0d681134592fb0ddf3dce83652bc990e0f4e264fd"
+    },
+    {
+      "archive_id": "ff380cd45b23d850294e17ed9b8ea1b3",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 70870996152,
+      "line_sha256": "cec26c82ae9c24bc5f948f58c31e17f5523a1c48aa871e32cf4f91ecf5a5a1c6"
+    },
+    {
+      "archive_id": "bb3046f63ad354614d810333fb983d53",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 71379824254,
+      "line_sha256": "c4bbfe35efe0bfefd8d5813e20e550a66cd73792ed802a91a7d95e5b630ba4e5"
+    },
+    {
+      "archive_id": "66c084bdc5e8b92560b5b65f79aa2f8f",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 71481671511,
+      "line_sha256": "e8b704a95e73449cc979057a1cda3904b502e90c7f125302b7dea283ae01828f"
+    },
+    {
+      "archive_id": "01bdf80c31d6dcaa03791457ffe5f2e5",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 71832848371,
+      "line_sha256": "73f75addddb5a6884f9934ef9c053a5c792e0cebc6456eb84841314d964d9da4"
+    },
+    {
+      "archive_id": "b0bd8a3cd32dbc01040a9039a112b5b7",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 72498931976,
+      "line_sha256": "ffb9fb09f2f9027c120a0987f46cff84fb58f163554091baa206d626e7e5e0d2"
+    },
+    {
+      "archive_id": "e9b508c6f6e39094bdbd1b996d9c712d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 72519961833,
+      "line_sha256": "1f85419946ebf40321e6bf436c5d877ce77a4da1663a645b6e98604a09ef71a2"
+    },
+    {
+      "archive_id": "9664b6688d7aa67671a6809447e4d9d2",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 73804434325,
+      "line_sha256": "c21fbbeedb5669a18c2fa0abf2825341d5956461a380c0532adca60856835395"
+    },
+    {
+      "archive_id": "86e99012c136b58e2922538ed2e4c125",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 73908938264,
+      "line_sha256": "6485bfbcf1792edc210a4a8d7028772a96194478e8ac9da9fb52c76d11792f0e"
+    },
+    {
+      "archive_id": "c0561a9dc88775838f688642f7dcea99",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 74006619887,
+      "line_sha256": "a5daf7988ab033c4750769288671e5d90522b429ba9fe3c6fb22a43ada3badd6"
+    },
+    {
+      "archive_id": "97a0ca045d82bfbd21201cb5e8f77997",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 74623118812,
+      "line_sha256": "d9913e3988b57105b513f91093001ce894e5068bb7512a92e846ab6808eb340b"
+    },
+    {
+      "archive_id": "a0b5509d62be372f7d18ac018d5cb93e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 75263960356,
+      "line_sha256": "819c6167e10dc078c67274ab9b2efc8c6ebc701fd71cbc635edc459f0018b1f1"
+    },
+    {
+      "archive_id": "e92dc200647c999dc22f26672a990712",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 75537619541,
+      "line_sha256": "dcf4aa6d16d597e0e0975d1c2d793dd294ecc58ca57285e76680abf214f81d61"
+    },
+    {
+      "archive_id": "feb075a18baf203b1fd64d6175aebab3",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 75631635364,
+      "line_sha256": "a6001dcb554e1b4a0850dbdd265c2eccd3e4cf277385c31e31d890eac6e96797"
+    },
+    {
+      "archive_id": "e1cb74ac006afefa82aaa6d0326b3c16",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 75862575900,
+      "line_sha256": "00e2e3198cc26d023ce42582f34121aa71cf6d5f6c01c75a7f59e9e556bb9dcb"
+    },
+    {
+      "archive_id": "fce05eb6472e701851ec557b8bb2218b",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 77101312888,
+      "line_sha256": "e01d1024f145c7c89b1dac2fdd0a71447cf56d108c8173994484873e74f02123"
+    },
+    {
+      "archive_id": "d89d02bfa4ff14dfe555463c60a9a5ac",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 77795908844,
+      "line_sha256": "da4831e31bc307098dc52df9cd3dc4e14c2116c9868b133a7b91dabfc2697b14"
+    },
+    {
+      "archive_id": "98cc6d8aae529d75b8ab03c24b6b53ce",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 79412475313,
+      "line_sha256": "a3a36101847a3f47ba6ec0342364b9cc2e0d5af160063aee11bc41b6d9a6fd5d"
+    },
+    {
+      "archive_id": "2d820beb775aeae6bfa9686a88224a78",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 79430148141,
+      "line_sha256": "9a3a7d54461e45fdd7580283814965e2eb78c5e52424ff2ce31d616e359a3eb5"
+    },
+    {
+      "archive_id": "4aef16c6284ec8c0db4e275081710e9b",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 80467048778,
+      "line_sha256": "0e8b2a954a7fa80906caabd249a2d0c56c6471b131b1bf73b7d5e1e37011f1b1"
+    },
+    {
+      "archive_id": "9b5389a227f35e3c418d2776ab124b83",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 81009482483,
+      "line_sha256": "9925f7c6382963ac6755fd1ee8edfde0af6ec1525daedb975e0f1435399b81ae"
+    },
+    {
+      "archive_id": "04cddf8ba62a32543ddb3852544448e6",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 81032030709,
+      "line_sha256": "1c77673f33c8c4f8559897f243200eefbed656611968f44c2a7491e6255189e9"
+    },
+    {
+      "archive_id": "d38c1548e5211df657a5b8ee3298e388",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 81603614844,
+      "line_sha256": "9d09d0b9a34233003d835e519c6e96f466e9383bfc5e051712c52721df845751"
+    },
+    {
+      "archive_id": "d82d60451cf7f70f9e3bd15e062e7563",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 82947160254,
+      "line_sha256": "75125e43d1d7bd3b1be3cd7359b5db5ae2cd67fd6da17f3a36b2e5ae7074b364"
+    },
+    {
+      "archive_id": "8c8dcfcc7a85134c3728133c36251f34",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 83038938006,
+      "line_sha256": "cffa32281c0ee53e35cfd643f3f70cb9faed56e8751377e41dbc599e711315cd"
+    },
+    {
+      "archive_id": "b379eaffdcab0f52f85bfd078cb87b88",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 83199399386,
+      "line_sha256": "6977dcc6118e8f675a82d3d5eb8d643401978ddb80388367af7bdaf5c78a0134"
+    },
+    {
+      "archive_id": "04a0ff899158247f05087d225dd563de",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 83276693287,
+      "line_sha256": "8a399f052ca1e59f3e1ef937ab8fcd0212239383200ee7c996ea439bab615e5c"
+    },
+    {
+      "archive_id": "a86176b68dafc433d60d233ee3df0831",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 83562736215,
+      "line_sha256": "67367692c66c43970482f8dd90a4a44d3388159187dce13e6a32610026aa9d12"
+    },
+    {
+      "archive_id": "ef27ba3d61e810b9fc4066ded71f90e6",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 84388122659,
+      "line_sha256": "34bfc6484dc0213ba77c5afbb3beb3c5ae67c3fca88ef973a4decc28dab2519d"
+    },
+    {
+      "archive_id": "16d0ca02c95fdda12043aed96d2363ce",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 84555550252,
+      "line_sha256": "40abda803963efa1a38d101d592886119c25d536a9bb6b29f3768e2b99122bd3"
+    },
+    {
+      "archive_id": "494e7f4b1b1d05f5504637c90d6cb751",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 84783551637,
+      "line_sha256": "c475d6f37b5234824a5cca540451576e505923741292790d056b2cbb75a0b2c9"
+    },
+    {
+      "archive_id": "c0468423831cab97e8df5e434bfd6be2",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 84969849593,
+      "line_sha256": "256cf7e984744c0b2d2cbbb9676ae4f472966ae52fed232e842028dcc019d693"
+    },
+    {
+      "archive_id": "9af359fe5baef741da4f5c10ec998188",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 85527003877,
+      "line_sha256": "e7c6faa69334371c76683ac1467b431c9989c09532008c56ed3adf4ad3f3ca60"
+    },
+    {
+      "archive_id": "1b0bdcc7b942d2af85dfeb0f7dc971e3",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 85566398144,
+      "line_sha256": "c01566ad205aba6c6b4e0e8a50df5306c168d040d5359ac0a326a9494219a3f9"
+    },
+    {
+      "archive_id": "d1dc1a6eb54c6393503f93becfb0dbb6",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 86517830191,
+      "line_sha256": "76967e3ff30de7b95f113eeabe3cb9476e1620e52317891c77c3c97c3894967b"
+    },
+    {
+      "archive_id": "87c251b61b8c141d4142146371eb1897",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 86779609962,
+      "line_sha256": "ced51bebfbf5571bbd42e74acd75d5b59482233fced972919341ea84a03d4c88"
+    },
+    {
+      "archive_id": "355cadb519515962d320bd9dde6fe473",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 87087272960,
+      "line_sha256": "0b15f44eb95f3e83a8866a7fac4059b778bd515dbc82eb0d17e4b2b843b6ac57"
+    },
+    {
+      "archive_id": "3f6b6421c6cd6a293bdbef791d86e77e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 88041110059,
+      "line_sha256": "4cad60fd797efbe08b5032f7ca49db819c468615839a22fd05bda31ee2f23eb6"
+    },
+    {
+      "archive_id": "1ac7212ef197bb99bff26768be3f92ef",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 88062418271,
+      "line_sha256": "7da8fa635cdf4e2edb9e63a9e061449c5ca80c4e1897d9e308875835e38e9027"
+    },
+    {
+      "archive_id": "d3373aac48ba6e025d8fd32c7b4a110e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 89626087091,
+      "line_sha256": "b314ea876b8c01352a4bedbbf01547a308e201c807bec0ae993c5e2f219cf5f3"
+    },
+    {
+      "archive_id": "0b450b120ea78ce472aa1d1f44a2347b",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 89789890968,
+      "line_sha256": "5e4cb34129df9ff4b97e8a3050b6afbf1d31897a7d942690326cea22216bafb0"
+    },
+    {
+      "archive_id": "7c449662fc3fd718a9fee76af058fa9f",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 89944807246,
+      "line_sha256": "b2bc79c8d1142fb1d5a8903e21285a573e029e08a027c6e9eef5442c54a8023b"
+    },
+    {
+      "archive_id": "e7b75eada769a538784a5b07ed357c9c",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 90515863466,
+      "line_sha256": "aa200105be38a42d837ce8a597893930ba4c87629fab7778b65a721781cba2af"
+    },
+    {
+      "archive_id": "f973febaeefc6898c869e1082dda3314",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 90814795431,
+      "line_sha256": "edde91f92f5cc97d812d2a0e84dea0e34125cf4c9841326de32bea16e2e1b9a1"
+    },
+    {
+      "archive_id": "6c6eca337414130edb9994b659312bd4",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 91303636708,
+      "line_sha256": "2ab7a97aea756a400ec77617d8d669bbd67caa74d87269321ab812228614e1e5"
+    },
+    {
+      "archive_id": "df1e0bfe1fdc02f547cebb6e8aad1b3d",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 91841332236,
+      "line_sha256": "a1a71ffaac2311d2c134dc73400300cc0b443d90445fb1fadc18f297cbd7b435"
+    },
+    {
+      "archive_id": "c45eeeac2d726577b28e024f21b4afd4",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 91869366534,
+      "line_sha256": "913ef01304529b3e31b6f58df933c37957488e998a36197aad77cba0c168a1a7"
+    },
+    {
+      "archive_id": "3bce031e657976951b9e3ca4c4778c73",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 92469425530,
+      "line_sha256": "1004a18f4ad25f26228c40286f880fc0ebd2e9ae90ad1333a31b70af5f568fa4"
+    },
+    {
+      "archive_id": "16727391c31c5132e88b5441a5c081f2",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 92603062872,
+      "line_sha256": "7a23d088a705ef0af66b2c3238322e71be7e56b70d08593342f9cdbc89f3082f"
+    },
+    {
+      "archive_id": "f6948fc4065e33eb33308ef52ba9b426",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 92750315065,
+      "line_sha256": "b2b25dd26b4040f3970ce6c4e8b82f40bc3387bdc0faa8aacc0c09b7faa40256"
+    },
+    {
+      "archive_id": "da6a6a59362f618372e9bcfafea38960",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 93176918556,
+      "line_sha256": "6cf26e77e57cfea20cc78058e20bc41234ab30e4013afa96456794fd3d0d55a6"
+    },
+    {
+      "archive_id": "f12baef55d5ae2c323e82471c9b8dd6b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 93451411388,
+      "line_sha256": "76ab16c7ba38b32baed4d08a87f03932a589e2f02ed1b715274e774309c18825"
+    },
+    {
+      "archive_id": "d3aee92247eba71f784075b85cf8d61b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 93607183695,
+      "line_sha256": "0a0aa5ff9cffca1f9bd142199d48c2961e4fb0750a53b1285fbd1a5b1c30105a"
+    },
+    {
+      "archive_id": "0bd56cd3d0c0e6aef87975186781126b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 93689774973,
+      "line_sha256": "350030ac9a6b0ce54f21dfe0958b0059370fcde63eda8b3da73fcc1f3dc28b2d"
+    },
+    {
+      "archive_id": "a60181a108746893edcf5e9f8accde7f",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 93818248290,
+      "line_sha256": "7dabefbaf45a2f6ce991352e4c2c5c14f5e5d7b92d807384206ebded9746786e"
+    },
+    {
+      "archive_id": "e962d81254e9bc975f95eca371c85fae",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 93917867071,
+      "line_sha256": "7c9b7f68065ab9b2661912f59258210721af293a70026f86177e3852e7428b07"
+    },
+    {
+      "archive_id": "8561f5b1061bb4fa75d8caa748616976",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 94422272615,
+      "line_sha256": "b26023ad54d0aad1884131defc72646b626729596e7a3dc11dfad0e4b263e08e"
+    },
+    {
+      "archive_id": "bd11d2cdc6b875f8eaf84b9f6bb27e07",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 94442732244,
+      "line_sha256": "e430480741d5580ee238b66c93ed606e9edacd43e0f38f7515d412d268415e90"
+    },
+    {
+      "archive_id": "057a64353c9f4ef4442d9808ab531f76",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 94659631961,
+      "line_sha256": "4cf2f8bdb6976b4a60bc2403d6115ce16250947fdf24c2bbc064558049a9febf"
+    },
+    {
+      "archive_id": "8673ac6d26c63718cd26967e795c6368",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 94796719607,
+      "line_sha256": "4c755cf774c149bd4bc7946685ac5514440f8e5f4ac64c1c8cd5232a4bd37956"
+    },
+    {
+      "archive_id": "1349c0957e8808ab2a9c499ba93c54ef",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 95281752117,
+      "line_sha256": "f057e71bf010a69d42b0d0f09e3c439e638bfcc373438551362642e9b19f6cb0"
+    },
+    {
+      "archive_id": "fb0ce6753a380e9a7a29e450bdace405",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 96513722654,
+      "line_sha256": "fe101c340eda987adb68834ff0bf547192a217938816807e5d6d011a4b2e0b25"
+    },
+    {
+      "archive_id": "0b13eb130b73bd8869fd47fe9909df32",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 97005584236,
+      "line_sha256": "dfc5e91f607a6e315d56e219d102d1d61e73d19c6824641f99e4a2e85fb67860"
+    },
+    {
+      "archive_id": "65ba59288886e1afa24ff56494a49958",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 97720040453,
+      "line_sha256": "8f5ac76b86d8e31745ca3025e56d2a2d593eab78ca8b6c0f7d70c682d7999b21"
+    },
+    {
+      "archive_id": "db2933e30b8f45a0ab0c1c989a4cd780",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 98929829709,
+      "line_sha256": "32362027c081db83a984a244d45b2511b78c0c010ff6c10c1e2493bda13361f7"
+    },
+    {
+      "archive_id": "1d1ee718cbd262e2e3d4df304a305eb2",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 99060204188,
+      "line_sha256": "9ebb7e44d37e2e242f31fe886cfbc67c802da7b696c9caf5422ee4ee8e5c6cdc"
+    },
+    {
+      "archive_id": "4aed0567b702e117eba7d2f75f17d9dd",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 100123285605,
+      "line_sha256": "cae01e4667f1fe86d1b7edc2ff3575dec64b3c57ad479811162b039e19cdc91c"
+    },
+    {
+      "archive_id": "ad6a7c4d5a63d10677dd48821915058a",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 100605964530,
+      "line_sha256": "6e2d6f8773fd35aac08b2c4c1c01a8b2b463e4085229ceedd97595f69c20a297"
+    },
+    {
+      "archive_id": "395fc62c364af105b251d03cb6b6b666",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 100660300088,
+      "line_sha256": "53845de0d9edece200cc6461118179e736905951fcfd1db11612e18b5806a8df"
+    },
+    {
+      "archive_id": "12a3ace62afd2e1674b3379f824b0643",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 100866702899,
+      "line_sha256": "a42bc0884a3108076bc1bd7fbb95bfb529ea56984523f4ae79ea8c8b8df39c83"
+    },
+    {
+      "archive_id": "c41e52a1b7b1f5527e57e8df71dcf891",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 100888052877,
+      "line_sha256": "4540996e8da23c8ff585afbf8deb8179aee9e473a2ed95696b0ebc2a09ec5eed"
+    },
+    {
+      "archive_id": "a14332926234367d63a56171c2c6d9ce",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 101017108988,
+      "line_sha256": "e602d98d661d793e01d7d80907ec7b066b7b12cde187613488ef8c42da074f16"
+    },
+    {
+      "archive_id": "585153868606dd8b144e8b86c30c4d9b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 101721510235,
+      "line_sha256": "2699d985269380f9ad7bf7bc2830c6b3e97051c13bcbd0a0cd6c748a1d01f516"
+    },
+    {
+      "archive_id": "b35aea376f2a7bbe30642148dfb5c5af",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 101983223983,
+      "line_sha256": "12409e4a36d27dddbaba32126f7933400ec90b8ca390b21af3eb1237ccb781b5"
+    },
+    {
+      "archive_id": "b81b948acba2e7ad16adf1712200e528",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102226513947,
+      "line_sha256": "a7bf1d7b4cf73965a3c73d476a192ab273b825d5b1122f404e7c8a43c06e3b31"
+    },
+    {
+      "archive_id": "3d43e7709e0ddd87a5ff53da467e526b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102263689158,
+      "line_sha256": "030c3d97b366f42ca61d61c386164959f7a8a80c89bb9ec1866ad82e0bfa217f"
+    },
+    {
+      "archive_id": "8f70c1ab54433510b9ae09746120513a",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102896865942,
+      "line_sha256": "7d46832daf1d1f466f698cd9423dd4b1b61ca2ddf1bb644571fb4be348f35ee7"
+    },
+    {
+      "archive_id": "5e500f2c8dbd75b4b4a435c2e99032f8",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102903346280,
+      "line_sha256": "b0cded87158a4626826220d691c4cea2787f5683c1866eac39028811ed227ebc"
+    },
+    {
+      "archive_id": "2331d8f15f35cac2d2b860b67bdb25cc",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102933600212,
+      "line_sha256": "a3bf2b61bb9ce3e57d4f1ae3e3aace9f82090f6af2c859956cb1686ed33df19b"
+    },
+    {
+      "archive_id": "50276af52452f3c8dc158e5539e67733",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102962395715,
+      "line_sha256": "870ae9790a0c1fe623707cd0ed35cda30a346aa0465d720b9131dc0db844cc7d"
+    },
+    {
+      "archive_id": "d1108a221733a1eabeb9d3fc01c302a0",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 102964111265,
+      "line_sha256": "a6288e04b2d0b9ba3f55ca3c912b1321562fce127304ac32790c2b2dd8324d46"
+    },
+    {
+      "archive_id": "74f84df52689d129705c0e401189d797",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103001734099,
+      "line_sha256": "6b0419ee7b6d582e9acf4efc4a916bda25ca4c6ad7fe03bc83a256d21320f831"
+    },
+    {
+      "archive_id": "8e5525673e28b7a59ff50d89b003b024",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103111948048,
+      "line_sha256": "f6990d50f27a14edb94920b8745695631a8b62c6c59f214e9a61a4685f971372"
+    },
+    {
+      "archive_id": "159fc8f44921a9ed94cd9afa79a224bf",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103122044185,
+      "line_sha256": "711f263f8a8d5489fcffa614388bfbe3373dc4e0af7d5c3f0a5c99b454aa478b"
+    },
+    {
+      "archive_id": "ec15d787dc33dbebb0464e35b22c676a",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103153966870,
+      "line_sha256": "73ac3d1d6628a899f8631dd9d5c7572ed57bfcc9fbfd55bf23a3b1b129be479e"
+    },
+    {
+      "archive_id": "30421da1180e032b535aba05045dae1f",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103249341957,
+      "line_sha256": "58180932b8188c3634c6fe380ac12b493be1e4ca2b92b4c6e854cb146076694a"
+    },
+    {
+      "archive_id": "f5a5b7dcec5d3361388d217baf384642",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103291518886,
+      "line_sha256": "d45066f826fa8bb70d93798eab88d01c34dbefb1213c91db057c57c19d49c2d0"
+    },
+    {
+      "archive_id": "4dc3b904f63837294641dbb5d6d96ee7",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103763034395,
+      "line_sha256": "f8ebaca33c8fc12548dcf350ad1dde3d3033bec3a0d320371e6ac73ea101eef9"
+    },
+    {
+      "archive_id": "87cdd7ba5faa163844b603ca0d631304",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103796565317,
+      "line_sha256": "3da9945e0634ffa92bd9a5423a8164aa64c70bef92ce5df16de7c56759f1e40d"
+    },
+    {
+      "archive_id": "78241d176dff8d3a0ed8e7b196eab1d1",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103879610757,
+      "line_sha256": "c3a65b8c5fe709d1bfb6a16919dc1f884e217a0927c97484e9ae2ed1e1cba9dc"
+    },
+    {
+      "archive_id": "135d28771e2c2b6f9f7ef97f818c4315",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103904007588,
+      "line_sha256": "e547a84127a4359d3d1c2da482de9984ac187bc6eed6c930992ecd7c7acd57e7"
+    },
+    {
+      "archive_id": "f31d5cd2f5cde2a338a53c1ff68b665f",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 103979402685,
+      "line_sha256": "d0f52f8073fee29ced4625f6461ea82cc5cb8c087991ff50cf0a3b3edc4902a1"
+    },
+    {
+      "archive_id": "5e511644967c3e035cfac5073e453dfc",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104148959760,
+      "line_sha256": "d529a8fe49bf88afa67d2b936109bd934daf6658074657d09be386a884ae91f9"
+    },
+    {
+      "archive_id": "77e25111beb76a7ef96a04c3025f5091",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104234002975,
+      "line_sha256": "d8b786570023d309d5bfa995aff3cc01e2a6bb2f14a08b75b95b2204a01ac8ef"
+    },
+    {
+      "archive_id": "ad624ac046df2f89cdbb730321f33186",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104250335958,
+      "line_sha256": "ca7bf4ea43e11e829686de24fc73962021a63d896b94fa31ab462915ebe3a435"
+    },
+    {
+      "archive_id": "de6ce857329a16e483a51c09d071601b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104286395436,
+      "line_sha256": "e94c18483641a20c1b72b35fbc3a7766a3d5b129f3dd9c5f1391258814dca116"
+    },
+    {
+      "archive_id": "6a255387c3e7bb82ff92d6cc5987df08",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104608401515,
+      "line_sha256": "8bcac8d72d613bd158ff5c7c0746bc5625eeebaba793c1ddafa9eb9c4cc2d7af"
+    },
+    {
+      "archive_id": "0123fa1f6f690f59fe2729fafac0f7d8",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104690358428,
+      "line_sha256": "2e893eed7ec2f6d010993d273878f50b39d560681cdf23f20f860d49d95ce397"
+    },
+    {
+      "archive_id": "a1b31ed2b01ab0ddd8ecf8e47e605393",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104803968024,
+      "line_sha256": "373dc2ed80f0ea79a746d6da5d09ce11fa13f35a87c7d618669891e90f9cb606"
+    },
+    {
+      "archive_id": "6f45237ae33aae3ca4db0842e827adcc",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104879225847,
+      "line_sha256": "cbac98ed4ebc6ca67294a60f6b2654007bd54b1083ec40d4e2ad3af30820b709"
+    },
+    {
+      "archive_id": "5c8cf13a9ec9da927eae9bf89e4f02da",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104900640424,
+      "line_sha256": "c633fe9fa79dca15eece37a217638f2b1183109f5a4200e52cb1a42f3facf975"
+    },
+    {
+      "archive_id": "fba0395295bf9129a24189d6c74075b4",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 104988783799,
+      "line_sha256": "d37a694ac2926af9cff7dea5a47b57530e0df888aaf302c8b96ac39981566125"
+    },
+    {
+      "archive_id": "1c89394a2196d7dd2a29cdc755c71b71",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 105256085790,
+      "line_sha256": "e43e026913f6ccf953c71bd494fc912c11d7a3cab9c9dda83de1489893249704"
+    },
+    {
+      "archive_id": "c04ca7a401a5385d35d3695f818bddf4",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 105304686225,
+      "line_sha256": "d77c1c163993b322e6b31318392d656a96966f47dbf3a610fdcbce823569a082"
+    },
+    {
+      "archive_id": "345c1fca77bea4fbed4d15c6aca1fdb7",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 105601519115,
+      "line_sha256": "14b14d7395ec9677803744d5ff642c31cf2c5a7febb8317527648e9d02d2ce35"
+    },
+    {
+      "archive_id": "c2b0e1cf90a24126ac68d766e37606ec",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 105801130206,
+      "line_sha256": "bf972e8d8a06c1b0d120d0906bd525032b853b9e80da3bf0a1436743768b3db4"
+    },
+    {
+      "archive_id": "91c17cf0acab64ddbfc10acfd3f08298",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 105907677072,
+      "line_sha256": "5c91393c20406ba0c548ae77b3029295d82b034889ed97dfe8abc33fc9c1d4c3"
+    },
+    {
+      "archive_id": "21674df65671fbfb60c3e0da37505d45",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 106310669186,
+      "line_sha256": "27253064fc95d308dd652b05cb5ac3d2f8540460458989ea775c497ea83f2e85"
+    },
+    {
+      "archive_id": "a0def6c08b8d79f6cd29b747ebe0b16b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 106473015519,
+      "line_sha256": "d539723746ba6ea90ae5bed5c569687e62f4c3ff8542974102e5332f59cc969d"
+    },
+    {
+      "archive_id": "748f6d5f87875949593b4ad95299fd4e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 106493098786,
+      "line_sha256": "417443f33bc2ce77a685ae8f1eb646ee614081a029bb28a42897280b18521e47"
+    },
+    {
+      "archive_id": "37c02700ace09f8a655c387cfec914bc",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 106766631647,
+      "line_sha256": "55c6991b7022877938727a3eb26cf63829487ebd634760b20877b699fea19b70"
+    },
+    {
+      "archive_id": "477728b8160f532ffa85de270915a8de",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 106815582696,
+      "line_sha256": "8951fe70f2395aea56b690da0d9fd305f28956b5e7ec9cc8f886153a4b6766a9"
+    },
+    {
+      "archive_id": "aa2cac2b9ce5e07c4a61759cc949f548",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 107160176264,
+      "line_sha256": "eb7baf3884c308b9b655174a5a188e807062e0a97169193ee4d8b9df210cdd34"
+    },
+    {
+      "archive_id": "50271b1e560d1b64e757a8ac4247fb91",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 107373383525,
+      "line_sha256": "9a473b86a7df6e86c5fc87931c039cda6cd769cc6b1dcf40f521712e3c063c45"
+    },
+    {
+      "archive_id": "95837f357f7275e6241af23d684752fb",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 107393363185,
+      "line_sha256": "4c698b196432461f7b55c0f36fa566cfde05e6af9f9c701ae8c180f1fc592fde"
+    },
+    {
+      "archive_id": "dedd408956f4eb514ddb4e13af7dac31",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 107458817214,
+      "line_sha256": "73d67a3e7cd6e651875e442c3fc99c248c725992b32f71f3a3c232b15e44f23a"
+    },
+    {
+      "archive_id": "92ac5da693048ca4a95fea9ab6b47ff9",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 107713542342,
+      "line_sha256": "e93567f19f1b759d53d689c9e99512b974baa401b890c50e2bd3fc9d29d25aaf"
+    },
+    {
+      "archive_id": "652caddd4f96524cf8621f79f8e475ad",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 107780571705,
+      "line_sha256": "98ba1cf3eb6016d8507f869e3050029a08be43220f35f93129913c16877770ea"
+    },
+    {
+      "archive_id": "fe97427110751a67645adae84eb73060",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 108121196077,
+      "line_sha256": "5997a9169f4b466c9ada29b72b9be07f12c0f520798ff7461d8fe5623b995da2"
+    },
+    {
+      "archive_id": "096c807868bc83d5063df50c12a2fcdf",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 108185331694,
+      "line_sha256": "878a0fd53e5753a97ed5203518e2eb0b1a612c0e26bb00cf8cca724aaa4b17a9"
+    },
+    {
+      "archive_id": "c5c18e30e81c0c5eda1cfc48c1064a7d",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 108262583108,
+      "line_sha256": "932196bbef95af211a609230e7e8b32d688ff10f36a399b65dc019fc11bc2919"
+    },
+    {
+      "archive_id": "717c110f3ab6cbf4124c8a7399d80c10",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 108969972057,
+      "line_sha256": "861bdda5d2a6e9516bd518129561f28a9e59f55535d32ba92890bc517f182dd5"
+    },
+    {
+      "archive_id": "7f6303a630fa19db38343a0a74a4dc91",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 109456532469,
+      "line_sha256": "e4afb93c639b575b654b757bb089ead5550e9f79a71e799119b775ae8025edfa"
+    },
+    {
+      "archive_id": "31f342dfc98b11e5a19ba3df28a8a8ce",
+      "endpoint": "/v1/messages",
+      "stored_reason": "assistant_continuation",
+      "observed_signal": "reminder_only_after_assistant",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 109657166518,
+      "line_sha256": "b899ea07990d381fbde3fc28adf7308df2e262fa03e0a04eba89d01c837931d5"
+    },
+    {
+      "archive_id": "d12c1fe384b77ec721e4070146745fd4",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 109816132502,
+      "line_sha256": "05a720795f8aaadc9cdb3f70a60bcac1f064fc70bda9033e791cd73b9a1a08bd"
+    },
+    {
+      "archive_id": "4615e9d9eaa2ee8213ee93d21d03f92d",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 109974117709,
+      "line_sha256": "3c2ce86491fad6c53ffee44ad43ff8e835718e1d957a373e0ddf8637a104e23c"
+    },
+    {
+      "archive_id": "b5d2ed267377b7d14bfaa6eb6e34a207",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110009996969,
+      "line_sha256": "7cd045b5eaf62964e36e4a76ca8b985d24d27df7f442e81dec6975d72303f597"
+    },
+    {
+      "archive_id": "23340a8ea99d14d04b291aba269b46f7",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110077858105,
+      "line_sha256": "1e050b87c3b081bd03cb6f08a00da15f0c7cf727ef496e4f0b6c80941cbdba90"
+    },
+    {
+      "archive_id": "4fb51d6f1f0107b909f1b71517636422",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110113135941,
+      "line_sha256": "cc028845d5c63c718e636786d626b13d1674ece58e06937c05c1bf87d8a7a239"
+    },
+    {
+      "archive_id": "5363f5ef7d6a9beea8d5725db0704ac3",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110142173318,
+      "line_sha256": "0fe51ff64fbc692dc2f06a14a63f34f83f897dce92afea9cc24b7cb3cb7fb85b"
+    },
+    {
+      "archive_id": "bb207a878f6bfaaecc5c4f41a1d8ddfa",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110144234233,
+      "line_sha256": "8958ebef8225550130807529383e95d046d85fca56033144b6803d083a28891c"
+    },
+    {
+      "archive_id": "e104edf1ce1892f0504b3eb1109f7813",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110180915512,
+      "line_sha256": "ee2872192f68c90a6a3a89eae6a98c820d64b2dc53b7ff7dfb2dab1d05014b0e"
+    },
+    {
+      "archive_id": "5e70cdedd1ae869f0528444db9efdc11",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110254440585,
+      "line_sha256": "e7f0922189237131bc1f6519eee6ec5812258c50b6c0695fbdde7f0113016034"
+    },
+    {
+      "archive_id": "c88e6b5b08f1d5ba978a5de9bd6b20f8",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110290659286,
+      "line_sha256": "dc742bd63ed3c6a2d07cd1c37307cdcb174052324dd023dcb23ca46958ece11a"
+    },
+    {
+      "archive_id": "2cec9a598686ef182482e49d51ecb8ae",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110346321937,
+      "line_sha256": "b437fd17f302cf15a9e25a46f37d654318bf1c9200377ef0b028db022a57d838"
+    },
+    {
+      "archive_id": "90fcab874acf8a5f61f9a1999f85c2d4",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110554972384,
+      "line_sha256": "87db2bc9740ccf15ae132678c74bfd87182a2b4b0e717448eb081005140aec66"
+    },
+    {
+      "archive_id": "1aff9779b6f1668cb3fa4c2b2249871b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110781044183,
+      "line_sha256": "fcf489370600dfb46f63b72d738bd9898d458fac861a0c9249dca84f48d84ef9"
+    },
+    {
+      "archive_id": "3fb2db729bd390406c6f9121ef30a513",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110819589152,
+      "line_sha256": "ad0f6bdfeef1099d5d68d9a2cb6acc46b247891c6c306c739f24c5423443a4c1"
+    },
+    {
+      "archive_id": "dbfcaeee50ec88c77f37d013485f8e5f",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110894002972,
+      "line_sha256": "6d615c14c81dae73a798f8eff107d93b991d8895db7c29771afd169ca9461b24"
+    },
+    {
+      "archive_id": "ff6dcb5e3ebb7aa16c8bebd2a16270e2",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 110935312011,
+      "line_sha256": "0210f8dd70da1b17fd373fdafe79e705a54e802f6bf00e4d2dcce984d63e5541"
+    },
+    {
+      "archive_id": "8afeead2af4e59dda6e4da2608696a8a",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111020440414,
+      "line_sha256": "9757e68843a840f3a96306d0d22a067ca581a7e68af69e33eea79b66af013765"
+    },
+    {
+      "archive_id": "6a81826810b6a2d8f259047d455c5bd6",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111330122737,
+      "line_sha256": "6d8adbb130e5c4b00a60324d6afdf8574e6f5c6274d4bf8eb9d3450f6d292766"
+    },
+    {
+      "archive_id": "ffdf3e4e8e437f5d31cbc573284eb7ce",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111360486298,
+      "line_sha256": "cc98471521e4854d7624c42f2358a80c4fd1b6d8b74d2ab24ee94c9528b66404"
+    },
+    {
+      "archive_id": "16d42a004918e82ddb8d58ed4f483cc7",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111708459684,
+      "line_sha256": "386ff94aaa608b19ec84bcd8b4e8a950d349034848f29e17459051220800d16e"
+    },
+    {
+      "archive_id": "19a93f21214243befbfd9f0a6c7962d2",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111732129498,
+      "line_sha256": "de036346babdd592b20f2f3861be4fe3815cfc5b264f71786341487d0096e9ed"
+    },
+    {
+      "archive_id": "e7c09c093fc1b0bfc3fafab3079c53cf",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111774913287,
+      "line_sha256": "d3e26a177aed75b78ee3ab81b4f807f457b4f357b11700eefb3645550adb50dd"
+    },
+    {
+      "archive_id": "c13eb139acfb12fb4ef5e904163990c7",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111799710438,
+      "line_sha256": "97fcb456120d371b7f279556f5b552e40c6e4550b956842ed43e1fa6567496e0"
+    },
+    {
+      "archive_id": "18b735879ccc71da768c4571573798de",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111912183252,
+      "line_sha256": "72f00941131f0cbb6ffa9a4a65182257754bebac6f4b131d63d8a58422ef152a"
+    },
+    {
+      "archive_id": "a7454d65208ee67b1d1dc730f582a851",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111935461205,
+      "line_sha256": "3c5afde25095b57bd6eacbd4b66a892f7c12f9022c4270212ed778dacc0b5cff"
+    },
+    {
+      "archive_id": "5ca6315e18269a03843ce83026e3a8ef",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111949945355,
+      "line_sha256": "35d21e6a8471e8873642b5d4f72bb54b85350f07a19d85ca10d79c431c9a2306"
+    },
+    {
+      "archive_id": "551a4d6fdefd8f4036a9418608e9e365",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 111980210629,
+      "line_sha256": "d60ea0e35602c09c36cb837726495300da246ab033c8ec630a3d811a5000424a"
+    },
+    {
+      "archive_id": "90ecb792fed49e4bf854b66f36fb2de0",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 112301365627,
+      "line_sha256": "b57d1c447f30c9e697b079ba85cfbe6a751b9674af35a05b0ae1d349eebde5e8"
+    },
+    {
+      "archive_id": "a02cc95a59ead4c605ce79616f01ca1e",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 112437120558,
+      "line_sha256": "ab8da3c1934aa4f5b9b7265b76900f95d533d8c93b224b32ad09ebaf3cfa8490"
+    },
+    {
+      "archive_id": "9bce2b900d5a7296a0cbe1cadc9ca64c",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 112519398759,
+      "line_sha256": "a195000f3be3d17b0fc20f2d4d03a6e74cab49d9d308bf5be2e44c7a12d15e1b"
+    },
+    {
+      "archive_id": "e1fa207982016ab40459baf35616c2f7",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 112546292645,
+      "line_sha256": "2c2270fe520607f5851895b1d6a2ebf2f6cb927c6cb857c8894635b448705641"
+    },
+    {
+      "archive_id": "a97d896e5313f5e0f25c02905d5887f5",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 112861922255,
+      "line_sha256": "a1cbc91cbfa12852c1ea5249f7b9f096c67e2f1ef3c5e417abcd69b9eb592b79"
+    },
+    {
+      "archive_id": "13558a1113a0c5f21d925d0e58697387",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113014545268,
+      "line_sha256": "bddbe4e4c9466a4e5867bfc3305e3131fd16666666e21d9e9af16aded2ca5617"
+    },
+    {
+      "archive_id": "65bbac76c490ec555be4d6c84c9165c0",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113043896487,
+      "line_sha256": "8ce99a40a2c861488d25c1fef17d0d2497af6a328b6700bc66bd466bdf6421ed"
+    },
+    {
+      "archive_id": "79f0a33b56534626d8f27b4b2b79484e",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113044701157,
+      "line_sha256": "6fce6d0d00c36865f1bcdb61ebed7483573f5c772a83727dc596c4d7b7d02546"
+    },
+    {
+      "archive_id": "cae5bb3df37b54faa950daffbff79fac",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113076941358,
+      "line_sha256": "7a6869db9aa1c4dceb8e4362852aa872787f9765e8ba5887feb1d65efcfce0c1"
+    },
+    {
+      "archive_id": "eb9210af2adaa4407a0a41c9dba732d0",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113249605656,
+      "line_sha256": "3477fd5ee18a4101bbb065c79e5014ef3da1ae87ae7aa21a0a3d1980cd620876"
+    },
+    {
+      "archive_id": "a16d470e831e13d3bcc8d3f68ddbea0c",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113300607068,
+      "line_sha256": "1cba87befba20187f13ca5d0baf2f0d4fd3341391290ef1247f4b54fabaf4b7a"
+    },
+    {
+      "archive_id": "3d844d5e23e4fa1ad6615e61081a0dbb",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113400630121,
+      "line_sha256": "428c0a54565c5d31c56a9dadbf36cfd50bf4434207f56947012286c7c9065bb2"
+    },
+    {
+      "archive_id": "ca3e5298d1709bb32cdc9e6d459d3ad3",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113526439410,
+      "line_sha256": "9c162488d461ab4ebe80c9c9253054f8e8bc2467909fcc78e9063b012482441b"
+    },
+    {
+      "archive_id": "8fe408550ee3d702523c3c8dad36d4eb",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113549682505,
+      "line_sha256": "2dfd3c5a3d0e61d5b1ccd49f96e1204a54873919ff2f960b697f9c45e37bf1fa"
+    },
+    {
+      "archive_id": "0c98c54bf76ec114f058d9831a9de25e",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113649727584,
+      "line_sha256": "09d94b7af500c6dc2cbf46e80e36f58265e2e79ea405543c031491aec9592584"
+    },
+    {
+      "archive_id": "bf3bbad34daccc8661ff48cf2c40c457",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113764703707,
+      "line_sha256": "3ed9794293022ee79a6cbd750ba47a1f9c8a7e0f10e9da5dd76ebd177366e85f"
+    },
+    {
+      "archive_id": "64b6611c2be4dbfbf2d84950e7d9394e",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113768552396,
+      "line_sha256": "8a4f75a4363aac05ea952f2909dbdb3c2c7aafd94892d800d0dc54cfed8d5ce7"
+    },
+    {
+      "archive_id": "ff06d63cc2f1d864d65aed705cb682f5",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 113800591971,
+      "line_sha256": "5487e25dbcdb4f59d0223988b1bd2f6490bff35ef2aa4be910de9df2c4d62543"
+    },
+    {
+      "archive_id": "21f0253aa17143d36e51251762bc9572",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 114143305353,
+      "line_sha256": "aa291aab68cedad2d52aceb2a08a7225e9f3781685eabc3fdd3f8b3c9bacb186"
+    },
+    {
+      "archive_id": "84d7a19141982bd338a33d8d37d08623",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 114332339912,
+      "line_sha256": "8a014efee35a752451ebb7c29c82213cc06b35744dff3de6909a3bc3750396c9"
+    },
+    {
+      "archive_id": "55ac9b468e0fcc8340b3fa1db7ccae0e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 114429434298,
+      "line_sha256": "6ca3778a66cf956242229152b32db80ac3c4c3e17307ce5cefe6b0031eb7be57"
+    },
+    {
+      "archive_id": "483d22a981385234209b62fa23b82b17",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 114474662501,
+      "line_sha256": "4de79455f1f3a88d84d364c48b36ed5774a1d23e0b9b3badd9d70f5db9ca9214"
+    },
+    {
+      "archive_id": "0023f4192e9a0fe27fcec08ee319c167",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 114519543061,
+      "line_sha256": "b7a154fd4914e529f47a4393d4a512604e35f71862f21e6e53addb486b4d421a"
+    },
+    {
+      "archive_id": "671cbdba92798334a2efa3f593b246db",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 115400022794,
+      "line_sha256": "fa8553ca1a24a3ce521ed5bd77c75c69683141ad096c3ff2b2a6dc1561e5ac51"
+    },
+    {
+      "archive_id": "0a0f846c4ba841caaa1a4a718d2282fa",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 115680333745,
+      "line_sha256": "bbebf4ba55a3e8791cda30cb384a51c5e97105b509f5baa39fd5421a8d7e8c6b"
+    },
+    {
+      "archive_id": "b3da0d1879f43147bfb35ed9b753d2f3",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 116115786841,
+      "line_sha256": "df436a3c8f853ee63bb82a672a26df8686a78478c340c295526fc81be67f18d8"
+    },
+    {
+      "archive_id": "95246ac18a08325d50095934386d6ac1",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 116407449958,
+      "line_sha256": "aebe6bdd060089ae55200854efb8d39f74517edb08505b275df75e6637a149c8"
+    },
+    {
+      "archive_id": "c6306b5ca727ef0aef0100d1c316117d",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 117157837545,
+      "line_sha256": "f64d89c165e4be260ea5165ac3bf0f7e04e2fbb4d5cab71521ed5b11f4cc2b2a"
+    },
+    {
+      "archive_id": "419324c24d6414c2068658d8c4da1208",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 117260696323,
+      "line_sha256": "7e13499f4364bce7f02a588dfd1dd2b721c20fd5786df50b2ae979688394b134"
+    },
+    {
+      "archive_id": "19f320ec035789de62e4221eff1d3934",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 117295712842,
+      "line_sha256": "3401b2f1d3405b4ab79867d04214ee5101c3c611286e66a8c6b7ee86f6465bc4"
+    },
+    {
+      "archive_id": "64613c5c9ccdb7153acfd21bbd45f1f6",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 117921381163,
+      "line_sha256": "7b2d0cd48ed847406872b22399a1df86123fc8993917e643f3c4a306d246e99d"
+    },
+    {
+      "archive_id": "0d6ed363d95560790e30851e244e5f43",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 118202245744,
+      "line_sha256": "b8a193308c4d388e32b1ddd0ad7a27a714c8bd9004f714ce77577eb6986a48d1"
+    },
+    {
+      "archive_id": "1a64c8ade3abab58131fb0a2f319187a",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 118550730479,
+      "line_sha256": "63c5cacba6999ba268b85e99f693fa304a252258cd6ae0eb8cef16406536aa8e"
+    },
+    {
+      "archive_id": "19391c5c58a81d2d61e1e2d4eddda38d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 118662932477,
+      "line_sha256": "378c01cade4bccac61f56cd3682362b8a778d863637d787dbaba6ba8c5b4a53d"
+    },
+    {
+      "archive_id": "9ca2a2319f787dcb5c89bfb53f13b53f",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 118698976727,
+      "line_sha256": "f868fe7c75802d84120bdbe084361510c6776e24d98685ffa36a81868c068dc7"
+    },
+    {
+      "archive_id": "219ba091eac0aac33d4a1c04b4590bbf",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 118805016499,
+      "line_sha256": "e3a61561d5482ad605ad292b8bc902a161d34a5091d2671fa71daa66b5ba22c9"
+    },
+    {
+      "archive_id": "3f9099603f0d6b5f5001f9f96a3ca4d7",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119085371537,
+      "line_sha256": "49109954066a5c352c43be09ed8992c83c25f6c845fc25493cb4a2ffd5cfc368"
+    },
+    {
+      "archive_id": "db937b90a8d83287899007ccf2525c39",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119345449191,
+      "line_sha256": "7670ecd2ce71959a0db2b4db2a2df81b551d82b43753c835253317cadcbaf1dd"
+    },
+    {
+      "archive_id": "f4cb0adc25f5cccbcdad8d7854ab35e5",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119375871092,
+      "line_sha256": "278834d9407ce374f5768382ac095ed55dfb51716d048b11ff287ccd79ef0a16"
+    },
+    {
+      "archive_id": "ffb44de3345d841a92a015d2ded7f0cf",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119517046814,
+      "line_sha256": "f765e2653ca7d7a661afd0d587e3dc89c4852f636850f550f7a7f2a32e06c8a8"
+    },
+    {
+      "archive_id": "8e9052e3826f23ccf197c8509465d55a",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119621322690,
+      "line_sha256": "5c1f942be3a808ec2a736cacc6cedcf3d583f2f0261310084ee1928e7b3e0036"
+    },
+    {
+      "archive_id": "4bb84135cab5de7eb3ca93479ca6c57a",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119812370849,
+      "line_sha256": "3cc8c7775c043ced9f825f23cb69b6836761c4ee73f5141449e34799e5842805"
+    },
+    {
+      "archive_id": "4d03fce6f4ebe9f5f97cc594e292f667",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119880450080,
+      "line_sha256": "a1f65578b6ac7e0fd3b2acc9549ba6a82f2c695ce9767a3c0051a5a3a1e0608b"
+    },
+    {
+      "archive_id": "e74135d520e85482a0d40f2833bfd0f4",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 119984827988,
+      "line_sha256": "f8b8bd9b15077b023cabb3d004e814e50ea151f0fde93a9335d5aad687b8cac3"
+    },
+    {
+      "archive_id": "94de133f37f942a76c4040b754848e06",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120046738849,
+      "line_sha256": "bb8c2f4fc23b0dddb28992a08a50ca9037e470f5bc658b88e5a03bbbee48ed59"
+    },
+    {
+      "archive_id": "54c9d50b6ab5ece8715daff5ef816e46",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120182428132,
+      "line_sha256": "756b947506550a0a2e39244e28c3266a17e7eec264b27d94479593f4bc41dd63"
+    },
+    {
+      "archive_id": "60d72c7968e1a3638aa397dcc4d40958",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120417002736,
+      "line_sha256": "2bac933804e0d78ab200a7ea2c92a4edb4f1e9888b144222482db3b668c46bd7"
+    },
+    {
+      "archive_id": "2a9f8fc7c749f2b22bc8c5536c997d54",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120672801118,
+      "line_sha256": "80e4ad9289261e0938e4fdaf02d90d3d127ab67aa079f6c9f6bdcf65bf240fcb"
+    },
+    {
+      "archive_id": "5070a78c0fbbf7dde1e6222df8eb3878",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120728351296,
+      "line_sha256": "519cd7b3055a6cfe166bbb4d76d229facead1d965a4835907ec4670536d9d811"
+    },
+    {
+      "archive_id": "dc646427c82147112d198c7f8987303a",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120742865476,
+      "line_sha256": "39a6c7868a09129cadaedd3e521f46903595bf3ca46915a8395303ebb3b21162"
+    },
+    {
+      "archive_id": "56a3655a0a6832b5de4a5b4d7def9c22",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120857348715,
+      "line_sha256": "95b14a1336d847e19bc90a7a24c6cc05284303bdeecf9c0b99e79442f6d8df4d"
+    },
+    {
+      "archive_id": "62fae1d072f7be6668273a35f961b74a",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 120973830946,
+      "line_sha256": "a3c10795f5460e935ec675bdb90ae6a0a45b5a5df8e646fe6545d4e5dfac64ed"
+    },
+    {
+      "archive_id": "120ee4ffe24c8489fbf1b04e10b16a13",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 121030593005,
+      "line_sha256": "2190b3af23d6cb752f07eeeadf1647cbf26cc7ca0cfee7bef645c02bbfd2ad49"
+    },
+    {
+      "archive_id": "1f3ffb07dec9ffa825df29143b27fecb",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 121373002893,
+      "line_sha256": "0bec0256cafd2a1d0bb6a756c01f6b6daf228b403dc05e31b681797eb90d0420"
+    },
+    {
+      "archive_id": "b09b834dd0c7b526ef590524d5ea531c",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 121625520419,
+      "line_sha256": "5362d232398495f8c5dbfec443051d2935ce450be47b6bbd24ae6838eea7e1ed"
+    },
+    {
+      "archive_id": "19a7ca6339513b35f407c55c5dff999b",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 121855021323,
+      "line_sha256": "5d40d70ed13ceb70e816482eed72189aa6adeba10e0b15315fab6e85ebe6e9d0"
+    },
+    {
+      "archive_id": "6e77e8d958d232a498246d14cc705a16",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 121954500973,
+      "line_sha256": "aefeb28d6808e878e66f0db284d9145885a9960b9c001de685f7b4e62199abfa"
+    },
+    {
+      "archive_id": "1c48d5c86a7040793ce356ceb8e7fae5",
+      "endpoint": "/v1/chat/completions",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 122152467270,
+      "line_sha256": "5ca85770738259510189af82b54809b43119f14bb20052ded0367ea24a14d700"
+    },
+    {
+      "archive_id": "83a38035eef86aaa65637092ac75bb13",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "guardian_metadata_and_review_envelope",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 122658012797,
+      "line_sha256": "8431a751da09e569b98b1f812713e3d9648f7fb5ceb461d8690929e656fd1a36"
+    },
+    {
+      "archive_id": "a9abba1df7afaec0ccb16a9a11fb636f",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 123809093444,
+      "line_sha256": "65ea6f9199011aecdfa838575b99cd51f383289297eb8765067fbaf30d6a944b"
+    },
+    {
+      "archive_id": "471d9f4b194311b617b80c1374172c4d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 123819451009,
+      "line_sha256": "c7f013f2e0a862ae4849e6f22518fc7a64a65308390b3b13a0dbcda4709e615d"
+    },
+    {
+      "archive_id": "47639d9076414314af771c4c7edeb796",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 123980784823,
+      "line_sha256": "6faa178db377433210c07533c88463e698da0dc4dcb53efabe1b77fd16209ebf"
+    },
+    {
+      "archive_id": "11e064cb087b3ddb085ea6f76b5a0f06",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124033195385,
+      "line_sha256": "e08e8817bd277c24adb9d253a4d15ca9b79830cba56dec82b67be54970515dcc"
+    },
+    {
+      "archive_id": "833d1a611a98d4108e898da8d12797c6",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124067787742,
+      "line_sha256": "35cd97798a42cc7b546e84621b283eb3008feb67adc1cc7e5fccd7d9fe988427"
+    },
+    {
+      "archive_id": "30ac58443d105ba2a30fe76ceb19d2a9",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124072908132,
+      "line_sha256": "67c1ab2ed81ea41b853b791d5c6817b0d1b96676f887bac554282dd46d876f0e"
+    },
+    {
+      "archive_id": "76e1018cbd486e703bb06cd67eb3b779",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124139305920,
+      "line_sha256": "ca693310b00824a6c90687715248c4251241bc2d2224207e11bb68da23a121ee"
+    },
+    {
+      "archive_id": "c33eeefe7851fd2d3d282414625dde44",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124299091388,
+      "line_sha256": "66a006861062f3e85891eb5d5444032b8f0331c58d9f840c66a57d406dc60d0b"
+    },
+    {
+      "archive_id": "b886ea103c5c2309e2ac96026425df90",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124343186031,
+      "line_sha256": "174572c292926f59509fd74f72f2530bb413da48b85cb84f16aa8469bff9cfd7"
+    },
+    {
+      "archive_id": "48eb05f4d002ff60fada36ea0d174557",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124432302654,
+      "line_sha256": "bd78c9002e900d3c06110c4d7e4b35d058f70e8b1766c18abfdc4a582265882f"
+    },
+    {
+      "archive_id": "8ddb2016760d1a9f2a1dc8f3e0d52403",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 124603843633,
+      "line_sha256": "ae7ebeaf8f8ec315b9e254e090bd892093b6639b40362d888f758b514ef3cf7a"
+    },
+    {
+      "archive_id": "b3b8665c4c8ed7b8caf0783acafbba1e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125269971979,
+      "line_sha256": "8d31a22ac3cd70982bbcb1a514df7b0497ec186e275824b58c35327855a6a462"
+    },
+    {
+      "archive_id": "99407a8a33c1a81a6e79805e2d413d78",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125317205740,
+      "line_sha256": "5e76a8444642ddc9a6916f0242426138d08198829ce58adc7f0003fad2d1039c"
+    },
+    {
+      "archive_id": "eecbc56b3440eb6d153eab3b2412481e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125335534434,
+      "line_sha256": "63821e686e323eb8ab612ae9ac71d79a29185a12310920981f2ba6e96fa8f9df"
+    },
+    {
+      "archive_id": "9ea40a53a5d525c12a911aa2d7c1048e",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125396873037,
+      "line_sha256": "d3e51120e1a3dc64b824afc52e1d0d0fbd55bb0427dd9b1ce3f74ae37f21ef99"
+    },
+    {
+      "archive_id": "0830d231dfc5d196d57509e4196d8209",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125478857707,
+      "line_sha256": "ae45490c6a62383064c64c6a2f3185dbe2e4ed3e1860be27fd8a373172da8908"
+    },
+    {
+      "archive_id": "31f5cf8f4eb3f007aaa122c953f3bf03",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125579635127,
+      "line_sha256": "2b9d4d8c61b14890e95bac47b6ab1b70aeab2a1762fd48966954cc5322f01d96"
+    },
+    {
+      "archive_id": "8dbfb65f3fe2c72c8dc61e308c485f3d",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125663448770,
+      "line_sha256": "10d111b01f6f340744847b86dfcf943c6c67a8765d10bb96230c9ce8cfe1dc8c"
+    },
+    {
+      "archive_id": "b2f16a5f01dab9c08850e620451608f4",
+      "endpoint": "/v1/responses",
+      "stored_reason": "subagent",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 125968580459,
+      "line_sha256": "bdffdb1ead4380c8bb9dcc3b44714b9c4565daa6e558f9f838ca0629c08bb6d7"
+    },
+    {
+      "archive_id": "9ed38610f00555a93d5e5d02911394d0",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 126067234675,
+      "line_sha256": "d7e23ad2b32cfcd2a574d1d92cfbeeaad8b4fd48f0d5fbbc86258914bbfbee74"
+    },
+    {
+      "archive_id": "d29483c98ae1e38f865092a0432b8598",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 126244859323,
+      "line_sha256": "6877f72c46059ca60ad69774d973fc0a6edf282995f498cac1b5363e7cd2ba48"
+    },
+    {
+      "archive_id": "a58037fe4c1e5f47cb912a69ebf33d81",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 126752988031,
+      "line_sha256": "9c103f4e593d72eaa39d74d1a97594eea1607dec378e3f90190e1e6aa754402f"
+    },
+    {
+      "archive_id": "07c49dea5654f746d94fde1acda908cc",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 127045104339,
+      "line_sha256": "43193df11eb7c8449a4fa901215c2394e8bf4c372ead61910cf3a41cd5b0d2a4"
+    },
+    {
+      "archive_id": "db8fd801654ea532c0d4403457b9fa10",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 127119168724,
+      "line_sha256": "e4cb1fccee1ac0043654b8cf26585ddfd9977aad0e035f0596857f2f3c5908c5"
+    },
+    {
+      "archive_id": "59fedea3ad8e724897a52c0862ae0321",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-26.jsonl",
+      "source_offset": 129635986864,
+      "line_sha256": "f3a69678249f5c823519a06796f070d48beaa456d1d9f5f35f1a291c942ad5ae"
+    },
+    {
+      "archive_id": "194543bb053417ce357640efaeba564b",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 534324666,
+      "line_sha256": "9a1f5db4ca71f5d2245a79eab3669b77183d7ca340f89bb0e555e375a963f501"
+    },
+    {
+      "archive_id": "72924f2f63807181e6b18b96520d9665",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 911670116,
+      "line_sha256": "f41a3af15c99ef3084d3c9a94b6e5e9a319d00ae3c596123ba0e8767b412c0ab"
+    },
+    {
+      "archive_id": "0ec4f92126e48ecdf6ee1fb09de9fe19",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 4515789087,
+      "line_sha256": "9fb6dd5de67bb8323e6b496306a7d3b9d649d9396b993562e57c05831a8800a8"
+    },
+    {
+      "archive_id": "6e0b5e0a46ee7d61bad0565dac4648ee",
+      "endpoint": "/v1/responses",
+      "stored_reason": "agent_message",
+      "observed_signal": "trailing_agent_message",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 5163151636,
+      "line_sha256": "a8160ce8ba20ac6f23d67ba906bf83ee82695006bbdea2522c4a62ab2e7f1617"
+    },
+    {
+      "archive_id": "b8a434f9f15d92eda34d0a4fe918d1fb",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 5614095740,
+      "line_sha256": "e4c609bff0b5876667b08165d73376df06db56820707c9894ba0fe9626adb02e"
+    },
+    {
+      "archive_id": "fa4283b500731f3ed00cf3a67d755ea5",
+      "endpoint": "/v1/responses",
+      "stored_reason": "automation",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 8645567445,
+      "line_sha256": "7e8f0f8a23c44b4dfa45abf594e9b6a9d55e22ce341a63a5a1988249ef2c9144"
+    },
+    {
+      "archive_id": "85ccc69ea6b2722e8747836585897de6",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 8928615068,
+      "line_sha256": "e5fd8a4df9bcd69a7cb23b155a3701733720696e7cffe4c34b8567e2b50b83a2"
+    },
+    {
+      "archive_id": "763ff5728cf7ebc9d054891e9554cd02",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 8932005011,
+      "line_sha256": "6148870c26a494c202e83b3cbcaf85795f6d331b445601aa1a46ddb739964ccd"
+    },
+    {
+      "archive_id": "620a0dff459fb5c55d5bb47c741f230b",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 8974963601,
+      "line_sha256": "899a8c0745625d1711b82c2c9e69d5d799c80686b2dfedb13da494c030ec10b5"
+    },
+    {
+      "archive_id": "c72f2581bcc9993bf218d90a0a8c51a4",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 8991100480,
+      "line_sha256": "4a1dbd5dc0f89d93c74bb8c4e577b5e54c7cc08bd18ab091b85ad5187588d091"
+    },
+    {
+      "archive_id": "f7fc073b768bc809facbd83f46dec562",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 9020235916,
+      "line_sha256": "b4b233868d70099d2de5cd289cc8d7a20de7f917b0b13e8aa231c91d159df17d"
+    },
+    {
+      "archive_id": "7646b5fcbfc1cbebef139ae3cc04208d",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 9057206634,
+      "line_sha256": "f3665777ad2be99f74437f63dabd0a2467ead7aeb1be126861d968abada1ec05"
+    },
+    {
+      "archive_id": "21b544c3a2d13be2ad28a47301f621f2",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 9216220158,
+      "line_sha256": "103f636b54922f8fa185422f55b28d446df4c2b7407be1419f8c3d5d29b54bf8"
+    },
+    {
+      "archive_id": "655120d5397915e11b02cd0e19e190c6",
+      "endpoint": "/v1/messages",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 9239050086,
+      "line_sha256": "5188957498a276aaa0e44ed5fc68872b4bd9e41cc2079a9de3440bcaeb54dba5"
+    },
+    {
+      "archive_id": "a34d2766d49cafcc31ddc89cfbf4af89",
+      "endpoint": "/v1/responses",
+      "stored_reason": "tool_result",
+      "observed_signal": "trailing_tool_result",
+      "confirmed_misclassification": false,
+      "source_file": "2026-10-27.jsonl",
+      "source_offset": 9399999798,
+      "line_sha256": "108b074bdff2bb87b51ffd4b68831772bf3f077d029ff74913c8cd3d80975b62"
+    }
+  ]
+}
