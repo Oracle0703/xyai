@@ -605,6 +605,12 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - Wiki 图谱重建: `/understand-knowledge llm-wiki` 或 refresh `.cmd`
 - 入口说明: 使用 `.cmd`（内置 `-ExecutionPolicy Bypass`），避免 RemoteSigned 下 `powershell -File` 被拒
 
+## OpenAI 首字耗时排查
+
+- 对比 `usage_logs.first_token_ms` 时先对齐实际账号、`upstream_model`、推理强度、`service_tier`、请求类型与上下文大小；账号相同不表示分组 Fast 策略相同。上下文按本项目字段 `input_tokens + cache_read_tokens` 观察，缓存命中高不代表长上下文无推理开销。
+- 原生 HTTP Responses 的计时起点在 `OpenAIGatewayService.Forward` 内，终点由 `openai_gateway_response_handling.go` 按 `openai_ttft_mode` 判定事件，首输出 staging 路径在事件提交/flush 附近记录。包含本次转发准备与上游等待，可能受下游写出等待影响；不是客户端 RTT 或实际渲染耗时，不能仅凭该字段判断 VPN，也不能全部归为模型计算。
+- 只读排查实例与控制变量边界：`docs/reviews/2026-10-27-huangyu-pankun-ttft-investigation-cn.md`。调整分组强制 Fast 前需同时核对收费配置，用户侧网络归因需要固定模型/档位/上下文的客户端对照。
+
 ## 相关页面
 
 - [[README]]

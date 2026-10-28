@@ -11,10 +11,18 @@ export function gptQuotaLevel(remaining: number): GPTQuotaLevel {
   return 'good'
 }
 
-export const GPT_QUOTA_LEVEL_STYLES: Record<GPTQuotaLevel, { fill: string; track: string; badge: string; icon: 'checkCircle' | 'exclamationTriangle' | 'exclamationCircle' }> = {
-  good: { fill: 'bg-emerald-500', track: 'bg-emerald-100 dark:bg-emerald-900/40', badge: 'badge-success', icon: 'checkCircle' },
-  low: { fill: 'bg-amber-500', track: 'bg-amber-100 dark:bg-amber-900/40', badge: 'badge-warning', icon: 'exclamationTriangle' },
-  critical: { fill: 'bg-red-500', track: 'bg-red-100 dark:bg-red-900/40', badge: 'badge-danger', icon: 'exclamationCircle' },
+export const GPT_QUOTA_LEVEL_STYLES: Record<GPTQuotaLevel, {
+  fill: string
+  track: string
+  ring: string
+  ringTrack: string
+  value: string
+  badge: string
+  icon: 'checkCircle' | 'exclamationTriangle' | 'exclamationCircle'
+}> = {
+  good: { fill: 'bg-emerald-500', track: 'bg-emerald-100 dark:bg-emerald-900/40', ring: 'text-emerald-500', ringTrack: 'text-emerald-100 dark:text-emerald-900/40', value: 'text-emerald-700 dark:text-emerald-400', badge: 'badge-success', icon: 'checkCircle' },
+  low: { fill: 'bg-amber-500', track: 'bg-amber-100 dark:bg-amber-900/40', ring: 'text-amber-500', ringTrack: 'text-amber-100 dark:text-amber-900/40', value: 'text-amber-700 dark:text-amber-400', badge: 'badge-warning', icon: 'exclamationTriangle' },
+  critical: { fill: 'bg-red-500', track: 'bg-red-100 dark:bg-red-900/40', ring: 'text-red-500', ringTrack: 'text-red-100 dark:text-red-900/40', value: 'text-red-600 dark:text-red-400', badge: 'badge-danger', icon: 'exclamationCircle' },
 }
 
 type QuotaWindows = Pick<GPTQuotaUserCard, 'five_hour' | 'seven_day'>

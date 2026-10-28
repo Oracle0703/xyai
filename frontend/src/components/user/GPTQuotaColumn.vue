@@ -1,6 +1,6 @@
 <template>
   <section class="card overflow-hidden" :data-testid="`gpt-quota-column-${groupKey}`">
-    <header class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-dark-700">
       <div class="flex min-w-0 items-center gap-2.5">
         <!-- 分组标识色只配合分组名使用，不承担额度状态。 -->
         <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="groupKey === 'xunyou' ? 'bg-sky-500 dark:bg-sky-600' : 'bg-violet-500'" />
@@ -17,8 +17,8 @@
       {{ t('gptQuota.emptyGroup') }}
     </div>
 
-    <ul v-else class="divide-y divide-gray-100 dark:divide-dark-700">
-      <li v-for="item in items" :key="item.id" class="px-5 py-4" data-testid="gpt-quota-card">
+    <ul v-else class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-3 p-4">
+      <li v-for="item in items" :key="item.id" class="flex min-w-0 flex-col rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/50" data-testid="gpt-quota-card">
         <div class="flex items-center justify-between gap-3">
           <strong class="truncate text-sm font-semibold text-gray-900 dark:text-white" :title="item.display_name">
             {{ item.display_name }}
@@ -32,18 +32,19 @@
           </div>
         </div>
 
-        <p v-if="!item.sampled_at" class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ t('gptQuota.noData') }}</p>
+        <p v-if="!item.sampled_at" class="flex min-h-36 flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('gptQuota.noData') }}</p>
         <template v-else>
-          <div class="mt-3 grid gap-3" :class="visibleGPTQuotaWindows(item).length > 1 ? 'sm:grid-cols-2' : ''">
+          <div class="mt-3 flex flex-1 flex-wrap items-start justify-center gap-4">
             <GPTQuotaMeter
               v-for="row in visibleGPTQuotaWindows(item)"
               :key="row.key"
               :label="row.key === 'five_hour' ? t('gptQuota.fiveHour') : t('gptQuota.sevenDay')"
               :window="row.window"
               :now="now"
+              variant="ring"
             />
           </div>
-          <p class="mt-2 text-[11px] text-gray-400 dark:text-dark-500">
+          <p class="mt-3 truncate text-center text-[10px] text-gray-400 dark:text-dark-500" :title="t('gptQuota.sampledAt', { time: formatDateTimeToMinute(item.sampled_at) })">
             {{ t('gptQuota.sampledAt', { time: formatDateTimeToMinute(item.sampled_at) }) }}
           </p>
         </template>

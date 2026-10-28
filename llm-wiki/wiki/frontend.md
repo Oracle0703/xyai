@@ -400,7 +400,7 @@ API 模块分布:
 
 ## GPT 账号额度展示 UI
 
-- 2026-10-25 起两页按 Dashboard 风格重排：页面标题/说明由 `AppHeader` 按路由 meta 显示（`/gpt-quota` 已补 `descriptionKey`），不再自带渐变横幅；顶部用 `components/common/MetricTile.vue` 统计卡；额度条为 `components/user/GPTQuotaMeter.vue`（填充按 ≤10%/≤30% 分级、底轨同色系浅色，配"充足/偏低/紧张"文字标签）；分级、窗口可见性、7 天均值和统计卡时间在 `utils/gptQuota.ts`。5 小时窗口快照为 null（OpenAI 已取消、上游不再返回）时不展示，上游恢复返回后自动显示；7 天缺失仍显示"未提供"。侧栏两入口改用独立 `GaugeIcon`。
+- 两页延续 Dashboard 风格：标题/说明由 `AppHeader` 按路由 meta 显示，顶部复用 `components/common/MetricTile.vue`。2026-10-28 用户页每组账号改为自适应网格，复用 `components/user/GPTQuotaMeter.vue` 的 `variant="ring"`：SVG 从 12 点固定起点，额度下降时末端逆时针回退，100% 完整无缝、0% 无残点；>30% 绿、≤30% 黄、≤10% 红，中心百分比与文字标签辅助判断，支持深色/减少动态效果。管理页默认 `bar` 保持紧凑条形；分级与窗口可见性仍在 `utils/gptQuota.ts`。5 小时窗口为 null 时隐藏，7 天缺失显示灰色空环/“未提供”，重置到点不假定额度恢复。该视觉修改已通过本地真实组件预览与前端 414 文件/3207 项测试，未部署。
 - 管理页交互：设置卡（开关 + 间隔分段按钮）、手动刷新卡（批次进度条/失败分类）、账号表格支持全部/迅游/速宝/需处理筛选与搜索、一键移除失效账号；所有修改在底部固定操作栏统一"保存配置/放弃修改"，无修改时保存禁用，有未保存修改时离开页面或关闭标签页会确认。
 - 用户页 `/gpt-quota` 为 `views/user/GPTQuotaView.vue` + `components/user/GPTQuotaColumn.vue`：`md` 以上左迅游右速宝，窄屏单列迅游在前；15 分钟只读轮询，隐藏标签页暂停、恢复可见且间隔已到才补读，卸载时清定时器并 abort 请求；重置倒计时本地 30 秒刷新，到点只显示"已到重置时间，待更新"，不改剩余比例。
 - 管理页 `/admin/gpt-quota` 为 `views/admin/GPTQuotaDisplayView.vue`：已选条目（含失去资格条目，可直接移除）、别名、单条刷新、全量刷新与批次计数；候选账号在 `components/admin/gpt-quota/GPTQuotaAccountPickerDialog.vue` 弹窗中分页搜索勾选，打开时默认勾选当前本地选择（含未保存新增），顶部“已选”区列出全部勾选项（含已删除/非 OpenAI OAuth 等候选接口不返回的账号）可直接取消；勾选草稿跨页保留、取消即丢弃；每次打开清空旧列表，加载失败清空条目并显示错误与重试（保留总数和当前页），加载中禁用勾选；弹窗“保存”只改本地选择，点“保存配置”才提交，勾回本次移除的已保存账号恢复服务端别名；保存携带 `expected_version`，409 提示重新读取。批次轮询只刷新服务端条目状态和计数，不覆盖未保存编辑，也不更新编辑基线 `version`（否则会绕过乐观锁）。
