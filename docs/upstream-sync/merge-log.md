@@ -2215,3 +2215,11 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | 前端 frozen install、lint/typecheck、414 files / 3211 tests、build 通过；Go default 首轮仅本地旧断言失败，适配后 service 全包 4395 顶层 / 8933 PASS，其余 53 包沿用首轮通过；unit 58 包通过、5 顶层失败（基线/时序归属详见报告）；integration 退出 0、54 包返回通过但含 Docker 仓储整包跳过及 18 skip；独立 PG 21 顶层 / 84 PASS、双 246 与生图 SQL 实测通过、测试库已停止；normal/embed build 与最终增量 lint（0 issues）通过；Wiki 图谱刷新并通过 AllowDirtyWiki 校验 |
 | 审核材料 | `docs/upstream-sync/2026-10-28-v0.2.18/review.md` |
 | 交付边界 | 未 commit/push/部署；不宣称全绿或完整 Docker/真实上游/浏览器验收 |
+
+
+### 2026-10-28：0.2.18 提交确认补记
+
+- 用户明确授权提交与推送；实际合并提交：`93555b6290bba23c6d40547b47b539218a8f7a39`。
+- 工作分支：`feature/hy/10224_merge_sub2api_218`；第一父 `b3940712d7c7d6c1b7a7550fa661583363a3423f`，第二父 `5c185c5c5d4f5e409e2139806e0964ae944e03e8`。
+- 推送目标：`github`（`Oracle0703/xyai`）同名分支；本地 main 不变，未部署。上条待审记录保留作为历史快照。
+- 沿用已完成的测试及失败归属；本次后续改动仅为提交状态文档，不改业务代码、不重跑无关测试。

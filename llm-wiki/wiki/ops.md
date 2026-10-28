@@ -4,7 +4,7 @@
 
 - 指定上游 `5c185c5c5d4f5e409e2139806e0964ae944e03e8` 将 `go.mod`、CI 版本检查和根 Dockerfile builder 升到 Go 1.27.3；前端 DOMPurify/锁文件及 follow-redirects override 同步。其余 Dockerfile 按实际源码核对，不将旧文档的“全部统一”当验证结论。
 - Windows 使用 repo-local GOCACHE/GOMODCACHE、每套件独立 GOTMPDIR、Git usr/bin PATH；若宿主 GOROOT 固定到旧 Go，显式把 GOROOT/PATH 指向同一 1.27.3 工具链并设置 GOTOOLCHAIN=local，避免新 go 命令调用旧 compile。依次执行 Go default/unit/integration；前端 frozen install、lint:check、typecheck、完整 Vitest/build。退出成功但 Docker/外部依赖跳过的测试必须单独记录。
-- 本轮无 Ent schema/provider 变更，不为合并重生成 Ent/Wire；新增 migration 246 与本地同号文件按完整文件名共存。实际验证结果及失败归属见 `docs/upstream-sync/2026-10-28-v0.2.18/review.md`，停在未提交状态等待审核。
+- 本轮无 Ent schema/provider 变更，不为合并重生成 Ent/Wire；新增 migration 246 与本地同号文件按完整文件名共存。实际验证结果及失败归属见 `docs/upstream-sync/2026-10-28-v0.2.18/review.md`；用户已确认提交，实际合并提交号见 README 与追加台账。
 
 ## unit service 编译状态
 
