@@ -1,0 +1,26 @@
+2026/10/28 03:07:08 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestCodexV2ReviewToolImageInjectedPredecessor
+    zz_codex_origin_v2_review_test.go:18: tool -> injected-only user -> marked tool image: origin={Kind:human Reason:user_input Confidence:medium Version:2}
+    zz_codex_origin_v2_review_test.go:19: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/service/zz_codex_origin_v2_review_test.go:19
+        	Error:      	Not equal: 
+        	            	expected: service.tokenAnalysisRequestOrigin{Kind:"ai", Reason:"tool_result", Confidence:"high", Version:2}
+        	            	actual  : service.tokenAnalysisRequestOrigin{Kind:"human", Reason:"user_input", Confidence:"medium", Version:2}
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1,5 +1,5 @@
+        	            	 (service.tokenAnalysisRequestOrigin) {
+        	            	- Kind: (string) (len=2) "ai",
+        	            	- Reason: (string) (len=11) "tool_result",
+        	            	- Confidence: (string) (len=4) "high",
+        	            	+ Kind: (string) (len=5) "human",
+        	            	+ Reason: (string) (len=10) "user_input",
+        	            	+ Confidence: (string) (len=6) "medium",
+        	            	  Version: (int) 2
+        	Test:       	TestCodexV2ReviewToolImageInjectedPredecessor
+--- FAIL: TestCodexV2ReviewToolImageInjectedPredecessor (0.00s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/service	1.100s
+FAIL

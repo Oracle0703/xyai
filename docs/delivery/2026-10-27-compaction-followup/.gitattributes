@@ -1,0 +1,4 @@
+# Preserve evidence bytes so SHA256SUMS survives checkout on every platform.
+*.json -text whitespace=cr-at-eol
+*.jsonl -text whitespace=cr-at-eol
+SHA256SUMS -text whitespace=cr-at-eol

@@ -2,7 +2,8 @@
 
 - `TokenAnalysisView.vue` 保留筛选、分页、请求加载和索引轮询；本目录组件负责概览、排行、趋势、请求表、详情抽屉与索引展示。
 - `TokenAnalysisRequestTable.vue` 的请求来源列与 `TokenAnalysisRequestDrawer.vue` 的解释共用 `requestOrigin.ts`，只读取列表响应的 `summary_json.request_origin`，不新增 API 请求。
-- 版本 1 合同为 `{ kind, reason, confidence, version: 1 }`。`human/user_input/medium` 显示“人工”；明确子 Agent、自动化、工具结果、Agent 消息、助手续执行和压缩标记为 `ai/high`，显示“AI”。`unknown/none`（含 `count_tokens` 探测行）、旧记录、未知版本及不合法字段显示 `—`，不是第三个业务分类。新增 reason 需同步 `requestOrigin.ts` 映射、API 类型与双语 `requestOrigin.reasons`。
+- 合同为 `{ kind, reason, confidence, version: 1 | 2 }`，reason 同时决定 kind 与 confidence（后端 `tokenAnalysisOriginReasons`）。`human/user_input/medium` 显示“人工”；明确子 Agent、自动化、工具结果、Agent 消息、助手续执行和压缩标记为 `ai/high`，v2 新增的 `compaction_resume` 为 `ai/medium`（按恢复摘要结构推断），都显示“AI”。v1 行出现 v2 才有的 reason、`unknown/none`（含 `count_tokens` 探测行）、旧记录、未知版本及不合法字段显示 `—`，不是第三个业务分类。新增 reason 需同步 `requestOrigin.ts` 映射、API 类型与双语 `requestOrigin.reasons`。
+- 概览“已归档请求数”卡片与用户/项目排行的请求数下方展示 `human_input_count`（人工输入次数，估算：同一 Key 15 分钟内重发的相同提示词只计一次，只在当前筛选内归并），说明文案放在 title，口径见 `docs/features/token-analysis-request-origin-design-cn.md`“人工计数口径”。
 - “人工”只表示当前轮次存在新的用户输入结构，不能证明实际由本人手动发送。来源不从 `last_user_preview`、净输入全文、`duplicate_count`、工具数量或用户账号推测。抽屉展示规则依据、置信度及版本。View 的来源筛选（参数 `origin=human|ai|unknown`）由服务端按同一字段过滤，`unknown` 含无来源旧行。
 - 计费关联状态共用 `usageLink.ts`，读取列表响应的 `usage_link_status`（`linked`/`unlinked`/`failed`/`not_billable`，旧接口缺字段时按 `usage_log_id` 判断）与 `usage_match_method`（`request_id`/`timing`/`legacy_window`）。非 `linked` 行的 Token/费用由服务端补 0，表格与抽屉一律显示 `—` 并说明“未知，不代表零消耗”。请求明细始终是完整归档视角（服务端忽略 `include_unmatched`），该勾选只影响用户/项目排行的请求数。“最近用户输入”列是对话最近一条用户正文，与“本次调用来源”口径不同。
 - 用户趋势继续使用计费日志，归档排行与计费趋势统计口径独立；子管理员只读，不能触发索引。

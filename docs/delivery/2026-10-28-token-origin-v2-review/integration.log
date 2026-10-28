@@ -1,0 +1,135 @@
+2026/10/28 03:07:16 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestTokenAnalysisConcurrentParentCannotEscapeChildCandidates
+--- PASS: TestTokenAnalysisConcurrentParentCannotEscapeChildCandidates (0.48s)
+=== RUN   TestTokenAnalysisSourceLockOrderDoesNotDeadlockClassification
+--- PASS: TestTokenAnalysisSourceLockOrderDoesNotDeadlockClassification (0.08s)
+=== RUN   TestTokenAnalysisUsageDeletionWhileParentDirtyStillInvalidatesChild
+--- PASS: TestTokenAnalysisUsageDeletionWhileParentDirtyStillInvalidatesChild (0.07s)
+=== RUN   TestTokenAnalysisNewEdgeCannotMissConcurrentParentFactChange
+--- PASS: TestTokenAnalysisNewEdgeCannotMissConcurrentParentFactChange (0.17s)
+=== RUN   TestTokenAnalysisInvalidationSeqCannotReuseDeletedGeneration
+    token_analysis_classification_concurrency_integration_test.go:500: old seq=50, P/C queue rows=0, child versions=7/7, cause=cache_key_changed:gateway
+--- PASS: TestTokenAnalysisInvalidationSeqCannotReuseDeletedGeneration (0.25s)
+=== RUN   TestTokenAnalysisStaleConsumerCannotStrandCleanChild
+    token_analysis_classification_concurrency_integration_test.go:626: queue=0 child versions=6/6 parent version now=4 used=4 stale delete rows=0
+--- PASS: TestTokenAnalysisStaleConsumerCannotStrandCleanChild (0.10s)
+=== RUN   TestTokenAnalysisClassificationLifecycle
+--- PASS: TestTokenAnalysisClassificationLifecycle (0.13s)
+=== RUN   TestTokenAnalysisClassificationMergePendingBumps
+--- PASS: TestTokenAnalysisClassificationMergePendingBumps (0.02s)
+=== RUN   TestTokenAnalysisClassificationUsageDeletionReachesDependents
+--- PASS: TestTokenAnalysisClassificationUsageDeletionReachesDependents (0.09s)
+=== RUN   TestTokenAnalysisClassificationCandidateLookupWaitsForConcurrentParent
+--- PASS: TestTokenAnalysisClassificationCandidateLookupWaitsForConcurrentParent (0.33s)
+=== RUN   TestTokenAnalysisClassificationWriteSkipsLockedRows
+--- PASS: TestTokenAnalysisClassificationWriteSkipsLockedRows (0.06s)
+=== RUN   TestTokenAnalysisClassificationCASGuardsAreIndependent
+=== RUN   TestTokenAnalysisClassificationCASGuardsAreIndependent/input_only
+=== RUN   TestTokenAnalysisClassificationCASGuardsAreIndependent/dependency_only
+=== RUN   TestTokenAnalysisClassificationCASGuardsAreIndependent/parent_only
+=== RUN   TestTokenAnalysisClassificationCASGuardsAreIndependent/candidate_only
+--- PASS: TestTokenAnalysisClassificationCASGuardsAreIndependent (0.68s)
+    --- PASS: TestTokenAnalysisClassificationCASGuardsAreIndependent/input_only (0.42s)
+    --- PASS: TestTokenAnalysisClassificationCASGuardsAreIndependent/dependency_only (0.07s)
+    --- PASS: TestTokenAnalysisClassificationCASGuardsAreIndependent/parent_only (0.11s)
+    --- PASS: TestTokenAnalysisClassificationCASGuardsAreIndependent/candidate_only (0.08s)
+=== RUN   TestTokenAnalysisClientIdentityUpsertAndRemap
+--- PASS: TestTokenAnalysisClientIdentityUpsertAndRemap (0.05s)
+=== RUN   TestTokenAnalysisFingerprintCandidateLifecycle
+--- PASS: TestTokenAnalysisFingerprintCandidateLifecycle (0.09s)
+=== RUN   TestTokenAnalysisForwardFactsRecordedAndMerged
+--- PASS: TestTokenAnalysisForwardFactsRecordedAndMerged (0.02s)
+=== RUN   TestTokenAnalysisHumanInputCountMergesRepeatedPrompts
+--- PASS: TestTokenAnalysisHumanInputCountMergesRepeatedPrompts (0.17s)
+=== RUN   TestTokenAnalysisHumanInputCountFollowsFilters
+--- PASS: TestTokenAnalysisHumanInputCountFollowsFilters (0.12s)
+=== RUN   TestTokenAnalysisRepositoryUpsertRequestSummary
+--- PASS: TestTokenAnalysisRepositoryUpsertRequestSummary (0.00s)
+=== RUN   TestTokenAnalysisHumanInputSQLReusesFilters
+--- PASS: TestTokenAnalysisHumanInputSQLReusesFilters (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkByRequestID
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkByRequestID (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming (0.00s)
+=== RUN   TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives
+--- PASS: TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives (0.00s)
+=== RUN   TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically
+--- PASS: TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListUsageLinkCandidates
+--- PASS: TestTokenAnalysisRepositoryListUsageLinkCandidates (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly
+--- PASS: TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListUserUsageSortableByActualCost
+--- PASS: TestTokenAnalysisRepositoryListUserUsageSortableByActualCost (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListProjectUsageSortable
+--- PASS: TestTokenAnalysisRepositoryListProjectUsageSortable (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort
+--- PASS: TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetIndexState
+--- PASS: TestTokenAnalysisRepositoryGetIndexState (0.00s)
+=== RUN   TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError
+--- PASS: TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows
+--- PASS: TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons
+--- PASS: TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons (0.00s)
+=== RUN   TestTokenAnalysisRepositoryCountBilledRequests
+--- PASS: TestTokenAnalysisRepositoryCountBilledRequests (0.00s)
+=== RUN   TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality
+--- PASS: TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetUserInput
+--- PASS: TestTokenAnalysisRepositoryGetUserInput (0.00s)
+=== RUN   TestTokenAnalysisRepositoryDeleteUserInput
+--- PASS: TestTokenAnalysisRepositoryDeleteUserInput (0.00s)
+=== RUN   TestTokenAnalysisRepositoryRetriesDeadlockedTransaction
+--- PASS: TestTokenAnalysisRepositoryRetriesDeadlockedTransaction (0.02s)
+=== RUN   TestTokenAnalysisUsageLinkLongRunningLegacyRequest
+--- PASS: TestTokenAnalysisUsageLinkLongRunningLegacyRequest (0.16s)
+=== RUN   TestTokenAnalysisUsageLinkLateBillingByRequestID
+--- PASS: TestTokenAnalysisUsageLinkLateBillingByRequestID (0.10s)
+=== RUN   TestTokenAnalysisUsageLinkConcurrentAndRetriedRequests
+--- PASS: TestTokenAnalysisUsageLinkConcurrentAndRetriedRequests (0.09s)
+=== RUN   TestTokenAnalysisUsageLinkLegacyAmbiguousBillStaysUnlinked
+--- PASS: TestTokenAnalysisUsageLinkLegacyAmbiguousBillStaysUnlinked (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkLateExactBillBeatsNeighborTiming
+--- PASS: TestTokenAnalysisUsageLinkLateExactBillBeatsNeighborTiming (0.06s)
+=== RUN   TestTokenAnalysisUsageLinkLegacyCannotTakeExactOwnersBill
+--- PASS: TestTokenAnalysisUsageLinkLegacyCannotTakeExactOwnersBill (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkResponseIDCorrectsTimingClaim
+--- PASS: TestTokenAnalysisUsageLinkResponseIDCorrectsTimingClaim (0.06s)
+=== RUN   TestTokenAnalysisUsageLinkConcurrentClaimsAreAtomic
+--- PASS: TestTokenAnalysisUsageLinkConcurrentClaimsAreAtomic (0.63s)
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/ascending
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/full_range
+=== RUN   TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/descending
+--- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder (0.17s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/ascending (0.05s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/full_range (0.03s)
+    --- PASS: TestTokenAnalysisUsageLinkCrossDayRequestInAnyIndexOrder/descending (0.09s)
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=
+=== RUN   TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=resp_failed_owner
+--- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink (0.07s)
+    --- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id= (0.04s)
+    --- PASS: TestTokenAnalysisUsageLinkLateFailedResponseClearsTimingLink/response_id=resp_failed_owner (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkStaleWritesCannotOverrideNewerLink
+--- PASS: TestTokenAnalysisUsageLinkStaleWritesCannotOverrideNewerLink (0.05s)
+=== RUN   TestTokenAnalysisUsageLinkDisplacedRowOnOtherDayIsRescored
+--- PASS: TestTokenAnalysisUsageLinkDisplacedRowOnOtherDayIsRescored (0.11s)
+=== RUN   TestTokenAnalysisUsageLinkFailedRequestsKeepOnlyExactBills
+--- PASS: TestTokenAnalysisUsageLinkFailedRequestsKeepOnlyExactBills (0.05s)
+=== RUN   TestTokenAnalysisListRequestsFiltersByOrigin
+--- PASS: TestTokenAnalysisListRequestsFiltersByOrigin (0.04s)
+=== RUN   TestTokenAnalysisUsageLinkLateBillIsRetriedUntilDeadline
+--- PASS: TestTokenAnalysisUsageLinkLateBillIsRetriedUntilDeadline (0.08s)
+=== RUN   TestTokenAnalysisUsageLinkNewRecheckRejectsStaleResults
+--- PASS: TestTokenAnalysisUsageLinkNewRecheckRejectsStaleResults (0.09s)
+=== RUN   TestTokenAnalysisUserInputQualityFollowsContentHash
+--- PASS: TestTokenAnalysisUserInputQualityFollowsContentHash (0.01s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/repository	8.771s

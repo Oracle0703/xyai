@@ -1,0 +1,21 @@
+{
+  "head": "02cf7a07cbebf4c77003f617ec7cb53c6e1150f2",
+  "files": {
+    "backend/internal/repository/token_analysis_repo.go": "6161809ce3a6b9a45484f6ac21f4d56ae5073f22e515ba2eed8cf0267a4a7ee8",
+    "backend/internal/repository/token_analysis_repo_test.go": "aae509e341d25842fe87fdde7ec3f40ac1c965f90e27b403df26f1aac0732b8b",
+    "backend/internal/repository/token_analysis_human_input_integration_test.go": "269f66297b63a0a94610e083064c6a9724d6c588db6a8eedee1d75b9ba737855",
+    "backend/internal/service/token_analysis_origin.go": "bcafa9ab9e099ec1e3b75783d0e25864abd3c1dda019a92c0117a6470b0238f0",
+    "backend/internal/service/token_analysis_origin_test.go": "f42479d9d698d300f64fae08512de3423c20193e39a2c2524503e872c1ca5671",
+    "backend/internal/service/token_analysis_summary_test.go": "a15683e866b1cb71864cd8201860af09a24be9fe85c7b13ea0cdc1c093110d2f",
+    "backend/internal/service/token_analysis_types.go": "2ad7ec9c18864ffd70e9037e2786e98249db53f00e5d3add0d6607ce5f1f9469",
+    "frontend/src/api/admin/tokenAnalysis.ts": "149aab9f350609c85a61faa5f576a3d1a5f7ddaa1996111725005d060ef67588",
+    "frontend/src/components/admin/token-analysis/requestOrigin.ts": "7250a04c00ee18793f1beaebbbd875bb49c061b9be27c4c627c4f15587207a33",
+    "frontend/src/components/admin/token-analysis/TokenAnalysisOverview.vue": "8a138dba758cfc8077f12c0edaa3eb0e3256b0a10ec2d2cce4867071001ff740",
+    "frontend/src/components/admin/token-analysis/TokenAnalysisUserRanking.vue": "beb358af513de88335982ca247cce6c4a8d0a3a862917a05cefa4d102ba954c7",
+    "frontend/src/components/admin/token-analysis/TokenAnalysisProjectTable.vue": "cd4348d9c128100a87060ba6b30c617d8c45c74a56fd079e7bc1e9a7be207d99",
+    "docs/features/token-analysis-request-origin-design-cn.md": "b3e9b8e80898c8b0927980c984a459a01f88b78e09315dfd99af2a878a5c86ee",
+    "frontend/src/i18n/locales/zh/admin/tokenAnalysis.ts": "1a8e737904c9ccc453a5cde5e4af9f714e09d063afa2281840e5a245aa87d108",
+    "frontend/src/i18n/locales/en/admin/tokenAnalysis.ts": "93d79bd4d55cbd252d6db4225ddbb953937f2468273c47df73a93ad9e887f6a7",
+    "frontend/src/views/admin/__tests__/TokenAnalysisView.spec.ts": "143f5d4abe752dd7b7e8c44ecab6fc4e4391d0c93b3bc1aad5662a8aaa374952"
+  }
+}

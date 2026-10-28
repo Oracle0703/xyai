@@ -46,8 +46,10 @@ export default {
     overview: '概览',
     help: {
       archivedRequests: '统计已归档且已索引的请求样本, 并非全量请求; 与同期计费请求数对比可看出归档覆盖率。',
-      matchedOnly: '只统计已关联到计费记录的请求; 未关联请求的 Token/费用未知, 不计入。'
+      matchedOnly: '只统计已关联到计费记录的请求; 未关联请求的 Token/费用未知, 不计入。',
+      humanInputs: '人工标签请求中, 同一 API Key 在 15 分钟内重发的相同提示词只计一次, 只在当前筛选范围内归并。这是估算, 不代表真实操作次数; 没有指纹的旧记录逐条计数。'
     },
+    humanInputs: '人工输入',
     matchedUnmatched: '已匹配 / 未匹配',
     riskReasonKinds: '风险类型',
     tokenComposition: 'Token 构成',
@@ -76,7 +78,7 @@ export default {
       filterOption: '来源: {name}',
       filterHint: '按本次调用来源筛选概览、排行与请求明细; “尚未识别”含上线前尚未重新索引的旧记录。计费趋势与同期计费请求数不受影响',
       hint: '来源按本次调用的请求结构推断：人工表示本轮有新的用户输入；AI 表示工具续执行或自动任务。“最近用户输入”是对话里最近一条用户正文，同一轮的工具续执行会显示相同内容。',
-      humanHint: '“人工”依据请求中的用户输入结构推断，不能证明由本人手动发送。Claude Code、Copilot 等客户端的子 Agent、自动压缩、标题生成等内部请求，以及脚本/程序直接以普通用户消息调用接口的请求，都没有显式标记，也可能显示为人工。历史未识别记录显示 —。',
+      humanHint: '“人工”依据请求中的用户输入结构推断，不能证明由本人手动发送。客户端未带标记的内部请求（如 Claude Code、Copilot 的子 Agent 首轮、标题生成），以及脚本/程序直接以普通用户消息调用接口的请求，仍可能显示为人工。规则版本 1 的记录未覆盖版本 2 新识别的压缩、通知等形态；历史未识别记录显示 —。',
       reason: '判断依据',
       confidence: '推断置信度',
       version: '规则版本',
@@ -92,6 +94,7 @@ export default {
         agent_message: '本轮为 Agent 间消息或执行通知',
         assistant_continuation: '本轮从助手输出继续执行',
         compaction: '本轮为上下文压缩或压缩后续执行',
+        compaction_resume: '本轮为上下文自动压缩后的续执行(按恢复摘要结构推断)',
         user_input: '本轮末尾包含新的用户输入，未发现明确的自动执行标记',
         no_signal: '缺少足够的请求来源信号',
         unsupported_shape: '请求结构暂不支持识别',
@@ -152,7 +155,7 @@ export default {
     project: '项目',
     projectFilterHint: '项目名(精确匹配) / unattributed',
     userEmail: '用户邮箱',
-    userEmailHint: '邮箱模糊搜索(用户/项目排行、请求明细)',
+    userEmailHint: '邮箱模糊搜索(概览、用户/项目排行、请求明细)',
     riskLegend: '风险说明',
     riskLegendHint: '下列为各风险标记的含义,鼠标移到「风险原因分布」或请求明细的标签上也会显示对应解释。',
     // 风险原因 code → 中文名称与解释; 标签悬停展示 desc, 让不熟悉英文的客户
@@ -258,6 +261,7 @@ export default {
       cacheCreation: '缓存创建',
       riskyCostShare: '可疑费用占比',
       totalRequests: '已归档请求数',
+      humanInputs: '人工输入次数(估算)',
       billedRequests: '同期计费请求数',
       archiveCoverage: '归档覆盖率',
       totalTokens: '总 Token',

@@ -1,0 +1,144 @@
+[
+  {
+    "archive_id": "c33fcf31436ff77739fc8a58fc2b6afc",
+    "event_time": "2026-10-27T00:48:21.180121+08:00",
+    "source_file": "2026-10-27.jsonl",
+    "source_offset": 2385591355,
+    "line_sha256": "12ed2c0af444663306888c2fd66863bdca139671f516ec3b032ae3dc0501fe34",
+    "selected_turn_fields": {
+      "request_kind": "compaction",
+      "compaction": {
+        "trigger": "auto",
+        "reason": "context_limit",
+        "implementation": "responses",
+        "phase": "mid_turn",
+        "strategy": "memento"
+      },
+      "history_initialization": "cold_resume"
+    },
+    "tail_shapes": [
+      {
+        "index": 549,
+        "role": null,
+        "type": "reasoning",
+        "block_types": null
+      },
+      {
+        "index": 550,
+        "role": null,
+        "type": "custom_tool_call",
+        "block_types": null
+      },
+      {
+        "index": 551,
+        "role": null,
+        "type": "custom_tool_call_output",
+        "block_types": null
+      },
+      {
+        "index": 552,
+        "role": "user",
+        "type": "message",
+        "block_types": [
+          "input_text"
+        ]
+      }
+    ]
+  },
+  {
+    "archive_id": "0d8400cb5804d9ce2b3b033413f3562f",
+    "event_time": "2026-10-27T02:24:04.631817+08:00",
+    "source_file": "2026-10-27.jsonl",
+    "source_offset": 4743228056,
+    "line_sha256": "3942d9bb5fe529a2c6db2b17ccd3909f765bd00264cea1da4650b9eb6e435f92",
+    "selected_turn_fields": {
+      "request_kind": "compaction",
+      "compaction": {
+        "trigger": "auto",
+        "reason": "context_limit",
+        "implementation": "responses",
+        "phase": "mid_turn",
+        "strategy": "memento"
+      },
+      "history_initialization": "new"
+    },
+    "tail_shapes": [
+      {
+        "index": 307,
+        "role": "assistant",
+        "type": "message",
+        "block_types": [
+          "output_text"
+        ]
+      },
+      {
+        "index": 308,
+        "role": null,
+        "type": "custom_tool_call",
+        "block_types": null
+      },
+      {
+        "index": 309,
+        "role": null,
+        "type": "custom_tool_call_output",
+        "block_types": null
+      },
+      {
+        "index": 310,
+        "role": "user",
+        "type": "message",
+        "block_types": [
+          "input_text"
+        ]
+      }
+    ]
+  },
+  {
+    "archive_id": "8b36025c42ea2eec3f0957ac8802dd8f",
+    "event_time": "2026-10-27T08:18:19.355004+08:00",
+    "source_file": "2026-10-27.jsonl",
+    "source_offset": 9075484895,
+    "line_sha256": "5a338f3e7c37eb9f20e28edbc29e9213ba1d4ccde5039e8234bcf7f06238388b",
+    "selected_turn_fields": {
+      "request_kind": "compaction",
+      "compaction": {
+        "trigger": "auto",
+        "reason": "context_limit",
+        "implementation": "responses",
+        "phase": "pre_turn",
+        "strategy": "memento"
+      },
+      "history_initialization": "cold_resume"
+    },
+    "tail_shapes": [
+      {
+        "index": 436,
+        "role": null,
+        "type": "reasoning",
+        "block_types": null
+      },
+      {
+        "index": 437,
+        "role": null,
+        "type": "reasoning",
+        "block_types": null
+      },
+      {
+        "index": 438,
+        "role": "assistant",
+        "type": "message",
+        "block_types": [
+          "output_text"
+        ]
+      },
+      {
+        "index": 439,
+        "role": "user",
+        "type": "message",
+        "block_types": [
+          "input_text"
+        ]
+      }
+    ]
+  }
+]

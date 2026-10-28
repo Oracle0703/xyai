@@ -1,0 +1,53 @@
+[
+  {
+    "name": "messages_ai",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY event_time,archive_id),'[]') FROM (SELECT archive_id,event_time,endpoint,source_file,source_offset,request_body_size,summary_json->'request_origin' origin FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00' AND endpoint='/v1/messages' AND summary_json->'request_origin'->>'kind'='ai') x;\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.507,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout_sha256": "b5723c452bf29d9ef590b64b9debffabf25db8cef8be4e64cce54e501f20a5da",
+    "selected_rows": 1053,
+    "transaction_verification": {
+      "read_only": "on",
+      "rollback_completed": true
+    }
+  },
+  {
+    "name": "fingerprint_schema",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT coalesce(jsonb_agg(column_name ORDER BY ordinal_position),'[]') FROM information_schema.columns WHERE table_name='token_analysis_request_summaries' AND column_name IN ('fp_version','fp_state','prefix_end_hash','client_family','source_line_start','source_line_length');\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.054,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "[]\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "v2_population",
+    "sql": "BEGIN READ ONLY;\nSET LOCAL statement_timeout='45s';\nSET LOCAL lock_timeout='2s';\nSELECT jsonb_build_object('count',count(*),'human',count(*) FILTER(WHERE summary_json->'request_origin'->>'kind'='human'),'min_origin_version',min((summary_json->'request_origin'->>'version')::int),'max_origin_version',max((summary_json->'request_origin'->>'version')::int)) FROM token_analysis_request_summaries WHERE event_time >= TIMESTAMPTZ '2026-10-26T09:00:00+08:00' AND event_time < TIMESTAMPTZ '2026-10-27T09:00:00+08:00';\nROLLBACK;\nSELECT jsonb_build_object('read_only',current_setting('transaction_read_only'),'rollback_completed',true);\n",
+    "seconds": 0.171,
+    "exit_code": 0,
+    "stderr": "",
+    "stdout": "{\"count\": 60065, \"human\": 3591, \"max_origin_version\": 1, \"min_origin_version\": 1}\n{\"read_only\": \"on\", \"rollback_completed\": true}\n"
+  },
+  {
+    "name": "git_sha",
+    "exit_code": 0,
+    "stdout": "25bedc620d9783e065ec6efae45d56f984b6b01c\n",
+    "stderr": ""
+  },
+  {
+    "name": "service",
+    "exit_code": 0,
+    "stdout": "MainPID=3522741\nNRestarts=0\nActiveState=active\nActiveEnterTimestamp=Mon 2026-10-26 09:55:27 CST\n",
+    "stderr": ""
+  },
+  {
+    "archive_file": "2026-10-26.jsonl",
+    "exists": false,
+    "bytes": null
+  },
+  {
+    "archive_file": "2026-10-27.jsonl",
+    "exists": true,
+    "bytes": 85414906792
+  }
+]

@@ -1,0 +1,765 @@
+{
+  "snapshot": {
+    "kind": "snapshot",
+    "path": "/opt/sub2api/backend/data/request-archive/2026-10-27.jsonl",
+    "size": 110200243008,
+    "inode": 1064621,
+    "device": 64514,
+    "mtime_ns": 1793096244478023672,
+    "captured_at_utc": "2026-10-27T10:17:24.690186+00:00",
+    "scan_limit": 110200243008
+  },
+  "scanner_summary": {
+    "record_type": "summary",
+    "source_file": "2026-10-27.jsonl",
+    "snapshot_limit": 110200243008,
+    "size_at_start": 112996898880,
+    "bytes_read": 110200243008,
+    "complete_lines": 99536,
+    "blank_lines": 0,
+    "non_request_lines": 49755,
+    "response_lines": 49755,
+    "requests": 49781,
+    "output_requests": 45412,
+    "grouped_requests": 45347,
+    "identity_missing_requests": 4434,
+    "identity_conflict_requests": 0,
+    "missing_metadata_requests": 4307,
+    "metadata_parse_errors": 0,
+    "body_parse_errors": 63,
+    "body_truncated_requests": 43,
+    "outer_parse_errors": 0,
+    "oversized_lines": 0,
+    "oversized_bytes": 0,
+    "partial_tail_bytes": 0,
+    "compaction_requests": 286,
+    "fixed_compaction_templates": 268,
+    "terminal_resume_requests": 213,
+    "max_line": 134217728,
+    "seconds": 690.968267954
+  },
+  "exported_unique_requests": 45412,
+  "tail_refinements_applied": 55,
+  "tail_categories_corrected": 0,
+  "explicit_compactions": 286,
+  "last_resume_prefix_requests": 213,
+  "fixed_template_requests": 268,
+  "metric1_phase_trigger_client": [
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.153.4",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.154.0-alpha.6.2",
+      "count": 2
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.162.0-alpha.17.2",
+      "count": 11
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.10.2",
+      "count": 22
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.1",
+      "count": 6
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.2",
+      "count": 5
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "count": 120
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "count": 62
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex_vscode",
+      "client_version": "0.162.0-alpha.17.2",
+      "count": 2
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex_vscode",
+      "client_version": "0.164.0-alpha.11.1",
+      "count": 2
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.162.0-alpha.17.2",
+      "count": 1
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.10.2",
+      "count": 3
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.2",
+      "count": 1
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "count": 35
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "count": 13
+    }
+  ],
+  "metric2_successor_category": [
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.153.4",
+      "successor_category": "resume_only",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.154.0-alpha.6.2",
+      "successor_category": "resume_only",
+      "count": 2
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.162.0-alpha.17.2",
+      "successor_category": "other",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.162.0-alpha.17.2",
+      "successor_category": "resume_only",
+      "count": 10
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.10.2",
+      "successor_category": "other",
+      "count": 5
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.10.2",
+      "successor_category": "resume_only",
+      "count": 17
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.1",
+      "successor_category": "other",
+      "count": 2
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.1",
+      "successor_category": "resume_only",
+      "count": 4
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.2",
+      "successor_category": "other",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.2",
+      "successor_category": "resume_only",
+      "count": 4
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "no_successor_within_snapshot",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "other",
+      "count": 14
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "resume_only",
+      "count": 104
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "resume_then_user_text",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "successor_category": "other",
+      "count": 3
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "successor_category": "resume_only",
+      "count": 59
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex_vscode",
+      "client_version": "0.162.0-alpha.17.2",
+      "successor_category": "resume_only",
+      "count": 2
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "client_product": "codex_vscode",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "resume_only",
+      "count": 2
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.162.0-alpha.17.2",
+      "successor_category": "resume_then_user_text",
+      "count": 1
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.10.2",
+      "successor_category": "resume_then_user_text",
+      "count": 3
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.2",
+      "successor_category": "other",
+      "count": 1
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "no_successor_within_snapshot",
+      "count": 2
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "other",
+      "count": 19
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "resume_then_user_text",
+      "count": 13
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "successor_category": "tool_output",
+      "count": 1
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "successor_category": "other",
+      "count": 11
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "successor_category": "resume_then_user_text",
+      "count": 2
+    }
+  ],
+  "metric3_resume_predecessor": [
+    {
+      "parent_phase_or_missing": "identity_missing_or_conflict",
+      "parent_trigger": "missing",
+      "count": 1
+    },
+    {
+      "parent_phase_or_missing": "mid_turn",
+      "parent_trigger": "auto",
+      "count": 212
+    }
+  ],
+  "metric4_template_metadata_coverage": [
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.153.4",
+      "has_explicit_compaction_kind": true,
+      "count": 1
+    },
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.154.0-alpha.6.2",
+      "has_explicit_compaction_kind": true,
+      "count": 2
+    },
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.162.0-alpha.17.2",
+      "has_explicit_compaction_kind": true,
+      "count": 12
+    },
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.10.2",
+      "has_explicit_compaction_kind": true,
+      "count": 25
+    },
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.1",
+      "has_explicit_compaction_kind": true,
+      "count": 6
+    },
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.163.0-alpha.11.2",
+      "has_explicit_compaction_kind": true,
+      "count": 4
+    },
+    {
+      "client_product": "codex desktop",
+      "client_version": "0.164.0-alpha.11.1",
+      "has_explicit_compaction_kind": true,
+      "count": 138
+    },
+    {
+      "client_product": "codex-tui",
+      "client_version": "0.164.0",
+      "has_explicit_compaction_kind": true,
+      "count": 75
+    },
+    {
+      "client_product": "codex_vscode",
+      "client_version": "0.162.0-alpha.17.2",
+      "has_explicit_compaction_kind": true,
+      "count": 2
+    },
+    {
+      "client_product": "codex_vscode",
+      "client_version": "0.164.0-alpha.11.1",
+      "has_explicit_compaction_kind": true,
+      "count": 2
+    },
+    {
+      "client_product": "unknown",
+      "client_version": "unknown",
+      "has_explicit_compaction_kind": false,
+      "count": 1
+    }
+  ],
+  "raw_successors_by_phase_trigger": [
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "raw_tail_category": "no_successor_within_snapshot",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "raw_tail_category": "other",
+      "count": 15
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "raw_tail_category": "resume_only",
+      "count": 205
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "raw_tail_category": "resume_then_user_text",
+      "count": 12
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "raw_tail_category": "no_successor_within_snapshot",
+      "count": 2
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "raw_tail_category": "other",
+      "count": 15
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "raw_tail_category": "resume_then_user_text",
+      "count": 35
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "raw_tail_category": "tool_output",
+      "count": 1
+    }
+  ],
+  "successors_by_phase_trigger": [
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "successor_category": "no_successor_within_snapshot",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "successor_category": "other",
+      "count": 26
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "successor_category": "resume_only",
+      "count": 205
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "successor_category": "resume_then_user_text",
+      "count": 1
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "successor_category": "no_successor_within_snapshot",
+      "count": 2
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "successor_category": "other",
+      "count": 31
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "successor_category": "resume_then_user_text",
+      "count": 19
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "successor_category": "tool_output",
+      "count": 1
+    }
+  ],
+  "other_successor_shapes": [
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "last_role": "none",
+      "last_type": "compaction",
+      "count": 10
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "last_role": "none",
+      "last_type": "compaction_trigger",
+      "count": 1
+    },
+    {
+      "phase": "mid_turn",
+      "trigger": "auto",
+      "last_role": "user",
+      "last_type": "message",
+      "count": 15
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "last_role": "none",
+      "last_type": "agent_message",
+      "count": 5
+    },
+    {
+      "phase": "pre_turn",
+      "trigger": "auto",
+      "last_role": "user",
+      "last_type": "message",
+      "count": 26
+    }
+  ],
+  "manual_compaction_count": 0,
+  "direct_next_is_compaction": 32,
+  "pre_turn_or_manual_resume_prefix_counterexamples": [],
+  "limitations": [
+    "Snapshot ends while the daily file is still growing; missing successor/predecessor is window-bounded.",
+    "Last natural-language summary prefix is an observable shape, not proof there is no new human text embedded in that same item.",
+    "Next request is ordered by timestamp and archive_id among records with matching API Key/session/thread identities.",
+    "Truncated, malformed, conflicting-identity or over-limit records must be accounted for separately."
+  ],
+  "response_validation": {
+    "lookup_count": 609,
+    "parent_status_counts": [
+      {
+        "phase": "mid_turn",
+        "status": 200,
+        "count": 233
+      },
+      {
+        "phase": "pre_turn",
+        "status": 200,
+        "count": 47
+      },
+      {
+        "phase": "pre_turn",
+        "status": 404,
+        "count": 6
+      }
+    ],
+    "resume_with_http_success_and_completed_parent": 212,
+    "resume_same_turn": 212,
+    "resume_immediate_successor": 205,
+    "next_starts_before_parent_completed": [
+      {
+        "parent": {
+          "archive_id": "a9f7880b3b53741d16f6e2509dada23e",
+          "timestamp": "2026-10-27T01:39:00.740896423Z",
+          "source_file": "2026-10-27.jsonl",
+          "start_offset": 12561282685,
+          "end_offset": 12562439592,
+          "line_bytes": 1156907,
+          "line_sha256": "ce36b247d4b9f1e72a08b8e54d3f8f59fc9d795deeefa6ddc472830775e0aa80"
+        },
+        "phase": "pre_turn",
+        "trigger": "auto",
+        "client_product": "codex desktop",
+        "client_version": "0.164.0-alpha.11.1",
+        "outcome": "other",
+        "raw_tail_category": "other",
+        "child": {
+          "archive_id": "982ff81cfba406a107e9e47c13211c05",
+          "timestamp": "2026-10-27T01:39:00.966758767Z",
+          "source_file": "2026-10-27.jsonl",
+          "start_offset": 12562439592,
+          "end_offset": 12563230232,
+          "line_bytes": 790640,
+          "line_sha256": "856f28ad679a1d96f439341226053a7bcc1871b9dc01b0f38c8634ee95797345"
+        },
+        "same_turn": false,
+        "same_root_turn": false,
+        "child_request_kind": "memory",
+        "child_last_resume_prefix": false,
+        "child_summary_suffix_ambiguous": false,
+        "child_tail_shapes": [
+          {
+            "index": 0,
+            "role": "developer",
+            "type": "message"
+          },
+          {
+            "index": 1,
+            "role": "user",
+            "type": "message",
+            "block_types": [
+              "input_text"
+            ],
+            "text_chars": 721828
+          }
+        ],
+        "gap_seconds": 0.225862344,
+        "parent_response_status": 200,
+        "parent_completed_at": "2026-10-27T09:39:45.586499+08:00",
+        "parent_http_success": true,
+        "child_started_after_parent_completed": false
+      },
+      {
+        "parent": {
+          "archive_id": "985f85253d3b7f9570abcb7bfe9d5e1f",
+          "timestamp": "2026-10-27T07:57:04.828799756Z",
+          "source_file": "2026-10-27.jsonl",
+          "start_offset": 77940620577,
+          "end_offset": 77944106342,
+          "line_bytes": 3485765,
+          "line_sha256": "e06bda77fe60ecefbe7d39df424eabe51bc7e4b232664a6aa89d317098e97573"
+        },
+        "phase": "mid_turn",
+        "trigger": "auto",
+        "client_product": "codex desktop",
+        "client_version": "0.163.0-alpha.10.2",
+        "outcome": "other",
+        "raw_tail_category": "resume_then_user_text",
+        "child": {
+          "archive_id": "490f359b9a5f1f226e96599016b32acc",
+          "timestamp": "2026-10-27T07:57:47.452526906Z",
+          "source_file": "2026-10-27.jsonl",
+          "start_offset": 78072270802,
+          "end_offset": 78075756964,
+          "line_bytes": 3486162,
+          "line_sha256": "1359ee0bfbce5d60fd1926036d4b69fe8ec82ed89d24e82c0ca283c942018c41"
+        },
+        "same_turn": false,
+        "same_root_turn": false,
+        "child_request_kind": "compaction",
+        "child_last_resume_prefix": false,
+        "child_summary_suffix_ambiguous": false,
+        "child_tail_shapes": [
+          {
+            "index": 812,
+            "type": "reasoning"
+          },
+          {
+            "index": 813,
+            "type": "reasoning"
+          },
+          {
+            "index": 814,
+            "type": "reasoning"
+          },
+          {
+            "index": 815,
+            "role": "user",
+            "type": "message",
+            "block_types": [
+              "input_text"
+            ],
+            "text_chars": 336
+          },
+          {
+            "index": 816,
+            "type": "reasoning"
+          },
+          {
+            "index": 817,
+            "role": "assistant",
+            "type": "message"
+          },
+          {
+            "index": 818,
+            "type": "function_call"
+          },
+          {
+            "index": 819,
+            "type": "function_call_output"
+          },
+          {
+            "index": 820,
+            "role": "developer",
+            "type": "message"
+          },
+          {
+            "index": 821,
+            "role": "user",
+            "type": "message",
+            "block_types": [
+              "input_text"
+            ],
+            "text_chars": 426
+          }
+        ],
+        "gap_seconds": 42.62372715,
+        "parent_response_status": 200,
+        "parent_completed_at": "2026-10-27T15:59:57.924029+08:00",
+        "parent_http_success": true,
+        "child_started_after_parent_completed": false
+      }
+    ]
+  }
+}

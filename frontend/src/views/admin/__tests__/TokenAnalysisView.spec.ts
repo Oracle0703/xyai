@@ -99,6 +99,7 @@ function summaryFixture(overrides: Record<string, unknown> = {}) {
     risk_reasons: [{ code: 'huge_input_tiny_output', count: 2 }],
     billed_requests: 48,
     archive_coverage: 0.421,
+    human_input_count: 7,
     ...overrides
   }
 }
@@ -228,6 +229,10 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).toContain('48')
     expect(wrapper.text()).toContain('admin.tokenAnalysis.summary.archiveCoverage')
     expect(wrapper.text()).toContain('42.1%')
+    // 人工输入次数(估算)附在已归档请求卡片里, 说明放在 title。
+    const requestsCard = wrapper.get('[data-testid="token-analysis-metric-requests"]')
+    expect(requestsCard.text()).toContain('admin.tokenAnalysis.summary.humanInputs')
+    expect(requestsCard.find('[title="admin.tokenAnalysis.help.humanInputs"]').text()).toBe('7')
     // 归档文件: 水位追平的文件进度显示"已读完", 并标注请求行合计。
     expect(wrapper.text()).toContain('100% · admin.tokenAnalysis.fullyRead')
     expect(wrapper.text()).toContain('admin.tokenAnalysis.requestRowsTotal')
@@ -239,7 +244,12 @@ describe('TokenAnalysisView', () => {
       { origin: { kind: 'ai', reason: 'tool_result', confidence: 'high', version: 1 }, label: 'ai', reason: 'tool_result' },
       { origin: { kind: 'unknown', reason: 'no_signal', confidence: 'none', version: 1 }, label: null, reason: 'no_signal' },
       { origin: undefined, label: null, reason: null },
-      { origin: { kind: 'ai', reason: 'tool_result', confidence: 'high', version: 2 }, label: null, reason: null },
+      // v2 keeps every v1 reason and adds compaction_resume as the only medium-confidence AI reason.
+      { origin: { kind: 'ai', reason: 'tool_result', confidence: 'high', version: 2 }, label: 'ai', reason: 'tool_result' },
+      { origin: { kind: 'ai', reason: 'compaction_resume', confidence: 'medium', version: 2 }, label: 'ai', reason: 'compaction_resume' },
+      { origin: { kind: 'ai', reason: 'compaction_resume', confidence: 'high', version: 2 }, label: null, reason: null },
+      { origin: { kind: 'ai', reason: 'compaction_resume', confidence: 'medium', version: 1 }, label: null, reason: null },
+      { origin: { kind: 'ai', reason: 'tool_result', confidence: 'high', version: 3 }, label: null, reason: null },
       { origin: { kind: 'human', reason: 'user_input', confidence: 'high', version: 1 }, label: null, reason: null },
       { origin: { kind: 'ai', reason: 'future_reason', confidence: 'high', version: 1 }, label: null, reason: null },
       { origin: { kind: 'other', reason: 'tool_result', confidence: 'high', version: 1 }, label: null, reason: null },
@@ -286,7 +296,8 @@ describe('TokenAnalysisView', () => {
     { kind: 'human', reason: 'user_input', confidence: 'medium' },
     { kind: 'ai', reason: 'tool_result', confidence: 'high' },
     { kind: 'unknown', reason: 'body_truncated', confidence: 'none' },
-    { kind: 'unknown', reason: 'count_tokens', confidence: 'none' }
+    { kind: 'unknown', reason: 'count_tokens', confidence: 'none' },
+    { kind: 'ai', reason: 'compaction_resume', confidence: 'medium', version: 2 }
   ])('explains the $kind/$reason origin in the drawer without fetching input for classification', async (origin) => {
     api.listRequests.mockResolvedValue(pageOf([{
         id: 1,
@@ -296,7 +307,7 @@ describe('TokenAnalysisView', () => {
         model: 'gpt-4.1',
         risk_score: 0,
         risk_reasons: [],
-        summary_json: { request_origin: { ...origin, version: 1 } },
+        summary_json: { request_origin: { version: 1, ...origin } },
         has_input: false
       }], 1))
     const wrapper = mountView()
@@ -423,6 +434,7 @@ describe('TokenAnalysisView', () => {
           api_key_name: 'ranking-key',
           request_count: 5,
           risky_request_count: 1,
+          human_input_count: 3,
           total_tokens: 1200,
           input_tokens: 700,
           output_tokens: 100,
@@ -443,6 +455,7 @@ describe('TokenAnalysisView', () => {
     expect(userRankingCard).toBeTruthy()
     expect(userRankingCard!.text()).toContain('dev@example.com')
     expect(userRankingCard!.text()).not.toContain('ranking-key')
+    expect(userRankingCard!.text()).toContain('admin.tokenAnalysis.humanInputs 3')
 
     const requestDetailsCard = wrapper.findAll('.card').find((card) => card.text().includes('admin.tokenAnalysis.requestDetails'))
     expect(requestDetailsCard).toBeTruthy()
@@ -673,6 +686,7 @@ describe('TokenAnalysisView', () => {
           user_email: 'dev@example.com',
           request_count: 1234,
           matched_request_count: 1200,
+          human_input_count: 17,
           total_tokens: 1_234_000_000,
           input_tokens: 56_700_000,
           output_tokens: 890_000,
@@ -712,6 +726,7 @@ describe('TokenAnalysisView', () => {
     expect(wrapper.text()).not.toContain('$12.3456')
     expect(wrapper.text()).not.toContain('$98.7654')
     expect(wrapper.text()).toContain('1.6%')
+    expect(wrapper.text()).toContain('admin.tokenAnalysis.humanInputs 17')
     expect(wrapper.text()).toContain('8.0%')
     const lowRatio = wrapper.find('[data-test="project-io-ratio-low"]')
     const healthyRatio = wrapper.find('[data-test="project-io-ratio-healthy"]')

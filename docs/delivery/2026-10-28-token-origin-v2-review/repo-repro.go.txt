@@ -1,0 +1,39 @@
+//go:build integration
+
+package repository
+
+import (
+    "testing"
+    "time"
+    "github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+    "github.com/Wei-Shaw/sub2api/internal/service"
+    "github.com/stretchr/testify/require"
+)
+
+func TestCodexV2ReviewSummaryEmail(t *testing.T) {
+    r := newHumanInputRows(t)
+    r.add("only", 0, "human", "email")
+    filters := service.TokenAnalysisFilters{UserID: &r.f.userID, UserEmail: "no-match-origin-v2@example.invalid", IncludeUnmatched: true}
+    users, _, err := r.f.svc.ListUserUsage(r.f.ctx, filters, pagination.PaginationParams{Page: 1, PageSize: 20})
+    require.NoError(t, err)
+    require.Empty(t, users)
+    summary, err := r.f.svc.GetSummary(r.f.ctx, filters)
+    require.NoError(t, err)
+    t.Logf("unmatched email: ranking rows=%d summary total=%d human_input_count=%d", len(users), summary.TotalRequests, summary.HumanInputCount)
+    require.Equal(t, int64(0), summary.HumanInputCount, "summary must apply the same email filter")
+}
+
+func TestCodexV2ReviewProjectBucketCollision(t *testing.T) {
+    r := newHumanInputRows(t)
+    r.add("missing", 0, "human", "prompt-a")
+    r.add("named", time.Minute, "human", "prompt-b", func(s *service.TokenAnalysisRequestSummary) { s.ClientProject = "unattributed" })
+    filters := service.TokenAnalysisFilters{UserID: &r.f.userID, IncludeUnmatched: true}
+    items, _, err := r.f.svc.ListProjectUsage(r.f.ctx, filters, pagination.PaginationParams{Page: 1, PageSize: 20})
+    require.NoError(t, err)
+    var count int64
+    for _, item := range items {
+        t.Logf("project=%q request_count=%d human_input_count=%d", item.Project, item.RequestCount, item.HumanInputCount)
+        count += item.HumanInputCount
+    }
+    require.Equal(t, int64(2), count, "distinct prompts must not be counted in both project rows")
+}

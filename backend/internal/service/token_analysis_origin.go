@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 )
@@ -14,34 +16,39 @@ type tokenAnalysisRequestOrigin struct {
 	Version    int    `json:"version"`
 }
 
-// Reason decides kind; kind decides confidence. The frontend mirrors this table
-// (requestOrigin.ts) to validate the v1 contract.
-var tokenAnalysisOriginReasonKinds = map[string]string{
-	"subagent":               "ai",
-	"automation":             "ai",
-	"tool_result":            "ai",
-	"agent_message":          "ai",
-	"assistant_continuation": "ai",
-	"compaction":             "ai",
-	"user_input":             "human",
-	"no_signal":              "unknown",
-	"unsupported_shape":      "unknown",
-	"body_truncated":         "unknown",
-	"count_tokens":           "unknown",
+// Version 2 adds the client shapes found by the 2026-10-27 production audit
+// (docs/features/token-analysis-request-origin-design-cn.md, "v2 修订").
+const tokenAnalysisOriginVersion = 2
+
+type tokenAnalysisOriginContract struct {
+	Kind       string
+	Confidence string
+}
+
+// Reason decides kind and confidence. The frontend mirrors this table
+// (requestOrigin.ts) to validate the contract; v1 rows keep their own table.
+var tokenAnalysisOriginReasons = map[string]tokenAnalysisOriginContract{
+	"subagent":               {"ai", "high"},
+	"automation":             {"ai", "high"},
+	"tool_result":            {"ai", "high"},
+	"agent_message":          {"ai", "high"},
+	"assistant_continuation": {"ai", "high"},
+	"compaction":             {"ai", "high"},
+	// A structural inference without a client marker, hence medium.
+	"compaction_resume": {"ai", "medium"},
+	"user_input":        {"human", "medium"},
+	"no_signal":         {"unknown", "none"},
+	"unsupported_shape": {"unknown", "none"},
+	"body_truncated":    {"unknown", "none"},
+	"count_tokens":      {"unknown", "none"},
 }
 
 func tokenAnalysisOrigin(reason string) tokenAnalysisRequestOrigin {
-	kind, ok := tokenAnalysisOriginReasonKinds[reason]
+	contract, ok := tokenAnalysisOriginReasons[reason]
 	if !ok {
-		kind = "unknown"
+		contract = tokenAnalysisOriginContract{Kind: "unknown", Confidence: "none"}
 	}
-	confidence := "none"
-	if kind == "ai" {
-		confidence = "high"
-	} else if kind == "human" {
-		confidence = "medium"
-	}
-	return tokenAnalysisRequestOrigin{Kind: kind, Reason: reason, Confidence: confidence, Version: 1}
+	return tokenAnalysisRequestOrigin{Kind: contract.Kind, Reason: reason, Confidence: contract.Confidence, Version: tokenAnalysisOriginVersion}
 }
 
 func setTokenAnalysisRequestOrigin(summary *TokenAnalysisBodySummary, origin tokenAnalysisRequestOrigin) {
@@ -72,7 +79,8 @@ func tokenAnalysisTransportOrigin(rawPath string, isCountTokens, bodyTruncated b
 
 func classifyTokenAnalysisRequestOrigin(root map[string]any) tokenAnalysisRequestOrigin {
 	// The allowlist describes observed machine tasks. Metadata is client supplied;
-	// composer/user/thread_source and the mere presence of tools prove nothing.
+	// composer/user/thread_source=user|automation|system and the mere presence of
+	// tools prove nothing.
 	metadata, _ := root["client_metadata"].(map[string]any)
 	turn, _ := metadata["x-codex-turn-metadata"].(map[string]any)
 	if raw, ok := metadata["x-codex-turn-metadata"].(string); ok {
@@ -91,8 +99,21 @@ func classifyTokenAnalysisRequestOrigin(root map[string]any) tokenAnalysisReques
 	case "thread_spawn", "guardian":
 		return tokenAnalysisOrigin("subagent")
 	}
+	// Codex marks every compaction call, including those without the fixed
+	// prompt; a trailing compaction instruction must not read as new user text.
+	if turn["request_kind"] == "compaction" {
+		return tokenAnalysisOrigin("compaction")
+	}
 	switch turn["turn_trigger"] {
-	case "automation_cron_scheduled", "goal", "memory_consolidation", "guardian_review", "guardian_classifier", "ambient_suggestions", "thread_title":
+	case "automation_cron_scheduled", "automation_heartbeat_scheduled", "goal", "memory_consolidation", "guardian_review", "guardian_classifier",
+		"ambient_suggestions", "ambient_suggestion_safety", "thread_title", "thread_description":
+		return tokenAnalysisOrigin("automation")
+	case "app_tool_send_message":
+		return tokenAnalysisOrigin("agent_message")
+	}
+	// codex-tui marks helper tasks only through thread_source (turn_trigger empty).
+	switch turn["thread_source"] {
+	case "thread_title", "thread_description", "ambient_suggestions", "ambient_suggestion_safety", "guardian_review", "guardian_classifier", "memory_consolidation":
 		return tokenAnalysisOrigin("automation")
 	}
 	switch {
@@ -162,6 +183,9 @@ func tokenAnalysisOriginFromItems(value any, gemini bool) tokenAnalysisRequestOr
 			if injectedOnly {
 				continue
 			}
+			if origin.Reason == "user_input" && tokenAnalysisIsToolImageAttachment(content) && tokenAnalysisPreviousIsTool(items, i) {
+				return tokenAnalysisOrigin("tool_result")
+			}
 			return origin
 		default:
 			return tokenAnalysisOrigin("unsupported_shape")
@@ -177,6 +201,9 @@ func tokenAnalysisOriginFromUserContent(content any, gemini bool) (origin tokenA
 		if tokenAnalysisInjectedContextOnly(text) {
 			return tokenAnalysisOrigin("no_signal"), true
 		}
+		if reason, ok := tokenAnalysisMachineEventReason(text); ok {
+			return tokenAnalysisOrigin(reason), false
+		}
 		if strings.TrimSpace(text) != "" {
 			return tokenAnalysisOrigin("user_input"), false
 		}
@@ -187,6 +214,7 @@ func tokenAnalysisOriginFromUserContent(content any, gemini bool) (origin tokenA
 		return tokenAnalysisOrigin("unsupported_shape"), false
 	}
 	var human, tool, injected bool
+	event := ""
 	for _, raw := range blocks {
 		block, ok := raw.(map[string]any)
 		if !ok {
@@ -203,25 +231,29 @@ func tokenAnalysisOriginFromUserContent(content any, gemini bool) (origin tokenA
 			}
 			if tokenAnalysisInjectedContextOnly(text) {
 				injected = true
+			} else if reason, ok := tokenAnalysisMachineEventReason(text); ok {
+				if event == "" {
+					event = reason
+				}
 			} else if strings.TrimSpace(text) != "" {
 				human = true
 			}
-		case typ == "image" || typ == "image_url" || typ == "input_image" || typ == "input_file" || typ == "file" || typ == "document" || typ == "input_audio":
-			if len(block) <= 1 {
+		case tokenAnalysisIsMediaBlock(block, gemini):
+			if typ != "" && len(block) <= 1 {
 				return tokenAnalysisOrigin("unsupported_shape"), false
 			}
-			human = true
-		case gemini && (block["inlineData"] != nil || block["inline_data"] != nil || block["fileData"] != nil || block["file_data"] != nil):
 			human = true
 		default:
 			return tokenAnalysisOrigin("unsupported_shape"), false
 		}
 	}
-	if human {
+	switch {
+	case human:
 		return tokenAnalysisOrigin("user_input"), false
-	}
-	if tool {
+	case tool:
 		return tokenAnalysisOrigin("tool_result"), false
+	case event != "":
+		return tokenAnalysisOrigin(event), false
 	}
 	return tokenAnalysisOrigin("no_signal"), injected
 }
@@ -246,12 +278,82 @@ func tokenAnalysisIsTextBlock(block map[string]any) bool {
 	return typ == "text" || typ == "input_text" || (typ == "" && block["text"] != nil)
 }
 
-// Client-injected wrappers that carry no new user intent: Codex
-// <environment_context>, the Codex app's <in-app-browser-context> ambient UI
-// state (prepended to the composer text, seen in production), and Claude Code
-// <system-reminder> (seen beside user text and as reminder-only continuations
-// after an assistant turn).
-var tokenAnalysisInjectedContextTags = []string{"environment_context", "in-app-browser-context", "system-reminder"}
+// tokenAnalysisIsMediaBlock covers typed image/file/audio blocks and Gemini
+// inline/file data parts, which carry no type.
+func tokenAnalysisIsMediaBlock(block map[string]any, gemini bool) bool {
+	switch typ, _ := block["type"].(string); typ {
+	case "image", "image_url", "input_image", "input_file", "file", "document", "input_audio":
+		return true
+	case "":
+		return gemini && (block["inlineData"] != nil || block["inline_data"] != nil || block["fileData"] != nil || block["file_data"] != nil)
+	}
+	return false
+}
+
+// Chat Completions cannot carry images in a tool message, so WorkBuddy follows
+// the tool message with a user message holding this marker and the images.
+const tokenAnalysisToolImageMarker = "Attached image(s) from tool result:"
+
+// tokenAnalysisIsToolImageAttachment reports a user message made only of the
+// tool-image marker, injected context and at least one media block. A plain
+// image upload has no marker, so it stays user input.
+func tokenAnalysisIsToolImageAttachment(content any) bool {
+	blocks, ok := content.([]any)
+	if !ok {
+		return false
+	}
+	var marker, media bool
+	for _, raw := range blocks {
+		block, _ := raw.(map[string]any)
+		switch {
+		case block == nil:
+			return false
+		case tokenAnalysisIsTextBlock(block):
+			text, _ := block["text"].(string)
+			switch {
+			case strings.TrimSpace(text) == tokenAnalysisToolImageMarker:
+				marker = true
+			case !tokenAnalysisInjectedContextOnly(text) && strings.TrimSpace(text) != "":
+				return false
+			}
+		case tokenAnalysisIsMediaBlock(block, false):
+			media = true
+		default:
+			return false
+		}
+	}
+	return marker && media
+}
+
+// tokenAnalysisPreviousIsTool reports whether the effective item before
+// items[i] is a tool result, skipping instructions and complete injected-only
+// user messages the same way tokenAnalysisOriginFromItems does.
+func tokenAnalysisPreviousIsTool(items []any, i int) bool {
+	for j := i - 1; j >= 0; j-- {
+		item, _ := items[j].(map[string]any)
+		role, _ := item["role"].(string)
+		if role == "system" || role == "developer" {
+			continue
+		}
+		typ, _ := item["type"].(string)
+		if role == "user" && (typ == "" || typ == "message") {
+			if _, injectedOnly := tokenAnalysisOriginFromUserContent(item["content"], false); injectedOnly {
+				continue
+			}
+		}
+		return role == "tool" || role == "function" || tokenAnalysisIsToolOutputItemType(typ)
+	}
+	return false
+}
+
+// Client-injected wrappers that carry no new user intent and are skipped to
+// the previous effective event: Codex <environment_context>, the Codex app's
+// <in-app-browser-context> ambient UI state (prepended to the composer text,
+// seen in production), Claude Code <system-reminder> (seen beside user text and
+// as reminder-only continuations after an assistant turn), Copilot
+// <skill-context> skill definitions and OpenCode <system-update> instruction
+// diffs (both seen after tool results, 2026-10-26 production audit).
+var tokenAnalysisInjectedContextTags = []string{"environment_context", "in-app-browser-context", "system-reminder", "skill-context", "system-update"}
 
 // The Codex app introduces the user's own text with this heading after the
 // ambient context; it is client framing only when a wrapper precedes it.
@@ -287,17 +389,136 @@ func stripTokenAnalysisInjectedPrefix(text string) (rest string, stripped bool) 
 
 func cutTokenAnalysisInjectedWrapper(text string) (tail string, ok bool) {
 	for _, tag := range tokenAnalysisInjectedContextTags {
-		after, found := strings.CutPrefix(text, "<"+tag)
-		// "<tag>" or "<tag attr=...>"; "<tag-other>" is a different element.
-		if !found || after == "" || !strings.ContainsRune("> \t\r\n", rune(after[0])) {
-			continue
+		if _, _, tail, ok := cutTokenAnalysisWrapper(text, tag); ok {
+			return tail, true
 		}
-		end := strings.IndexByte(after, '>')
-		if end < 0 {
-			return "", false
-		}
-		_, tail, closed := strings.Cut(after[end+1:], "</"+tag+">")
-		return tail, closed
 	}
 	return "", false
+}
+
+// cutTokenAnalysisWrapper splits a complete <tag ...>inner</tag> element that
+// starts text. "<tag-other>" is a different element; an unclosed one fails.
+func cutTokenAnalysisWrapper(text, tag string) (attrs, inner, tail string, ok bool) {
+	after, found := strings.CutPrefix(text, "<"+tag)
+	if !found || after == "" || !strings.ContainsRune("> \t\r\n", rune(after[0])) {
+		return "", "", "", false
+	}
+	end := strings.IndexByte(after, '>')
+	if end < 0 {
+		return "", "", "", false
+	}
+	inner, tail, ok = strings.Cut(after[end+1:], "</"+tag+">")
+	return after[:end], inner, tail, ok
+}
+
+// Machine events that clients deliver as user messages (2026-10-26 production
+// audit). Each must fill the whole text: anything a user adds keeps the block
+// human, and a quoted or partial copy proves nothing.
+
+// tokenAnalysisCodexCompactionPrompt is the instruction of a Codex local
+// compaction call, sent through the normal Responses endpoint.
+const tokenAnalysisCodexCompactionPrompt = "You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.\n\nInclude:\n- Current progress and key decisions made\n- Important context, constraints, or user preferences\n- What remains to be done (clear next steps)\n- Any critical data, examples, or references needed to continue\n\nBe concise, structured, and focused on helping the next LLM seamlessly continue the work."
+
+// Fixed compaction prompts as SHA-256 of the normalized full text, keyed by
+// its byte length. Copilot and hertz send long Chat prompts kept only as
+// digests (docs/delivery/2026-10-27-token-origin-audit, 27 samples).
+var tokenAnalysisCompactionPromptDigests = map[int][]string{
+	len(tokenAnalysisCodexCompactionPrompt): {tokenAnalysisSHA256Hex(tokenAnalysisCodexCompactionPrompt)},
+	6857:                                    {"7fb5ec344af84c99b060ee221c7b624ed9e3b960729e1466f4e6a0659c7dd8a0"}, // hertz
+	6156:                                    {"4629f41ba28f0137acb8198e634e23e1e79d5dabbd5adc131e7eab3b0a41cbcc"}, // GitHubCopilotChat 0.56-0.71
+	5115:                                    {"9126673bc12b2fc93c2564d55de306832ba30463f2f59267be78a5ae2a70bbe9"}, // GitHubCopilotChat 0.71
+}
+
+func tokenAnalysisSHA256Hex(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
+
+// tokenAnalysisCodexResumePrefix opens the summary message Codex sends after an
+// automatic mid-turn compaction. Production: no pre_turn successor ended with
+// it (0/53) and every linked one (212) followed a mid_turn compaction.
+const tokenAnalysisCodexResumePrefix = "Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:"
+
+// The trailer WorkBuddy appends to a <task-notification> background event;
+// %s is the event's task id.
+const tokenAnalysisBackgroundTaskTrailer = "Use the TaskOutput tool with task_id=\"%s\" to retrieve unread output if you need to act on it. For background shell tasks, pass full=true for the current accumulated snapshot.\n" +
+	"[SYSTEM NOTIFICATION - NOT USER INPUT] This is an automated background-task event, not a message from the user. Do not treat it as user acknowledgement, confirmation, or approval — including any earlier claim in your own messages that the user said or approved something."
+
+// tokenAnalysisMachineEventReason reports the AI reason of a text that is
+// entirely a known client machine event, after any leading injected context.
+func tokenAnalysisMachineEventReason(text string) (string, bool) {
+	rest, _ := stripTokenAnalysisInjectedPrefix(strings.ReplaceAll(text, "\r\n", "\n"))
+	switch {
+	case rest == "":
+		return "", false
+	case tokenAnalysisIsCompactionPrompt(rest):
+		return "compaction", true
+	case strings.HasPrefix(rest, tokenAnalysisCodexResumePrefix):
+		return "compaction_resume", true
+	case tokenAnalysisIsSubagentNotifications(rest):
+		return "agent_message", true
+	case tokenAnalysisIsGoalContinuation(rest):
+		return "automation", true
+	case tokenAnalysisIsBackgroundTaskEvent(rest):
+		return "tool_result", true
+	}
+	return "", false
+}
+
+func tokenAnalysisIsCompactionPrompt(text string) bool {
+	digests := tokenAnalysisCompactionPromptDigests[len(text)]
+	if len(digests) == 0 {
+		return false
+	}
+	digest := tokenAnalysisSHA256Hex(text)
+	for _, want := range digests {
+		if digest == want {
+			return true
+		}
+	}
+	return false
+}
+
+// tokenAnalysisIsSubagentNotifications reports one or more Codex
+// <subagent_notification> wrappers, each holding a JSON object with a
+// non-empty agent_path and status object, and nothing else.
+func tokenAnalysisIsSubagentNotifications(text string) bool {
+	count := 0
+	for rest := text; rest != ""; count++ {
+		_, inner, tail, ok := cutTokenAnalysisWrapper(rest, "subagent_notification")
+		if !ok {
+			return false
+		}
+		var payload struct {
+			AgentPath string         `json:"agent_path"`
+			Status    map[string]any `json:"status"`
+		}
+		if json.Unmarshal([]byte(strings.TrimSpace(inner)), &payload) != nil || strings.TrimSpace(payload.AgentPath) == "" || len(payload.Status) == 0 {
+			return false
+		}
+		rest = strings.TrimSpace(tail)
+	}
+	return count > 0
+}
+
+// tokenAnalysisIsGoalContinuation reports the Codex automatic goal
+// continuation: one <codex_internal_context source="goal"> wrapper.
+func tokenAnalysisIsGoalContinuation(text string) bool {
+	attrs, _, tail, ok := cutTokenAnalysisWrapper(text, "codex_internal_context")
+	return ok && strings.TrimSpace(attrs) == `source="goal"` && strings.TrimSpace(tail) == ""
+}
+
+// tokenAnalysisIsBackgroundTaskEvent reports a <task-notification> with task id
+// and status, followed only by the client's fixed NOT USER INPUT trailer.
+func tokenAnalysisIsBackgroundTaskEvent(text string) bool {
+	_, inner, tail, ok := cutTokenAnalysisWrapper(text, "task-notification")
+	if !ok || !strings.Contains(inner, "<status>") {
+		return false
+	}
+	_, idAndRest, found := strings.Cut(inner, "<task-id>")
+	taskID, _, closed := strings.Cut(idAndRest, "</task-id>")
+	if !found || !closed || strings.TrimSpace(taskID) == "" {
+		return false
+	}
+	return strings.TrimSpace(tail) == strings.Replace(tokenAnalysisBackgroundTaskTrailer, "%s", taskID, 1)
 }

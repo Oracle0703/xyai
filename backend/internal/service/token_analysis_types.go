@@ -241,7 +241,7 @@ type TokenAnalysisFilters struct {
 	Origin string `json:"origin,omitempty"`
 	// Project 按客户端项目过滤; 特殊值 "unattributed" 表示未归因(client_project 为空)。
 	Project string `json:"project,omitempty"`
-	// UserEmail 按成员邮箱模糊搜索, 仅作用于项目消耗排行与请求明细(两表均 JOIN users)。
+	// UserEmail 按成员邮箱模糊搜索, 作用于概览(含同期计费请求数)、用户/项目排行与请求明细(JOIN users)。
 	UserEmail string `json:"user_email,omitempty"`
 }
 
@@ -262,6 +262,9 @@ type TokenAnalysisSummary struct {
 	UnmatchedRate       float64                          `json:"unmatched_rate"`
 	RiskRequestRate     float64                          `json:"risk_request_rate"`
 	RiskReasons         []TokenAnalysisRiskReasonSummary `json:"risk_reasons"`
+	// HumanInputCount 估算人工输入次数: 人工标签行去掉短时重发的同一提示词
+	// (仓储 tokenAnalysisHumanInputCountExpr), 不证明真实操作次数。
+	HumanInputCount int64 `json:"human_input_count"`
 	// BilledRequests 为同期 usage_logs 计费请求数(只应用时间/用户/密钥/账号/
 	// 分组/模型过滤, endpoint/风险分/项目归因是归档侧维度不参与);
 	// ArchiveCoverage = MatchedRequests / BilledRequests, 用于呈现归档样本
@@ -282,6 +285,7 @@ type TokenAnalysisUserUsage struct {
 	APIKeyName          string     `json:"api_key_name"`
 	RequestCount        int64      `json:"request_count"`
 	RiskyRequestCount   int64      `json:"risky_request_count"`
+	HumanInputCount     int64      `json:"human_input_count"`
 	TotalTokens         int64      `json:"total_tokens"`
 	InputTokens         int64      `json:"input_tokens"`
 	OutputTokens        int64      `json:"output_tokens"`
@@ -301,6 +305,7 @@ type TokenAnalysisProjectUsage struct {
 	UserEmail           string     `json:"user_email"`
 	RequestCount        int64      `json:"request_count"`
 	MatchedRequestCount int64      `json:"matched_request_count"`
+	HumanInputCount     int64      `json:"human_input_count"`
 	TotalTokens         int64      `json:"total_tokens"`
 	InputTokens         int64      `json:"input_tokens"`
 	OutputTokens        int64      `json:"output_tokens"`

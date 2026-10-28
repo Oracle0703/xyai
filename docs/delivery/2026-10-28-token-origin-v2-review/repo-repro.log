@@ -1,0 +1,25 @@
+2026/10/28 03:08:17 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestCodexV2ReviewSummaryEmail
+    zz_codex_origin_v2_review_integration_test.go:22: unmatched email: ranking rows=0 summary total=1 human_input_count=1
+    zz_codex_origin_v2_review_integration_test.go:23: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/zz_codex_origin_v2_review_integration_test.go:23
+        	Error:      	Not equal: 
+        	            	expected: 0
+        	            	actual  : 1
+        	Test:       	TestCodexV2ReviewSummaryEmail
+        	Messages:   	summary must apply the same email filter
+--- FAIL: TestCodexV2ReviewSummaryEmail (0.04s)
+=== RUN   TestCodexV2ReviewProjectBucketCollision
+    zz_codex_origin_v2_review_integration_test.go:35: project="unattributed" request_count=1 human_input_count=2
+    zz_codex_origin_v2_review_integration_test.go:35: project="unattributed" request_count=1 human_input_count=2
+    zz_codex_origin_v2_review_integration_test.go:38: 
+        	Error Trace:	E:/allsite/xyai/backend/internal/repository/zz_codex_origin_v2_review_integration_test.go:38
+        	Error:      	Not equal: 
+        	            	expected: 2
+        	            	actual  : 4
+        	Test:       	TestCodexV2ReviewProjectBucketCollision
+        	Messages:   	distinct prompts must not be counted in both project rows
+--- FAIL: TestCodexV2ReviewProjectBucketCollision (0.02s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	1.243s
+FAIL

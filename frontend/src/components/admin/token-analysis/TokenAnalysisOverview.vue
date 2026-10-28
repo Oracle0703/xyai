@@ -175,7 +175,8 @@ const metrics = computed(() => {
       rows: [
         { label: t('admin.tokenAnalysis.summary.billedRequests'), value: formatRequestMetric(s?.billed_requests), title: formatInteger(s?.billed_requests) },
         { label: t('admin.tokenAnalysis.matchedUnmatched'), value: `${formatInteger(s?.matched_requests)} / ${formatInteger(s?.unmatched_requests)}` },
-        { label: t('admin.tokenAnalysis.unmatchedRate'), value: percent(s?.unmatched_rate) }
+        { label: t('admin.tokenAnalysis.unmatchedRate'), value: percent(s?.unmatched_rate) },
+        { label: t('admin.tokenAnalysis.summary.humanInputs'), value: formatRequestMetric(s?.human_input_count), title: t('admin.tokenAnalysis.help.humanInputs') }
       ] as MetricRow[]
     },
     {

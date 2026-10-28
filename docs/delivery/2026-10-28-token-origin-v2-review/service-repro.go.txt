@@ -1,0 +1,20 @@
+package service
+
+import (
+    "testing"
+    "github.com/stretchr/testify/require"
+)
+
+func TestCodexV2ReviewToolImageInjectedPredecessor(t *testing.T) {
+    root := map[string]any{"messages": []any{
+        map[string]any{"role": "tool", "content": "ok"},
+        map[string]any{"role": "user", "content": "<system-reminder>context only</system-reminder>"},
+        map[string]any{"role": "user", "content": []any{
+            map[string]any{"type": "text", "text": tokenAnalysisToolImageMarker},
+            map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,AA=="}},
+        }},
+    }}
+    got := classifyTokenAnalysisRequestOrigin(root)
+    t.Logf("tool -> injected-only user -> marked tool image: origin=%+v", got)
+    require.Equal(t, tokenAnalysisOrigin("tool_result"), got)
+}

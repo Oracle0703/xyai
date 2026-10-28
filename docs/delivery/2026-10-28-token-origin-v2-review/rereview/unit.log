@@ -1,0 +1,607 @@
+2026/10/28 03:30:23 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestTokenAnalysisListArchiveFilesTagsDeletable
+--- PASS: TestTokenAnalysisListArchiveFilesTagsDeletable (0.01s)
+=== RUN   TestTokenAnalysisAutoIndexIndexesToday
+2026/10/28 03:30:23 [TokenAnalysisAutoIndex] indexed=1 skipped=0 failed=0 files=1
+--- PASS: TestTokenAnalysisAutoIndexIndexesToday (0.02s)
+=== RUN   TestTokenAnalysisAutoIndexStopCancelsRunningRound
+--- PASS: TestTokenAnalysisAutoIndexStopCancelsRunningRound (0.00s)
+=== RUN   TestTokenAnalysisIndexRangeAsyncRunsInBackground
+2026/10/28 03:30:23 [TokenAnalysisIndex] manual indexed=1 skipped=0 failed=0 files=1
+--- PASS: TestTokenAnalysisIndexRangeAsyncRunsInBackground (0.01s)
+=== RUN   TestTokenAnalysisIndexRangeAsyncConflictsWhileRunning
+--- PASS: TestTokenAnalysisIndexRangeAsyncConflictsWhileRunning (0.00s)
+=== RUN   TestTokenAnalysisAutoIndexDisabled
+--- PASS: TestTokenAnalysisAutoIndexDisabled (0.00s)
+=== RUN   TestSelectTokenAnalysisPrefixEdges
+--- PASS: TestSelectTokenAnalysisPrefixEdges (0.00s)
+=== RUN   TestTokenAnalysisIndexerComputesCandidateEdges
+--- PASS: TestTokenAnalysisIndexerComputesCandidateEdges (0.00s)
+=== RUN   TestTokenAnalysisRematchCandidates
+--- PASS: TestTokenAnalysisRematchCandidates (0.00s)
+=== RUN   TestReadTokenAnalysisArchiveRequestRehashesBody
+--- PASS: TestReadTokenAnalysisArchiveRequestRehashesBody (0.00s)
+=== RUN   TestTokenAnalysisArchiveLineLimitCoversEscapedBody
+--- PASS: TestTokenAnalysisArchiveLineLimitCoversEscapedBody (0.00s)
+=== RUN   TestReadTokenAnalysisLineEndingAt
+--- PASS: TestReadTokenAnalysisLineEndingAt (0.00s)
+=== RUN   TestTokenAnalysisObserveCache
+--- PASS: TestTokenAnalysisObserveCache (0.00s)
+=== RUN   TestTokenAnalysisClassifyEligibleFullPrefixAmount
+--- PASS: TestTokenAnalysisClassifyEligibleFullPrefixAmount (0.00s)
+=== RUN   TestTokenAnalysisClassifyAmountRequiresExactPrice
+=== RUN   TestTokenAnalysisClassifyAmountRequiresExactPrice/no_cache_read
+=== RUN   TestTokenAnalysisClassifyAmountRequiresExactPrice/prefix_minus_tail
+=== RUN   TestTokenAnalysisClassifyAmountRequiresExactPrice/parent_cache_write
+=== RUN   TestTokenAnalysisClassifyAmountRequiresExactPrice/image
+--- PASS: TestTokenAnalysisClassifyAmountRequiresExactPrice (0.00s)
+    --- PASS: TestTokenAnalysisClassifyAmountRequiresExactPrice/no_cache_read (0.00s)
+    --- PASS: TestTokenAnalysisClassifyAmountRequiresExactPrice/prefix_minus_tail (0.00s)
+    --- PASS: TestTokenAnalysisClassifyAmountRequiresExactPrice/parent_cache_write (0.00s)
+    --- PASS: TestTokenAnalysisClassifyAmountRequiresExactPrice/image (0.00s)
+=== RUN   TestTokenAnalysisClassifyGateOrder
+=== RUN   TestTokenAnalysisClassifyGateOrder/cache_key_gateway
+=== RUN   TestTokenAnalysisClassifyGateOrder/parent_root_differs
+=== RUN   TestTokenAnalysisClassifyGateOrder/cache_key_client
+=== RUN   TestTokenAnalysisClassifyGateOrder/beyond_reuse_window
+=== RUN   TestTokenAnalysisClassifyGateOrder/parent_pending
+=== RUN   TestTokenAnalysisClassifyGateOrder/parent_unusable
+=== RUN   TestTokenAnalysisClassifyGateOrder/parent_completion_missing
+=== RUN   TestTokenAnalysisClassifyGateOrder/account_changed
+=== RUN   TestTokenAnalysisClassifyGateOrder/child_items_rewritten
+=== RUN   TestTokenAnalysisClassifyGateOrder/usage_not_upstream
+=== RUN   TestTokenAnalysisClassifyGateOrder/parent_overlapping
+=== RUN   TestTokenAnalysisClassifyGateOrder/history_path
+=== RUN   TestTokenAnalysisClassifyGateOrder/plugin_path
+=== RUN   TestTokenAnalysisClassifyGateOrder/model_changed
+=== RUN   TestTokenAnalysisClassifyGateOrder/continuation_ref
+=== RUN   TestTokenAnalysisClassifyGateOrder/prompt_hash_missing
+--- PASS: TestTokenAnalysisClassifyGateOrder (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/cache_key_gateway (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/parent_root_differs (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/cache_key_client (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/beyond_reuse_window (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/parent_pending (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/parent_unusable (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/parent_completion_missing (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/account_changed (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/child_items_rewritten (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/usage_not_upstream (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/parent_overlapping (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/history_path (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/plugin_path (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/model_changed (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/continuation_ref (0.00s)
+    --- PASS: TestTokenAnalysisClassifyGateOrder/prompt_hash_missing (0.00s)
+=== RUN   TestTokenAnalysisClassifyNoCandidate
+--- PASS: TestTokenAnalysisClassifyNoCandidate (0.00s)
+=== RUN   TestTokenAnalysisClassifyPendingStates
+--- PASS: TestTokenAnalysisClassifyPendingStates (0.00s)
+=== RUN   TestTokenAnalysisClassifyWalksAncestors
+--- PASS: TestTokenAnalysisClassifyWalksAncestors (0.00s)
+=== RUN   TestTokenAnalysisClassifyWalkBudget
+--- PASS: TestTokenAnalysisClassifyWalkBudget (0.00s)
+=== RUN   TestTokenAnalysisClassificationBatchLoadsFacts
+--- PASS: TestTokenAnalysisClassificationBatchLoadsFacts (0.00s)
+=== RUN   TestTokenAnalysisClassificationSweepCursor
+--- PASS: TestTokenAnalysisClassificationSweepCursor (0.00s)
+=== RUN   TestTokenAnalysisTextOnlySummaryKeepsExactPrice
+--- PASS: TestTokenAnalysisTextOnlySummaryKeepsExactPrice (0.00s)
+=== RUN   TestTokenAnalysisToolOutputImageBlocksExactPrice
+--- PASS: TestTokenAnalysisToolOutputImageBlocksExactPrice (0.00s)
+=== RUN   TestTokenAnalysisAmountRoundsOnlyOnce
+--- PASS: TestTokenAnalysisAmountRoundsOnlyOnce (0.00s)
+=== RUN   TestTokenAnalysisClientFamilyDefaultRules
+--- PASS: TestTokenAnalysisClientFamilyDefaultRules (0.00s)
+=== RUN   TestTokenAnalysisClientFamilyCustomRulesReplaceDefaults
+--- PASS: TestTokenAnalysisClientFamilyCustomRulesReplaceDefaults (0.00s)
+=== RUN   TestTokenAnalysisClientFamilyVersion
+--- PASS: TestTokenAnalysisClientFamilyVersion (0.00s)
+=== RUN   TestTokenAnalysisAgentFamily
+--- PASS: TestTokenAnalysisAgentFamily (0.00s)
+=== RUN   TestNormalizeTokenAnalysisUserAgent
+--- PASS: TestNormalizeTokenAnalysisUserAgent (0.00s)
+=== RUN   TestTokenAnalysisRefreshClientFamiliesCursorAndRecheck
+--- PASS: TestTokenAnalysisRefreshClientFamiliesCursorAndRecheck (0.00s)
+=== RUN   TestTokenAnalysisRefreshClientFamiliesSkipsChangedRows
+--- PASS: TestTokenAnalysisRefreshClientFamiliesSkipsChangedRows (0.00s)
+=== RUN   TestTokenAnalysisCanonicalDigest
+--- PASS: TestTokenAnalysisCanonicalDigest (0.00s)
+=== RUN   TestParseTokenAnalysisRequestBodyRejectsTrailingData
+--- PASS: TestParseTokenAnalysisRequestBodyRejectsTrailingData (0.00s)
+=== RUN   TestTokenAnalysisFingerprintAppendOnlyChain
+--- PASS: TestTokenAnalysisFingerprintAppendOnlyChain (0.00s)
+=== RUN   TestTokenAnalysisFingerprintFieldDivision
+--- PASS: TestTokenAnalysisFingerprintFieldDivision (0.00s)
+=== RUN   TestTokenAnalysisFingerprintMetadataFields
+--- PASS: TestTokenAnalysisFingerprintMetadataFields (0.00s)
+=== RUN   TestTokenAnalysisFingerprintUnsupported
+--- PASS: TestTokenAnalysisFingerprintUnsupported (0.00s)
+=== RUN   TestTokenAnalysisFingerprintVersion
+--- PASS: TestTokenAnalysisFingerprintVersion (0.00s)
+=== RUN   TestClassifyTokenAnalysisCacheKeyHandling
+--- PASS: TestClassifyTokenAnalysisCacheKeyHandling (0.00s)
+=== RUN   TestTokenAnalysisNativeForwardFacts
+--- PASS: TestTokenAnalysisNativeForwardFacts (0.00s)
+=== RUN   TestTokenAnalysisForwardFactsResetPerAttempt
+--- PASS: TestTokenAnalysisForwardFactsResetPerAttempt (0.00s)
+=== RUN   TestTokenAnalysisKeyedHashIsUnambiguous
+--- PASS: TestTokenAnalysisKeyedHashIsUnambiguous (0.00s)
+=== RUN   TestValidTokenAnalysisForwardFacts
+--- PASS: TestValidTokenAnalysisForwardFacts (0.00s)
+=== RUN   TestTokenAnalysisForwardFactsPluginTransport
+=== RUN   TestTokenAnalysisForwardFactsPluginTransport/plugin_standard
+=== RUN   TestTokenAnalysisForwardFactsPluginTransport/plugin_passthrough
+2026/10/28 03:30:23 [OpenAI 自动透传] 命中自动透传分支: account=4502 name= type=oauth model=gpt-5.2 stream=true
+=== RUN   TestTokenAnalysisForwardFactsPluginTransport/plugin_miss
+--- PASS: TestTokenAnalysisForwardFactsPluginTransport (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsPluginTransport/plugin_standard (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsPluginTransport/plugin_passthrough (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsPluginTransport/plugin_miss (0.00s)
+=== RUN   TestTokenAnalysisForwardFactsThroughForward
+=== RUN   TestTokenAnalysisForwardFactsThroughForward/standard
+=== RUN   TestTokenAnalysisForwardFactsThroughForward/passthrough
+2026/10/28 03:30:23 [OpenAI 自动透传] 命中自动透传分支: account=4501 name= type=oauth model=gpt-5.2 stream=true
+--- PASS: TestTokenAnalysisForwardFactsThroughForward (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsThroughForward/standard (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsThroughForward/passthrough (0.00s)
+=== RUN   TestTokenAnalysisForwardFactsHashExactCacheKey
+=== RUN   TestTokenAnalysisForwardFactsHashExactCacheKey/standard
+=== RUN   TestTokenAnalysisForwardFactsHashExactCacheKey/passthrough
+2026/10/28 03:30:23 [OpenAI 自动透传] 命中自动透传分支: account=5151 name=openai-image-controls type=apikey model=gpt-5.6-sol stream=false
+2026/10/28 03:30:23 [OpenAI 自动透传] 命中自动透传分支: account=5151 name=openai-image-controls type=apikey model=gpt-5.6-sol stream=false
+--- PASS: TestTokenAnalysisForwardFactsHashExactCacheKey (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsHashExactCacheKey/standard (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsHashExactCacheKey/passthrough (0.00s)
+=== RUN   TestTokenAnalysisForwardFactsDetectRewrittenRetryPrompt
+2026/10/28 03:30:23 [OpenAI] Retrying non-WSv2 request once after invalid_encrypted_content (account: synthetic-openai)
+--- PASS: TestTokenAnalysisForwardFactsDetectRewrittenRetryPrompt (0.00s)
+=== RUN   TestTokenAnalysisForwardFactsHashBuilderFinalBody
+=== RUN   TestTokenAnalysisForwardFactsHashBuilderFinalBody/standard
+=== RUN   TestTokenAnalysisForwardFactsHashBuilderFinalBody/passthrough
+2026/10/28 03:30:23 [OpenAI 自动透传] 命中自动透传分支: account=18 name=openai-deepseek-responses type=apikey model=deepseek-flash stream=false
+--- PASS: TestTokenAnalysisForwardFactsHashBuilderFinalBody (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsHashBuilderFinalBody/standard (0.00s)
+    --- PASS: TestTokenAnalysisForwardFactsHashBuilderFinalBody/passthrough (0.00s)
+=== RUN   TestTokenAnalysisIndexerIndexesOnlyRequestEvents
+--- PASS: TestTokenAnalysisIndexerIndexesOnlyRequestEvents (0.00s)
+=== RUN   TestTokenAnalysisIndexerResumesFromStoredOffset
+--- PASS: TestTokenAnalysisIndexerResumesFromStoredOffset (0.00s)
+=== RUN   TestTokenAnalysisIndexerSkipsIncompleteTrailingJSONLine
+--- PASS: TestTokenAnalysisIndexerSkipsIncompleteTrailingJSONLine (0.00s)
+=== RUN   TestTokenAnalysisIndexerExtractsProjectAttribution
+--- PASS: TestTokenAnalysisIndexerExtractsProjectAttribution (0.00s)
+=== RUN   TestTokenAnalysisIndexerStopsScanningSkippedLinesAfterCancel
+--- PASS: TestTokenAnalysisIndexerStopsScanningSkippedLinesAfterCancel (0.00s)
+=== RUN   TestTokenAnalysisIndexerStoresUserInput
+--- PASS: TestTokenAnalysisIndexerStoresUserInput (0.00s)
+=== RUN   TestTokenAnalysisIndexerUserInputHashNotRawFingerprint
+--- PASS: TestTokenAnalysisIndexerUserInputHashNotRawFingerprint (0.00s)
+=== RUN   TestTokenAnalysisIndexerSkipsUserInputWhenDisabled
+--- PASS: TestTokenAnalysisIndexerSkipsUserInputWhenDisabled (0.00s)
+=== RUN   TestTokenAnalysisIndexerDegradesTruncatedBodyToMetadata
+--- PASS: TestTokenAnalysisIndexerDegradesTruncatedBodyToMetadata (0.00s)
+=== RUN   TestTokenAnalysisIndexerSkipsUsageMatchForCountTokens
+--- PASS: TestTokenAnalysisIndexerSkipsUsageMatchForCountTokens (0.00s)
+=== RUN   TestTokenAnalysisIndexerIndexesMultipartImageEditRow
+--- PASS: TestTokenAnalysisIndexerIndexesMultipartImageEditRow (0.00s)
+=== RUN   TestTokenAnalysisIndexerUpgradesTruncatedMultipartRow
+--- PASS: TestTokenAnalysisIndexerUpgradesTruncatedMultipartRow (0.00s)
+=== RUN   TestTokenAnalysisIndexerCountsUntruncatedBadBodyAsFailed
+--- PASS: TestTokenAnalysisIndexerCountsUntruncatedBadBodyAsFailed (0.00s)
+=== RUN   TestTokenAnalysisIndexerStripsNULFromArchiveText
+--- PASS: TestTokenAnalysisIndexerStripsNULFromArchiveText (0.00s)
+=== RUN   TestTokenAnalysisIndexerSanitizesLastErrorNUL
+--- PASS: TestTokenAnalysisIndexerSanitizesLastErrorNUL (0.00s)
+=== RUN   TestTokenAnalysisIndexerNULInEveryFieldStillIndexesClean
+--- PASS: TestTokenAnalysisIndexerNULInEveryFieldStillIndexesClean (0.00s)
+=== RUN   TestTokenAnalysisServiceGetUserInputNotFound
+--- PASS: TestTokenAnalysisServiceGetUserInputNotFound (0.00s)
+=== RUN   TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty
+=== RUN   TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/confirmed_empty_clears_stale_input
+=== RUN   TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/truncated_archive_keeps_history
+=== RUN   TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/degraded_multipart_keeps_history
+=== RUN   TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/input_store_disabled_keeps_history
+--- PASS: TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty (0.00s)
+    --- PASS: TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/confirmed_empty_clears_stale_input (0.00s)
+    --- PASS: TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/truncated_archive_keeps_history (0.00s)
+    --- PASS: TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/degraded_multipart_keeps_history (0.00s)
+    --- PASS: TestTokenAnalysisIndexerReindexClearsStaleUserInputOnlyWhenConfirmedEmpty/input_store_disabled_keeps_history (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/responses_tool_output_(#23)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/custom_tool_output
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/tool_search_output
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/agent_message_(#15)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/agent_message_then_environment_(#5)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/assistant_continuation
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/reasoning_continuation
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/compaction_trigger
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/compaction_item
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/new_user_after_tools
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/responses_string
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/chat_tool
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/copilot_request_after_tool_history_(#210)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/legacy_function
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/anthropic_tool_plus_system_footer_(#230)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/mixed_tool_and_new_human_text
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/image_only
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/structured_json_plus_image_stays_human_(#193)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/document_only
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/image_prompt
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/numeric_prompt
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_tool
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_snake_case_tool
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_new_user
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_model
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_image
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_and_developer_footers_(#2/#153)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/developer_additional_tools_is_skipped_(#184)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_after_human
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_only
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/quoted_environment_tag
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_followed_by_instruction
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unknown_trailing_event
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unknown_trailing_user_block
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unknown_mixed_block
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/empty_trailing_user
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/missing_role
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/non_object_trailing_item
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/only_instructions
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/empty_input
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/tool_result_with_stacked_reminders
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/tool_result_with_reminder_and_new_text
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/prompt_with_context_reminders_(prod_history)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/reminder-only_user_after_assistant_(prod_history)
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_and_reminder_in_one_block
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/quoted_reminder_tag
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unclosed_reminder
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/ambient_context_only_after_assistant
+=== RUN   TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/different_tag_sharing_the_prefix
+--- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput (0.01s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/responses_tool_output_(#23) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/custom_tool_output (0.01s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/tool_search_output (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/agent_message_(#15) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/agent_message_then_environment_(#5) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/assistant_continuation (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/reasoning_continuation (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/compaction_trigger (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/compaction_item (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/new_user_after_tools (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/responses_string (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/chat_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/copilot_request_after_tool_history_(#210) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/legacy_function (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/anthropic_tool_plus_system_footer_(#230) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/mixed_tool_and_new_human_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/image_only (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/structured_json_plus_image_stays_human_(#193) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/document_only (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/image_prompt (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/numeric_prompt (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_snake_case_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_new_user (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_model (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/gemini_image (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_and_developer_footers_(#2/#153) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/developer_additional_tools_is_skipped_(#184) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_after_human (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_only (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/quoted_environment_tag (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_followed_by_instruction (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unknown_trailing_event (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unknown_trailing_user_block (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unknown_mixed_block (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/empty_trailing_user (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/missing_role (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/non_object_trailing_item (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/only_instructions (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/empty_input (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/tool_result_with_stacked_reminders (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/tool_result_with_reminder_and_new_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/prompt_with_context_reminders_(prod_history) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/reminder-only_user_after_assistant_(prod_history) (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/environment_and_reminder_in_one_block (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/quoted_reminder_tag (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/unclosed_reminder (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/ambient_context_only_after_assistant (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginUsesLatestEffectiveInput/different_tag_sharing_the_prefix (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginProductionAmbientContextTurn
+--- PASS: TestTokenAnalysisRequestOriginProductionAmbientContextTurn (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginContractFollowsReason
+--- PASS: TestTokenAnalysisRequestOriginContractFollowsReason (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginMetadataIsAllowlisted
+--- PASS: TestTokenAnalysisRequestOriginMetadataIsAllowlisted (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/truncated_user_text
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/truncated_tool_output
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/truncated_subagent
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/truncated_unparsable
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/truncated_multipart
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/truncation_beats_compaction
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/raw_compact_path
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/count_tokens
+=== RUN   TestTokenAnalysisRequestOriginTransportOverrides/count_tokens_beats_truncation
+--- PASS: TestTokenAnalysisRequestOriginTransportOverrides (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/truncated_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/truncated_tool_output (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/truncated_subagent (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/truncated_unparsable (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/truncated_multipart (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/truncation_beats_compaction (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/raw_compact_path (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/count_tokens (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginTransportOverrides/count_tokens_beats_truncation (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginMultipart
+--- PASS: TestTokenAnalysisRequestOriginMultipart (0.00s)
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/codex_compaction_prompt
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/codex_compaction_prompt_with_CRLF
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/compaction_prompt_plus_user_request
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/compaction_prompt_quoted
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/compaction_prompt_split_across_blocks
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_after_mid-turn_compaction
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_then_environment
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/new_request_after_resume_summary
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_plus_text_block
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_plus_image
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/resume_prefix_quoted
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/subagent_notification_after_tool
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/two_subagent_notifications
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/notification_plus_user_text
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/notification_with_invalid_json
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/notification_without_agent_path
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/notification_with_string_status
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/goal_continuation
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/internal_context_from_another_source
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/goal_continuation_plus_user_text
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/background_task_event
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/background_task_trailer_for_another_task
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/background_task_event_plus_user_text
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/task_notification_without_trailer
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/copilot_skill_definition_after_tool
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/stacked_skill_definitions_after_tool
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/skill_definition_after_user_request
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/skill_definition_plus_user_text
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/unclosed_skill_definition
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/opencode_system_update_after_tool
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_result_images
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_image_marker_without_tool
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_image_marker_without_image
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_image_marker_plus_user_text
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/bare_image_after_tool
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_injected_context
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_stacked_injected_context
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_user_text
+=== RUN   TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_notification
+--- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/codex_compaction_prompt (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/codex_compaction_prompt_with_CRLF (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/compaction_prompt_plus_user_request (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/compaction_prompt_quoted (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/compaction_prompt_split_across_blocks (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_after_mid-turn_compaction (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_then_environment (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/new_request_after_resume_summary (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_plus_text_block (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/resume_summary_plus_image (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/resume_prefix_quoted (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/subagent_notification_after_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/two_subagent_notifications (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/notification_plus_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/notification_with_invalid_json (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/notification_without_agent_path (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/notification_with_string_status (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/goal_continuation (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/internal_context_from_another_source (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/goal_continuation_plus_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/background_task_event (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/background_task_trailer_for_another_task (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/background_task_event_plus_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/task_notification_without_trailer (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/copilot_skill_definition_after_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/stacked_skill_definitions_after_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/skill_definition_after_user_request (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/skill_definition_plus_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/unclosed_skill_definition (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/opencode_system_update_after_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_result_images (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_image_marker_without_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_image_marker_without_image (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_image_marker_plus_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/bare_image_after_tool (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_injected_context (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_stacked_injected_context (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_user_text (0.00s)
+    --- PASS: TestTokenAnalysisRequestOriginV2ProductionShapes/tool_images_after_notification (0.00s)
+=== RUN   TestTokenAnalysisCompactionPromptDigestsAreWellFormed
+--- PASS: TestTokenAnalysisCompactionPromptDigestsAreWellFormed (0.00s)
+=== RUN   TestTokenAnalysisRiskHugeInputTinyOutput
+--- PASS: TestTokenAnalysisRiskHugeInputTinyOutput (0.00s)
+=== RUN   TestTokenAnalysisRiskRepeatUncachedBody
+--- PASS: TestTokenAnalysisRiskRepeatUncachedBody (0.00s)
+=== RUN   TestTokenAnalysisRiskCapsAt100
+--- PASS: TestTokenAnalysisRiskCapsAt100 (0.00s)
+=== RUN   TestTokenAnalysisRiskLargeToolHistory
+--- PASS: TestTokenAnalysisRiskLargeToolHistory (0.00s)
+=== RUN   TestTokenAnalysisGetSummaryForcesUnmatchedAndComputesCoverage
+--- PASS: TestTokenAnalysisGetSummaryForcesUnmatchedAndComputesCoverage (0.00s)
+=== RUN   TestTokenAnalysisGetSummaryZeroBilledRequestsKeepsCoverageZero
+--- PASS: TestTokenAnalysisGetSummaryZeroBilledRequestsKeepsCoverageZero (0.00s)
+=== RUN   TestTokenAnalysisSanitizersStripNUL
+--- PASS: TestTokenAnalysisSanitizersStripNUL (0.00s)
+=== RUN   TestTokenAnalysisSummarizeChatCompletionsSanitizesPreview
+--- PASS: TestTokenAnalysisSummarizeChatCompletionsSanitizesPreview (0.00s)
+=== RUN   TestTokenAnalysisSummarizeChatCompletionsToolOutputMetrics
+--- PASS: TestTokenAnalysisSummarizeChatCompletionsToolOutputMetrics (0.00s)
+=== RUN   TestTokenAnalysisSummarizeClaudeMessages
+--- PASS: TestTokenAnalysisSummarizeClaudeMessages (0.00s)
+=== RUN   TestTokenAnalysisSummarizeCountsCodexAdditionalTools
+--- PASS: TestTokenAnalysisSummarizeCountsCodexAdditionalTools (0.00s)
+=== RUN   TestTokenAnalysisSummarizeGeminiContents
+--- PASS: TestTokenAnalysisSummarizeGeminiContents (0.00s)
+=== RUN   TestTokenAnalysisSummarizeKeepsRawLastUserText
+--- PASS: TestTokenAnalysisSummarizeKeepsRawLastUserText (0.00s)
+=== RUN   TestTokenAnalysisSummarizeMultipartImageEdit
+--- PASS: TestTokenAnalysisSummarizeMultipartImageEdit (0.00s)
+=== RUN   TestTokenAnalysisSummarizeMultipartTruncatedStillExtractsTextFields
+--- PASS: TestTokenAnalysisSummarizeMultipartTruncatedStillExtractsTextFields (0.00s)
+=== RUN   TestTokenAnalysisSummarizeMultipartBoundaryFallbackFromBody
+--- PASS: TestTokenAnalysisSummarizeMultipartBoundaryFallbackFromBody (0.00s)
+=== RUN   TestTokenAnalysisSummarizeMultipartRejectsNonMultipart
+--- PASS: TestTokenAnalysisSummarizeMultipartRejectsNonMultipart (0.00s)
+=== RUN   TestTokenAnalysisSummarizeMultipartGarbageDegrades
+--- PASS: TestTokenAnalysisSummarizeMultipartGarbageDegrades (0.00s)
+=== RUN   TestSanitizeTokenAnalysisInputTextPreservesFormatting
+--- PASS: TestSanitizeTokenAnalysisInputTextPreservesFormatting (0.00s)
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/responses_trailing_assistant
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/responses_codex_tool_loop
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/claude_tool_loop
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/claude_reminder-only_message_after_assistant
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/chat_reminder_string_after_prompt
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/copilot_skill_definition_after_tool
+=== RUN   TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/gemini_function_response
+--- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/responses_trailing_assistant (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/responses_codex_tool_loop (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/claude_tool_loop (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/claude_reminder-only_message_after_assistant (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/chat_reminder_string_after_prompt (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/copilot_skill_definition_after_tool (0.00s)
+    --- PASS: TestTokenAnalysisSummarizePreviewUsesUserAuthoredText/gemini_function_response (0.00s)
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/ambient_context_then_request
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/stacked_wrappers
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/environment_then_instruction
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/heading_without_wrapper_is_user_text
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/quoted_tag_mid_text
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/unclosed_wrapper
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/different_tag_sharing_the_prefix
+=== RUN   TestTokenAnalysisSummarizeStripsLeadingClientContext/wrapper_after_user_text
+--- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/ambient_context_then_request (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/stacked_wrappers (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/environment_then_instruction (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/heading_without_wrapper_is_user_text (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/quoted_tag_mid_text (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/unclosed_wrapper (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/different_tag_sharing_the_prefix (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeStripsLeadingClientContext/wrapper_after_user_text (0.00s)
+=== RUN   TestTokenAnalysisSummarizeToolOutputsAcrossProtocols
+=== RUN   TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/anthropic_tool_result_is_not_user_text
+=== RUN   TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/responses_tool_outputs_and_non-user_items
+=== RUN   TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/responses_tool_search_output_carries_tools
+=== RUN   TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/gemini_functionResponse
+=== RUN   TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/chat_legacy_function_role
+--- PASS: TestTokenAnalysisSummarizeToolOutputsAcrossProtocols (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/anthropic_tool_result_is_not_user_text (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/responses_tool_outputs_and_non-user_items (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/responses_tool_search_output_carries_tools (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/gemini_functionResponse (0.00s)
+    --- PASS: TestTokenAnalysisSummarizeToolOutputsAcrossProtocols/chat_legacy_function_role (0.00s)
+=== RUN   TestTokenAnalysisToolCountNamespaceChildren
+=== RUN   TestTokenAnalysisToolCountNamespaceChildren/empty_namespace
+=== RUN   TestTokenAnalysisToolCountNamespaceChildren/children_only
+=== RUN   TestTokenAnalysisToolCountNamespaceChildren/empty_tools_falls_back
+=== RUN   TestTokenAnalysisToolCountNamespaceChildren/tools_win_over_children
+=== RUN   TestTokenAnalysisToolCountNamespaceChildren/children_on_non-namespace_ignored
+--- PASS: TestTokenAnalysisToolCountNamespaceChildren (0.00s)
+    --- PASS: TestTokenAnalysisToolCountNamespaceChildren/empty_namespace (0.00s)
+    --- PASS: TestTokenAnalysisToolCountNamespaceChildren/children_only (0.00s)
+    --- PASS: TestTokenAnalysisToolCountNamespaceChildren/empty_tools_falls_back (0.00s)
+    --- PASS: TestTokenAnalysisToolCountNamespaceChildren/tools_win_over_children (0.00s)
+    --- PASS: TestTokenAnalysisToolCountNamespaceChildren/children_on_non-namespace_ignored (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageWaitsForCompletionBeforeTiming
+--- PASS: TestTokenAnalysisLinkUsageWaitsForCompletionBeforeTiming (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageRescoresRisk
+--- PASS: TestTokenAnalysisLinkUsageRescoresRisk (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageReleasedBillIsClaimedNextRound
+--- PASS: TestTokenAnalysisLinkUsageReleasedBillIsClaimedNextRound (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageUnlinksUnconfirmedLegacyLink
+--- PASS: TestTokenAnalysisLinkUsageUnlinksUnconfirmedLegacyLink (0.00s)
+=== RUN   TestTokenAnalysisListRequestsShowsEveryArchivedRequestWithLinkStatus
+--- PASS: TestTokenAnalysisListRequestsShowsEveryArchivedRequestWithLinkStatus (0.00s)
+=== RUN   TestTokenAnalysisArchiveOutputTokens
+--- PASS: TestTokenAnalysisArchiveOutputTokens (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageFailedRowsUseOnlyExactEvidence
+--- PASS: TestTokenAnalysisLinkUsageFailedRowsUseOnlyExactEvidence (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageWeakAndReleasedRows
+--- PASS: TestTokenAnalysisLinkUsageWeakAndReleasedRows (0.00s)
+=== RUN   TestTokenAnalysisLinkUsagePendingRowsAreReverified
+--- PASS: TestTokenAnalysisLinkUsagePendingRowsAreReverified (0.00s)
+=== RUN   TestTokenAnalysisLinkUsageKeepsRetryingLateBillsUntilDeadline
+--- PASS: TestTokenAnalysisLinkUsageKeepsRetryingLateBillsUntilDeadline (0.00s)
+=== RUN   TestCodexV2ReviewToolImageInjectedPredecessor
+    zz_codex_origin_v2_review_test.go:18: tool -> injected-only user -> marked tool image: origin={Kind:ai Reason:tool_result Confidence:high Version:2}
+--- PASS: TestCodexV2ReviewToolImageInjectedPredecessor (0.00s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/service	1.908s
+=== RUN   TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisPrefixIndexesDropInvalidIndexesBeforeRetry
+--- PASS: TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisPrefixIndexesDropInvalidIndexesBeforeRetry (0.00s)
+=== RUN   TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisClassificationIndexDropsInvalidIndexBeforeRetry
+--- PASS: TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisClassificationIndexDropsInvalidIndexBeforeRetry (0.00s)
+=== RUN   TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisClassificationDueIndexDropsInvalidIndexBeforeRetry
+--- PASS: TestApplyMigrationsFS_NonTransactionalMigration_TokenAnalysisClassificationDueIndexDropsInvalidIndexBeforeRetry (0.00s)
+=== RUN   TestEnsureBootstrapSecretsTokenAnalysisFingerprintSecret
+2026/10/28 11:30:28 Token analysis fingerprint secret generated and persisted to database.
+--- PASS: TestEnsureBootstrapSecretsTokenAnalysisFingerprintSecret (0.01s)
+=== RUN   TestTokenAnalysisRepositoryUpsertRequestSummary
+--- PASS: TestTokenAnalysisRepositoryUpsertRequestSummary (0.00s)
+=== RUN   TestBuildTokenAnalysisWhereOriginFilter
+--- PASS: TestBuildTokenAnalysisWhereOriginFilter (0.00s)
+=== RUN   TestTokenAnalysisHumanInputSQLReusesFilters
+--- PASS: TestTokenAnalysisHumanInputSQLReusesFilters (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkByRequestID
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkByRequestID (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion (0.00s)
+=== RUN   TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming
+--- PASS: TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming (0.00s)
+=== RUN   TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives
+--- PASS: TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives (0.00s)
+=== RUN   TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically
+--- PASS: TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListUsageLinkCandidates
+--- PASS: TestTokenAnalysisRepositoryListUsageLinkCandidates (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly
+--- PASS: TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListUserUsageSortableByActualCost
+--- PASS: TestTokenAnalysisRepositoryListUserUsageSortableByActualCost (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListProjectUsageSortable
+--- PASS: TestTokenAnalysisRepositoryListProjectUsageSortable (0.00s)
+=== RUN   TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort
+--- PASS: TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetIndexState
+--- PASS: TestTokenAnalysisRepositoryGetIndexState (0.00s)
+=== RUN   TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError
+--- PASS: TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows
+--- PASS: TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons
+--- PASS: TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons (0.00s)
+=== RUN   TestTokenAnalysisRepositoryCountBilledRequests
+--- PASS: TestTokenAnalysisRepositoryCountBilledRequests (0.00s)
+=== RUN   TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality
+--- PASS: TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality (0.00s)
+=== RUN   TestTokenAnalysisRepositoryGetUserInput
+--- PASS: TestTokenAnalysisRepositoryGetUserInput (0.00s)
+=== RUN   TestTokenAnalysisRepositoryDeleteUserInput
+--- PASS: TestTokenAnalysisRepositoryDeleteUserInput (0.00s)
+=== RUN   TestTokenAnalysisRepositoryRetriesDeadlockedTransaction
+--- PASS: TestTokenAnalysisRepositoryRetriesDeadlockedTransaction (0.02s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/repository	1.645s
+=== RUN   TestTokenAnalysisHandlerSummaryParsesDateRange
+--- PASS: TestTokenAnalysisHandlerSummaryParsesDateRange (0.00s)
+=== RUN   TestTokenAnalysisHandlerParsesOriginFilter
+--- PASS: TestTokenAnalysisHandlerParsesOriginFilter (0.00s)
+=== RUN   TestTokenAnalysisHandlerRequestInput
+--- PASS: TestTokenAnalysisHandlerRequestInput (0.00s)
+=== RUN   TestTokenAnalysisHandlerTriggerIndexReturnsAccepted
+--- PASS: TestTokenAnalysisHandlerTriggerIndexReturnsAccepted (0.00s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/handler/admin	1.638s

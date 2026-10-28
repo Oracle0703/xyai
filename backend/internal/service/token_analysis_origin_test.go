@@ -95,20 +95,27 @@ func TestTokenAnalysisRequestOriginProductionAmbientContextTurn(t *testing.T) {
 	summary, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(body), 300)
 
 	require.NoError(t, err)
-	require.Equal(t, tokenAnalysisRequestOrigin{Kind: "human", Reason: "user_input", Confidence: "medium", Version: 1}, summary.SummaryJSON["request_origin"])
+	require.Equal(t, tokenAnalysisRequestOrigin{Kind: "human", Reason: "user_input", Confidence: "medium", Version: 2}, summary.SummaryJSON["request_origin"])
 	require.Equal(t, question, summary.LastUserPreview)
 	require.Equal(t, question, summary.LastUserText)
 }
 
 func TestTokenAnalysisRequestOriginContractFollowsReason(t *testing.T) {
+	// v1 derived confidence from kind; v2 keeps that for every v1 reason and adds
+	// compaction_resume as the only medium-confidence AI reason.
 	confidence := map[string]string{"ai": "high", "human": "medium", "unknown": "none"}
-	for reason, kind := range tokenAnalysisOriginReasonKinds {
-		require.Equal(t, tokenAnalysisRequestOrigin{Kind: kind, Reason: reason, Confidence: confidence[kind], Version: 1}, tokenAnalysisOrigin(reason))
+	for reason, contract := range tokenAnalysisOriginReasons {
+		want := confidence[contract.Kind]
+		if reason == "compaction_resume" {
+			want = "medium"
+		}
+		require.Equal(t, tokenAnalysisRequestOrigin{Kind: contract.Kind, Reason: reason, Confidence: want, Version: 2}, tokenAnalysisOrigin(reason))
 	}
-	data, err := json.Marshal(tokenAnalysisOrigin("automation"))
+	require.Equal(t, tokenAnalysisRequestOrigin{Kind: "unknown", Reason: "future_reason", Confidence: "none", Version: 2}, tokenAnalysisOrigin("future_reason"))
+	data, err := json.Marshal(tokenAnalysisOrigin("compaction_resume"))
 	require.NoError(t, err)
 	// Only fixed enum values are persisted, never metadata or prompt text.
-	require.JSONEq(t, `{"kind":"ai","reason":"automation","confidence":"high","version":1}`, string(data))
+	require.JSONEq(t, `{"kind":"ai","reason":"compaction_resume","confidence":"medium","version":2}`, string(data))
 }
 
 func TestTokenAnalysisRequestOriginMetadataIsAllowlisted(t *testing.T) {
@@ -116,7 +123,7 @@ func TestTokenAnalysisRequestOriginMetadataIsAllowlisted(t *testing.T) {
 		return classifyTokenAnalysisRequestOrigin(map[string]any{"input": input, "client_metadata": metadata})
 	}
 	for _, encoding := range []string{"object", "string"} {
-		for _, trigger := range []string{"automation_cron_scheduled", "goal", "memory_consolidation", "guardian_review", "guardian_classifier", "ambient_suggestions", "thread_title"} {
+		for _, trigger := range []string{"automation_cron_scheduled", "automation_heartbeat_scheduled", "goal", "memory_consolidation", "guardian_review", "guardian_classifier", "ambient_suggestions", "ambient_suggestion_safety", "thread_title", "thread_description"} {
 			turn := map[string]any{"turn_trigger": trigger, "thread_id": "private-id", "thread_source": "user"}
 			var encoded any = turn
 			if encoding == "string" {
@@ -126,6 +133,21 @@ func TestTokenAnalysisRequestOriginMetadataIsAllowlisted(t *testing.T) {
 			}
 			require.Equal(t, tokenAnalysisOrigin("automation"), classify("automated task", map[string]any{"x-codex-turn-metadata": encoded}), encoding+"/"+trigger)
 		}
+	}
+	// codex-tui helper tasks: thread_source only, turn_trigger empty (2026-10-26 production audit).
+	for _, source := range []string{"thread_title", "thread_description", "ambient_suggestions", "ambient_suggestion_safety", "guardian_review", "guardian_classifier", "memory_consolidation"} {
+		require.Equal(t, tokenAnalysisOrigin("automation"), classify("Generate a concise title", map[string]any{"x-codex-turn-metadata": `{"thread_source":"` + source + `"}`}), source)
+	}
+	require.Equal(t, tokenAnalysisOrigin("agent_message"), classify("follow-up task", map[string]any{"x-codex-turn-metadata": map[string]any{"turn_trigger": "app_tool_send_message", "thread_source": "user"}}))
+	// Every Codex compaction call carries request_kind, with or without the fixed prompt.
+	require.Equal(t, tokenAnalysisOrigin("compaction"), classify("custom compaction instruction", map[string]any{"x-codex-turn-metadata": `{"request_kind":"compaction","compaction":{"trigger":"auto","phase":"mid_turn"},"turn_trigger":"composer"}`}))
+	for _, metadata := range []map[string]any{
+		{"x-codex-turn-metadata": map[string]any{"request_kind": "turn", "turn_trigger": "composer", "thread_source": "user"}},
+		{"x-codex-turn-metadata": map[string]any{"thread_source": "system"}},
+		{"x-codex-turn-metadata": map[string]any{"thread_source": "automation"}},
+		{"x-codex-turn-metadata": map[string]any{"history_initialization": "cold_resume"}},
+	} {
+		require.Equal(t, tokenAnalysisOrigin("user_input"), classify("new task", metadata))
 	}
 	for _, trigger := range []string{"composer", "user", "edit_user_message", "queue", "resume_interrupted_task", "future_trigger"} {
 		metadata := map[string]any{"x-codex-turn-metadata": map[string]any{"turn_trigger": trigger, "thread_source": "automation"}}
@@ -196,4 +218,107 @@ func TestTokenAnalysisRequestOriginMultipart(t *testing.T) {
 	summary, ok = SummarizeTokenAnalysisMultipartRequest("/v1/images/edits", "multipart/form-data; boundary=origin-test", []byte(strings.ReplaceAll(body, "draw a tree", "")), 300)
 	require.True(t, ok)
 	require.Equal(t, tokenAnalysisOrigin("no_signal"), summary.SummaryJSON["request_origin"])
+}
+
+// v2 shapes from the 2026-10-26 production audit (docs/delivery/2026-10-27-token-origin-audit)
+// and the 10-27 compaction follow-up (docs/delivery/2026-10-27-compaction-followup). Each
+// machine event must fill the whole message; the guard cases keep user text human.
+func TestTokenAnalysisRequestOriginV2ProductionShapes(t *testing.T) {
+	user := func(content any) map[string]any { return map[string]any{"role": "user", "content": content} }
+	text := func(s string) map[string]any { return map[string]any{"type": "input_text", "text": s} }
+	chatText := func(s string) map[string]any { return map[string]any{"type": "text", "text": s} }
+	image := map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,AA=="}}
+	toolOutput := map[string]any{"type": "custom_tool_call_output", "output": "done"}
+	tool := map[string]any{"role": "tool", "content": "ok"}
+	assistant := map[string]any{"role": "assistant", "content": "working"}
+
+	codexCRLF := strings.ReplaceAll(tokenAnalysisCodexCompactionPrompt, "\n", "\r\n") + "\r\n"
+	resume := tokenAnalysisCodexResumePrefix + "\nThe tests now pass; next update the docs."
+	notification := func(payload string) string {
+		return "<subagent_notification>\n" + payload + "\n</subagent_notification>"
+	}
+	validNotification := notification(`{"agent_path":"019a-agent","status":{"completed":"audit finished"}}`)
+	goal := "<codex_internal_context source=\"goal\">\nContinue working toward the active thread goal.\n<objective>\nship v2\n</objective>\n</codex_internal_context>"
+	taskEvent := func(id, trailerID string) string {
+		return "<task-notification>\n<task-id>" + id + "</task-id>\n<tool-use-id>call_1</tool-use-id>\n<status>completed</status>\n<summary>Background command completed with exit code 0</summary>\n</task-notification>\n\n" +
+			strings.Replace(tokenAnalysisBackgroundTaskTrailer, "%s", trailerID, 1)
+	}
+	skill := "<skill-context name=\"brainstorming\">\nBase directory for this skill: C:\\skills\\brainstorming\n</skill-context>"
+
+	tests := []struct {
+		name   string
+		root   map[string]any
+		reason string
+	}{
+		// Codex local compaction through the normal Responses endpoint, LF and CRLF.
+		{"codex compaction prompt", map[string]any{"input": []any{toolOutput, user([]any{text(tokenAnalysisCodexCompactionPrompt + "\n")})}}, "compaction"},
+		{"codex compaction prompt with CRLF", map[string]any{"input": []any{toolOutput, user([]any{text(codexCRLF)})}}, "compaction"},
+		{"compaction prompt plus user request", map[string]any{"input": []any{user([]any{text(tokenAnalysisCodexCompactionPrompt + "\n\nAlso fix the login bug.")})}}, "user_input"},
+		{"compaction prompt quoted", map[string]any{"input": []any{user("What does this mean? " + tokenAnalysisCodexCompactionPrompt)}}, "user_input"},
+		{"compaction prompt split across blocks", map[string]any{"input": []any{user([]any{text(tokenAnalysisCodexCompactionPrompt[:100]), text(tokenAnalysisCodexCompactionPrompt[100:])})}}, "user_input"},
+		// Resume summary after a mid-turn compaction; a pre-turn compaction puts the new
+		// request after the summary as its own item.
+		{"resume summary after mid-turn compaction", map[string]any{"input": []any{user("old task"), user([]any{text(resume)})}}, "compaction_resume"},
+		{"resume summary then environment", map[string]any{"input": []any{user([]any{text(resume)}), user("<environment_context><cwd>/w</cwd></environment_context>")}}, "compaction_resume"},
+		{"new request after resume summary", map[string]any{"input": []any{user([]any{text(resume)}), user([]any{text("now update the changelog")})}}, "user_input"},
+		{"resume summary plus text block", map[string]any{"input": []any{user([]any{text(resume), text("now update the changelog")})}}, "user_input"},
+		{"resume summary plus image", map[string]any{"input": []any{user([]any{text(resume), map[string]any{"type": "input_image", "image_url": "data:image/png;base64,AA=="}})}}, "user_input"},
+		{"resume prefix quoted", map[string]any{"input": []any{user("Why does Codex say: " + tokenAnalysisCodexResumePrefix)}}, "user_input"},
+		// Codex subagent completion notifications.
+		{"subagent notification after tool", map[string]any{"input": []any{toolOutput, user([]any{text(validNotification)})}}, "agent_message"},
+		{"two subagent notifications", map[string]any{"input": []any{user([]any{text(validNotification + "\n" + notification(`{"agent_path":"019b","status":{"errored":"timeout"}}`))})}}, "agent_message"},
+		{"notification plus user text", map[string]any{"input": []any{user([]any{text(validNotification + "\nplease merge both results")})}}, "user_input"},
+		{"notification with invalid json", map[string]any{"input": []any{user([]any{text(notification(`{"agent_path":"a",`))})}}, "user_input"},
+		{"notification without agent path", map[string]any{"input": []any{user([]any{text(notification(`{"status":{"completed":"x"}}`))})}}, "user_input"},
+		{"notification with string status", map[string]any{"input": []any{user([]any{text(notification(`{"agent_path":"a","status":"completed"}`))})}}, "user_input"},
+		// Codex automatic goal continuation.
+		{"goal continuation", map[string]any{"input": []any{assistant, user([]any{text(goal)})}}, "automation"},
+		{"internal context from another source", map[string]any{"input": []any{user([]any{text(strings.Replace(goal, `source="goal"`, `source="other"`, 1))})}}, "user_input"},
+		{"goal continuation plus user text", map[string]any{"input": []any{user([]any{text(goal + "\nalso run the e2e suite")})}}, "user_input"},
+		// WorkBuddy background task event with its fixed NOT USER INPUT trailer.
+		{"background task event", map[string]any{"messages": []any{tool, user([]any{chatText(taskEvent("Euf50C", "Euf50C"))})}}, "tool_result"},
+		{"background task trailer for another task", map[string]any{"messages": []any{user([]any{chatText(taskEvent("Euf50C", "other"))})}}, "user_input"},
+		{"background task event plus user text", map[string]any{"messages": []any{user([]any{chatText(taskEvent("Euf50C", "Euf50C") + "\nretry it")})}}, "user_input"},
+		{"task notification without trailer", map[string]any{"messages": []any{user("<task-notification>\n<task-id>a</task-id>\n<status>completed</status>\n</task-notification>")}}, "user_input"},
+		// Injected context is skipped to the previous effective event.
+		{"copilot skill definition after tool", map[string]any{"messages": []any{user("brainstorm a plan"), assistant, tool, user(skill)}}, "tool_result"},
+		{"stacked skill definitions after tool", map[string]any{"messages": []any{tool, user(skill), user(skill)}}, "tool_result"},
+		{"skill definition after user request", map[string]any{"messages": []any{user("brainstorm a plan"), user(skill)}}, "user_input"},
+		{"skill definition plus user text", map[string]any{"messages": []any{tool, user(skill + "\nuse it for the login page")}}, "user_input"},
+		{"unclosed skill definition", map[string]any{"messages": []any{tool, user("<skill-context name=\"x\">\nuse it")}}, "user_input"},
+		{"opencode system update after tool", map[string]any{"messages": []any{tool, user("<system-update>\nThe instructions from AGENTS.md changed.\n</system-update>")}}, "tool_result"},
+		// Tool images: WorkBuddy's fixed marker counts only right after a tool message;
+		// a bare image after a tool (hertz) stays user input until the client marks it.
+		{"tool result images", map[string]any{"messages": []any{tool, user([]any{chatText(tokenAnalysisToolImageMarker), image, image})}}, "tool_result"},
+		{"tool image marker without tool", map[string]any{"messages": []any{assistant, user([]any{chatText(tokenAnalysisToolImageMarker), image})}}, "user_input"},
+		{"tool image marker without image", map[string]any{"messages": []any{tool, user([]any{chatText(tokenAnalysisToolImageMarker)})}}, "user_input"},
+		{"tool image marker plus user text", map[string]any{"messages": []any{tool, user([]any{chatText(tokenAnalysisToolImageMarker), image, chatText("what is wrong here?")})}}, "user_input"},
+		{"bare image after tool", map[string]any{"messages": []any{tool, user([]any{image})}}, "user_input"},
+		// The tool predecessor skips complete injected-only messages, not user text or events.
+		{"tool images after injected context", map[string]any{"messages": []any{tool, user("<system-reminder>context only</system-reminder>"), user([]any{chatText(tokenAnalysisToolImageMarker), image})}}, "tool_result"},
+		{"tool images after stacked injected context", map[string]any{"messages": []any{tool, user("<system-reminder>a</system-reminder>"), user(skill), user([]any{chatText(tokenAnalysisToolImageMarker), image})}}, "tool_result"},
+		{"tool images after user text", map[string]any{"messages": []any{tool, user("look at this screenshot"), user([]any{chatText(tokenAnalysisToolImageMarker), image})}}, "user_input"},
+		{"tool images after notification", map[string]any{"messages": []any{tool, user(validNotification), user([]any{chatText(tokenAnalysisToolImageMarker), image})}}, "user_input"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := json.Marshal(tt.root)
+			require.NoError(t, err)
+			summary, err := SummarizeTokenAnalysisRequest("/v1/responses", body, 300)
+			require.NoError(t, err)
+			require.Equal(t, tokenAnalysisOrigin(tt.reason), summary.SummaryJSON["request_origin"])
+		})
+	}
+}
+
+// The digest table must stay keyed by the byte length of the normalized text it
+// hashes, or a prompt can never match.
+func TestTokenAnalysisCompactionPromptDigestsAreWellFormed(t *testing.T) {
+	require.True(t, tokenAnalysisIsCompactionPrompt(tokenAnalysisCodexCompactionPrompt))
+	for length, digests := range tokenAnalysisCompactionPromptDigests {
+		require.Positive(t, length)
+		for _, digest := range digests {
+			require.Len(t, digest, 64)
+		}
+	}
 }

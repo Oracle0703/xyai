@@ -1,0 +1,19 @@
+{
+  "unit": {
+    "passed": 140,
+    "failed": 0,
+    "skipped": 0
+  },
+  "integration": {
+    "passed": 60,
+    "failed": 0,
+    "skipped": 0
+  },
+  "frontend": {
+    "files": 4,
+    "passed": 50
+  },
+  "original_reproductions_unchanged": true,
+  "reviewed_sources_unchanged_during_verification": true,
+  "postgres_stopped": true
+}

@@ -65,6 +65,7 @@
             <td class="ta-num">
               <div :title="formatInteger(row.request_count)">{{ formatInteger(row.request_count) }}</div>
               <div class="ta-sub">{{ t('admin.tokenAnalysis.matched') }} {{ formatInteger(row.matched_request_count) }}</div>
+              <div class="ta-sub" :title="t('admin.tokenAnalysis.help.humanInputs')">{{ t('admin.tokenAnalysis.humanInputs') }} {{ formatInteger(row.human_input_count) }}</div>
             </td>
             <td class="ta-num">
               <span class="font-medium" :title="formatInteger(row.total_tokens)">{{ formatCompactNumber(row.total_tokens) }}</span>

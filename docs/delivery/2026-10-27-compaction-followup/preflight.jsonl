@@ -1,0 +1,6 @@
+{"kind": "snapshot", "path": "/opt/sub2api/backend/data/request-archive/2026-10-27.jsonl", "size": 110200243008, "inode": 1064621, "device": 64514, "mtime_ns": 1793096244478023672, "captured_at_utc": "2026-10-27T10:17:24.690186+00:00"}
+{"kind": "git_sha", "exit_code": 0, "stdout": "25bedc620d9783e065ec6efae45d56f984b6b01c\n"}
+{"kind": "service", "exit_code": 0, "stdout": "MainPID=3522741\nNRestarts=0\nActiveState=active\nActiveEnterTimestamp=Mon 2026-10-26 09:55:27 CST\n"}
+{"kind": "memory", "exit_code": 0, "stdout": "              total        used        free      shared  buff/cache   available\nMem:          31209        3689         456         175       27064       26887\nSwap:             0           0           0\n"}
+{"kind": "load", "exit_code": 0, "stdout": "0.64 0.64 0.62 1/783 103403\n"}
+{"kind": "optional_modules", "modules": {"orjson": false, "ujson": false, "ijson": false}, "memfd_available": true, "fexecve_available": false}

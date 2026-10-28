@@ -1,0 +1,2 @@
+# Preserve raw test output, including framework indentation and trailing spaces.
+*.log -text -whitespace

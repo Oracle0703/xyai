@@ -1,0 +1,30 @@
+{
+  "binary_sha256": "9b984a2c24c5bdf117fd00ff27408e44c200d70a7807fc8bf0621a34daf45410",
+  "binary_bytes": 2318488,
+  "remote_persistent_files_written": false,
+  "execution": "Linux memfd, ionice class 3, nice 15",
+  "arguments": [
+    "origin-archive-structure-scan",
+    "-file",
+    "/opt/sub2api/backend/data/request-archive/2026-10-27.jsonl",
+    "-limit",
+    "110200243008",
+    "-max-line",
+    "134217728",
+    "-progress-bytes",
+    "2147483648"
+  ],
+  "snapshot": {
+    "kind": "snapshot",
+    "path": "/opt/sub2api/backend/data/request-archive/2026-10-27.jsonl",
+    "size": 110200243008,
+    "inode": 1064621,
+    "device": 64514,
+    "mtime_ns": 1793096244478023672,
+    "captured_at_utc": "2026-10-27T10:17:24.690186+00:00",
+    "scan_limit": 110200243008
+  },
+  "started_epoch": 1793096935.2087972,
+  "exit_code": 0,
+  "elapsed_seconds": 692.369
+}

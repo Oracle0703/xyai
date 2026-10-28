@@ -50,7 +50,10 @@
                 <span class="max-w-[240px] truncate font-medium" :title="user.user_email">{{ user.user_email || '-' }}</span>
               </div>
             </td>
-            <td class="ta-num text-gray-600 dark:text-gray-300" :title="formatInteger(user.request_count)">{{ formatRequestMetric(user.request_count) }}</td>
+            <td class="ta-num text-gray-600 dark:text-gray-300">
+              <div :title="formatInteger(user.request_count)">{{ formatRequestMetric(user.request_count) }}</div>
+              <div class="ta-sub" :title="t('admin.tokenAnalysis.help.humanInputs')">{{ t('admin.tokenAnalysis.humanInputs') }} {{ formatInteger(user.human_input_count) }}</div>
+            </td>
             <td class="ta-num">
               <span class="font-medium" :title="formatInteger(user.total_tokens)">{{ formatTokenMetric(user.total_tokens) }}</span>
               <div class="ml-auto mt-1 h-1 w-16 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">

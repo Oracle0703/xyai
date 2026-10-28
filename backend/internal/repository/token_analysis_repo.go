@@ -728,6 +728,15 @@ func (r *tokenAnalysisRepository) CountSameBodyRecent(ctx context.Context, bodyS
 
 func (r *tokenAnalysisRepository) GetSummary(ctx context.Context, filters service.TokenAnalysisFilters) (*service.TokenAnalysisSummary, error) {
 	where, args := buildTokenAnalysisWhere(filters, "s")
+	where, args = appendUserEmailFilter(where, args, filters.UserEmail, "u")
+	// 邮箱条件引用 users 别名 u: 主查询与每个子查询各自 JOIN, 保持同一筛选集合。
+	withUsers := strings.TrimSpace(filters.UserEmail) != ""
+	usersJoin := func(alias string) string {
+		if !withUsers {
+			return ""
+		}
+		return " LEFT JOIN users u ON u.id = " + alias + ".user_id"
+	}
 	query := `
 SELECT
     COUNT(*) AS total_requests,
@@ -741,12 +750,13 @@ SELECT
     COALESCE(SUM(ul.actual_cost), 0) AS total_actual_cost,
     COUNT(*) FILTER (WHERE s.risk_score > 0) AS risky_requests,
     COALESCE(SUM(ul.actual_cost) FILTER (WHERE s.risk_score > 0), 0) AS risky_cost,
+    (` + tokenAnalysisHumanInputSQL(where, withUsers) + `) AS human_input_count,
     COALESCE((
         SELECT jsonb_agg(jsonb_build_object('code', code, 'count', count) ORDER BY count DESC, code ASC)
         FROM (
             SELECT reason->>'code' AS code, COUNT(*) AS count
             FROM token_analysis_request_summaries reason_source
-            LEFT JOIN usage_logs reason_ul ON reason_ul.id = reason_source.usage_log_id
+            LEFT JOIN usage_logs reason_ul ON reason_ul.id = reason_source.usage_log_id` + usersJoin("reason_source") + `
             CROSS JOIN LATERAL jsonb_array_elements(reason_source.risk_reasons) AS reason
             WHERE ` + strings.Join(rewriteTokenAnalysisAlias(where, "s", "reason_source"), " AND ") + `
               AND reason->>'code' <> ''
@@ -756,7 +766,7 @@ SELECT
         ) ranked_reasons
     ), '[]'::jsonb) AS risk_reasons
 FROM token_analysis_request_summaries s
-LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
+LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id` + usersJoin("s") + `
 WHERE ` + strings.Join(where, " AND ")
 
 	var summary service.TokenAnalysisSummary
@@ -773,6 +783,7 @@ WHERE ` + strings.Join(where, " AND ")
 		&summary.TotalActualCost,
 		&summary.RiskyRequests,
 		&summary.RiskyCost,
+		&summary.HumanInputCount,
 		&riskReasonsRaw,
 	); err != nil {
 		return nil, fmt.Errorf("get token analysis summary: %w", err)
@@ -792,7 +803,7 @@ WHERE ` + strings.Join(where, " AND ")
 }
 
 // CountBilledRequests 统计同期 usage_logs 计费请求数, 作为概览归档覆盖率的
-// 分母。只应用 usage_logs 上有对应列的过滤(时间/用户/密钥/账号/分组/模型);
+// 分母。只应用 usage_logs 上有对应列的过滤(时间/用户/邮箱/密钥/账号/分组/模型);
 // endpoint/风险分/项目归因/include_unmatched 是归档侧概念, 不参与。
 func (r *tokenAnalysisRepository) CountBilledRequests(ctx context.Context, filters service.TokenAnalysisFilters) (int64, error) {
 	where := []string{"1=1"}
@@ -809,6 +820,10 @@ func (r *tokenAnalysisRepository) CountBilledRequests(ctx context.Context, filte
 	}
 	if filters.UserID != nil {
 		add("user_id = $%d", *filters.UserID)
+	}
+	if email := strings.TrimSpace(filters.UserEmail); email != "" {
+		// 与归档侧 appendUserEmailFilter 同一匹配, 归档覆盖率的分子分母共用邮箱口径。
+		add("user_id IN (SELECT id FROM users WHERE email ILIKE $%d)", "%"+escapeLikePattern(email)+"%")
 	}
 	if filters.APIKeyID != nil {
 		add("api_key_id = $%d", *filters.APIKeyID)
@@ -851,7 +866,10 @@ SELECT COUNT(*) FROM (
 
 	queryArgs := append([]any{}, args...)
 	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	orderBy := tokenAnalysisUserOrderBy(params)
 	query := `
+SELECT agg.*, COALESCE(hi.human_input_count, 0) AS human_input_count
+FROM (
 SELECT
     s.user_id,
     COALESCE(u.email, '') AS user_email,
@@ -872,8 +890,12 @@ LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 LEFT JOIN users u ON u.id = s.user_id
 ` + whereSQL + `
 GROUP BY s.user_id, u.email
-ORDER BY ` + tokenAnalysisUserOrderBy(params) + `
-LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
+ORDER BY ` + orderBy + `
+LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs)) + `
+) agg
+LEFT JOIN (` + tokenAnalysisHumanInputSQL(where, strings.TrimSpace(filters.UserEmail) != "", tokenAnalysisHumanInputKey{"s.user_id", "user_id"}) + `) hi
+    ON hi.user_id IS NOT DISTINCT FROM agg.user_id
+ORDER BY ` + orderBy
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
@@ -901,6 +923,7 @@ LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs
 			&item.ActualCost,
 			&item.RiskyCost,
 			&lastEvent,
+			&item.HumanInputCount,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan token analysis user usage: %w", err)
 		}
@@ -950,9 +973,15 @@ SELECT COUNT(*) FROM (
 
 	queryArgs := append([]any{}, args...)
 	queryArgs = append(queryArgs, params.Limit(), params.Offset())
+	orderBy := tokenAnalysisProjectOrderBy(params)
 	query := `
+SELECT agg.project, agg.user_id, agg.user_email, agg.request_count, agg.matched_request_count,
+    agg.total_tokens, agg.input_tokens, agg.output_tokens, agg.cache_read_tokens, agg.cache_creation_tokens,
+    agg.actual_cost, agg.last_event_time, COALESCE(hi.human_input_count, 0) AS human_input_count
+FROM (
 SELECT
     CASE WHEN s.client_project = '' THEN 'unattributed' ELSE s.client_project END AS project,
+    s.client_project AS project_key,
     s.user_id,
     COALESCE(u.email, '') AS user_email,
     COUNT(*) AS request_count,
@@ -969,8 +998,13 @@ LEFT JOIN usage_logs ul ON ul.id = s.usage_log_id
 LEFT JOIN users u ON u.id = s.user_id
 ` + whereSQL + `
 GROUP BY s.client_project, s.user_id, u.email
-ORDER BY ` + tokenAnalysisProjectOrderBy(params) + `
-LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs))
+ORDER BY ` + orderBy + `
+LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs)) + `
+) agg
+LEFT JOIN (` + tokenAnalysisHumanInputSQL(where, strings.TrimSpace(filters.UserEmail) != "",
+		tokenAnalysisHumanInputKey{"s.client_project", "project_key"}, tokenAnalysisHumanInputKey{"s.user_id", "user_id"}) + `) hi
+    ON hi.project_key = agg.project_key AND hi.user_id IS NOT DISTINCT FROM agg.user_id
+ORDER BY ` + orderBy
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
@@ -996,6 +1030,7 @@ LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs
 			&item.CacheCreationTokens,
 			&item.ActualCost,
 			&lastEvent,
+			&item.HumanInputCount,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan token analysis project usage: %w", err)
 		}
@@ -1527,6 +1562,45 @@ func appendUserEmailFilter(where []string, args []any, email, alias string) ([]s
 	args = append(args, "%"+escapeLikePattern(email)+"%")
 	where = append(where, fmt.Sprintf(prefix+"email ILIKE $%d", len(args)))
 	return where, args
+}
+
+// tokenAnalysisHumanInputMergeWindow 是人工输入次数的归并窗口(请求来源设计"人工计数口径")。
+const tokenAnalysisHumanInputMergeWindow = 15 * time.Minute
+
+// tokenAnalysisHumanInputKey 是人工输入次数子查询的分组列(表达式与输出别名)。
+type tokenAnalysisHumanInputKey struct{ expr, alias string }
+
+// tokenAnalysisHumanInputSQL 是概览与用户/项目排行共用的人工输入次数(估算)子查询:
+// 在与主查询相同的筛选集合(同一 where 与占位参数, withUsers 时 JOIN users 以应用邮箱条件)
+// 的人工标签行内, 按 (api_key_id, fp_version, fp_state, prefix_end_hash) 分区、
+// (event_time, archive_id) 排序取前一行; 前一行相距不超过归并窗口即归并到它, 连续链只
+// 计链首, 次数计入链首自身的分组。无指纹、无 Key 的行逐条计数。相同提示词不证明是重试。
+// 不带 keys 时返回单列标量子查询。窗口函数只扫描一次筛选集合: 相关子查询逐行探测在长
+// 重复桶上慢一个数量级(设计"人工计数口径"的性能记录)。
+func tokenAnalysisHumanInputSQL(where []string, withUsers bool, keys ...tokenAnalysisHumanInputKey) string {
+	var inner, outer strings.Builder
+	for _, key := range keys {
+		inner.WriteString(key.expr + " AS " + key.alias + ", ")
+		outer.WriteString("h." + key.alias + ", ")
+	}
+	join := ""
+	if withUsers {
+		join = " LEFT JOIN users u ON u.id = s.user_id"
+	}
+	groupBy := ""
+	if len(keys) > 0 {
+		groupBy = " GROUP BY " + strings.TrimSuffix(outer.String(), ", ")
+	}
+	return fmt.Sprintf(`SELECT %sCOUNT(*) AS human_input_count FROM (
+    SELECT %ss.event_time, s.fp_state, s.prefix_end_hash, s.api_key_id,
+           LAG(s.event_time) OVER (PARTITION BY s.api_key_id, s.fp_version, s.fp_state, s.prefix_end_hash ORDER BY s.event_time, s.archive_id) AS prev_time
+    FROM token_analysis_request_summaries s%s
+    WHERE %s AND s.summary_json->'request_origin'->>'kind' = 'human'
+) h
+WHERE NOT COALESCE(h.fp_state = '%s' AND h.prefix_end_hash IS NOT NULL AND h.api_key_id IS NOT NULL
+    AND h.prev_time >= h.event_time - INTERVAL '%d seconds', FALSE)%s`,
+		outer.String(), inner.String(), join, strings.Join(where, " AND "),
+		service.TokenAnalysisFingerprintOK, int(tokenAnalysisHumanInputMergeWindow/time.Second), groupBy)
 }
 
 func rewriteTokenAnalysisAlias(where []string, fromAlias, toAlias string) []string {

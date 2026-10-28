@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,6 +76,27 @@ func TestBuildTokenAnalysisWhereOriginFilter(t *testing.T) {
 
 	where, _ = buildTokenAnalysisWhere(service.TokenAnalysisFilters{IncludeUnmatched: true}, "s")
 	require.Equal(t, []string{"1=1"}, where)
+}
+
+// 人工输入次数子查询复用主查询的筛选与占位参数, 邮箱条件需要 JOIN users;
+// 分组列同时出现在内层与外层 GROUP BY。
+func TestTokenAnalysisHumanInputSQLReusesFilters(t *testing.T) {
+	start := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
+	where, args := buildTokenAnalysisWhere(service.TokenAnalysisFilters{StartTime: &start, Project: "demo", Origin: "human"}, "s")
+	where, args = appendUserEmailFilter(where, args, "dev@", "u")
+
+	got := tokenAnalysisHumanInputSQL(where, true, tokenAnalysisHumanInputKey{"s.user_id", "user_id"})
+
+	require.Len(t, args, 4)
+	for _, part := range []string{"s.event_time >= $1", "s.client_project = $2", "s.summary_json->'request_origin'->>'kind' = $3", "s.usage_log_id IS NOT NULL", "u.email ILIKE $4",
+		"LEFT JOIN users u ON u.id = s.user_id", "SELECT h.user_id, COUNT(*)", "s.user_id AS user_id, ", "GROUP BY h.user_id",
+		"PARTITION BY s.api_key_id, s.fp_version, s.fp_state, s.prefix_end_hash ORDER BY s.event_time, s.archive_id", "INTERVAL '900 seconds'"} {
+		require.Contains(t, got, part)
+	}
+	scalar := tokenAnalysisHumanInputSQL(where, false)
+	require.NotContains(t, scalar, "JOIN users")
+	require.NotContains(t, scalar, "GROUP BY")
+	require.True(t, strings.HasPrefix(scalar, "SELECT COUNT(*) AS human_input_count"))
 }
 
 var tokenAnalysisUsageMatchRow = []string{"id", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_cost", "actual_cost"}
@@ -354,8 +376,8 @@ func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) 
 		WillReturnRows(sqlmock.NewRows([]string{
 			"user_id", "user_email", "api_key_id", "api_key_name", "request_count", "risky_request_count",
 			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
-			"actual_cost", "risky_cost", "last_event_time",
-		}).AddRow(userID, "dev@example.com", nil, "", int64(5), int64(2), int64(1200), int64(700), int64(100), int64(300), int64(100), 1.5, 0.7, now))
+			"actual_cost", "risky_cost", "last_event_time", "human_input_count",
+		}).AddRow(userID, "dev@example.com", nil, "", int64(5), int64(2), int64(1200), int64(700), int64(100), int64(300), int64(100), 1.5, 0.7, now, int64(3)))
 
 	items, result, err := repo.ListUserUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
 		pagination.PaginationParams{Page: 1, PageSize: 20, SortBy: "total_tokens", SortOrder: "desc"})
@@ -370,6 +392,7 @@ func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) 
 	require.Equal(t, int64(1200), items[0].TotalTokens)
 	require.InDelta(t, 300.0/1100.0, items[0].CacheHitRate, 0.0001)
 	require.InDelta(t, 0.4, items[0].RiskRatio, 0.0001)
+	require.Equal(t, int64(3), items[0].HumanInputCount)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -387,7 +410,7 @@ func TestTokenAnalysisRepositoryListUserUsageSortableByActualCost(t *testing.T) 
 		WillReturnRows(sqlmock.NewRows([]string{
 			"user_id", "user_email", "api_key_id", "api_key_name", "request_count", "risky_request_count",
 			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
-			"actual_cost", "risky_cost", "last_event_time",
+			"actual_cost", "risky_cost", "last_event_time", "human_input_count",
 		}))
 
 	_, _, err = repo.ListUserUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
@@ -411,8 +434,8 @@ func TestTokenAnalysisRepositoryListProjectUsageSortable(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"project", "user_id", "user_email", "request_count", "matched_request_count",
 			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
-			"actual_cost", "last_event_time",
-		}).AddRow("demo", int64(7), "a@b.c", int64(3), int64(2), int64(900), int64(500), int64(100), int64(200), int64(100), 0.5, now))
+			"actual_cost", "last_event_time", "human_input_count",
+		}).AddRow("demo", int64(7), "a@b.c", int64(3), int64(2), int64(900), int64(500), int64(100), int64(200), int64(100), 0.5, now, int64(1)))
 
 	items, result, err := repo.ListProjectUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
 		pagination.PaginationParams{Page: 1, PageSize: 20, SortBy: "request_count", SortOrder: "asc"})
@@ -439,7 +462,7 @@ func TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort(t *testing.T)
 		WillReturnRows(sqlmock.NewRows([]string{
 			"project", "user_id", "user_email", "request_count", "matched_request_count",
 			"total_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens",
-			"actual_cost", "last_event_time",
+			"actual_cost", "last_event_time", "human_input_count",
 		}))
 
 	_, _, err = repo.ListProjectUsage(context.Background(), service.TokenAnalysisFilters{IncludeUnmatched: true},
@@ -533,8 +556,8 @@ func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *tes
 		WithArgs(start, end).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"total_requests", "matched_requests", "total_input_tokens", "total_output_tokens", "cache_read_tokens", "cache_creation_tokens",
-			"total_tokens", "total_cost", "total_actual_cost", "risky_requests", "risky_cost", "risk_reasons",
-		}).AddRow(int64(10), int64(7), int64(1000), int64(100), int64(300), int64(200), int64(1600), 1.2, 1.1, int64(4), 0.6, []byte(`[{"code":"huge_input_tiny_output","count":3},{"code":"low_cache_hit_large_input","count":1}]`)))
+			"total_tokens", "total_cost", "total_actual_cost", "risky_requests", "risky_cost", "human_input_count", "risk_reasons",
+		}).AddRow(int64(10), int64(7), int64(1000), int64(100), int64(300), int64(200), int64(1600), 1.2, 1.1, int64(4), 0.6, int64(2), []byte(`[{"code":"huge_input_tiny_output","count":3},{"code":"low_cache_hit_large_input","count":1}]`)))
 
 	got, err := repo.GetSummary(context.Background(), service.TokenAnalysisFilters{StartTime: &start, EndTime: &end})
 
@@ -547,6 +570,7 @@ func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *tes
 	require.Len(t, got.RiskReasons, 2)
 	require.Equal(t, "huge_input_tiny_output", got.RiskReasons[0].Code)
 	require.Equal(t, int64(3), got.RiskReasons[0].Count)
+	require.Equal(t, int64(2), got.HumanInputCount)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

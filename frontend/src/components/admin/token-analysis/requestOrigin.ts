@@ -5,6 +5,8 @@ import type {
   TokenAnalysisRequestOriginReason
 } from '@/api/admin/tokenAnalysis'
 
+// 与后端 tokenAnalysisOriginReasons 对应: reason 决定 kind 与置信度。v2 保留全部 v1 reason,
+// 新增的 compaction_resume 是唯一 medium 置信度的 AI reason, v1 行出现它即视为坏数据。
 const reasonKinds: Record<TokenAnalysisRequestOriginReason, TokenAnalysisRequestOriginKind> = {
   subagent: 'ai',
   automation: 'ai',
@@ -12,11 +14,19 @@ const reasonKinds: Record<TokenAnalysisRequestOriginReason, TokenAnalysisRequest
   agent_message: 'ai',
   assistant_continuation: 'ai',
   compaction: 'ai',
+  compaction_resume: 'ai',
   user_input: 'human',
   no_signal: 'unknown',
   unsupported_shape: 'unknown',
   body_truncated: 'unknown',
   count_tokens: 'unknown'
+}
+
+const v2OnlyReasons = new Set<TokenAnalysisRequestOriginReason>(['compaction_resume'])
+
+function expectedConfidence(reason: TokenAnalysisRequestOriginReason, kind: TokenAnalysisRequestOriginKind): TokenAnalysisRequestOrigin['confidence'] {
+  if (reason === 'compaction_resume') return 'medium'
+  return kind === 'ai' ? 'high' : kind === 'human' ? 'medium' : 'none'
 }
 
 // API 响应在运行时仍可能是旧数据或未知版本; 不从预览、重复次数推测来源。
@@ -25,12 +35,13 @@ function readRequestOrigin(summary: unknown): TokenAnalysisRequestOrigin | null 
   const origin = (summary as Record<string, unknown>).request_origin
   if (!origin || typeof origin !== 'object' || Array.isArray(origin)) return null
   const { kind, reason, confidence, version } = origin as Record<string, unknown>
-  if (version !== 1 || typeof reason !== 'string' || !Object.prototype.hasOwnProperty.call(reasonKinds, reason)) return null
+  if ((version !== 1 && version !== 2) || typeof reason !== 'string' || !Object.prototype.hasOwnProperty.call(reasonKinds, reason)) return null
   const knownReason = reason as TokenAnalysisRequestOriginReason
+  if (version === 1 && v2OnlyReasons.has(knownReason)) return null
   const expectedKind = reasonKinds[knownReason]
-  const expectedConfidence = expectedKind === 'ai' ? 'high' : expectedKind === 'human' ? 'medium' : 'none'
-  if (kind !== expectedKind || confidence !== expectedConfidence) return null
-  return { kind: expectedKind, reason: knownReason, confidence: expectedConfidence, version: 1 }
+  const wantConfidence = expectedConfidence(knownReason, expectedKind)
+  if (kind !== expectedKind || confidence !== wantConfidence) return null
+  return { kind: expectedKind, reason: knownReason, confidence: wantConfidence, version }
 }
 
 export function useRequestOrigin() {

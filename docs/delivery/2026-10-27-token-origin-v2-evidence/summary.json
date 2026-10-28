@@ -1,0 +1,51 @@
+{
+  "window_start": "2026-10-26T09:00:00+08:00",
+  "window_end_exclusive": "2026-10-27T09:00:00+08:00",
+  "production_sha": "25bedc620d9783e065ec6efae45d56f984b6b01c",
+  "schema_fp_columns_present": false,
+  "cohorts": {
+    "resume": {
+      "total": 186,
+      "available_raw_20261027": 2,
+      "unavailable_raw_20261026": 184
+    },
+    "compaction": {
+      "total": 207,
+      "available_raw_20261027": 3,
+      "unavailable_raw_20261026": 204
+    },
+    "hertz_image": {
+      "total": 22,
+      "available_raw_20261027": 0,
+      "unavailable_raw_20261026": 22
+    },
+    "messages_ai": {
+      "total": 1053,
+      "available_raw_20261027": 64,
+      "unavailable_raw_20261026": 989
+    }
+  },
+  "compaction_correction": {
+    "full_cohort": 207,
+    "previous_tool_output": 200,
+    "previous_assistant": 6,
+    "previous_reasoning": 1,
+    "exclusive_compaction_cohort": 205,
+    "exclusive_previous_tool_output": 198
+  },
+  "resume_cohort": {
+    "total": 186,
+    "already_in_478_app_tool_send_message": 2,
+    "not_previously_counted": 184
+  },
+  "messages_actual_read": 64,
+  "messages_mixed_tool_reminder_any_history": 0,
+  "messages_mixed_tool_reminder_last": 0,
+  "archive_read_bytes": 121058550,
+  "read_attempts": 74,
+  "unique_requests_read": 69,
+  "extraction_errors": 0,
+  "full_24h_reminder_count_known": false,
+  "hertz_tool_names_known": false,
+  "retry_291_or_255_verified_by_full_fingerprint": false
+}

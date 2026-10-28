@@ -1,0 +1,19 @@
+{
+  "head": "02cf7a07cbebf4c77003f617ec7cb53c6e1150f2",
+  "branch": "feature/hy/10222_token_origin_v2",
+  "files": {
+    "backend/internal/repository/token_analysis_repo.go": "22c2d4c1ef8e8b81a66cad4ad636e79a2256467361fa19ead47acfa51fd82922",
+    "backend/internal/repository/token_analysis_repo_test.go": "aae509e341d25842fe87fdde7ec3f40ac1c965f90e27b403df26f1aac0732b8b",
+    "backend/internal/repository/token_analysis_human_input_integration_test.go": "82f98453d9ae0d0939c3545d71a527920679fdb55f9a7427feac6656d2745e63",
+    "backend/internal/service/token_analysis_origin.go": "6b22bfa5fe353dfb915fbc70b7e7cb5e462e71c32607a39595bbda93f996d5d5",
+    "backend/internal/service/token_analysis_origin_test.go": "e1dd135e7071c2f5c9deff369991dcbc94b40a61279f9822f971d79ef6c4de2a",
+    "backend/internal/service/token_analysis_summary_test.go": "a15683e866b1cb71864cd8201860af09a24be9fe85c7b13ea0cdc1c093110d2f",
+    "backend/internal/service/token_analysis_types.go": "14b1f2c7bf1809727eea0363f607e431fd5124cac3a31253f2afb09fbf7b37b3",
+    "frontend/src/api/admin/tokenAnalysis.ts": "149aab9f350609c85a61faa5f576a3d1a5f7ddaa1996111725005d060ef67588",
+    "frontend/src/components/admin/token-analysis/requestOrigin.ts": "7250a04c00ee18793f1beaebbbd875bb49c061b9be27c4c627c4f15587207a33",
+    "frontend/src/components/admin/token-analysis/TokenAnalysisOverview.vue": "8a138dba758cfc8077f12c0edaa3eb0e3256b0a10ec2d2cce4867071001ff740",
+    "frontend/src/components/admin/token-analysis/TokenAnalysisUserRanking.vue": "beb358af513de88335982ca247cce6c4a8d0a3a862917a05cefa4d102ba954c7",
+    "frontend/src/components/admin/token-analysis/TokenAnalysisProjectTable.vue": "cd4348d9c128100a87060ba6b30c617d8c45c74a56fd079e7bc1e9a7be207d99",
+    "docs/features/token-analysis-request-origin-design-cn.md": "910fc5cd94c48daff5b5bd560cd610964eebb91eb60120cdade4f4935d22a606"
+  }
+}

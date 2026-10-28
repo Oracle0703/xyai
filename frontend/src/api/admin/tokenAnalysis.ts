@@ -50,6 +50,8 @@ export interface TokenAnalysisSummary {
   unmatched_rate?: number
   risk_request_rate?: number
   risk_reasons?: TokenAnalysisRiskReasonSummary[]
+  // 人工输入次数(估算): 人工标签行中同一 Key 15 分钟内重发的相同提示词只计一次。
+  human_input_count?: number
   // 同期 usage_logs 计费请求数与归档覆盖率(matched/billed);
   // 概览口径固定含未匹配行, 不随 include_unmatched 勾选变化。
   billed_requests?: number
@@ -68,6 +70,7 @@ export interface TokenAnalysisUserUsage {
   api_key_name: string
   request_count: number
   risky_request_count: number
+  human_input_count?: number
   total_tokens: number
   input_tokens: number
   output_tokens: number
@@ -86,6 +89,7 @@ export interface TokenAnalysisProjectUsage {
   user_email: string
   request_count: number
   matched_request_count: number
+  human_input_count?: number
   total_tokens: number
   input_tokens: number
   output_tokens: number
@@ -104,6 +108,7 @@ export type TokenAnalysisRequestOriginReason =
   | 'agent_message'
   | 'assistant_continuation'
   | 'compaction'
+  | 'compaction_resume'
   | 'user_input'
   | 'no_signal'
   | 'unsupported_shape'
@@ -114,7 +119,7 @@ export interface TokenAnalysisRequestOrigin {
   kind: TokenAnalysisRequestOriginKind
   reason: TokenAnalysisRequestOriginReason
   confidence: 'high' | 'medium' | 'none'
-  version: 1
+  version: 1 | 2
 }
 
 export interface TokenAnalysisRequestSummary {

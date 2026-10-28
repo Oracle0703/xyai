@@ -46,8 +46,10 @@ export default {
     overview: 'Overview',
     help: {
       archivedRequests: 'Archived and indexed request samples, not all requests. Compare with billed requests to see archive coverage.',
-      matchedOnly: 'Only requests linked to a billing record are counted; tokens and cost of unlinked requests are unknown and excluded.'
+      matchedOnly: 'Only requests linked to a billing record are counted; tokens and cost of unlinked requests are unknown and excluded.',
+      humanInputs: 'Among Human-labelled requests, the same prompt resent by one API key within 15 minutes counts once, merged only within the current filters. This is an estimate, not the number of real user actions; older records without a fingerprint count one by one.'
     },
+    humanInputs: 'Human inputs',
     matchedUnmatched: 'Matched / Unmatched',
     riskReasonKinds: 'Risk types',
     tokenComposition: 'Token Composition',
@@ -76,7 +78,7 @@ export default {
       filterOption: 'Origin: {name}',
       filterHint: 'Filters the overview, rankings and request list by the origin of each call; "Not identified yet" includes older records indexed before origin detection. The billing trend and billed request count are not affected.',
       hint: 'Inferred from the structure of this call. Human means new user input in this turn; AI means tool continuation or an automated task. "Latest user input" is the most recent user text in the conversation, so tool continuations in the same turn show the same text.',
-      humanHint: 'Human is inferred from the user input structure and does not prove a person manually sent the request. Internal requests from clients such as Claude Code or Copilot (subagents, auto-compaction, title generation), and scripts or programs that call the API with plain user messages, carry no explicit marker and may also show as Human. Unclassified historical records show —.',
+      humanHint: 'Human is inferred from the user input structure and does not prove a person manually sent the request. Internal client requests without a marker (such as the first turn of a Claude Code or Copilot subagent, or title generation) and scripts or programs that call the API with plain user messages may still show as Human. Rule version 1 records do not cover the compaction and notification shapes recognised by version 2; unclassified historical records show —.',
       reason: 'Reason',
       confidence: 'Inference confidence',
       version: 'Rule version',
@@ -92,6 +94,7 @@ export default {
         agent_message: 'This turn contains an agent message or execution notification',
         assistant_continuation: 'This turn continues from assistant output',
         compaction: 'This turn compacts context or continues after compaction',
+        compaction_resume: 'This turn continues after automatic context compaction (inferred from the resume summary)',
         user_input: 'The end of this turn contains new user input without an explicit automation marker',
         no_signal: 'Insufficient signals to identify the request origin',
         unsupported_shape: 'This request structure is not supported for origin inference',
@@ -152,7 +155,7 @@ export default {
     project: 'Project',
     projectFilterHint: 'exact project name / unattributed',
     userEmail: 'User Email',
-    userEmailHint: 'fuzzy email search (user/project ranking, requests)',
+    userEmailHint: 'fuzzy email search (overview, user/project ranking, requests)',
     riskLegend: 'Risk reference',
     riskLegendHint: 'What each risk tag means. Hovering a tag in the distribution or request list also shows its explanation.',
     // Risk code -> human label and explanation; the full desc is shown on hover.
@@ -257,6 +260,7 @@ export default {
       cacheCreation: 'Cache Creation',
       riskyCostShare: 'Risky cost share',
       totalRequests: 'Archived Requests',
+      humanInputs: 'Human inputs (est.)',
       billedRequests: 'Billed Requests (same period)',
       archiveCoverage: 'Archive Coverage',
       totalTokens: 'Total Tokens',
