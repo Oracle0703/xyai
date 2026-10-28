@@ -1,5 +1,11 @@
 # 安全与可靠性基线
 
+## 0.2.18 安全与可靠性同步
+
+- `service/image_storage.go` 的异步图片下载沿上游增加公网目的地限制：每跳重定向重新校验、直连 socket 实际 IP 校验、代理路径本地 DNS 检查；非图片响应拒绝。代理侧解析仍由代理负责，不能据此声称完全消除代理侧 DNS 风险。
+- `ratelimit_service.go` 对 Cloudflare 1010 HTML/JSON 边缘拦截跳过账号惩罚；其他真实 403 沿平台策略。此规则来自指定上游，不改本地子管理员权限边界。
+- Codex CLI 身份与空输出重试、兼容流断开计费、共享调度母本规则见 backend；本轮仅合并固定 0.2.18，不独立修复观察到的上游或既有缺陷。
+
 ## 0.2.17 路由与新增入口边界
 
 - PR #8139 只扩大精确元数据事件允许集合（`response.queued`、`response.metadata`）；未知事件仍保守视为输出，已有文本、tool arguments 或 encrypted reasoning 的重放边界不放宽，原重试预算和调度规则不变。回归入口：`openai_capacity_shed_test.go`、`openai_ws_http_bridge_test.go`、`openai_first_output_timeout_test.go`，核对元数据后可重试与语义输出后禁止重放。
@@ -528,7 +534,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 
 当前上游已知限制:
 
-- `backend/internal/service/image_storage.go` 会下载上游生图响应的 `data[].url` 后转存 S3, 当前上游默认 HTTP client 只有 timeout/大小限制, 没有私网、云元数据、DNS rebinding 或 redirect SSRF 防护。合并分支按用户要求不做本地修补; upstream 修复前不要在可被不可信自定义上游影响的环境启用 `image_storage`。
+- 异步图片下载的旧 SSRF 缺口已由指定 0.2.18 上游增加目的地、重定向和直连 IP 防护，当前合同见本页 0.2.18 节；这不是本地额外修补。环境代理路径仍须考虑代理侧解析边界。
 - async image 任务只由请求进程启动 goroutine, 没有持久 worker/recovery; 服务重启后 Redis 中的 `processing` 任务可能保留到默认 24h TTL。upstream 修复前要把滚动重启和任务可恢复性纳入运维预期。
 
 ## 相关页面

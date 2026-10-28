@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.2.18 迁移与账号配额
+
+- 新增 `backend/migrations/246_enable_gemini_image_generation_groups.sql`：把既有 Gemini/Antigravity 分组的 `allow_image_generation=false` 改为 true，Composite 不在更新范围。升级会重新开启这些分组的生图权限，随后可由管理员显式关闭。
+- 本地 `246_organization_usage_daily_rollups.sql` 原名和内容保留；执行器 `repository/migrations_runner.go` 按完整文件名排序、记录 filename/checksum，不按数字前缀去重；两个 246 共存，不重命名已应用迁移。无 Ent schema 或 Wire provider 变化。
+- `usage_billing_repo.go` 按日/周额度配置选择四种 SQL 变体，WHERE 校验不匹配时回退全维度语句；额度跨限仍写 scheduler outbox。service_account 参与账号配额，账号不存在时跳过该配额计数，其他结算继续。Grok 4.7 Fast 价卡采用上游内置价格。
+
 ## 0.2.17 分组译文、缓存与支付
 
 - 追加 `242_group_i18n.sql`（groups.i18n JSONB），与既有 `242_drop_platform_check_constraints.sql`、`242_subscription_self_reset_events.sql` 按完整文件名区分；243 缓存迁移与本地 `243_gpt_quota_display.sql` 同样保留原名；旧迁移不改写。Ent group schema 与生成物随之更新。

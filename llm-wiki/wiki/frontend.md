@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.18 账号与分组界面
+
+- `utils/accountQuota.ts#supportsAccountQuota` 统一 apikey/bedrock/service_account 配额能力；Create/Edit、用量/容量单元格和账号操作菜单同步支持 Vertex 配额。本地 GPT 双来源额度圆环与子管理员 `useAccountOperatorAccess` 仍保留，不能因额度能力扩大而放宽管理权限。
+- `views/admin/AccountsView.vue` 用 `account-filter-values` 保存平台与状态筛选，加载时按平台目录和状态白名单校验；存储不可用时仍可筛选。
+- Gemini/Antigravity 分组展示生图开关；服务端按同一开关限制 Gemini 系入口。前端依赖及锁文件同步 DOMPurify 3.4.17 和 follow-redirects 安全版本约束。
+
 ## 0.2.17 分组译文与 Gemini 账号
 
 - 管理分组新增 `components/admin/group/GroupI18nField.vue` 编辑名称/描述译文；用户侧分组显示遵循服务端 Accept-Language 本地化。管理编辑仍回传原始字段，不能把展示译文覆盖原名。

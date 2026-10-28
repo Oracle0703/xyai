@@ -1,5 +1,10 @@
 # Sub2API llm-wiki 基线
 
+## 0.2.18 同步（待提交审核）
+
+- 2026-10-28 从本地 `main@b3940712d7c7d6c1b7a7550fa661583363a3423f` 创建 `feature/hy/10224_merge_sub2api_218`，固定合入 `Wei-Shaw/sub2api main@5c185c5c5d4f5e409e2139806e0964ae944e03e8`（0.2.18）；不跟随其后的 upstream/main。
+- 无文本冲突，重点复核双方改动的 19 个路径；本地功能保留，重叠的 PR #8139 已由上游正式纳入，不重复应用。仅做合并，不额外修复上游 bug。审核与验证入口：`docs/upstream-sync/2026-10-28-v0.2.18/review.md`。
+
 ## 受限账号运维入口
 
 - `feature/hy/10220_sub_admin_accounts` 新增子管理员权限 `admin.accounts_operator`：可全量查看 `/admin/accounts`，只能新增、测试连接、重新授权；在用户管理里给 `sub_admin` 勾选即可，可多人。子管理员造成的新增/重新授权/测试后状态变化会邮件通知固定收件人。设计与决策见 `docs/features/sub-admin-accounts-operator-design-cn.md`，运行合同见 security/backend/frontend 子管理员章节。

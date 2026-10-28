@@ -1,5 +1,10 @@
 # Account Components
 
+## 0.2.18 配额能力
+
+- Create/Edit、AccountCapacityCell、AccountUsageCell 统一使用 `utils/accountQuota.ts#supportsAccountQuota`，支持 Vertex service_account 总/日/周配额；池模式不随配额集合扩大。本地 GPT 双来源额度圆环和 compatible preset 继续保留。
+- 回归入口：AccountUsageCell、EditAccountModal、CreateAccountModal 现有测试，以及完整前端 Vitest/typecheck。
+
 ## 0.2.17 同步
 
 - Gemini 账号支持 Agent Platform (Vertex) API Key、显式缓存说明、模型目录及 thinking；第三方/Vertex 不展示 AI Studio 模拟额度。本地 OpenAI-compatible preset 的显隐、reset 与提交保持。回归覆盖 Create/Edit、AccountUsageCell、UsageProgressBar、ModelWhitelistSelector。

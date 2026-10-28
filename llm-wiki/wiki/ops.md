@@ -1,5 +1,11 @@
 # 运维, 配置与验证基线
 
+## 0.2.18 构建与验证入口
+
+- 指定上游 `5c185c5c5d4f5e409e2139806e0964ae944e03e8` 将 `go.mod`、CI 版本检查和根 Dockerfile builder 升到 Go 1.27.3；前端 DOMPurify/锁文件及 follow-redirects override 同步。其余 Dockerfile 按实际源码核对，不将旧文档的“全部统一”当验证结论。
+- Windows 使用 repo-local GOCACHE/GOMODCACHE、每套件独立 GOTMPDIR、Git usr/bin PATH；若宿主 GOROOT 固定到旧 Go，显式把 GOROOT/PATH 指向同一 1.27.3 工具链并设置 GOTOOLCHAIN=local，避免新 go 命令调用旧 compile。依次执行 Go default/unit/integration；前端 frozen install、lint:check、typecheck、完整 Vitest/build。退出成功但 Docker/外部依赖跳过的测试必须单独记录。
+- 本轮无 Ent schema/provider 变更，不为合并重生成 Ent/Wire；新增 migration 246 与本地同号文件按完整文件名共存。实际验证结果及失败归属见 `docs/upstream-sync/2026-10-28-v0.2.18/review.md`，停在未提交状态等待审核。
+
 ## unit service 编译状态
 
 - 2026-10-25 `feature/hy/10220_sub_admin_accounts` 把 `backend/internal/service/gpt_quota_display_test.go` 的测试 helper 改名为 `gptQuotaPtrFloat`，`go test -tags unit ./internal/service/` 不再被 `ptrFloat` 重复声明阻塞。全量 unit service 在基线与该分支都剩 2 个既有失败：`TestApplyDefaultOpenAIReasoningEffort`（旧断言）和 `TestCommandCodeGatewayPassesThroughCatalogProtocols`（全量顺序相关，单跑通过）。
@@ -129,7 +135,7 @@
 - `feature/hy/10170_merge_upstream_v170` 已通过 PR #33 合入 `main@7a537cff`, 固定上游提交 `7e2e9ba05026b7126318aa0754c1afa0ac00bc58`, 后端版本 `0.1.170`。
 - `feature/hy/10168_同步sub2api主线` 的固定上游提交为 `5a6143097db142b72a6fc848c214e97214470bdd`, 后端版本为 `0.1.168`。
 - `feature/hy/10161_合并1.161版本@e3e6b52da43a5be351cf59089976759eebc28376` 的 `backend/cmd/server/VERSION` 为 `0.1.161`; 对应固定上游提交 `d4b9797ff72024960a035cf22fdd8f213e149169`。
-- `backend/go.mod` 声明 Go `1.27.2`; backend CI、security scan 和 release workflow 均校验 `go1.27.2`，根、backend、deploy Dockerfile builder 也统一为 `golang:1.27.2-alpine`；CI lint 使用 v2.14.0。
+- `backend/go.mod` 声明 Go `1.27.3`；backend CI、security scan、release workflow 与根 Dockerfile 使用 1.27.3。指定 0.2.18 的 `backend/Dockerfile` 和 `deploy/Dockerfile` 仍为 1.27.2，是上游版本不一致，本地合并不修；CI lint 使用 v2.14.0。
 - Wire provider 或后台服务签名变动后, 在 Windows 上建议使用仓库内 `GOCACHE`/`GOTMPDIR` 重新生成并测试, 避免默认 Go build cache 权限噪音。`backend/cmd/server/main.go` 的生成指令固定为 `go run -mod=mod github.com/google/wire/cmd/wire`; 干净模块缓存下缺少 `-mod=mod` 会因 Wire 工具传递依赖缺少 `go.sum` 条目而失败。
 - 0.1.163 继续保留 `securityaudit.ProviderSet` 的 `PromptAdminService -> *PromptService` binding；`go generate ./cmd/server` 应从合并后的 Wire 源图同时生成上游 Ops/auth-cache/image-storage 生命周期与本地 Prompt Metrics、Token Analysis、并发 preset、quota flusher 链。
 - 0.1.168 的 Wire 图还必须包含 `NewPasskeySessionStore`、`NewOptionalJWTAuthMiddleware` 与 Passkey service/handler；冲突处理应修改 provider source 后重新生成, 不直接手改 `wire_gen.go`。`deploy/config.example.yaml` 新增默认关闭的 `webauthn` 配置, 生产启用时必须显式提供 RP ID 和 HTTPS origins。
@@ -463,7 +469,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
 - golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.14.0`, working-directory `backend`
-- Go 版本校验: `go1.27.2`
+- Go 版本校验: `go1.27.3`
 
 `.github/workflows/security-scan.yml`:
 

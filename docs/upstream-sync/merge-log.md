@@ -2196,3 +2196,22 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证通过 | 130 个顶层流式/首输出/WS 用例连续 3 轮（390 顶层 / 600 含子用例 PASS，0 skip）；normal/embed build、lint 0 issues；handler/routes 默认测试通过 |
 | 失败与边界 | service unit overlay 8438 顶层 PASS，effort none 旧断言失败；正式 unit 重复 ptrFloat 限制沿用前轮。default service 的 OAuth 刷新超时用例首败，代码与第一父/指定上游逐 blob 一致，单跑 10/10 通过；保留失败，不修复。前端/PG/集成/生成/tidy 沿用 0.2.17 阶段证据和缺口 |
 | 文档与交付 | wiki 稳定合同、图谱与 `docs/upstream-sync/2026-10-19-v0.2.17/review.md` 更新；0.2.17 + PR 内容共同等待提交前审核，未 commit/push/部署 |
+
+
+## 2026-10-28：固定同步 0.2.18（待 commit 审核）
+
+| 项目 | 记录 |
+| --- | --- |
+| 日期 | 2026-10-28 |
+| 工作分支 | `feature/hy/10224_merge_sub2api_218` |
+| 本地基线 | `main@b3940712d7c7d6c1b7a7550fa661583363a3423f` |
+| 上游仓库/分支 | `https://github.com/Wei-Shaw/sub2api` / `main` |
+| 上游提交 | `5c185c5c5d4f5e409e2139806e0964ae944e03e8`（VERSION 0.2.18）；不追随其后 main |
+| 共同祖先 | `b0a02a3304a0a78cdd003ddda1dd23ba02c03084` |
+| 合并提交 | 尚未创建；MERGE_HEAD 固定为目标，等待用户审核 |
+| 冲突文件 | 无文本冲突；1 处语义冲突：`backend/internal/service/token_analysis_forward_facts_test.go` 的旧 DeepSeek url 断言 |
+| 处理方式 | 19 个双方修改路径三方复核；本地测试改为官方 image_url 且无重复 url，保留最终正文哈希校验，生产实现不改。重叠 PR #8139 采用上游整合；34 个 docs/features 文件及本地独有功能保留。不修上游 bug |
+| 迁移 | 新增 246_enable_gemini_image_generation_groups，与本地 246_organization_usage_daily_rollups 按完整文件名共存，旧迁移不改；升级重新开启既有 Gemini/Antigravity 生图开关 |
+| 验证 | 前端 frozen install、lint/typecheck、414 files / 3211 tests、build 通过；Go default 首轮仅本地旧断言失败，适配后 service 全包 4395 顶层 / 8933 PASS，其余 53 包沿用首轮通过；unit 58 包通过、5 顶层失败（基线/时序归属详见报告）；integration 退出 0、54 包返回通过但含 Docker 仓储整包跳过及 18 skip；独立 PG 21 顶层 / 84 PASS、双 246 与生图 SQL 实测通过、测试库已停止；normal/embed build 与最终增量 lint（0 issues）通过；Wiki 图谱刷新并通过 AllowDirtyWiki 校验 |
+| 审核材料 | `docs/upstream-sync/2026-10-28-v0.2.18/review.md` |
+| 交付边界 | 未 commit/push/部署；不宣称全绿或完整 Docker/真实上游/浏览器验收 |

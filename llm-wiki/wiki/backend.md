@@ -1,5 +1,14 @@
 # 后端知识基线
 
+## 0.2.18 网关与调度合同
+
+- `service/account.go#SupportsAccountQuota` 将 Vertex `service_account` 纳入账号配额、DTO、计费和超限调度；池模式仍使用 `IsAPIKeyOrBedrock`。本地 GPT 额度快照/圆环、用户平台额度和部门报表是不同能力，继续保留。
+- `repository/scheduler_cache.go` 在进程内复用解码后的只读快照母本，`Account.PrepareSharedSnapshot` 预解析映射；调用方按值复制，模型限流更新采用复制后写入。不能原地修改共享 Credentials/model_mapping。单 Antigravity 账号判断改为按需探测。
+- Gemini 原生及兼容入口遵守分组生图开关，检查请求与映射后的模型；countTokens 不执行生图拒绝。保留本地统一 path parser、安全审计与并发依赖错误分类。
+- Anthropic→Chat/Responses 兼容流及 Gemini 客户端断开后，沿上游收尾/已收集 usage 计费；不正常流终态不伪装成功。Codex 默认出站身份为 `codex_cli_rs`，TUI 身份成对归一化；空字符串 delta/done 不提前视为输出，容量重试读取 Retry-After（最多 8 秒）。原 PR #8139 metadata 分类已在上游。
+- 本地 `token_analysis_forward_facts_test.go` 的最终正文哈希回归须验证提升图片的 `image_url` 且无重复 `url`，再比较实际 transport 正文的 items/root 哈希；不能继续依赖 0.2.17 的双字段形态。
+- DeepSeek 图片只保留官方 `image_url`；本地 thinking 清理、默认 effort、compatible cache usage、请求保护、归档/拦截、Prompt Metrics/Risk 和 Token Analysis 接线不变。以上沿指定 0.2.18 实现，不加入独立缺陷修补。
+
 ## 0.2.17 Gemini 缓存与网关合同
 
 - 同轮叠加指定 PR #8139（`e068c3d02ff8664c1142d5f7c51a05a82f75ad3d`）。`service/openai_gateway_passthrough.go#openAIStreamEventIsMetadata` 将精确事件名 `response.queued`、`response.metadata` 与 created/in_progress/keepalive 一并归为输出前元数据；native SSE、passthrough、WS→HTTP bridge 共享分类，元数据后 overload 保留原重试/换号路径，不提前提交暂存输出或计入语义 TTFT。native 首输出 deadline 仍有效；不扩展 deadline 到其他 transport。
