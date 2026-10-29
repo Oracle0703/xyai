@@ -19,8 +19,9 @@
 - 2026-09-21 代码精简与复审见 `docs/reviews/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
 - 同日实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
 - 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
+- 2026-10-29 `feature/hy/10226_department_member_management` 设计首轮审核并原地修订、未实现：新权限 `admin.department_members` 覆盖加入/移出、启停用和资料；只能启用负责人停用的成员。来源须显式写入并由触发器约束，需覆盖管理员重复封禁；PUT 需部门版本 CAS，授权弹窗不可隐式增权。备注已定为独立 `users.department_note`（≤1000 字，归属变化由触发器清空并审计，管理员只读，负责人不可见管理员 notes），待复核后定稿。设计与审核结论：`docs/features/department-member-management-design-cn.md` 第 12 节；实施任务卡与锁定验收测试（先失败、实现后须全过、不得修改）：`docs/features/department-member-management-implementation-plan-cn.md`。实现前现有合同仍是"负责人不能调整成员"。
 
-更新时间: 2026-10-25
+更新时间: 2026-10-29
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
