@@ -1,6 +1,6 @@
 # 部门负责人管理本部门成员设计
 
-更新：2026-10-29。状态：**已按锁定基线 `a058b81c6` 实现，采用独立负责人备注；等待 Claude 对照代码、测试及实际命令输出复核。** 分支 `feature/hy/10226_department_member_management`（从 main `eb34cc973` 创建），未推送、未部署。首轮设计审核结论与源码依据见第 12 节；执行约束见 [实施任务卡](department-member-management-implementation-plan-cn.md)。
+更新：2026-10-29。状态：**已实现并通过实现复核（`8060a1e91`…`5e6c1ee55`），采用独立负责人备注；未推送、未部署、未合回 main。** 分支 `feature/hy/10226_department_member_management`（从 main `eb34cc973` 创建）。首轮设计审核结论见第 12 节，实现复核结论见第 13 节；执行约束见 [实施任务卡](department-member-management-implementation-plan-cn.md)。
 
 前置功能：[组织、部门与多平台用量报表设计](organization-department-usage-design-cn.md)。该文档把"负责人自行管理成员"列为未纳入首版的扩展；本文是这个扩展的唯一设计文档，审核后原地修订。
 
@@ -266,3 +266,24 @@ flowchart TD
 补充澄清：第 4.2 节明确原稿“立即失效”的适用边界，不等同于永久撤销凭据或终止在途请求；第 4/7 节补同快照读取与迟到响应隔离；启用 active 的重试、真实变化审计口径已统一。保留原先确认的同组织未分配候选、三个组织统一模糊搜索、20 条上限、普通用户写权限、无 grants 拒绝及不允许重置密码等边界。
 
 本轮验证范围：核对上述源码、既有 wiki 和设计内部一致性；仅修改本设计及 wiki 入口，执行文档差异/链接/换行检查。未实现 migration/触发器/接口/页面，未运行 Go、PostgreSQL 或前端测试/构建，也未进行生产或浏览器验收。
+
+## 13. 实现复核结论（2026-10-29）
+
+结论：**通过，无阻塞问题。** 复核对象为锁定基线 `a058b81c6` 之后的 `8060a1e91`、`1a24286ff`、`900780ec6`、`5e6c1ee55`。复核依据是代码、测试和复核者自行重跑的命令输出，不采信实现方的自述。
+
+| 项 | 结果 |
+| --- | --- |
+| 锁定测试 | `git diff a058b81c6..HEAD` 中四个锁定文件仅删除了允许的 ` && deptmembers_pending`；`go.mod`/`go.sum` 无变化 |
+| 编译与单测 | `go build ./...`、`go vet` 通过；service、handler/admin、dto、server 中部门/权限/路由/内容审计相关用例全部通过 |
+| 真实 PostgreSQL | PG18 新建空库，`TestDepartmentMember*`、部门/订阅/报表/权限/迁移相关集成用例 85 个顶层通过，0 失败、0 跳过 |
+| 前端 | 部门、管理页、工具、路由、布局、i18n 相关 Vitest 138 个文件 / 980 个用例通过；`lint:check`、`typecheck` 通过 |
+| 生成代码 | Ent、Wire 重新生成与提交一致，无漂移 |
+
+已核实：R1（`UserRepository.Update` 显式停用一律写 other，内容审计不跳过已停用用户，触发器禁止 other 降级）、R2（版本 CAS，归属往返返回 409）、R3（授权弹窗新权限默认关闭、不隐式增权）、R4（先整批鉴权再 CAS，移出后重试 403）；负责人接口不返回管理员 notes；用户名按 100 UTF-8 字节、备注按 1000 字符校验；状态变化提交后才失效认证缓存；新权限只放行自身 5 条路由。实现方另补了撤权、转岗、封禁与启用、计费与成员写入的真实 PG 并发测试和 outbox 收敛测试。
+
+低优先级建议（不影响合入）：
+
+- migration 261 的 `ADD COLUMN`/`CREATE TRIGGER` 未使用 `IF NOT EXISTS`/`DROP TRIGGER IF EXISTS`，与 239/240 写法不一致；迁移在事务内执行且幂等测试通过，无功能影响。
+- 完整管理员经成员接口写负责人备注时返回 `DEPARTMENT_SCOPE_DENIED`，"管理员只读"语义正确但错误码易误解；前端已禁用该输入。
+
+未覆盖：真实浏览器端到端、真实 Redis 多实例部署（outbox 测试使用替身 Redis）、可信 golangci-lint（本机版本不可用）、Go 全量 default/unit/integration（本次只跑相关包）。上线顺序与回退要求见第 10 节。
