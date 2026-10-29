@@ -1865,6 +1865,8 @@ var (
 		{Name: "frozen_balance", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "concurrency", Type: field.TypeInt, Default: 5},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
+		{Name: "disabled_source", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "department_note", Type: field.TypeString, Size: 1000, Default: "", SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "username", Type: field.TypeString, Size: 100, Default: ""},
 		{Name: "notes", Type: field.TypeString, Default: "", SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "totp_secret_encrypted", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
@@ -1890,7 +1892,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "users_departments_members",
-				Columns:    []*schema.Column{UsersColumns[28]},
+				Columns:    []*schema.Column{UsersColumns[30]},
 				RefColumns: []*schema.Column{DepartmentsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1909,7 +1911,7 @@ var (
 			{
 				Name:    "user_department_id_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[28], UsersColumns[0]},
+				Columns: []*schema.Column{UsersColumns[30], UsersColumns[0]},
 			},
 		},
 	}

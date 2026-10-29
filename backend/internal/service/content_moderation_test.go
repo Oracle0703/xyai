@@ -1589,6 +1589,24 @@ func TestContentModerationAutoBanDisablesRegularUserAtThreshold(t *testing.T) {
 	require.Equal(t, []int64{userID}, invalidator.userIDs)
 }
 
+func TestContentModerationAutoBanReappliesWithoutFirstBanNotification(t *testing.T) {
+	cfg := defaultContentModerationConfig()
+	cfg.BanThreshold = 1
+	userID := int64(1002)
+	userRepo := &contentModerationTestUserRepo{user: &User{ID: userID, Role: RoleUser, Status: StatusDisabled}}
+	invalidator := &contentModerationTestAuthCacheInvalidator{}
+	svc := NewContentModerationService(nil, nil, nil, nil, userRepo, nil, invalidator, nil)
+	log := newContentModerationFlaggedLog(userID)
+
+	firstBanNotification := svc.applyFlaggedAccountSideEffects(context.Background(), cfg, log)
+
+	require.False(t, firstBanNotification, "reapplying a disable must not send another first-ban notification")
+	require.True(t, log.AutoBanned)
+	require.Len(t, userRepo.updated, 1, "the explicit system disable still reaches the repository")
+	require.Equal(t, StatusDisabled, userRepo.updated[0].Status)
+	require.Equal(t, []int64{userID}, invalidator.userIDs)
+}
+
 func TestContentModerationAdminBelowBanThresholdRecordsViolationOnly(t *testing.T) {
 	cfg := defaultContentModerationConfig()
 	cfg.BanThreshold = 2

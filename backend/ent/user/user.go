@@ -41,6 +41,10 @@ const (
 	FieldConcurrency = "concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldDisabledSource holds the string denoting the disabled_source field in the database.
+	FieldDisabledSource = "disabled_source"
+	// FieldDepartmentNote holds the string denoting the department_note field in the database.
+	FieldDepartmentNote = "department_note"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
 	// FieldNotes holds the string denoting the notes field in the database.
@@ -240,6 +244,8 @@ var Columns = []string{
 	FieldFrozenBalance,
 	FieldConcurrency,
 	FieldStatus,
+	FieldDisabledSource,
+	FieldDepartmentNote,
 	FieldUsername,
 	FieldNotes,
 	FieldTotpSecretEncrypted,
@@ -312,6 +318,12 @@ var (
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DisabledSourceValidator is a validator for the "disabled_source" field. It is called by the builders before save.
+	DisabledSourceValidator func(string) error
+	// DefaultDepartmentNote holds the default value on creation for the "department_note" field.
+	DefaultDepartmentNote string
+	// DepartmentNoteValidator is a validator for the "department_note" field. It is called by the builders before save.
+	DepartmentNoteValidator func(string) error
 	// DefaultUsername holds the default value on creation for the "username" field.
 	DefaultUsername string
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
@@ -404,6 +416,16 @@ func ByConcurrency(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByDisabledSource orders the results by the disabled_source field.
+func ByDisabledSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisabledSource, opts...).ToFunc()
+}
+
+// ByDepartmentNote orders the results by the department_note field.
+func ByDepartmentNote(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDepartmentNote, opts...).ToFunc()
 }
 
 // ByUsername orders the results by the username field.

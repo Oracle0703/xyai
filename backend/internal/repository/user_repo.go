@@ -335,6 +335,11 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	}
 	if fields.Status {
 		updateOp = updateOp.SetStatus(userIn.Status)
+		if userIn.Status == service.StatusDisabled {
+			// An explicit administrator/system disable takes ownership even if
+			// the user was already disabled by a department manager.
+			updateOp = updateOp.SetDisabledSource("other")
+		}
 	}
 	if fields.RestrictPublicGroups {
 		updateOp = updateOp.SetRestrictPublicGroups(userIn.RestrictPublicGroups)
@@ -399,6 +404,11 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		}
 	}
 
+	userIn.Status = updated.Status
+	userIn.DisabledSource = updated.DisabledSource
+	userIn.DepartmentID = updated.DepartmentID
+	userIn.DepartmentVersion = updated.DepartmentVersion
+	userIn.DepartmentNote = updated.DepartmentNote
 	userIn.UpdatedAt = updated.UpdatedAt
 	return nil
 }

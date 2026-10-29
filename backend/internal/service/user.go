@@ -22,6 +22,8 @@ type User struct {
 	AdminAccessVersion string // Admin detail only, excluded from public/shallow DTOs.
 	DepartmentID       *int64
 	DepartmentVersion  int64
+	DepartmentNote     string
+	DisabledSource     *string
 	Balance            float64
 	FrozenBalance      float64
 	Concurrency        int

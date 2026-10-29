@@ -939,6 +939,8 @@ func userEntityToService(u *dbent.User) *service.User {
 		AdminPermissions:           append([]string(nil), u.AdminPermissions...),
 		DepartmentID:               u.DepartmentID,
 		DepartmentVersion:          u.DepartmentVersion,
+		DepartmentNote:             u.DepartmentNote,
+		DisabledSource:             u.DisabledSource,
 		Balance:                    u.Balance,
 		FrozenBalance:              u.FrozenBalance,
 		Concurrency:                u.Concurrency,

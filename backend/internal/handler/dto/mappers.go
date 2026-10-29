@@ -77,6 +77,8 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		RestrictPublicGroups: u.RestrictPublicGroups,
 		DepartmentID:         u.DepartmentID,
 		DepartmentVersion:    u.DepartmentVersion,
+		DepartmentNote:       u.DepartmentNote,
+		DisabledSource:       u.DisabledSource,
 		AdminAccessVersion:   u.AdminAccessVersion,
 	}
 }

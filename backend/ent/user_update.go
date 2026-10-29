@@ -240,6 +240,40 @@ func (_u *UserUpdate) SetNillableStatus(v *string) *UserUpdate {
 	return _u
 }
 
+// SetDisabledSource sets the "disabled_source" field.
+func (_u *UserUpdate) SetDisabledSource(v string) *UserUpdate {
+	_u.mutation.SetDisabledSource(v)
+	return _u
+}
+
+// SetNillableDisabledSource sets the "disabled_source" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDisabledSource(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetDisabledSource(*v)
+	}
+	return _u
+}
+
+// ClearDisabledSource clears the value of the "disabled_source" field.
+func (_u *UserUpdate) ClearDisabledSource() *UserUpdate {
+	_u.mutation.ClearDisabledSource()
+	return _u
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (_u *UserUpdate) SetDepartmentNote(v string) *UserUpdate {
+	_u.mutation.SetDepartmentNote(v)
+	return _u
+}
+
+// SetNillableDepartmentNote sets the "department_note" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDepartmentNote(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetDepartmentNote(*v)
+	}
+	return _u
+}
+
 // SetUsername sets the "username" field.
 func (_u *UserUpdate) SetUsername(v string) *UserUpdate {
 	_u.mutation.SetUsername(v)
@@ -1085,6 +1119,16 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisabledSource(); ok {
+		if err := user.DisabledSourceValidator(v); err != nil {
+			return &ValidationError{Name: "disabled_source", err: fmt.Errorf(`ent: validator failed for field "User.disabled_source": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.DepartmentNote(); ok {
+		if err := user.DepartmentNoteValidator(v); err != nil {
+			return &ValidationError{Name: "department_note", err: fmt.Errorf(`ent: validator failed for field "User.department_note": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Username(); ok {
 		if err := user.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
@@ -1162,6 +1206,15 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisabledSource(); ok {
+		_spec.SetField(user.FieldDisabledSource, field.TypeString, value)
+	}
+	if _u.mutation.DisabledSourceCleared() {
+		_spec.ClearField(user.FieldDisabledSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.DepartmentNote(); ok {
+		_spec.SetField(user.FieldDepartmentNote, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
@@ -2133,6 +2186,40 @@ func (_u *UserUpdateOne) SetNillableStatus(v *string) *UserUpdateOne {
 	return _u
 }
 
+// SetDisabledSource sets the "disabled_source" field.
+func (_u *UserUpdateOne) SetDisabledSource(v string) *UserUpdateOne {
+	_u.mutation.SetDisabledSource(v)
+	return _u
+}
+
+// SetNillableDisabledSource sets the "disabled_source" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDisabledSource(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetDisabledSource(*v)
+	}
+	return _u
+}
+
+// ClearDisabledSource clears the value of the "disabled_source" field.
+func (_u *UserUpdateOne) ClearDisabledSource() *UserUpdateOne {
+	_u.mutation.ClearDisabledSource()
+	return _u
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (_u *UserUpdateOne) SetDepartmentNote(v string) *UserUpdateOne {
+	_u.mutation.SetDepartmentNote(v)
+	return _u
+}
+
+// SetNillableDepartmentNote sets the "department_note" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDepartmentNote(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetDepartmentNote(*v)
+	}
+	return _u
+}
+
 // SetUsername sets the "username" field.
 func (_u *UserUpdateOne) SetUsername(v string) *UserUpdateOne {
 	_u.mutation.SetUsername(v)
@@ -2991,6 +3078,16 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisabledSource(); ok {
+		if err := user.DisabledSourceValidator(v); err != nil {
+			return &ValidationError{Name: "disabled_source", err: fmt.Errorf(`ent: validator failed for field "User.disabled_source": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.DepartmentNote(); ok {
+		if err := user.DepartmentNoteValidator(v); err != nil {
+			return &ValidationError{Name: "department_note", err: fmt.Errorf(`ent: validator failed for field "User.department_note": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Username(); ok {
 		if err := user.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
@@ -3085,6 +3182,15 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisabledSource(); ok {
+		_spec.SetField(user.FieldDisabledSource, field.TypeString, value)
+	}
+	if _u.mutation.DisabledSourceCleared() {
+		_spec.ClearField(user.FieldDisabledSource, field.TypeString)
+	}
+	if value, ok := _u.mutation.DepartmentNote(); ok {
+		_spec.SetField(user.FieldDepartmentNote, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)

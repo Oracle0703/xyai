@@ -2378,17 +2378,18 @@ func (s *ContentModerationService) applyFlaggedAccountSideEffects(ctx context.Co
 			// TODO: Disable the triggering API key instead when API key mutation is available here.
 			return false
 		}
-		if user.Status != StatusDisabled {
-			user.Status = StatusDisabled
-			if err := s.userRepo.Update(ctx, user, UserUpdateFields{Status: true}); err != nil {
-				slog.Warn("content_moderation.ban_update_user_failed", "user_id", *log.UserID, "error", err)
-				return false
-			}
-			if s.authCacheInvalidator != nil {
-				s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, *log.UserID)
-			}
-			autoBanJustApplied = true
+		wasDisabled := user.Status == StatusDisabled
+		user.Status = StatusDisabled
+		// Always persist the system disable so an existing manager disable
+		// cannot be re-enabled by a department manager after this violation.
+		if err := s.userRepo.Update(ctx, user, UserUpdateFields{Status: true}); err != nil {
+			slog.Warn("content_moderation.ban_update_user_failed", "user_id", *log.UserID, "error", err)
+			return false
 		}
+		if s.authCacheInvalidator != nil {
+			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, *log.UserID)
+		}
+		autoBanJustApplied = !wasDisabled
 		log.AutoBanned = true
 	}
 	return autoBanJustApplied

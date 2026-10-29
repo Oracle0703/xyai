@@ -50268,6 +50268,8 @@ type UserMutation struct {
 	concurrency                   *int
 	addconcurrency                *int
 	status                        *string
+	disabled_source               *string
+	department_note               *string
 	username                      *string
 	notes                         *string
 	totp_secret_encrypted         *string
@@ -51021,6 +51023,91 @@ func (m *UserMutation) OldStatus(ctx context.Context) (v string, err error) {
 // ResetStatus resets all changes to the "status" field.
 func (m *UserMutation) ResetStatus() {
 	m.status = nil
+}
+
+// SetDisabledSource sets the "disabled_source" field.
+func (m *UserMutation) SetDisabledSource(s string) {
+	m.disabled_source = &s
+}
+
+// DisabledSource returns the value of the "disabled_source" field in the mutation.
+func (m *UserMutation) DisabledSource() (r string, exists bool) {
+	v := m.disabled_source
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisabledSource returns the old "disabled_source" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldDisabledSource(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisabledSource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisabledSource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisabledSource: %w", err)
+	}
+	return oldValue.DisabledSource, nil
+}
+
+// ClearDisabledSource clears the value of the "disabled_source" field.
+func (m *UserMutation) ClearDisabledSource() {
+	m.disabled_source = nil
+	m.clearedFields[user.FieldDisabledSource] = struct{}{}
+}
+
+// DisabledSourceCleared returns if the "disabled_source" field was cleared in this mutation.
+func (m *UserMutation) DisabledSourceCleared() bool {
+	_, ok := m.clearedFields[user.FieldDisabledSource]
+	return ok
+}
+
+// ResetDisabledSource resets all changes to the "disabled_source" field.
+func (m *UserMutation) ResetDisabledSource() {
+	m.disabled_source = nil
+	delete(m.clearedFields, user.FieldDisabledSource)
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (m *UserMutation) SetDepartmentNote(s string) {
+	m.department_note = &s
+}
+
+// DepartmentNote returns the value of the "department_note" field in the mutation.
+func (m *UserMutation) DepartmentNote() (r string, exists bool) {
+	v := m.department_note
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDepartmentNote returns the old "department_note" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldDepartmentNote(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDepartmentNote is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDepartmentNote requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDepartmentNote: %w", err)
+	}
+	return oldValue.DepartmentNote, nil
+}
+
+// ResetDepartmentNote resets all changes to the "department_note" field.
+func (m *UserMutation) ResetDepartmentNote() {
+	m.department_note = nil
 }
 
 // SetUsername sets the "username" field.
@@ -52506,7 +52593,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 28)
+	fields := make([]string, 0, 30)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -52545,6 +52632,12 @@ func (m *UserMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, user.FieldStatus)
+	}
+	if m.disabled_source != nil {
+		fields = append(fields, user.FieldDisabledSource)
+	}
+	if m.department_note != nil {
+		fields = append(fields, user.FieldDepartmentNote)
 	}
 	if m.username != nil {
 		fields = append(fields, user.FieldUsername)
@@ -52625,6 +52718,10 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.Concurrency()
 	case user.FieldStatus:
 		return m.Status()
+	case user.FieldDisabledSource:
+		return m.DisabledSource()
+	case user.FieldDepartmentNote:
+		return m.DepartmentNote()
 	case user.FieldUsername:
 		return m.Username()
 	case user.FieldNotes:
@@ -52690,6 +52787,10 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldConcurrency(ctx)
 	case user.FieldStatus:
 		return m.OldStatus(ctx)
+	case user.FieldDisabledSource:
+		return m.OldDisabledSource(ctx)
+	case user.FieldDepartmentNote:
+		return m.OldDepartmentNote(ctx)
 	case user.FieldUsername:
 		return m.OldUsername(ctx)
 	case user.FieldNotes:
@@ -52819,6 +52920,20 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case user.FieldDisabledSource:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisabledSource(v)
+		return nil
+	case user.FieldDepartmentNote:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDepartmentNote(v)
 		return nil
 	case user.FieldUsername:
 		v, ok := value.(string)
@@ -53048,6 +53163,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldDepartmentID) {
 		fields = append(fields, user.FieldDepartmentID)
 	}
+	if m.FieldCleared(user.FieldDisabledSource) {
+		fields = append(fields, user.FieldDisabledSource)
+	}
 	if m.FieldCleared(user.FieldTotpSecretEncrypted) {
 		fields = append(fields, user.FieldTotpSecretEncrypted)
 	}
@@ -53082,6 +53200,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldDepartmentID:
 		m.ClearDepartmentID()
+		return nil
+	case user.FieldDisabledSource:
+		m.ClearDisabledSource()
 		return nil
 	case user.FieldTotpSecretEncrypted:
 		m.ClearTotpSecretEncrypted()
@@ -53144,6 +53265,12 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case user.FieldDisabledSource:
+		m.ResetDisabledSource()
+		return nil
+	case user.FieldDepartmentNote:
+		m.ResetDepartmentNote()
 		return nil
 	case user.FieldUsername:
 		m.ResetUsername()

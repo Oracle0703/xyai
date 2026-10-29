@@ -193,6 +193,34 @@ func (_c *UserCreate) SetNillableStatus(v *string) *UserCreate {
 	return _c
 }
 
+// SetDisabledSource sets the "disabled_source" field.
+func (_c *UserCreate) SetDisabledSource(v string) *UserCreate {
+	_c.mutation.SetDisabledSource(v)
+	return _c
+}
+
+// SetNillableDisabledSource sets the "disabled_source" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDisabledSource(v *string) *UserCreate {
+	if v != nil {
+		_c.SetDisabledSource(*v)
+	}
+	return _c
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (_c *UserCreate) SetDepartmentNote(v string) *UserCreate {
+	_c.mutation.SetDepartmentNote(v)
+	return _c
+}
+
+// SetNillableDepartmentNote sets the "department_note" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDepartmentNote(v *string) *UserCreate {
+	if v != nil {
+		_c.SetDepartmentNote(*v)
+	}
+	return _c
+}
+
 // SetUsername sets the "username" field.
 func (_c *UserCreate) SetUsername(v string) *UserCreate {
 	_c.mutation.SetUsername(v)
@@ -697,6 +725,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.DepartmentNote(); !ok {
+		v := user.DefaultDepartmentNote
+		_c.mutation.SetDepartmentNote(v)
+	}
 	if _, ok := _c.mutation.Username(); !ok {
 		v := user.DefaultUsername
 		_c.mutation.SetUsername(v)
@@ -793,6 +825,19 @@ func (_c *UserCreate) check() error {
 	if v, ok := _c.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.DisabledSource(); ok {
+		if err := user.DisabledSourceValidator(v); err != nil {
+			return &ValidationError{Name: "disabled_source", err: fmt.Errorf(`ent: validator failed for field "User.disabled_source": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DepartmentNote(); !ok {
+		return &ValidationError{Name: "department_note", err: errors.New(`ent: missing required field "User.department_note"`)}
+	}
+	if v, ok := _c.mutation.DepartmentNote(); ok {
+		if err := user.DepartmentNoteValidator(v); err != nil {
+			return &ValidationError{Name: "department_note", err: fmt.Errorf(`ent: validator failed for field "User.department_note": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Username(); !ok {
@@ -909,6 +954,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.DisabledSource(); ok {
+		_spec.SetField(user.FieldDisabledSource, field.TypeString, value)
+		_node.DisabledSource = &value
+	}
+	if value, ok := _c.mutation.DepartmentNote(); ok {
+		_spec.SetField(user.FieldDepartmentNote, field.TypeString, value)
+		_node.DepartmentNote = value
 	}
 	if value, ok := _c.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
@@ -1451,6 +1504,36 @@ func (u *UserUpsert) UpdateStatus() *UserUpsert {
 	return u
 }
 
+// SetDisabledSource sets the "disabled_source" field.
+func (u *UserUpsert) SetDisabledSource(v string) *UserUpsert {
+	u.Set(user.FieldDisabledSource, v)
+	return u
+}
+
+// UpdateDisabledSource sets the "disabled_source" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDisabledSource() *UserUpsert {
+	u.SetExcluded(user.FieldDisabledSource)
+	return u
+}
+
+// ClearDisabledSource clears the value of the "disabled_source" field.
+func (u *UserUpsert) ClearDisabledSource() *UserUpsert {
+	u.SetNull(user.FieldDisabledSource)
+	return u
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (u *UserUpsert) SetDepartmentNote(v string) *UserUpsert {
+	u.Set(user.FieldDepartmentNote, v)
+	return u
+}
+
+// UpdateDepartmentNote sets the "department_note" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDepartmentNote() *UserUpsert {
+	u.SetExcluded(user.FieldDepartmentNote)
+	return u
+}
+
 // SetUsername sets the "username" field.
 func (u *UserUpsert) SetUsername(v string) *UserUpsert {
 	u.Set(user.FieldUsername, v)
@@ -1931,6 +2014,41 @@ func (u *UserUpsertOne) SetStatus(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateStatus() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDisabledSource sets the "disabled_source" field.
+func (u *UserUpsertOne) SetDisabledSource(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDisabledSource(v)
+	})
+}
+
+// UpdateDisabledSource sets the "disabled_source" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDisabledSource() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDisabledSource()
+	})
+}
+
+// ClearDisabledSource clears the value of the "disabled_source" field.
+func (u *UserUpsertOne) ClearDisabledSource() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDisabledSource()
+	})
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (u *UserUpsertOne) SetDepartmentNote(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDepartmentNote(v)
+	})
+}
+
+// UpdateDepartmentNote sets the "department_note" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDepartmentNote() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDepartmentNote()
 	})
 }
 
@@ -2618,6 +2736,41 @@ func (u *UserUpsertBulk) SetStatus(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateStatus() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetDisabledSource sets the "disabled_source" field.
+func (u *UserUpsertBulk) SetDisabledSource(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDisabledSource(v)
+	})
+}
+
+// UpdateDisabledSource sets the "disabled_source" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDisabledSource() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDisabledSource()
+	})
+}
+
+// ClearDisabledSource clears the value of the "disabled_source" field.
+func (u *UserUpsertBulk) ClearDisabledSource() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDisabledSource()
+	})
+}
+
+// SetDepartmentNote sets the "department_note" field.
+func (u *UserUpsertBulk) SetDepartmentNote(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDepartmentNote(v)
+	})
+}
+
+// UpdateDepartmentNote sets the "department_note" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDepartmentNote() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDepartmentNote()
 	})
 }
 
