@@ -55,11 +55,11 @@ func TestDepartmentMembersValidateBeforeQuery(t *testing.T) {
 		{Organization: "unknown"}, {Status: "deleted"},
 	} {
 		// No repository: every invalid request must be rejected before invoking it.
-		_, err := NewDepartmentService(nil).Members(context.Background(), f)
+		_, err := NewDepartmentService(nil, nil).Members(context.Background(), f)
 		require.ErrorIs(t, err, ErrDepartmentInvalid, "%+v", f)
 	}
 	r := &departmentFilterRecorder{}
-	_, err := NewDepartmentService(r).Members(context.Background(), DepartmentListFilter{DepartmentID: "7", Q: " dev "})
+	_, err := NewDepartmentService(r, nil).Members(context.Background(), DepartmentListFilter{DepartmentID: "7", Q: " dev "})
 	require.NoError(t, err)
 	require.Equal(t, DepartmentListFilter{Organization: "all", DepartmentID: "7", Q: "dev", Page: 1, PageSize: 20}, r.filter)
 }

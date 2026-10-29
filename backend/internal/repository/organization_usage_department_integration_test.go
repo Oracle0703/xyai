@@ -32,7 +32,7 @@ func TestOrganizationUsageDepartmentIntegration_AllSurfacesUseTheSameScope(t *te
 	require.NoError(t, err)
 	adminCtx := service.WithDepartmentActor(ctx, admin.ID)
 	leaderCtx := service.WithDepartmentActor(ctx, leader.ID)
-	departments := service.NewDepartmentService(NewDepartmentRepository(integrationDB))
+	departments := service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)
 	dept, err := departments.Save(adminCtx, 0, service.DepartmentSaveInput{Organization: service.OrganizationXunyou, Name: prefix})
 	require.NoError(t, err)
 	other, err := departments.Save(adminCtx, 0, service.DepartmentSaveInput{Organization: service.OrganizationWsdashi, Name: prefix})

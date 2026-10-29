@@ -259,7 +259,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	systemOperationLockService := service.ProvideSystemOperationLockService(idempotencyRepository, configConfig)
 	systemHandler := handler.ProvideSystemHandler(updateService, systemOperationLockService)
 	departmentRepository := repository.NewDepartmentRepository(db)
-	departmentService := service.NewDepartmentService(departmentRepository)
+	departmentService := service.NewDepartmentService(departmentRepository, apiKeyAuthCacheInvalidator)
 	adminSubscriptionHandler := admin.NewSubscriptionHandler(subscriptionService, departmentService)
 	usageCleanupRepository := repository.NewUsageCleanupRepository(client, db)
 	usageCleanupService := service.ProvideUsageCleanupService(usageCleanupRepository, timingWheelService, dashboardAggregationService, configConfig)

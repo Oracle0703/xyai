@@ -54,7 +54,7 @@ type subscriptionHandlerService interface {
 // NewSubscriptionHandler creates a new admin subscription handler
 func NewSubscriptionHandler(subscriptionService *service.SubscriptionService, departments *service.DepartmentService) *SubscriptionHandler {
 	if departments == nil {
-		departments = service.NewDepartmentService(nil)
+		departments = service.NewDepartmentService(nil, nil)
 	}
 	h := newSubscriptionHandler(subscriptionService)
 	h.departments = departments

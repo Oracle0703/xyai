@@ -1,4 +1,4 @@
-//go:build integration && deptmembers_pending
+//go:build integration
 
 package repository
 

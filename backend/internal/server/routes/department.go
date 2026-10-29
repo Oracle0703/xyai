@@ -17,4 +17,10 @@ func registerDepartmentRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.PUT("/users/:id/department-scope", h.Admin.Department.SetAccess)
 	admin.GET("/usage/organization-report/scope", h.Admin.Department.ReportScope)
 	admin.GET("/subscriptions/scope", h.Admin.Department.SubscriptionScope)
+	members := admin.Group("/department-members")
+	members.GET("/scope", h.Admin.Department.ManagedScope)
+	members.GET("", h.Admin.Department.ManagedMembers)
+	members.GET("/candidates", h.Admin.Department.ManagedCandidates)
+	members.POST("/assign", h.Admin.Department.ManagedAssign)
+	members.PUT("/:id", h.Admin.Department.UpdateManagedMember)
 }

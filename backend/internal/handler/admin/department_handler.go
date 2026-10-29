@@ -127,24 +127,82 @@ func (h *DepartmentHandler) Members(c *gin.Context) {
 }
 
 func (h *DepartmentHandler) Assign(c *gin.Context) {
+	input, ok := departmentAssignmentInput(c)
+	if !ok {
+		return
+	}
+	count, err := h.departments.Assign(c.Request.Context(), *input)
+	departmentReply(c, gin.H{"updated_count": count}, err)
+}
+
+func departmentAssignmentInput(c *gin.Context) (*service.DepartmentAssignInput, bool) {
 	var input *struct {
 		DepartmentID json.RawMessage                  `json:"department_id"`
 		Members      []service.DepartmentMemberChange `json:"members"`
 	}
 	if !departmentJSON(c, &input) {
-		return
+		return nil, false
 	}
 	if input == nil || len(input.DepartmentID) == 0 {
 		response.BadRequest(c, "assignment object required")
-		return
+		return nil, false
 	}
 	var departmentID *int64
 	if err := json.Unmarshal(input.DepartmentID, &departmentID); err != nil {
 		response.BadRequest(c, "invalid department id")
+		return nil, false
+	}
+	return &service.DepartmentAssignInput{DepartmentID: departmentID, Members: input.Members}, true
+}
+
+func (h *DepartmentHandler) ManagedScope(c *gin.Context) {
+	v, err := h.departments.ManagedScope(c.Request.Context())
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) ManagedMembers(c *gin.Context) {
+	f, ok := departmentListFilter(c)
+	if !ok {
 		return
 	}
-	count, err := h.departments.Assign(c.Request.Context(), service.DepartmentAssignInput{DepartmentID: departmentID, Members: input.Members})
+	v, err := h.departments.ManagedMembers(c.Request.Context(), f)
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) ManagedCandidates(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Query("department_id"), 10, 64)
+	if err != nil || id <= 0 {
+		departmentReply(c, nil, service.ErrDepartmentInvalid)
+		return
+	}
+	v, err := h.departments.ManagedCandidates(c.Request.Context(), id, c.Query("q"))
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) ManagedAssign(c *gin.Context) {
+	input, ok := departmentAssignmentInput(c)
+	if !ok {
+		return
+	}
+	count, err := h.departments.ManagedAssign(c.Request.Context(), *input)
 	departmentReply(c, gin.H{"updated_count": count}, err)
+}
+
+func (h *DepartmentHandler) UpdateManagedMember(c *gin.Context) {
+	id, ok := departmentPathID(c)
+	if !ok {
+		return
+	}
+	var input *service.ManagedMemberUpdateInput
+	if !departmentJSON(c, &input) {
+		return
+	}
+	if input == nil {
+		departmentReply(c, nil, service.ErrDepartmentInvalid)
+		return
+	}
+	v, err := h.departments.UpdateManagedMember(c.Request.Context(), id, *input)
+	departmentReply(c, v, err)
 }
 
 func (h *DepartmentHandler) GetAccess(c *gin.Context) {

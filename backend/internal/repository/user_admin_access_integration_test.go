@@ -24,7 +24,7 @@ func TestUserAdminAccessIntegration_StaleEditorAndLifecycle(t *testing.T) {
 	_, err = integrationDB.Exec(`UPDATE users SET role='sub_admin',admin_permissions='["admin.subscriptions"]' WHERE id=$1`, leader.ID)
 	require.NoError(t, err)
 	adminCtx := service.WithDepartmentActor(ctx, admin.ID)
-	departments := service.NewDepartmentService(NewDepartmentRepository(integrationDB))
+	departments := service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)
 	dept, err := departments.Save(adminCtx, 0, service.DepartmentSaveInput{Organization: service.OrganizationXunyou, Name: prefix})
 	require.NoError(t, err)
 	t.Cleanup(func() {

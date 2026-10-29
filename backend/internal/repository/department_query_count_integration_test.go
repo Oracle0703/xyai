@@ -95,7 +95,7 @@ func TestDepartmentQueryCountIntegration_BoundedPagesAndGlobalFastPath(t *testin
 	_, err := integrationDB.Exec(`UPDATE users SET role='admin' WHERE id=$1`, admin.ID)
 	require.NoError(t, err)
 	actorCtx := service.WithDepartmentActor(ctx, admin.ID)
-	setup := service.NewDepartmentService(NewDepartmentRepository(integrationDB))
+	setup := service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)
 	ids := []int64{}
 	t.Cleanup(func() {
 		_, e := integrationDB.Exec(`DELETE FROM departments WHERE id=ANY($1)`, pq.Array(ids))
@@ -109,7 +109,7 @@ func TestDepartmentQueryCountIntegration_BoundedPagesAndGlobalFastPath(t *testin
 		ids = append(ids, d.ID)
 	}
 	db, counter := newDepartmentCountingDB(t)
-	svc := service.NewDepartmentService(NewDepartmentRepository(db))
+	svc := service.NewDepartmentService(NewDepartmentRepository(db), nil)
 	for _, size := range []int{1, 200} {
 		counter.calls.Store(0)
 		page, e := svc.List(actorCtx, service.DepartmentListFilter{Organization: "all", Q: prefix, Page: 1, PageSize: size})

@@ -28,6 +28,7 @@ var (
 	ErrDepartmentDuplicate          = infraerrors.Conflict("DEPARTMENT_DUPLICATE", "department name already exists in this organization")
 	ErrDepartmentScopeDenied        = infraerrors.Forbidden("DEPARTMENT_SCOPE_DENIED", "department access denied")
 	ErrDepartmentScopeChanged       = infraerrors.Conflict("REPORT_SCOPE_CHANGED", "department scope changed; refresh and retry")
+	ErrDepartmentMemberEnableDenied = infraerrors.Forbidden("DEPARTMENT_MEMBER_ENABLE_DENIED", "member was disabled by an administrator or the system")
 )
 
 type departmentActorKey struct{}
@@ -113,6 +114,35 @@ type DepartmentMemberList struct {
 	PageSize int                `json:"page_size"`
 }
 
+type ManagedDepartmentMember struct {
+	ID                int64   `json:"id"`
+	Email             string  `json:"email"`
+	Username          string  `json:"username"`
+	DepartmentNote    string  `json:"department_note"`
+	Status            string  `json:"status"`
+	DisabledSource    *string `json:"disabled_source"`
+	CanEnable         bool    `json:"can_enable"`
+	Manageable        bool    `json:"manageable"`
+	DepartmentID      int64   `json:"department_id"`
+	DepartmentName    string  `json:"department_name"`
+	DepartmentVersion int64   `json:"department_version"`
+}
+
+type ManagedDepartmentMemberList struct {
+	Items    []ManagedDepartmentMember `json:"items"`
+	Total    int64                     `json:"total"`
+	Page     int                       `json:"page"`
+	PageSize int                       `json:"page_size"`
+}
+
+type ManagedMemberUpdateInput struct {
+	ExpectedDepartmentID      *int64  `json:"expected_department_id"`
+	ExpectedDepartmentVersion *int64  `json:"expected_department_version"`
+	Username                  *string `json:"username"`
+	DepartmentNote            *string `json:"department_note"`
+	Status                    *string `json:"status"`
+}
+
 type DepartmentSaveInput struct {
 	Organization    string `json:"organization_key"`
 	Name            string `json:"name"`
@@ -144,6 +174,7 @@ type DepartmentAccessInput struct {
 	DepartmentIDs              []int64 `json:"department_ids"`
 	Report                     bool    `json:"report"`
 	ResetQuota                 bool    `json:"reset_quota"`
+	ManageMembers              *bool   `json:"manage_members"`
 	ReplaceGlobalSubscriptions bool    `json:"replace_global_subscriptions"`
 	ExpectedVersion            string  `json:"expected_version"`
 }
@@ -266,12 +297,19 @@ type DepartmentRepository interface {
 	Scope(context.Context, string) (*DepartmentScope, error)
 	QueryScope(context.Context, string, DepartmentScopeQuery) (*DepartmentScope, error)
 	SubscriptionGroups(context.Context, string) ([]DepartmentGroupOption, error)
+	ManagedMembers(context.Context, DepartmentListFilter) (*ManagedDepartmentMemberList, error)
+	ManagedCandidates(context.Context, int64, string) ([]DepartmentMember, error)
+	ManagedAssign(context.Context, DepartmentAssignInput) (int, error)
+	UpdateManagedMember(context.Context, int64, ManagedMemberUpdateInput) (*ManagedDepartmentMember, bool, error)
 }
 
-type DepartmentService struct{ repo DepartmentRepository }
+type DepartmentService struct {
+	repo                 DepartmentRepository
+	authCacheInvalidator APIKeyAuthCacheInvalidator
+}
 
-func NewDepartmentService(repo DepartmentRepository) *DepartmentService {
-	return &DepartmentService{repo: repo}
+func NewDepartmentService(repo DepartmentRepository, authCacheInvalidator APIKeyAuthCacheInvalidator) *DepartmentService {
+	return &DepartmentService{repo: repo, authCacheInvalidator: authCacheInvalidator}
 }
 
 func normalizeDepartmentList(f DepartmentListFilter, memberResource bool) (DepartmentListFilter, error) {
@@ -342,19 +380,106 @@ func (s *DepartmentService) Save(ctx context.Context, id int64, in DepartmentSav
 	return s.repo.Save(ctx, id, in)
 }
 
-func (s *DepartmentService) Assign(ctx context.Context, in DepartmentAssignInput) (int, error) {
+func normalizeDepartmentAssign(in DepartmentAssignInput) (DepartmentAssignInput, error) {
 	if len(in.Members) == 0 || len(in.Members) > 200 || (in.DepartmentID != nil && *in.DepartmentID <= 0) {
-		return 0, ErrDepartmentInvalid
+		return in, ErrDepartmentInvalid
 	}
 	seen := make(map[int64]bool)
 	for _, m := range in.Members {
 		if m.UserID <= 0 || m.ExpectedVersion < 0 || seen[m.UserID] || (m.ExpectedDepartmentID != nil && *m.ExpectedDepartmentID <= 0) {
-			return 0, ErrDepartmentInvalid
+			return in, ErrDepartmentInvalid
 		}
 		seen[m.UserID] = true
 	}
 	sort.Slice(in.Members, func(i, j int) bool { return in.Members[i].UserID < in.Members[j].UserID })
+	return in, nil
+}
+
+func (s *DepartmentService) Assign(ctx context.Context, in DepartmentAssignInput) (int, error) {
+	in, err := normalizeDepartmentAssign(in)
+	if err != nil {
+		return 0, err
+	}
 	return s.repo.Assign(ctx, in)
+}
+
+func (s *DepartmentService) ManagedScope(ctx context.Context) (*DepartmentScope, error) {
+	scope, err := s.Scope(ctx, AdminPermissionDepartmentMembers)
+	if err != nil {
+		return nil, err
+	}
+	if scope == nil || (!scope.Unrestricted && len(scope.Departments) == 0) {
+		return nil, ErrDepartmentScopeDenied
+	}
+	return scope, nil
+}
+
+func (s *DepartmentService) ManagedMembers(ctx context.Context, f DepartmentListFilter) (*ManagedDepartmentMemberList, error) {
+	f.DepartmentID = strings.TrimSpace(f.DepartmentID)
+	f.Organization = strings.TrimSpace(f.Organization)
+	if f.DepartmentID == "unassigned" || (f.Status != "" && f.Status != StatusActive && f.Status != StatusDisabled) {
+		return nil, ErrDepartmentInvalid
+	}
+	// This endpoint selects a department directly; it does not require an organization filter.
+	if f.Organization == OrganizationAll && f.DepartmentID != "all" {
+		f.Organization = ""
+	}
+	f, err := normalizeDepartmentList(f, true)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ManagedMembers(ctx, f)
+}
+
+func (s *DepartmentService) ManagedCandidates(ctx context.Context, departmentID int64, q string) ([]DepartmentMember, error) {
+	q = strings.TrimSpace(q)
+	if departmentID <= 0 || utf8.RuneCountInString(q) < 2 {
+		return nil, ErrDepartmentInvalid
+	}
+	return s.repo.ManagedCandidates(ctx, departmentID, q)
+}
+
+func (s *DepartmentService) ManagedAssign(ctx context.Context, in DepartmentAssignInput) (int, error) {
+	in, err := normalizeDepartmentAssign(in)
+	if err != nil {
+		return 0, err
+	}
+	return s.repo.ManagedAssign(ctx, in)
+}
+
+func (s *DepartmentService) UpdateManagedMember(ctx context.Context, userID int64, in ManagedMemberUpdateInput) (*ManagedDepartmentMember, error) {
+	if userID <= 0 || (in.ExpectedDepartmentID != nil && *in.ExpectedDepartmentID <= 0) ||
+		in.ExpectedDepartmentVersion == nil || *in.ExpectedDepartmentVersion < 0 {
+		return nil, ErrDepartmentInvalid
+	}
+	// A missing expected department is checked after the repository verifies the
+	// current target scope, so an unassigned or protected user is still denied.
+	if in.Username != nil {
+		username := strings.TrimSpace(*in.Username)
+		if len(username) > 100 {
+			return nil, ErrDepartmentInvalid
+		}
+		in.Username = &username
+	}
+	if in.DepartmentNote != nil {
+		note := strings.TrimSpace(*in.DepartmentNote)
+		if utf8.RuneCountInString(note) > 1000 {
+			return nil, ErrDepartmentInvalid
+		}
+		in.DepartmentNote = &note
+	}
+	if in.Status != nil && *in.Status != StatusActive && *in.Status != StatusDisabled {
+		return nil, ErrDepartmentInvalid
+	}
+	member, statusChanged, err := s.repo.UpdateManagedMember(ctx, userID, in)
+	if err != nil {
+		return nil, err
+	}
+	// A successful repository result means the status and its audit have committed.
+	if statusChanged && s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	return member, nil
 }
 
 func (s *DepartmentService) GetAccess(ctx context.Context, userID int64) (*DepartmentAccess, error) {

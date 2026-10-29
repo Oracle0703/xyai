@@ -52,7 +52,7 @@ func TestDepartmentRepositoryIntegration_MembershipAndScope(t *testing.T) {
 	adminCtx := service.WithDepartmentActor(ctx, adminID)
 	leaderCtx := service.WithDepartmentActor(ctx, leaderID)
 	repo := NewDepartmentRepository(integrationDB)
-	svc := service.NewDepartmentService(repo)
+	svc := service.NewDepartmentService(repo, nil)
 	create := func(org string) *service.Department {
 		d, err := svc.Save(adminCtx, 0, service.DepartmentSaveInput{Organization: org, Name: prefix + " Engineering"})
 		require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestDepartmentRepositoryIntegration_OnlyNewGrantsLockDepartments(t *testing
 	_, err := integrationDB.Exec(`UPDATE users SET role=CASE WHEN id=$1 THEN 'admin' ELSE 'sub_admin' END WHERE id=ANY($2)`, admin.ID, pq.Array([]int64{admin.ID, leader.ID}))
 	require.NoError(t, err)
 	adminCtx := service.WithDepartmentActor(ctx, admin.ID)
-	setup := service.NewDepartmentService(NewDepartmentRepository(integrationDB))
+	setup := service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)
 	ids := []int64{}
 	t.Cleanup(func() {
 		_, e := integrationDB.Exec(`DELETE FROM department_access_grants WHERE user_id=$1`, leader.ID)
@@ -199,7 +199,7 @@ func TestDepartmentRepositoryIntegration_OnlyNewGrantsLockDepartments(t *testing
 	access, err := setup.GetAccess(adminCtx, leader.ID)
 	require.NoError(t, err)
 	db, counter := newDepartmentCountingDB(t)
-	svc := service.NewDepartmentService(NewDepartmentRepository(db))
+	svc := service.NewDepartmentService(NewDepartmentRepository(db), nil)
 	counter.calls.Store(0)
 	access, err = svc.SetAccess(adminCtx, leader.ID, service.DepartmentAccessInput{DepartmentIDs: ids[:1], Report: true, ExpectedVersion: access.Version})
 	require.NoError(t, err)

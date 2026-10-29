@@ -38,7 +38,7 @@ func TestDepartmentAssignmentRequiresExplicitObjectAndTarget(t *testing.T) {
 	} {
 		t.Run(body, func(t *testing.T) {
 			repo := &departmentAssignmentRecorder{}
-			h := NewDepartmentHandler(service.NewDepartmentService(repo))
+			h := NewDepartmentHandler(service.NewDepartmentService(repo, nil))
 			router := gin.New()
 			router.POST("/assign", h.Assign)
 			response := httptest.NewRecorder()
@@ -48,7 +48,7 @@ func TestDepartmentAssignmentRequiresExplicitObjectAndTarget(t *testing.T) {
 		})
 	}
 	repo := &departmentAssignmentRecorder{}
-	h := NewDepartmentHandler(service.NewDepartmentService(repo))
+	h := NewDepartmentHandler(service.NewDepartmentService(repo, nil))
 	router := gin.New()
 	router.POST("/assign", h.Assign)
 	response := httptest.NewRecorder()

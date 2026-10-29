@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -53,6 +54,133 @@ func departmentMemberPredicates(actor *service.User, activeOnly bool, f service.
 
 func departmentMemberFrom() string {
 	return ` FROM users u LEFT JOIN departments d ON d.id=u.department_id AND d.organization_key=` + organizationUsageOrganizationExpression("u")
+}
+
+const managedDepartmentMemberColumns = `u.id,u.email,u.username,CASE WHEN u.role='user' THEN u.department_note ELSE '' END,u.status,u.disabled_source,u.role='user',d.id,d.name,u.department_version`
+
+func scanManagedDepartmentMember(row interface{ Scan(...any) error }) (*service.ManagedDepartmentMember, error) {
+	var member service.ManagedDepartmentMember
+	err := row.Scan(&member.ID, &member.Email, &member.Username, &member.DepartmentNote, &member.Status,
+		&member.DisabledSource, &member.Manageable, &member.DepartmentID, &member.DepartmentName, &member.DepartmentVersion)
+	if err != nil {
+		return nil, err
+	}
+	member.CanEnable = member.Manageable && member.Status == service.StatusDisabled && member.DisabledSource != nil && *member.DisabledSource == "department_manager"
+	return &member, nil
+}
+
+func (r *departmentRepository) ManagedMembers(ctx context.Context, f service.DepartmentListFilter) (*service.ManagedDepartmentMemberList, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	actor, err := loadDepartmentActor(ctx, tx, service.AdminPermissionDepartmentMembers)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := departmentCatalogForActor(ctx, tx, actor, service.AdminPermissionDepartmentMembers)
+	if err != nil {
+		return nil, err
+	}
+	org := f.Organization
+	if f.DepartmentID != "all" {
+		found := false
+		for _, department := range scope.Departments {
+			if strconv.FormatInt(department.ID, 10) == f.DepartmentID {
+				found = true
+				if org == "all" || org == "" {
+					org = department.Organization
+				}
+				break
+			}
+		}
+		if !found {
+			return nil, service.ErrDepartmentScopeDenied
+		}
+	}
+	if err = scope.ValidateSelection(org, f.DepartmentID); err != nil {
+		return nil, err
+	}
+	search := f.Q
+	f.Q = ""
+	p := departmentMemberPredicates(actor, false, f)
+	p.clauses = append(p.clauses, "d.id IS NOT NULL")
+	if search != "" {
+		p.add(`(u.email ILIKE $%[1]d ESCAPE E'\\' OR u.username ILIKE $%[1]d ESCAPE E'\\')`, organizationUsageSearchPattern(search))
+	}
+	result := &service.ManagedDepartmentMemberList{Items: []service.ManagedDepartmentMember{}, Page: f.Page, PageSize: f.PageSize}
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*)`+departmentMemberFrom()+` WHERE `+p.where(), p.args...).Scan(&result.Total); err != nil {
+		return nil, err
+	}
+	p.args = append(p.args, f.PageSize, (f.Page-1)*f.PageSize)
+	statement := `SELECT ` + managedDepartmentMemberColumns + departmentMemberFrom() + ` WHERE ` + p.where() + fmt.Sprintf(` ORDER BY u.id LIMIT $%d OFFSET $%d`, len(p.args)-1, len(p.args))
+	rows, err := tx.QueryContext(ctx, statement, p.args...)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		member, scanErr := scanManagedDepartmentMember(rows)
+		if scanErr != nil {
+			_ = rows.Close()
+			return nil, scanErr
+		}
+		result.Items = append(result.Items, *member)
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	return result, tx.Commit()
+}
+
+func (r *departmentRepository) ManagedCandidates(ctx context.Context, departmentID int64, search string) ([]service.DepartmentMember, error) {
+	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	actor, err := loadDepartmentActor(ctx, tx, service.AdminPermissionDepartmentMembers)
+	if err != nil {
+		return nil, err
+	}
+	var organization, status string
+	err = tx.QueryRowContext(ctx, `SELECT d.organization_key,d.status FROM departments d WHERE d.id=$1
+AND ($2 OR EXISTS(SELECT 1 FROM department_access_grants dg WHERE dg.user_id=$3 AND dg.department_id=d.id))`,
+		departmentID, actor.Role == service.RoleAdmin, actor.ID).Scan(&organization, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrDepartmentScopeDenied
+	}
+	if err != nil {
+		return nil, err
+	}
+	if status != service.StatusActive {
+		return nil, service.ErrDepartmentInactive
+	}
+	p := departmentPredicates{clauses: []string{"u.deleted_at IS NULL", "u.department_id IS NULL", "u.role='user'"}}
+	p.add(organizationUsageOrganizationExpression("u")+"=$%d", organization)
+	p.add(`(u.email ILIKE $%[1]d ESCAPE E'\\' OR u.username ILIKE $%[1]d ESCAPE E'\\')`, organizationUsageSearchPattern(search))
+	rows, err := tx.QueryContext(ctx, `SELECT `+departmentMemberColumns+organizationUsageOrganizationExpression("u")+`,d.id,COALESCE(d.name,''),u.department_version`+departmentMemberFrom()+` WHERE `+p.where()+` ORDER BY u.email,u.id LIMIT 20`, p.args...)
+	if err != nil {
+		return nil, err
+	}
+	result := []service.DepartmentMember{}
+	for rows.Next() {
+		var member service.DepartmentMember
+		if err = rows.Scan(&member.ID, &member.Email, &member.Username, &member.Status, &member.Organization,
+			&member.DepartmentID, &member.DepartmentName, &member.DepartmentVersion); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		result = append(result, member)
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	return result, tx.Commit()
 }
 
 func querySelectedDepartmentMembers(ctx context.Context, q sqlExecutor, actor *service.User, activeOnly bool, f service.DepartmentListFilter) ([]service.DepartmentMember, error) {

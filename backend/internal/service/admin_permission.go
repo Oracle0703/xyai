@@ -13,6 +13,7 @@ const (
 	AdminPermissionTokenAnalysis           = "admin.token_analysis"
 	AdminPermissionOrganizationUsage       = "admin.organization_usage"
 	AdminPermissionDepartmentSubscriptions = "admin.department_subscriptions"
+	AdminPermissionDepartmentMembers       = "admin.department_members"
 	AdminPermissionAccountsOperator        = "admin.accounts_operator"
 )
 
@@ -33,10 +34,18 @@ var adminPermissionCatalog = []AdminPermissionCatalogItem{
 	{Code: AdminPermissionTokenAnalysis, MenuKey: "token_analysis", Route: "/admin/token-analysis"},
 	{Code: AdminPermissionOrganizationUsage, MenuKey: "organization_usage", Route: "/admin/organization-usage"},
 	{Code: AdminPermissionDepartmentSubscriptions, MenuKey: "department_subscriptions", Route: "/admin/subscriptions"},
+	{Code: AdminPermissionDepartmentMembers, MenuKey: "department_members", Route: "/admin/my-department"},
 	{Code: AdminPermissionAccountsOperator, MenuKey: "accounts", Route: "/admin/accounts"},
 }
 
 var adminPermissionRouteRules = map[string][]adminRouteRule{
+	AdminPermissionDepartmentMembers: {
+		{"GET", "/api/v1/admin/department-members/scope"},
+		{"GET", "/api/v1/admin/department-members"},
+		{"GET", "/api/v1/admin/department-members/candidates"},
+		{"POST", "/api/v1/admin/department-members/assign"},
+		{"PUT", "/api/v1/admin/department-members/:id"},
+	},
 	AdminPermissionOrganizationUsage: {
 		{"GET", "/api/v1/admin/usage/organization-report/scope"},
 		{"GET", "/api/v1/admin/usage/organization-report/summary"},
