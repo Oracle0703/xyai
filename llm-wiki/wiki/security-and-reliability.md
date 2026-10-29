@@ -58,7 +58,9 @@
 
 - 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`。
 
-- `admin.organization_usage` 与 `admin.department_subscriptions` 分别控制报表、订阅，两者共用 `department_access_grants`。撤销报表权限或清空 grants 不能令部门订阅查询、重置、幂等重放回退全站。省略筛选或 `all` 仅代表授权范围内全部。
+- `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members` 分别控制报表、订阅、成员管理，三者共用 `department_access_grants`。成员权限不隐含另外两项；全站订阅权限不能扩大成员管理范围。撤权或空 grants 不回退全站，省略筛选或 `all` 仅代表授权范围内全部。
+- 成员写入限未删除普通用户和当前授权部门，同组织未分配用户可加入，不能从其他部门拉人。写操作锁 actor/目标用户后重读授权，批量先完成全部鉴权再检查版本；当前越权 403，仍授权但部门 ID/版本变化 409。负责人本人及其它特权角色只读；管理员/API Key 保留独立完整身份，但负责人备注仍只读。
+- 停用来源由可信写入路径和 migration 261 共同约束：负责人 active→disabled 写 department_manager；管理员/系统显式停用写 other（含重复封禁），内容审计不得跳过已负责人停用的账号。负责人只能恢复 department_manager。状态提交后主动失效 API Key 缓存并保留 migration 184 outbox；JWT 后续请求检查最新状态。这不永久撤销凭据、不终止在途请求，不把本机 L1 验证等同真实 Redis/多实例故障收敛。
 - 查询使用同一只读一致性事务；重置在操作者/成员行锁下重新鉴权，转岗/撤权采用相容锁顺序。客户端不能提供可信授权集合；`scope_version` 只是变化检测，不代替鉴权，也不冻结日志写入。
 - 部门、成员、授权变更与审计原子提交。跨组织邮箱更新由 migration 239 清归属，migration 240 以 `database_guard` 审计；任意数据库写入者无法识别时不伪造操作者。
 - 负责人 compact 用户、分组选项和所有 Summary/Periods/Trend、详情、进度、用户/分组订阅入口都按范围收口；不能仅隐藏菜单。前端 403/范围变化清空受保护数据并作废迟到请求；已返回/下载的内容不承诺追回。
@@ -179,8 +181,8 @@ Passkey / WebAuthn:
 
 - `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。
 - 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。
-- 权限目录和白名单在 `backend/internal/service/admin_permission.go`；包含原订阅管理、使用记录、Token 分析，以及 `admin.organization_usage`、`admin.department_subscriptions`。后两项共用部门授权集合；部门订阅权限与全站 `admin.subscriptions` 互斥，切换须显式确认，其他管理权限不自动追加。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
-- `admin.subscriptions` 子管理员允许 `POST /api/v1/admin/subscriptions/assign`、`bulk-assign`、`:id/reset-quota` 和 `reset-daily-filtered`；`admin.department_subscriptions` 负责人只允许后两个重置，且须通过仓储范围检查。使用记录清理、Token 立即索引、订阅延期/撤销/恢复/删除及 `bulk-action`、部门成员管理始终拒绝；无 `admin.subscriptions` 的子管理员不能分配或读取 `assignable-groups`。
+- 权限目录和白名单在 `backend/internal/service/admin_permission.go`；包含原订阅管理、使用记录、Token 分析，以及三个部门权限 `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members`。部门订阅权限与全站 `admin.subscriptions` 互斥，切换须显式确认，其他管理权限不自动追加。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
+- `admin.subscriptions` 子管理员允许 `POST /api/v1/admin/subscriptions/assign`、`bulk-assign`、`:id/reset-quota` 和 `reset-daily-filtered`；`admin.department_subscriptions` 负责人只允许后两个重置，且须通过仓储范围检查。使用记录清理、Token 立即索引、订阅延期/撤销/恢复/删除及 `bulk-action` 继续拒绝；成员管理需另授 `admin.department_members`，仅放行专用五路由，不能访问完整 `/admin/users`、`/admin/departments`。无 `admin.subscriptions` 的子管理员不能分配或读取 `assignable-groups`。
 - GPT 账号额度展示的 4 个 `/api/v1/admin/gpt-quota` 路由只给完整管理员，不进 `subAdminCommonRouteRules` 或任何权限白名单（`gpt_quota_display_test.go` 有拒绝测试）。用户侧 `/api/v1/gpt-quota` 只返回卡片白名单（不含账号 ID、原名、邮箱、尝试状态）。读取路径不得触发上游；主动采集只用 `QueryUsageReadOnly`，不得写 `accounts.extra`、调度键或触发 reset-credit/自动用卡，token 预检避免走到 `disableAccountMissingRefreshToken`。管理员豁免面板限流，刷新防重依赖 60 秒冷却 + singleflight，不依赖限流。详见 [[gpt-account-quota-display-design]]。
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/groups/all`、`/admin/proxies/all`（含代理密码）等完整管理接口；`/admin/accounts` 只对 `admin.accounts_operator` 开放。
 - `admin.accounts_operator`（受限账号运维）只放行账号读取（列表/详情凭据按 DTO 脱敏）、`GET /admin/accounts/form-options`、新增类接口（`POST /admin/accounts`、`import/codex-session`、`openai/create-from-codex-pat`、`grok/sso-to-oauth`）、各平台 OAuth 链接/换码、`:id/test` 和 `:id/apply-oauth-credentials`。编辑 `PUT /:id`、删除、复制、调度开关、刷新 token、清错误/恢复状态、批量、CRS、导入导出、模型同步、计费探测、设置均拒绝。

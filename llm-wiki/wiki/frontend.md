@@ -53,17 +53,23 @@
 
 ## 部门管理与负责人入口
 
-状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。完整合同与证据见部门设计、实施方案及验收表。
-
-- 2026-09-21 复审精简：删除 Summary/Trend 旧并行对齐状态；人员翻页必须保持已建立的 as_of，趋势只对同一快照最多重试一次。导出首响应必须有 as_of/scope_version，后续页及 Sheet 严格一致，不回退无版本/客户端时间。部门弹窗用每次请求的 AbortSignal 作废迟到响应，取消/切换/卸载均中止旧请求。
+完整管理员部门合同见 `docs/features/organization-department-usage-design-cn.md`；负责人受限成员管理见 `docs/features/department-member-management-design-cn.md`，执行与验证要求见对应 implementation-plan 及 [[ops]]。
 
 - `views/admin/DepartmentsView.vue` 仅完整管理员可用；`components/admin/department/` 管理成员、负责人授权和用户页分配。成员 CAS 冲突需刷新再确认；授权保留其他部门，切换全站订阅需显式确认。
+- `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members` 分别控制报表、订阅查询/额度重置、成员管理，共用后端 grants；勾选一个权限不自动授予另外两项。`DepartmentAccessDialog.vue` 的成员管理默认关闭，加载已有账号时从权限集合恢复三项勾选，保存始终发送 `manage_members` 布尔值；member-only 账号重开保存不得隐式增加报表/额度权限。
+- `views/admin/MyDepartmentView.vue` 对应 `/admin/my-department`，仅使用 `api/admin/departments.ts` 的五个 `/admin/department-members` 接口。先读 scope，单部门自动选中，无 grants 显示空授权状态并停止循环请求；全部范围仅指已授权部门。选项、名单及添加弹窗以“组织 · 部门名”区分跨组织同名部门。
+- 负责人名单包含停用成员；`manageable=false` 的行只读且不显示负责人备注，写操作以服务端可管理标记及归属快照为准。启用按钮仅在 `can_enable=true` 时出现；停用来源区分“负责人停用”和“管理员或系统停用”。停用部门禁止加入，已有可管理成员仍可编辑、启停用或移出。
+- 添加成员必须选择一个 active 部门，候选搜索 trim 后至少 2 个 Unicode 字符，每次最多 20 个本组织未分配普通用户；切换部门、改搜索词或关闭弹窗清空候选选择。负责人不调用全站用户/部门管理接口，不提供跨部门转岗、密码、余额、权限或订阅分配操作。
+- 编辑只提交变更的 `username/department_note`，不回写旧 `status`；用户名限制为 100 UTF-8 字节，负责人备注为 1000 Unicode 字符，最终由服务端校验。编辑及启停用携带 `expected_department_id/expected_department_version`；加入/移出携带逐成员旧归属和版本。版本冲突必须刷新后重新确认，不自动重放写请求。
+- `department_note` 与管理员 `notes` 隔离，负责人界面不读取/提交 `notes`。普通用户和嵌套 DTO 不返回负责人备注。完整管理员在 `UsersView.vue` 的部门列下只读查看备注，状态列标识负责人停用；`UserEditModal.vue` 不增加备注写入字段，完整管理员直达新页面时也只读备注。移出/转岗确认提示负责人备注会清空，账号及订阅保留。
 - `UserEditModal.vue` 每次打开/切换先 GET 用户详情和 `admin_access_version`，加载失败禁止保存，忽略迟到结果；仅提交改动字段，角色/权限集合变化时才同时发送两字段与 `expected_admin_access_version`。冲突刷新后手动确认，备注不能覆写旧权限。
-- 用户页展示部门列与筛选；完整管理员维护归属和分配订阅。负责人仅查询、导出与额度重置，不开放成员管理或订阅分配。
+- 成员页按错误原因恢复：范围/权限类 403 清空名单、候选、选择和编辑快照，作废在途请求并至多刷新一次 scope；`DEPARTMENT_MEMBER_ENABLE_DENIED` 提示联系管理员并刷新成员状态，不误判为全部授权丢失；`DEPARTMENT_CONFLICT` 关闭旧确认状态后刷新。普通写失败保留编辑草稿并在弹窗内显示错误。
+- 读请求捕获各自的 AbortSignal，成功、失败及 finally 都检查取消状态，不能仅依赖传输层取消；切换范围、关闭弹窗及卸载使迟到响应失效。成员写入另以页面上下文版本保护写后副作用，写入期间禁止重复提交、切换范围和关闭确认框。
 - 报表先读 `catalog_version` 目录，再并行请求首个 Summary 与 Trend；Summary 建立 canonical `as_of/scope_version`，Trend 与之不一致或失败时每周期最多重拉一次（2026-10-23 起恢复并行）。仅 REPORT_SCOPE_CHANGED 最多重建一次，持续冲突停止。403/范围切换清数据、取消导出并作废迟到响应，空授权不回退全站。
 - 订阅重置绑定最新成功列表返回的筛选及 scope_version；加载/失败立即使旧快照失效，不能使用目录版本。负责人姓名不链接全站 usage。
-- `utils/departmentErrors.ts` 优先读取业务 `reason`，兼容中间件字符串 `code` 及 Axios/普通错误对象；数字 HTTP code 或普通 409 不能触发范围重载。部门停用、跨组织、版本和全站切换错误分别显示中英文提示。
-- Excel 的页面筛选、当前归属、as_of/scope_version 与各分页/Sheet 一致；变化中止。仅部门权限登录默认进入报表或订阅页，保留显式 redirect 与个人 dashboard。
+- `utils/departmentErrors.ts` 优先读取业务 `reason`，兼容中间件字符串 `code` 及 Axios/普通错误对象；数字 HTTP code 或普通 409 不能触发报表范围重载。部门停用、跨组织、版本、启用拒绝和全站切换错误分别显示中英文提示。
+- Excel 的页面筛选、当前归属、as_of/scope_version 与各分页/Sheet 一致；变化中止。首响应必须有 as_of/scope_version，后续页及 Sheet 严格一致，不回退客户端时间或无版本结果。仅部门权限账号在标准/backend 模式均按“报表 → 订阅 → 我的部门”选择默认登录页，保留显式 redirect 与个人 dashboard。
+- 前端专项入口：`views/admin/__tests__/MyDepartmentView.spec.ts`、`components/admin/department/__tests__/DepartmentAccessManageMembers.spec.ts`（锁定）、`DepartmentManagement.spec.ts`、`components/layout/__tests__/AppSidebarDepartmentMembers.spec.ts`、router 的 `subAdminRoutes/feature-access` 以及 utils 的 `adminPermissions/departmentErrors`；中英文 key 由 `i18n/__tests__/localeKeyCompleteness.spec.ts` 检查。测试结果与真实浏览器/部署验收分别记录。
 
 ## 0.2.7 合并增量
 
@@ -391,7 +397,7 @@ API 模块分布:
 ## 子管理员菜单与页面
 
 - 权限路由顺序和 backend landing 的最小映射在 `frontend/src/utils/adminPermissions.ts`; 权限目录本身由后端 API 返回。
-- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、使用记录、Token 分析、账号管理（`admin.accounts_operator`）; 风控、请求拦截、设置和管理员自定义菜单不显示。
+- `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、我的部门（`admin.department_members`）、使用记录、Token 分析、账号管理（`admin.accounts_operator`）; 风控、请求拦截、设置和管理员自定义菜单不显示。完整管理员侧栏继续使用部门管理和用户管理，不增加“我的部门”入口；直达新路由仍允许完整管理员。
 - 账号页受限模式统一用 `composables/useAccountOperatorAccess.ts` 的 `canManageAccounts`（= 完整管理员）判断：`AccountsView.vue` 隐藏编辑/删除、勾选列与批量栏、数据/工具菜单、回退代理，调度开关只读，优先级纯展示，管理员专用弹窗不挂载，分组/代理改走 `accounts.getFormOptions()`，不读取计费探测设置；行菜单只剩测试连接、统计、重新授权；配额重置/推荐邀请/用量刷新/Claude 兑换/计费探测/代理测试/临时不可调度恢复按钮在组件内隐藏；`CreateAccountModal.vue` 跳过 Web Search 与额度通知设置、TLS 指纹、创建后的模型同步与计费探测。任何越权请求都会经 `admin-permission-denied` 把用户重定向走，新增账号页调用前必须确认已在白名单。
 - `ReAuthAccountModal.vue` 所有平台（含 Gemini/Antigravity）都用 `applyOAuthCredentials` 落库，不再调用 `PUT /accounts/:id` + `clear-error`。挂载账号页组件的单测需 mock `useAccountOperatorAccess`（返回 `ref(true)` 走管理员路径）。
 - Gemini 重新授权已知接口边界（用户决定暂缓）：直接调用 ApplyOAuthCredentials 把 Code Assist 改为 AI Studio 且省略 project_id 时，全 key 合并会保留旧项目，兼容转发仍按非空项目走 Code Assist。当前 `ReAuthAccountModal.vue` 的 Gemini 类型是只读展示、取自原账号，不能描述成用户可在该弹窗直接切换类型。将来开放类型切换时需区分身份字段清理与 model_mapping 等配置保留。证据与首轮表述更正见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`。
@@ -399,7 +405,7 @@ API 模块分布:
 - 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询 active 未删除用户（后端按部门范围收口，全站订阅权限即全站），通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
 - `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
-- API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新。标准模式回 `/dashboard`; backend 模式无剩余权限时先 logout 再回 `/login`。
+- API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新，再由 `resolveAdminPermissionDeniedRecovery` 和 `getAdminLandingPath` 选择仍可访问的默认页；仅部门权限账号可保留在对应管理页。backend 模式无剩余权限时先 logout 再回 `/login`。
 
 ## 渠道监控、注册与模型审计 UI
 

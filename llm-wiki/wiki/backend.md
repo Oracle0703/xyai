@@ -61,6 +61,11 @@
 
 ## 部门管理与用量范围
 
+- 成员管理扩展：`admin.department_members` 独立于报表/订阅权限，仍使用同一 grants。`department.go` 的 `/admin/department-members` 提供 scope、列表、candidates、POST assign、PUT `/:id` 五个接口；完整管理员接口不加入子管理员白名单。`ManagedScope` 无 grants 返回 403，不能复用旧空目录作为全站回退。
+- `department_query_scope.go` 的成员列表和候选查询在只读 repeatable-read 事务内检查权限并分页：成员保留 disabled 和只读特权角色；候选先鉴权 active 目标部门，再查同组织未分配普通用户，邮箱/用户名转义模糊匹配且 SQL LIMIT 20。只读行的 `department_note` 为空，始终不输出管理员 notes。
+- `ManagedAssign`/`UpdateManagedMember` 复用用户升序锁、当前授权重读和 `departmentAudit`；整批先鉴权再 CAS，真正写入与审计原子提交。重复加入同一授权部门可无变化成功，移出后重试 403；PUT 用 `expected_department_id`/`expected_department_version` 防归属往返。用户名 trim 后最多 100 UTF-8 字节，备注最多 1000 Unicode 字符；未知字段（含 notes/source）由严格 JSON 拒绝。完整管理员/Admin API Key 不能写负责人备注。
+- `DepartmentService` 注入既有 `APIKeyAuthCacheInvalidator`，仅实际状态变化且仓储提交成功后失效缓存。通用 `UserRepository.Update(fields.Status)` 显式 disabled 始终写 other，内容审计达到封禁条件时已 disabled 也写入，首次邮件判断独立；管理员/公开 DTO 字段隔离见 data/security。`SetAccess.manage_members` 省略保留、false 撤销，沿用授权 CAS，不隐式授予其它权限。
+
 状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。合同与证据见 `docs/features/organization-department-usage-implementation-plan-cn.md` 和 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
 
 - `DepartmentHandler / DepartmentService / DepartmentRepository` 提供组织下一级部门、成员和负责人管理；路由 `internal/server/routes/department.go`。部门独立于 API 分组、订阅和计费。
@@ -284,7 +289,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 - 用户角色为 `admin`、`sub_admin`、`user`; 权限码与路由白名单集中在 `backend/internal/service/admin_permission.go`。
 - `AdminAuth` 对 `admin` 和 Admin API Key 全量放行; `sub_admin` 每次请求从数据库加载最新角色、状态、TokenVersion 和 `admin_permissions`, 再按 HTTP 方法 + Gin `FullPath()` 精确匹配。未登记路由返回 `403 ADMIN_PERMISSION_DENIED`。
-- 权限码见 `admin_permission.go` catalog（含 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`、`admin.organization_usage`、`admin.department_subscriptions`、`admin.accounts_operator`）; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
+- 权限码见 `admin_permission.go` catalog（含 `admin.subscriptions`、`admin.usage`、`admin.token_analysis`、`admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members`、`admin.accounts_operator`）; `GET /api/v1/admin/permissions/catalog` 仅完整管理员可访问, 前端用户配置弹窗以该接口为目录来源。
 - 受限账号运维：`handler/admin/account_operator_handler.go` 提供 `GET /admin/accounts/form-options`（分组/代理精简字段，无代理用户名密码）和挂在整个 admin 路由组上的 `ActivityTracker()`；它只对 `sub_admin` 的已归类写路由生效，新增类捕获响应体提取账号 ID（账号 DTO 或 `account_id+action`），`:id` 类做前后快照比对。`service/account_operator_activity.go` 直接用 `EmailService.SendEmail`（不走通知模板事件），收件人为代码常量，测试连接仅在状态/错误/调度/凭据等显著字段变化时发信，重新授权始终发信。Wire 通过 `ProvideAdminHandlers` 注入 `AccountOperator`。
 - `internal/server/routes/admin_permission_routes_test.go` 校验所有权限白名单路由都真实注册；改路由路径或上游改名时会失败。
 - 子管理员副作用收口用 context 标记 `WithSubAdminAccountRestrictions` / `HasSubAdminAccountRestrictions`（定义在 `service/account_operator_activity.go`，由 `middleware/admin_auth.go` 设置）。当前守卫点：`account_codex_import.go` 命中已有账号、`account_usage_service.go` 的 `tryClearRecoverableAccountError`、`grok_quota_service.go` 的 `ProbeUsage`/限流恢复。合并上游改这些文件时保留守卫。

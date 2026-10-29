@@ -364,4 +364,49 @@ describe('MyDepartmentView', () => {
     expect(wrapper.find('[data-testid="candidate-query"]').exists()).toBe(false)
     expect(api.managedScope).toHaveBeenCalledTimes(2)
   })
+
+  it.each(['success', 'failure'])('preserves the denied scope when an in-flight member request returns a late %s', async result => {
+    let resolveOld!: (value: DepartmentPage<ManagedDepartmentMember>) => void
+    let rejectOld!: (error: unknown) => void
+    api.managedMembers.mockImplementationOnce(() => new Promise((resolve, reject) => { resolveOld = resolve; rejectOld = reject }))
+    const wrapper = await openPage()
+    const oldSignal = api.managedMembers.mock.calls[0][1] as AbortSignal
+    api.managedScope.mockRejectedValueOnce(denied('DEPARTMENT_SCOPE_DENIED'))
+    await wrapper.get('[data-testid="refresh-managed-scope"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="managed-error"]').text()).toBe('admin.departments.scopeDenied')
+    if (result === 'success') resolveOld(asPage([member]))
+    else rejectOld(new Error('late response must not replace the scope denial'))
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(wrapper.text()).not.toContain(member.email)
+    expect(wrapper.get('[data-testid="managed-empty"]').text()).toContain('noScope')
+    expect(wrapper.get('[data-testid="managed-error"]').text()).toBe('admin.departments.scopeDenied')
+    expect(wrapper.get('[data-testid="open-add-members"]').attributes('disabled')).toBeDefined()
+    expect(api.managedScope).toHaveBeenCalledTimes(2)
+    expect(api.managedMembers).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['success', 'failure'])('ignores a late candidate %s after closing and reopening the dialog', async result => {
+    let resolveOld!: (value: DepartmentMember[]) => void
+    let rejectOld!: (error: unknown) => void
+    api.managedCandidates.mockImplementationOnce(() => new Promise((resolve, reject) => { resolveOld = resolve; rejectOld = reject }))
+    const wrapper = await openPage()
+    await openCandidates(wrapper)
+    const oldSignal = api.managedCandidates.mock.calls[0][2] as AbortSignal
+    const cancel = wrapper.get('section[data-dialog]').findAll('button').find(button => button.text() === 'admin.departments.cancel')!
+    await cancel.trigger('click')
+    expect(wrapper.find('[data-testid="candidate-query"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="open-add-members"]').trigger('click')
+    if (result === 'success') resolveOld([candidate])
+    else rejectOld(denied('DEPARTMENT_SCOPE_DENIED'))
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    expect(wrapper.find('[data-testid="candidate-20"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="add-selected-members"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="candidate-error"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain(member.email)
+    expect(api.managedScope).toHaveBeenCalledTimes(1)
+    expect(api.managedCandidates).toHaveBeenCalledTimes(1)
+  })
 })

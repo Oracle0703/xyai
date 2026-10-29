@@ -1,6 +1,6 @@
 # 部门负责人管理本部门成员设计
 
-更新：2026-10-29。状态：**已完成首轮设计审核并原地修订，备注方案已决定（独立负责人备注），未实现；待复核本轮备注修订后定稿。** 分支 `feature/hy/10226_department_member_management`（从 main `eb34cc973` 创建）。审核结论与源码依据见第 12 节。
+更新：2026-10-29。状态：**已按锁定基线 `a058b81c6` 实现，采用独立负责人备注；等待 Claude 对照代码、测试及实际命令输出复核。** 分支 `feature/hy/10226_department_member_management`（从 main `eb34cc973` 创建），未推送、未部署。首轮设计审核结论与源码依据见第 12 节；执行约束见 [实施任务卡](department-member-management-implementation-plan-cn.md)。
 
 前置功能：[组织、部门与多平台用量报表设计](organization-department-usage-design-cn.md)。该文档把"负责人自行管理成员"列为未纳入首版的扩展；本文是这个扩展的唯一设计文档，审核后原地修订。
 

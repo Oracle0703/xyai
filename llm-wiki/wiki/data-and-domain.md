@@ -51,6 +51,10 @@
 
 ## 组织下的独立部门
 
+- migration `261_department_member_management.sql` 新增 `users.disabled_source`（disabled 时只能为非 NULL 的 department_manager/other，其余状态为 NULL）和 `department_note TEXT NOT NULL DEFAULT ''`（`char_length<=1000`）。存量 disabled 回填 other；来源 trigger 拒绝 other 降为 department_manager，启用清来源。触发器无法识别省略来源的重复封禁意图，通用仓储/所有系统封禁必须显式写 other；普通资料/余额更新不改来源。
+- `users_department_note_guard` 在 239 的 `users_department_guard` 之后执行，最终 department_id 变化即清空备注；旧备注非空时同事务记录 `department.note_cleared`、前后部门及旧值，审计失败回滚。涵盖负责人移出、管理员转岗和邮箱跨组织清归属；角色变化不清空，但只读行不披露备注。
+- 两字段仅映射内部 User 和管理员 AdminUser，只读返回；不进入通用更新掩码、管理员创建/更新字段或普通/嵌套 User DTO。负责人仅写独立 department_note，不能读取或写管理员 notes；管理员只能查看负责人备注。用户名保持 Ent 的 100 UTF-8 字节限制，负责人备注按 Unicode 字符计数。
+
 状态：2026-09-20 S1–S6/RV1–RV8 本机隔离验收完成。用户降级/软删除在同事务清其持有 grants 并审计，重新提权不复活；临时停用保留授权但拒绝访问，created_by 外键不变。报告 grant 可与显式全站订阅权限共存，部门/全站订阅权限仍互斥。
 
 成员创建时间上界备选未启用：全部报表面按当前 active/未删除成员集合统计；全站新增 active 成员可使旧查询失效。目录、用户授权、实际查询三个版本分别为 catalog_version、admin_access_version、scope_version，均非新增持久化字段。

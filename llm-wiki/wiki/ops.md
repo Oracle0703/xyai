@@ -9,6 +9,7 @@
 ## unit service 编译状态
 
 - 2026-10-25 `feature/hy/10220_sub_admin_accounts` 把 `backend/internal/service/gpt_quota_display_test.go` 的测试 helper 改名为 `gptQuotaPtrFloat`，`go test -tags unit ./internal/service/` 不再被 `ptrFloat` 重复声明阻塞。全量 unit service 在基线与该分支都剩 2 个既有失败：`TestApplyDefaultOpenAIReasoningEffort`（旧断言）和 `TestCommandCodeGatewayPassesThroughCatalogProtocols`（全量顺序相关，单跑通过）。
+- 基线 `a058b81c6` 另可复现 repository unit 的 `TestDashboardAggregationRepositoryCleanupUsageLogsPartitionedSortsAndInvalidatesEachDropBeforeSync`、`TestDashboardAggregationRepositoryCleanupUsageLogsPartitionFailureRollsBackAndStops`：SQL mock 仍期待先 DROP TABLE，现有实现先标记用量汇总 dirty day。这两项及 effort none 旧断言不属于部门成员管理改动；复核用 `go test -tags unit -p 1 -count=1 ./internal/repository ./internal/service -run 'TestDashboardAggregationRepositoryCleanupUsageLogsPartitionedSortsAndInvalidatesEachDropBeforeSync|TestDashboardAggregationRepositoryCleanupUsageLogsPartitionFailureRollsBackAndStops|TestApplyDefaultOpenAIReasoningEffort'`。
 
 ## 0.2.17 配置与验证入口
 
@@ -60,6 +61,12 @@
 - 验证沿用 repo-local Go cache、每组 fresh GOTMPDIR、`-p 1 -count=1`，测试进程 PATH 加入 Git 的 `usr/bin` 以满足 `sh`；结果和环境边界见 `docs/upstream-sync/2026-09-29-v0.2.9/review.md`。本轮无 schema/provider 变化，不重生成 Ent/Wire。
 
 ## 部门功能验证与上线
+
+- 成员管理扩展的固定签名、四阶段门禁和交付要求见 `docs/features/department-member-management-implementation-plan-cn.md`；锁定测试基线 `a058b81c6`，只允许管理集成测试去掉 pending 标签。保持 Go 1.27.3、每命令独立 GOTMPDIR、repo 缓存；Ent/Wire 生成后还原工具引入的 module 条目并验证无漂移。
+- 在全新隔离 PostgreSQL 库通过 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 执行 `go test -tags integration -p 1 -count=1 ./internal/repository -run 'TestDepartmentMember|TestDepartmentRepositoryIntegration|TestDepartmentSubscriptionsIntegration|TestOrganizationUsageDepartmentIntegration|TestDepartmentQueryCountIntegration|TestUserAdminAccessIntegration' -v`。`TestDepartmentMember` 包含锁定测试、迁移/审计补测及并发/鉴权补测；不能把无 Docker 时仓储包整体 skip 当通过。
+- `department_member_outbox_integration_test.go` 以隔离 PG、生产 worker/APIKeyService 和 miniredis TCP/PubSub 验证遗漏主动失效后的远端 L1/L2 收敛，保留实际 30 秒二次投递；Claim 仅筛选测试自己的随机 key hash，哨兵断言其他事件不被消费。此替身测试不代表真实 Redis 故障或生产多进程验收。
+- migration 261 与新应用必须在所有写入实例就绪后再开放成员权限；旧版本不认识重复封禁来源协议，混合版本期间不开放。回退先撤销成员权限并等待在途写入结束，保留两列/兼容触发器；旧版本运行过后再次升级，须在开放前执行 `UPDATE users SET disabled_source='other' WHERE status='disabled';`，已应用迁移不会自动重跑。`TestDepartmentMemberManagementIntegration_LegacyRollbackRequiresSourceReset` 用测试用户验证旧写法、重置、负责人启用拒绝及管理员恢复；本轮仅在隔离库执行。测试 TypeSafeLive/真实 Redis/外部通知及既有 unit 失败分别记录，不用合成结果代替实际验收。
+- PostgreSQL-only DSN 不提供 Redis，不能用于宣称完整 integration 通过：未筛选的 Redis 用例会在 `integration_harness_test.go:testRedis` 访问空客户端并失败。完整路径需要 Docker PG+Redis；无 Docker 时跑本节 PG 专项并单列环境限制。基线 `a058b81c6` 的 `TestIdempotencyCoordinator_AtomicSuccessRollsBackFilteredDailyResetWhenMarkSucceededFails` 另有测试夹具 `Group.name` 超长错误，可在全新 PG 库独立复现；与成员管理无关。
 
 状态：2026-09-20 S1–S6/RV1–RV8 本机隔离验收完成。Go default/unit、11 组真实 PG、前端 329 files / 2,459 tests、lint/typecheck/build、normal/embed build 通过。旧日志与首次失败保留，证据见部门验收表。RV3-O/RV4-O 未启用。
 
