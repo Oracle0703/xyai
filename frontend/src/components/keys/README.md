@@ -1,5 +1,9 @@
 # Key Components
 
+## 0.2.19 模型清单
+
+- UseKeyModal 的 OpenCode 配置加入 GPT-6.1 Terra，模型/工具协议与后端上游清单同步。既有 remote model catalog、Grok 配置和 API Key 内存边界保持；回归见 UseKeyModal.spec.ts。
+
 ## 0.2.15 Codex remote 模型目录
 
 - 选择 remote model catalog 时，Codex/Codex WS 配置追加 `features.api_key_model_discovery=true`；文件模式保持已有配置，验证见 `UseKeyModal.spec.ts`。

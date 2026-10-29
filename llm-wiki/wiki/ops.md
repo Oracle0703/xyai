@@ -1,5 +1,12 @@
 # 运维, 配置与验证基线
 
+## 0.2.19 合并验证入口
+
+- 固定目标 `a9240d5016c226b341242a8c54a01a8605cbbc72`，Go 1.27.3；升级 x/net 等依赖，前端 package/lockfile 无上游变化。新增 `gateway.max_same_account_retries_gemini`：默认 4，不含首次请求；0 禁用同号重试，允许范围 0–10。
+- Ent schema 和 Wire provider 均有变化，必须运行 `go generate ./ent`、`go generate ./cmd/server` 并核对生成漂移；生成工具附加的无关 go.sum 变化不混入交付。
+- Windows 使用同一 Go 1.27.3 的绝对 go.exe、GOROOT/PATH、local toolchain、repo-local cache 和每命令独立 GOTMPDIR；顺序执行 default/unit/integration，避免 Ent 测试共享目录竞争。前端执行 frozen install、lint:check、typecheck、完整 Vitest/build；数据库验证使用本机新建隔离库，绝不复用生产配置。
+- 受限密钥真实 SQL 用例要求 `SCOPED_ADMIN_TEST_DSN`（lib/pq keyword DSN，测试会追加 search_path 并创建临时 schema）；repository 隔离 PG 入口仍是 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN`。退出成功但 Docker/Redis/DSN 跳过必须单列。具体结果和失败归属见 `docs/upstream-sync/2026-10-29-v0.2.19/review.md`。
+
 ## 0.2.18 构建与验证入口
 
 - 指定上游 `5c185c5c5d4f5e409e2139806e0964ae944e03e8` 将 `go.mod`、CI 版本检查和根 Dockerfile builder 升到 Go 1.27.3；前端 DOMPurify/锁文件及 follow-redirects override 同步。其余 Dockerfile 按实际源码核对，不将旧文档的“全部统一”当验证结论。

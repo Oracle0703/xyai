@@ -1,8 +1,13 @@
 # Sub2API llm-wiki 基线
 
+## 0.2.19 同步（待提交审核）
+
+- 2026-10-29 在原仓库从本地 `main@eb34cc973ef99e9e20b9c6f8e7f4936a0551cd11` 创建 `feature/hy/10225_merge_sub2api_219`，固定合入 `Wei-Shaw/sub2api main@a9240d5016c226b341242a8c54a01a8605cbbc72`（0.2.19）。main 的前置资料提交已完成，本轮合并尚未 commit/push。
+- 71 commits / 259 上游路径，8 个文本冲突、46 个双方修改路径；保留本地独有功能，重叠 DeepSeek 缓存字段采用上游。仅解决文本和必要语义冲突，不修复上游 bug。审核、失败归属及验证边界见 `docs/upstream-sync/2026-10-29-v0.2.19/review.md`。
+
 ## 0.2.18 同步（已创建合并提交）
 
-- 用户已确认提交与推送；合并提交 `93555b6290bba23c6d40547b47b539218a8f7a39` 位于 `feature/hy/10224_merge_sub2api_218`，本地 main 未移动。测试失败与覆盖边界仍见本轮审核报告。
+- 用户已确认提交与推送；合并提交 `93555b6290bba23c6d40547b47b539218a8f7a39` 位于 `feature/hy/10224_merge_sub2api_218`，现已包含于本地 main。测试失败与覆盖边界仍见本轮审核报告。
 - 2026-10-28 从本地 `main@b3940712d7c7d6c1b7a7550fa661583363a3423f` 创建 `feature/hy/10224_merge_sub2api_218`，固定合入 `Wei-Shaw/sub2api main@5c185c5c5d4f5e409e2139806e0964ae944e03e8`（0.2.18）；不跟随其后的 upstream/main。
 - 无文本冲突，重点复核双方改动的 19 个路径；本地功能保留，重叠的 PR #8139 已由上游正式纳入，不重复应用。仅做合并，不额外修复上游 bug。审核与验证入口：`docs/upstream-sync/2026-10-28-v0.2.18/review.md`。
 

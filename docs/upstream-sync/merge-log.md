@@ -2223,3 +2223,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 - 工作分支：`feature/hy/10224_merge_sub2api_218`；第一父 `b3940712d7c7d6c1b7a7550fa661583363a3423f`，第二父 `5c185c5c5d4f5e409e2139806e0964ae944e03e8`。
 - 推送目标：`github`（`Oracle0703/xyai`）同名分支；本地 main 不变，未部署。上条待审记录保留作为历史快照。
 - 沿用已完成的测试及失败归属；本次后续改动仅为提交状态文档，不改业务代码、不重跑无关测试。
+
+
+## 2026-10-29 — 0.2.19 固定提交合并（待审核、未 commit）
+
+| 项目 | 记录 |
+| --- | --- |
+| 工作分支 | `feature/hy/10225_merge_sub2api_219`，在原仓库操作，不使用 worktree |
+| 第一父 / 本地 main | `eb34cc973ef99e9e20b9c6f8e7f4936a0551cd11`；用户授权先提交公司介绍资料后创建合并分支 |
+| 上游分支 | `Wei-Shaw/sub2api main` |
+| 上游固定提交 | `a9240d5016c226b341242a8c54a01a8605cbbc72`，VERSION 0.2.19 |
+| merge base / 增量 | `5c185c5c5d4f5e409e2139806e0964ae944e03e8`；71 commits / 259 paths |
+| 合并提交 | 未创建；保留 MERGE_HEAD，等待用户审核后再 commit |
+| 文本冲突文件 | `.gitignore`、`backend/go.mod`、`backend/internal/config/config_test.go`、`backend/internal/handler/admin/subscription_handler.go`、`backend/internal/server/routes/admin.go`、`backend/internal/service/admin_service_role_test.go`、`backend/internal/service/openai_gateway_response_handling.go`、`backend/internal/service/openai_gateway_usage.go` |
+| 处理方式 | 保留本地独有功能与上游增量；DeepSeek 重叠字段采用上游；订阅部门信封加受限响应投影、幂等回调接线、受限密钥 DepartmentActor、测试构造器/CAS 版本作必要语义适配，Wire 按生成结果更新；不修上游 bug |
+| 本地保留 | 34 个 docs/features 文件及本地归档/拦截、Prompt Metrics/Risk、Token Analysis、组织/部门/日汇总、子管理员、订阅自助重置、并发预设、GPT 额度、compatible cache/默认 effort 等；旧 migration 不改写 |
+| 前端 | frozen install、lint:check、typecheck、418 files / 3350 tests、build 全部通过 |
+| 后端 | default 全量通过；unit 3 个顶层失败均在原始 main 复现；integration 命令通过但 Docker/外部依赖有跳过；normal/embed build、增量 lint 0 issues、最终 tidy -diff 通过 |
+| PostgreSQL | 新密钥 unit 36 顶层 / 82 含子用例全部通过；PG integration 67 顶层通过、1 个部门并发超时、2 个性能 opt-in skip；超时用例双方各 3 次复跑全通过，保留首轮失败。新迁移共存及默认值/回读验证通过；隔离 PG 已停止 |
+| Wiki / 审核 | 六页 wiki、组件 README 与 wiki 图谱已更新；完整冲突、验证和边界见 `docs/upstream-sync/2026-10-29-v0.2.19/review.md` |
+| 状态 | 未提交本轮 merge、未推送、未合回 main、未部署；等待 commit 前审核 |

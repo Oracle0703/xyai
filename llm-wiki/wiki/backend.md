@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.2.19 管理密钥、模型目录与计费
+
+- `pkg/adminaccess`、`service/custom_admin_keys.go`、`repository/custom_admin_keys.go` 提供独立受限管理员 API 密钥。Wire 注入 `ScopedAdminKeyRepository`；`AdminAuth` 验证创建者仍为启用管理员，按 HTTP 方法 + 完整路由校验，再由账户/分组专用处理器限制资源及字段。JWT 子管理员权限和 `AccountOperator.ActivityTracker` 继续独立生效。
+- 受限密钥通过 `WithDepartmentActor` 传入创建者身份，同时保留 `adminaccess.Principal`；不设置旧版全权密钥标记，部门仓储继续复核创建者当前角色/状态；本地订阅部门查询依赖此身份，授权仍受上游路由策略限制。订阅分页的 `scope_version` 保留，items 经上游 `adminSubscriptionResponse` 投影；幂等重放统一投影，本地 `AtomicSuccess`/fail-close 不变。
+- Grok 模型目录的声明、观测、同步状态与诊断由 `grok_model_catalog*.go`、`grok_model_diagnostics.go` 管理，仓储按受管 JSON 键 CAS，保留并发更新与调用方事务边界。Responses 缓冲读取记录 Grok 前序模型冲突；本地 compatible cache usage 和 Token Analysis 接线保留。
+- Gemini 同账号重试由 `gateway.max_same_account_retries_gemini` 控制；绑定显式缓存的池账号可在同号重试，仍不换号。全部账号显式配置模型映射时，原生模型列表/详情采用声明模型，保留本地 path parser/并发基础设施错误分类。
+- 图片端点在分组开启 `image_count_billing` 时采用上游按张计费；混合 Responses/Chat/WS 不套用该强制分支。本地图片 token 定价缺失拒绝继续保留。DeepSeek `prompt_cache_hit_tokens` 重叠读取采用上游行，其他兼容字段仍保留；GPT-6.1 Terra 模型、价格及工具协议沿固定上游。
+
 ## 0.2.18 网关与调度合同
 
 - `service/account.go#SupportsAccountQuota` 将 Vertex `service_account` 纳入账号配额、DTO、计费和超限调度；池模式仍使用 `IsAPIKeyOrBedrock`。本地 GPT 额度快照/圆环、用户平台额度和部门报表是不同能力，继续保留。
