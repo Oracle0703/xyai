@@ -64,7 +64,7 @@ export interface UserProfileSourceContext {
 }
 
 export type UserRole = 'admin' | 'sub_admin' | 'user'
-export type AdminPermission = 'admin.subscriptions' | 'admin.usage' | 'admin.token_analysis' | 'admin.organization_usage' | 'admin.department_subscriptions' | 'admin.accounts_operator'
+export type AdminPermission = 'admin.subscriptions' | 'admin.usage' | 'admin.token_analysis' | 'admin.organization_usage' | 'admin.department_subscriptions' | 'admin.department_members' | 'admin.accounts_operator'
 
 export interface User {
   id: number
@@ -109,6 +109,8 @@ export interface AdminUser extends User {
 	admin_access_version?: string
   department_id?: number | null
   department_version?: number
+  department_note?: string
+  disabled_source?: 'department_manager' | 'other' | null
   // 管理员备注（普通用户接口不返回）
   notes: string
   last_used_at?: string | null

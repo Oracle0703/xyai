@@ -8,6 +8,7 @@
         <label class="flex items-center gap-2"><input v-model="grantCurrent" type="checkbox" :disabled="saving || (!alreadyGranted && department?.status !== 'active')" />{{ t('admin.departments.allowDepartment') }}</label>
         <label class="flex items-center gap-2"><input v-model="report" type="checkbox" :disabled="saving" />{{ t('admin.departments.reportPermission') }}</label>
         <label class="flex items-center gap-2"><input v-model="resetQuota" type="checkbox" :disabled="saving" />{{ t('admin.departments.resetPermission') }}</label>
+        <label class="flex items-center gap-2"><input v-model="manageMembers" type="checkbox" :disabled="saving" data-testid="access-manage-members" />{{ t('admin.departments.manageMembersPermission') }}</label>
         <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('admin.departments.resetHint') }}</p>
         <label v-if="hasGlobalSubscriptions && resetQuota" class="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200"><input v-model="replaceGlobal" type="checkbox" :disabled="saving" class="mt-0.5" />{{ t('admin.departments.replaceGlobal') }}</label>
         <p v-if="otherPermissionLabels.length" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.departments.otherPermissions', { permissions: otherPermissionLabels.join(', ') }) }}</p>
@@ -40,6 +41,7 @@ const access = ref<DepartmentAccess | null>(null)
 const grantCurrent = ref(true)
 const report = ref(true)
 const resetQuota = ref(true)
+const manageMembers = ref(false)
 const replaceGlobal = ref(false)
 const searching = ref(false)
 const loading = ref(false)
@@ -78,6 +80,7 @@ async function search() {
 async function loadAccess() {
   accessController?.abort()
   access.value = null
+  manageMembers.value = false
   replaceGlobal.value = false
   error.value = ''
   if (!props.show || !selectedUserID.value) { loading.value = false; return }
@@ -88,9 +91,10 @@ async function loadAccess() {
     const result = await departmentsAPI.getAccess(Number(selectedUserID.value), signal)
     if (signal.aborted) return
     access.value = result
-    const hasDepartmentPermission = result.permissions.includes('admin.organization_usage') || result.permissions.includes('admin.department_subscriptions')
+    const hasDepartmentPermission = result.permissions.includes('admin.organization_usage') || result.permissions.includes('admin.department_subscriptions') || result.permissions.includes('admin.department_members')
     report.value = hasDepartmentPermission ? result.permissions.includes('admin.organization_usage') : true
     resetQuota.value = hasDepartmentPermission ? result.permissions.includes('admin.department_subscriptions') : true
+    manageMembers.value = result.permissions.includes('admin.department_members')
     grantCurrent.value = alreadyGranted.value || props.department?.status === 'active'
   } catch {
     if (!signal.aborted) error.value = t('admin.departments.failed')
@@ -105,7 +109,7 @@ async function save() {
   if (grantCurrent.value) departmentIDs.add(props.department.id)
   else departmentIDs.delete(props.department.id)
   try {
-    access.value = await departmentsAPI.setAccess(selected.user_id, { department_ids: [...departmentIDs].sort((a, b) => a - b), report: report.value, reset_quota: resetQuota.value, replace_global_subscriptions: replaceGlobal.value, expected_version: selected.version })
+    access.value = await departmentsAPI.setAccess(selected.user_id, { department_ids: [...departmentIDs].sort((a, b) => a - b), report: report.value, reset_quota: resetQuota.value, manage_members: manageMembers.value, replace_global_subscriptions: replaceGlobal.value, expected_version: selected.version })
     app.showSuccess(t('admin.departments.saved'))
     emit('saved')
     emit('close')
@@ -121,6 +125,7 @@ watch(() => [props.show, props.department?.id], () => {
   loading.value = false
   searching.value = false
   access.value = null
+  manageMembers.value = false
   selectedUserID.value = ''
   query.value = ''
   candidates.value = props.department?.managers ?? []

@@ -7,6 +7,7 @@ describe('department error semantics', () => {
     ['DEPARTMENT_CONFLICT', 'conflict'],
     ['ADMIN_ACCESS_CHANGED', 'accessChanged'],
     ['DEPARTMENT_INACTIVE', 'inactiveTarget'],
+    ['DEPARTMENT_MEMBER_ENABLE_DENIED', 'enableDenied'],
     ['DEPARTMENT_MEMBER_ORGANIZATION_MISMATCH', 'organizationMismatch'],
     ['DEPARTMENT_GLOBAL_SUBSCRIPTION_CONFIRMATION_REQUIRED', 'globalConfirmationRequired']
   ])('does not mistake %s for a changed report scope', (code, key) => {

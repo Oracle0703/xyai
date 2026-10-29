@@ -10,6 +10,14 @@ import {
 } from '@/utils/adminPermissions'
 
 describe('sub-admin landing path', () => {
+  it.each([false, true])('lands member-only managers on their department page (backend mode %s)', (backendMode) => {
+    expect(getAdminLandingPath(['admin.department_members'], backendMode)).toBe('/admin/my-department')
+    expect(getAdminLandingPath(['admin.department_members', 'admin.organization_usage'], backendMode)).toBe('/admin/organization-usage')
+    expect(getAdminLandingPath(['admin.department_members', 'admin.department_subscriptions'], backendMode)).toBe('/admin/subscriptions')
+    expect(getAdminLandingPath(['admin.department_members', 'admin.department_subscriptions', 'admin.organization_usage'], backendMode)).toBe('/admin/organization-usage')
+    expect(departmentLoginDestination('/dashboard', '/login', undefined, ['admin.department_members'], backendMode)).toBe('/admin/my-department')
+    expect(departmentLoginDestination('/dashboard', '/login', '/dashboard', ['admin.department_members'], backendMode)).toBe('/dashboard')
+  })
   it('lands department managers on reports in standard mode and preserves explicit destinations', () => {
     const permissions = ['admin.organization_usage', 'admin.department_subscriptions']
     expect(departmentLoginDestination('/dashboard', '/login', undefined, permissions, false)).toBe('/admin/organization-usage')

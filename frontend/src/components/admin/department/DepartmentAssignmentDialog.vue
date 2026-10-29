@@ -4,6 +4,7 @@
       <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('admin.departments.memberHint') }}</p>
       <p v-if="mixedOrganizations" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.departments.sameOrganization') }}</p>
       <label class="block space-y-1"><span>{{ t('admin.departments.targetDepartment') }}</span><Select v-model="targetID" :options="options" :disabled="loading || saving" /></label>
+      <p v-if="departmentWillChange" class="text-sm text-amber-700 dark:text-amber-300">{{ t('admin.departments.clearDepartmentNoteHint') }}</p>
       <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       <DataTable :columns="columns" :data="members" :loading="loading"><template #cell-department_name="{ row }">{{ row.department_name || t('admin.departments.unassigned') }}</template></DataTable>
     </div>
@@ -34,6 +35,11 @@ const saving = ref(false)
 const error = ref('')
 const organizations = computed(() => [...new Set(members.value.map(member => member.organization))])
 const mixedOrganizations = computed(() => organizations.value.length > 1)
+const departmentWillChange = computed(() => {
+  if (!targetID.value) return false
+  const target = targetID.value === 'unassigned' ? null : Number(targetID.value)
+  return members.value.some(member => member.department_id !== target)
+})
 let controller: AbortController | null = null
 const options = computed(() => [
   { value: '', label: t('admin.departments.targetDepartment') },

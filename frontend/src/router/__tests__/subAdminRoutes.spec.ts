@@ -7,6 +7,7 @@ describe('sub-admin route permission metadata', () => {
     ['AdminSubscriptions', 'admin.subscriptions'],
     ['AdminUsage', 'admin.usage'],
     ['AdminTokenAnalysis', 'admin.token_analysis'],
+    ['AdminMyDepartment', 'admin.department_members'],
   ])('registers %s with %s', (name, permission) => {
     const route = router.getRoutes().find((item) => item.name === name)
 

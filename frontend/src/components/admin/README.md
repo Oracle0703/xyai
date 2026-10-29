@@ -12,8 +12,9 @@
 ## 部门范围
 
 - 完整管理员通过 `/admin/departments` 管理部门/成员/负责人；用户页也可单人或批量调整部门。组件详见 `department/README.md`、`user/README.md`。
-- `admin.organization_usage` 允许报表与导出，`admin.department_subscriptions` 允许获授权部门的订阅读取和原额度重置。两个权限共用部门范围，后者与全站 `admin.subscriptions` 互斥。
-- 部门负责人不得分配、延期、撤销、恢复、删除订阅，也不能进入通用批量订阅动作或成员管理。订阅选人使用 `/admin/subscriptions/search-users`，分组选项只含获授权成员涉及的组；不能复用全站 usage 搜索。
+- `admin.organization_usage` 允许报表与导出，`admin.department_subscriptions` 允许获授权部门的订阅读取和原额度重置，`admin.department_members` 独立控制普通成员管理。三项共用部门范围；部门订阅与全站 `admin.subscriptions` 互斥，成员管理不隐含其它权限。
+- 部门负责人不得分配、延期、撤销、恢复、删除订阅，也不能进入通用批量订阅动作或完整管理员的成员维护入口；获得成员管理权限后使用 `/admin/my-department` 和专用受限接口。订阅选人使用 `/admin/subscriptions/search-users`，分组选项只含获授权成员涉及的组；不能复用全站 usage 搜索。
+- 用户列表只读显示负责人备注和“负责人停用”来源；管理员编辑用户不提供 `department_note`，负责人不能读取管理员 `notes`。成员移出/转岗前提示负责人备注会被清空，清空和审计由后端事务保证。
 - 范围撤销后清空受保护数据与选项、使在途响应失效；重置快照包含 `department_id/scope_version`，每次列表加载先失效快照。
 
 ## 0.2.6 合并增量

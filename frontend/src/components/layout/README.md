@@ -2,8 +2,8 @@
 
 ## 部门导航
 
-- 完整管理员增加“部门管理”；子管理员的“组织用量报表”依赖 `admin.organization_usage`，“订阅管理”接受全站或部门订阅权限。部门负责人不显示用户管理、部门管理及未授权全站菜单。
-- 路由与登录默认页共同使用 `utils/adminPermissions.ts`；仅部门权限账号默认进入报表或订阅页，显式 redirect 保留。菜单隐藏不代替服务端范围验证。
+- 完整管理员使用“部门管理”；子管理员的“组织用量报表”依赖 `admin.organization_usage`，“订阅管理”接受全站或部门订阅权限，“我的部门”依赖 `admin.department_members`。负责人不显示用户管理、部门管理及未授权全站菜单；完整管理员侧栏不显示“我的部门”。
+- 路由与登录默认页共同使用 `utils/adminPermissions.ts`；仅部门权限账号按报表 → 订阅 → 我的部门选取可访问的默认页，显式 redirect 保留。菜单隐藏不代替服务端范围验证。
 
 Vue 3 layout components for the Sub2API frontend, built with Composition API, TypeScript, and TailwindCSS.
 

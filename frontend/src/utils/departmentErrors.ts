@@ -29,7 +29,8 @@ export function departmentErrorKey(error: unknown): string {
     REPORT_SCOPE_CHANGED: 'scopeChanged', DEPARTMENT_INACTIVE: 'inactiveTarget',
     DEPARTMENT_MEMBER_ORGANIZATION_MISMATCH: 'organizationMismatch',
     DEPARTMENT_GLOBAL_SUBSCRIPTION_CONFIRMATION_REQUIRED: 'globalConfirmationRequired',
-    DEPARTMENT_SCOPE_DENIED: 'scopeDenied'
+    DEPARTMENT_SCOPE_DENIED: 'scopeDenied',
+    DEPARTMENT_MEMBER_ENABLE_DENIED: 'enableDenied'
   }
   return `admin.departments.${keys[departmentErrorCode(error) ?? ''] ?? 'failed'}`
 }

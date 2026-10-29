@@ -304,7 +304,14 @@
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
-          <template #cell-department="{ row }"><button class="text-primary-600 hover:underline" :title="t('admin.departments.assignDepartment')" @click.stop="departmentAssignmentIds = [row.id]">{{ departmentLabel(row) }}</button></template>
+          <template #cell-department="{ row }">
+            <div class="max-w-xs space-y-1">
+              <button class="text-primary-600 hover:underline" :title="t('admin.departments.assignDepartment')" @click.stop="departmentAssignmentIds = [row.id]">{{ departmentLabel(row) }}</button>
+              <p v-if="row.department_note" :title="row.department_note" class="truncate text-xs text-gray-500 dark:text-dark-400" data-testid="user-department-note">
+                {{ t('admin.departments.departmentNote') }}: {{ row.department_note }}
+              </p>
+            </div>
+          </template>
           <template #cell-email="{ value }">
             <div class="flex items-center gap-2">
               <div
@@ -595,8 +602,8 @@
             />
           </template>
 
-          <template #cell-status="{ value }">
-            <div class="flex items-center gap-1.5">
+          <template #cell-status="{ value, row }">
+            <div class="flex flex-wrap items-center gap-1.5">
               <span
                 :class="[
                   'inline-block h-2 w-2 rounded-full',
@@ -605,6 +612,9 @@
               ></span>
               <span class="text-sm text-gray-700 dark:text-gray-300">
                 {{ value === 'active' ? t('common.active') : t('admin.users.disabled') }}
+              </span>
+              <span v-if="value === 'disabled' && row.disabled_source === 'department_manager'" class="text-xs text-amber-700 dark:text-amber-300" data-testid="user-manager-disabled">
+                {{ t('admin.departments.managerDisabled') }}
               </span>
             </div>
           </template>

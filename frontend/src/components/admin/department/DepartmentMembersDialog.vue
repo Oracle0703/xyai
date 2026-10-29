@@ -17,6 +17,7 @@
       <div v-if="selected.size" class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-800">
         <p class="font-medium">{{ t('admin.departments.selectedCount', { count: selected.size }) }}</p>
         <p class="mt-1">{{ t('admin.departments.memberPreview', { department: mode === 'add' ? department?.name : t('admin.departments.unassigned') }) }}</p>
+        <p class="mt-1 text-amber-700 dark:text-amber-300">{{ t('admin.departments.clearDepartmentNoteHint') }}</p>
         <ul class="mt-2 space-y-1"><li v-for="member in selectedMembers" :key="member.id" class="break-all">{{ member.email }} · {{ member.department_name || t('admin.departments.unassigned') }}</li></ul>
       </div>
     </div>

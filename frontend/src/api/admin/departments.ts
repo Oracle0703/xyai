@@ -74,15 +74,53 @@ export interface DepartmentMemberChange {
   expected_department_version: number
 }
 
+export interface ManagedDepartmentMember {
+  id: number
+  email: string
+  username: string
+  department_note: string
+  status: 'active' | 'disabled'
+  disabled_source: 'department_manager' | 'other' | null
+  can_enable: boolean
+  manageable: boolean
+  department_id: number
+  department_name: string
+  department_version: number
+}
+
+export interface ManagedMemberUpdateInput {
+  expected_department_id: number
+  expected_department_version: number
+  username?: string
+  department_note?: string
+  status?: ManagedDepartmentMember['status']
+}
+
 export interface DepartmentAccessInput {
   department_ids: number[]
   report: boolean
   reset_quota: boolean
+  manage_members?: boolean
   replace_global_subscriptions: boolean
   expected_version: string
 }
 
 export const departmentsAPI = {
+  async managedScope(signal?: AbortSignal) {
+    return (await apiClient.get<DepartmentScope>('/admin/department-members/scope', { signal })).data
+  },
+  async managedMembers(params: DepartmentListQuery, signal?: AbortSignal) {
+    return (await apiClient.get<DepartmentPage<ManagedDepartmentMember>>('/admin/department-members', { params, signal })).data
+  },
+  async managedCandidates(department_id: number, q: string, signal?: AbortSignal) {
+    return (await apiClient.get<DepartmentMember[]>('/admin/department-members/candidates', { params: { department_id, q }, signal })).data
+  },
+  async managedAssign(department_id: number | null, members: DepartmentMemberChange[]) {
+    return (await apiClient.post<{ updated_count: number }>('/admin/department-members/assign', { department_id, members })).data
+  },
+  async updateManagedMember(userID: number, input: ManagedMemberUpdateInput) {
+    return (await apiClient.put<ManagedDepartmentMember>(`/admin/department-members/${userID}`, input)).data
+  },
   async list(params: DepartmentListQuery, signal?: AbortSignal) {
     return (await apiClient.get<DepartmentPage<Department>>('/admin/departments', { params, signal })).data
   },

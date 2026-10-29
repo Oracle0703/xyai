@@ -203,6 +203,23 @@ describe('feature route guard', () => {
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith('/dashboard')
   })
+
+  it.each([
+    [['admin.department_members'], 'admin.department_members', '/admin/my-department', undefined],
+    [['admin.organization_usage'], 'admin.department_members', '/admin/my-department', '/admin/organization-usage'],
+    [['admin.department_members'], 'admin.organization_usage', '/admin/organization-usage', '/admin/my-department'],
+    [['admin.department_members'], undefined, '/admin/users', '/admin/my-department'],
+  ])('enforces member-management route boundaries for %j', async (permissions, permission, path, target) => {
+    authStore.isSubAdmin = true
+    authStore.canAccessAdmin = true
+    authStore.user = { admin_permissions: permissions }
+    authStore.hasAdminPermission.mockImplementation((...args: unknown[]) => permissions.includes(String(args[0])))
+    const { navigation, next } = runGuard({ requiresAdmin: true, adminPermission: permission }, path)
+    await navigation
+    expect(next).toHaveBeenCalledOnce()
+    if (target) expect(next).toHaveBeenCalledWith(target)
+    else expect(next).toHaveBeenCalledWith()
+  })
 })
 
 describe('subscription route guard (opt-out flag)', () => {

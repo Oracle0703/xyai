@@ -12,6 +12,7 @@ const {
   showSuccess,
   getAllGroups,
   getBatchUsersUsage,
+  listDepartments,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const {
   showSuccess: vi.fn(),
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
+  listDepartments: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn()
 }))
@@ -52,6 +54,8 @@ vi.mock('@/stores/app', () => ({
     showSuccess
   })
 }))
+
+vi.mock('@/api/admin/departments', () => ({ departmentsAPI: { list: listDepartments } }))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -108,6 +112,8 @@ const DataTableStub = {
       </template>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
+        <div :data-test="'department-' + row.id"><slot name="cell-department" :row="row" /></div>
+        <div :data-test="'status-' + row.id"><slot name="cell-status" :value="row.status" :row="row" /></div>
         <div :data-test="'actions-' + row.id"><slot name="cell-actions" :row="row" /></div>
       </div>
     </div>
@@ -189,6 +195,7 @@ describe('admin UsersView', () => {
     showSuccess.mockReset()
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
+    listDepartments.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
 
@@ -201,12 +208,50 @@ describe('admin UsersView', () => {
     })
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
+    listDepartments.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 200 })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('shows department notes as read-only text and identifies manager-disabled users', async () => {
+    listUsers.mockResolvedValue({
+      items: [
+        createAdminUser({ department_id: 7, department_note: 'Department-only note', status: 'disabled', disabled_source: 'department_manager' }),
+        createAdminUser({ id: 43, status: 'disabled', disabled_source: 'other', department_note: '' })
+      ],
+      total: 2, page: 1, page_size: 20, pages: 1
+    })
+    const wrapper = mountBulkDeleteView()
+    await flushPromises()
+
+    const note = wrapper.get('[data-test="department-42"]')
+    expect(note.text()).toContain('admin.departments.departmentNote: Department-only note')
+    expect(note.get('[data-testid="user-department-note"]').attributes('title')).toBe('Department-only note')
+    expect(note.find('input, textarea').exists()).toBe(false)
+    expect(wrapper.get('[data-test="status-42"]').text()).toContain('admin.departments.managerDisabled')
+    expect(wrapper.get('[data-test="status-43"]').text()).not.toContain('admin.departments.managerDisabled')
+    expect(wrapper.findAll('[data-testid="user-department-note"]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('clears the manager-disabled indicator after the administrator enables the user', async () => {
+    listUsers.mockResolvedValue({
+      items: [createAdminUser({ status: 'disabled', disabled_source: 'department_manager' })],
+      total: 1, page: 1, page_size: 20, pages: 1
+    })
+    toggleStatus.mockResolvedValue(createAdminUser({ status: 'active', disabled_source: null }))
+    const wrapper = mountBulkDeleteView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="user-manager-disabled"]').exists()).toBe(true)
+    await getToggleStatusButton(wrapper, 42).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="user-manager-disabled"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="status-42"]').text()).toContain('common.active')
+    wrapper.unmount()
   })
 
   it('cancels bulk deletion without deleting or clearing selected users', async () => {

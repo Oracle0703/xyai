@@ -698,6 +698,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/my-department',
+    name: 'AdminMyDepartment',
+    component: () => import('@/views/admin/MyDepartmentView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      adminPermission: 'admin.department_members',
+      title: 'My Departments',
+      titleKey: 'admin.departments.myDepartmentTitle',
+      descriptionKey: 'admin.departments.myDepartmentDescription'
+    }
+  },
+  {
     path: '/admin/departments',
     name: 'AdminDepartments',
     component: () => import('@/views/admin/DepartmentsView.vue'),

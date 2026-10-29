@@ -5,6 +5,7 @@ export const ADMIN_PERMISSION_USAGE: AdminPermission = 'admin.usage'
 export const ADMIN_PERMISSION_TOKEN_ANALYSIS: AdminPermission = 'admin.token_analysis'
 export const ADMIN_PERMISSION_ORGANIZATION_USAGE: AdminPermission = 'admin.organization_usage'
 export const ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS: AdminPermission = 'admin.department_subscriptions'
+export const ADMIN_PERMISSION_DEPARTMENT_MEMBERS: AdminPermission = 'admin.department_members'
 export const ADMIN_PERMISSION_ACCOUNTS_OPERATOR: AdminPermission = 'admin.accounts_operator'
 
 const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
@@ -16,6 +17,7 @@ const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
   { code: ADMIN_PERMISSION_TOKEN_ANALYSIS, path: '/admin/token-analysis' },
   { code: ADMIN_PERMISSION_ORGANIZATION_USAGE, path: '/admin/organization-usage' },
   { code: ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS, path: '/admin/subscriptions' },
+  { code: ADMIN_PERMISSION_DEPARTMENT_MEMBERS, path: '/admin/my-department' },
   { code: ADMIN_PERMISSION_ACCOUNTS_OPERATOR, path: '/admin/accounts' },
 ]
 
@@ -25,7 +27,7 @@ export function getAdminLandingPath(
 ): string {
 	const allowed = new Set(permissions ?? [])
 	const onlyDepartmentManagement = allowed.size > 0 && [...allowed].every(
-		code => code === ADMIN_PERMISSION_ORGANIZATION_USAGE || code === ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS,
+		code => code === ADMIN_PERMISSION_ORGANIZATION_USAGE || code === ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS || code === ADMIN_PERMISSION_DEPARTMENT_MEMBERS,
 	)
   if (!backendMode && !onlyDepartmentManagement) return '/dashboard'
   return ADMIN_PERMISSION_LANDING_ROUTES.find((item) => allowed.has(item.code))?.path ?? '/login'
