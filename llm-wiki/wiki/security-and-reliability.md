@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.2.19 管理密钥权限边界
+
+- `adm_sc_` 密钥每次查库，检查启用/撤销/有效期/IP 和创建者当前管理员状态；未登记路由默认拒绝。操作权限与账户/分组资源范围分别校验，全站权限需显式授予；不能凭创建者是管理员绕过 `adminaccess`。
+- 密钥管理仅完整管理员 JWT 可用，创建/修改/轮换/撤销等写操作经 step-up；旧版全权密钥不再新建，已有密钥仍可用于旧业务接口但不能管理密钥。旧版 `admin_api_key` 的完整管理员级访问仅限遗留业务接口，不含密钥管理或 step-up grant。
+- 本地 JWT `sub_admin`、部门授权、账号新增/测试/重新授权通知保持独立；受限 API 密钥的部门上下文仅用于识别已认证创建者，路由准入仍用上游策略。本地部门/Token Analysis 等未登记路由不会因此开放。
+- 订阅列表同时保持部门分页信封与上游字段投影；幂等首次执行/重放均应用当前投影，订阅按筛选重置保留本地 AtomicSuccess。合并回归见 `admin_auth_scoped_department_test.go`、`subscription_scoped_department_test.go` 及现有幂等/权限测试。
+- multipart 图片超限拒绝、国产 Coding Plan 频率型 429 秒级冷却、Grok 目录 CAS、分页防溢出和 malformed tool call 处理均沿固定上游；发现的上游或既有问题只记录，不另行修补。
+
 ## 0.2.18 安全与可靠性同步
 
 - `service/image_storage.go` 的异步图片下载沿上游增加公网目的地限制：每跳重定向重新校验、直连 socket 实际 IP 校验、代理路径本地 DNS 检查；非图片响应拒绝。代理侧解析仍由代理负责，不能据此声称完全消除代理侧 DNS 风险。
@@ -528,7 +536,7 @@ Codex `additional_tools` input item 与顶层 `tools` 具有相同信任级别, 
 - Token Analysis 指纹密钥存于 `security_secrets` 键 `token_analysis_fingerprint_secret`, 由 `ensureBootstrapSecrets` 与 JWT 密钥同一机制引导(不存在即生成 32 字节并持久化, 不接受配置注入), 写入 `cfg.TokenAnalysis.FingerprintSecret`(`mapstructure:"-"`)。用于缓存键/前缀指纹 HMAC, 指纹不经接口返回; 轮换会使新旧指纹不可比(按 unknown 降级)。同一密钥也用于分类结果的 `amount_inputs_hash`。
 - Token Analysis 分类的正确性只靠版本条件写回: 子请求 `cls_input_version`/`cls_dep_version`/`cand_checked_version` 与所选父请求 `cls_input_version` 未变才写, 写回同时确认输入与依赖两对版本; 单实例锁(`tryAcquireSingletonLeaderLock`, TTL 10 分钟)只减少重复工作。源事务在传播前已持有源行, 排序不能统一锁顺序, 因此分类写回用 `FOR UPDATE ... SKIP LOCKED`(从不等锁, 被持有的行下一轮重算), 源写入事务经仓储 `inTx` 遇死锁(40P01)/序列化失败(40001)整体重试至多 3 次(索引出错会推进水位, 不能只记日志); 候选咨询锁是事务里的第一把锁。新增改变分类输入的写入点必须走 `inTx` 并在同一事务内调用 `markTokenAnalysisClassificationDirty`(自身加输入版本+登记失效; 子孙由作业在提交后传播, 不能改回事务内查边); 传播、规则版本扫描、候选变化标记只能改 `cls_dep_version`, 不能改子请求比较的 `cls_input_version`(否则过期或正常消费者都可能留下永久父版本失配); 账单被外键置空由触发器 `token_analysis_usage_detached` 登记失效, 不依赖应用代码。
 - 支付 provider 凭证和 webhook secret 必须验签。当前实现（`backend/internal/service/payment_config_providers.go#encryptConfig`）把 `payment_provider_instances.config` **新写入为明文 JSON**, `decryptConfig` 只保留对历史 AES-256-GCM 密文的过渡读取; 读取 API 对 `providerSensitiveConfigFields` 掩码。数据库访问权限与备份必须按"含支付密钥明文"管理, 文档不得声称支付密钥在库中加密。
-- `admin_api_key` 以明文存于 `settings`, 校验使用 `subtle.ConstantTimeCompare`, 与完整管理员平权且不能取得 step-up grant。
+- 旧版 `admin_api_key` 以明文存于 `settings`，校验使用 `subtle.ConstantTimeCompare`，遗留业务接口具完整管理员权限，但不能管理密钥或取得 step-up grant；0.2.19 起停止新建，受限密钥另存摘要。
 - 后台异步生图对象存储的 SecretAccessKey 使用现有固定 `SecretEncryptor` 加密；未配置持久加密 key 时拒绝保存新 secret, 防止自动生成临时 key 导致重启后无法解密。复用备份 S3 时不重复持久化凭据, 读取 API 只返回 `secret_configured` 状态而不回显明文。
 - Ollama Cloud web session 最多 16 KiB, 拒绝 CR/LF、重复 cookie、Set-Cookie attributes 和非 allowlist session cookie；规范化后使用固定 `TOTP_ENCRYPTION_KEY` 对应的 `SecretEncryptor` 加密写入 `account.extra`, 未配置固定 key 时拒绝保存。DTO、usage snapshot 和 audit log 均不回显 session 或原始 settings HTML；刷新只访问固定 `https://ollama.com/settings`, 响应上限 512 KiB, 并以账号/代理/session identity CAS 防止并发刷新覆盖新凭据。
 - API Key 删除只 tombstone 原 key 以释放唯一约束, 不再把明文 key 复制到 `deleted_api_key_audits`；Ops 入口拒绝只保留有界聚合维度。旧明文审计表/列的 finalizer 必须在滚动升级全部完成并确认恢复点后人工执行。

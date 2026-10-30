@@ -161,6 +161,7 @@ docs/*
 !docs/upstream-sync/
 !docs/superpowers/
 !docs/安装与操作手册.md
+!docs/admin-api-keys.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

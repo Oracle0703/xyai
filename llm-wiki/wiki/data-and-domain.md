@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## 0.2.19 数据与图片计费
+
+- 新增 `247_scoped_admin_api_keys.sql`：独立密钥表只存摘要与前缀、策略/IP/有效期、创建者和最后使用信息；撤销和从列表移除分别为 `revoked_at` / `deleted_at`，不删除历史审计。此表使用 SQL repository，不新增 Ent entity。
+- 新增 `248_group_image_count_billing.sql` 与 Ent group bool 字段，NOT NULL、默认 false；鉴权缓存/DTO/分组复制和前端类型同步。本地 `247_token_analysis_usage_link.sql` 与 `248_token_analysis_usage_link_keys_index_notx.sql` 原名保留，同号文件按完整文件名/checksum 共存，旧迁移不改写。
+- 开启按张计费仅用于 OpenAI/Composite 图片端点，按响应实际图片数计费，无法解析时沿上游按 1 张兜底；关闭时保留既有回退行为。图片与 token 模式、渠道按请求价保留 token 的规则沿指定版本。Gemini `fileData` 图片输出纳入既有计费计数。
+- Grok 目录快照保存于账号受管 extra 键，CAS 只更新目标键并保留普通更新；不新增表。本地组织/部门、Token Analysis、订阅自助重置和 GPT 额度数据结构保留。
+
 ## 0.2.18 迁移与账号配额
 
 - 新增 `backend/migrations/246_enable_gemini_image_generation_groups.sql`：把既有 Gemini/Antigravity 分组的 `allow_image_generation=false` 改为 true，Composite 不在更新范围。升级会重新开启这些分组的生图权限，随后可由管理员显式关闭。

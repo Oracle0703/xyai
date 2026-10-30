@@ -1,5 +1,10 @@
 # Account Components
 
+## 0.2.19 Grok 模型诊断
+
+- `GrokModelDiagnosticsPanel.vue` 展示受管目录来源、时效、尝试和映射状态；EditAccountModal 保留草稿并隔离账号/模式的迟到同步。ModelWhitelistSelector/useModelWhitelist 维护受管模型 ID。本地 compatible preset、GPT 额度和子管理员限制继续保留。
+- 回归：EditAccountModal.grokUpstream、GrokModelDiagnosticsPanel、ModelWhitelistSelector 与完整 Vitest/typecheck。
+
 ## 0.2.18 配额能力
 
 - Create/Edit、AccountCapacityCell、AccountUsageCell 统一使用 `utils/accountQuota.ts#supportsAccountQuota`，支持 Vertex service_account 总/日/周配额；池模式不随配额集合扩大。本地 GPT 双来源额度圆环和 compatible preset 继续保留。

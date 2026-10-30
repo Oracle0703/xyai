@@ -1,5 +1,11 @@
 # 前端知识基线
 
+## 0.2.19 管理密钥与模型界面
+
+- 设置安全页接入 `components/admin/settings/AdminAccessKeysSettings.vue` 与 `api/admin/adminAccessKeys.ts`：按操作/资源配置密钥，密钥明文仅创建/轮换结果显示；旧版全权密钥只保留已有密钥的轮换/删除，并使用 step-up。本地 Prompt Risk、归档配置及 JWT 子管理员菜单继续保留。
+- `GrokModelDiagnosticsPanel.vue` 展示目录来源、时效、上次尝试及映射诊断；EditAccountModal 保持草稿与账号/模式隔离，ModelWhitelistSelector 支持受管目录。新增接口不扩大本地 `admin.accounts_operator` 的模型同步权限。
+- 分组页新增 OpenAI/Composite `image_count_billing` 开关，默认关闭；模型广场采用分组模型价格优先口径。渠道 web search 配置保留平台维度；UseKeyModal 增加上游 Terra 客户端配置。本地生图 Pinia 状态/多图输入是独立能力，继续保留。
+
 ## 公司介绍资料（独立 HTML）
 
 - `docs/delivery/2026-10-29-company-introduction/index.html` 是面向管理层及各岗位的离线介绍页，包含岗位预设演示、协作链、收益测算及章节演示模式，不属于应用路由，也不调用业务或模型 API。讲解提纲、来源和使用方式见同目录 `README.md`。
