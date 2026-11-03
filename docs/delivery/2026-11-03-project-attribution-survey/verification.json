@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-03",
+  "timezone": "Asia/Shanghai",
+  "total_indexed": 68019,
+  "unattributed": 2690,
+  "unattributed_users": 46,
+  "archive_bytes": 231243156719,
+  "index_state": {
+    "last_offset": 231243156719,
+    "processed_rows": 68016,
+    "failed_rows": 0
+  },
+  "note": "Database summaries and processed_rows are separate counters; the 2690 scope uses summary rows. No full archive completeness claim.",
+  "production_and_local_extractor_sha256": "b7c83dd65e277639ebbe3955d2e71a5651cd5cbe9e8078e079013f731e19808b",
+  "verified_request_identities": 2690,
+  "candidate_count": 43,
+  "candidate_reference_integrity": true,
+  "curation": {
+    "candidate_rows": 43,
+    "requests_with_curated_candidates": 2196,
+    "requests_with_internal_go_module_cache": 282,
+    "notes": "Candidate mentions can overlap. Counts do not establish attribution. Broad hint counts include template and runtime noise. Raw prompt text was not exported.",
+    "bounded_witnesses": "Up to four paths per evidence kind per request; candidate_ids retain all curated candidate membership."
+  },
+  "files": {
+    "candidates.json": "a8b6d45ca2e5d7bc65723738489223d2544240910ed1d67ca530fdc82ec79b9f",
+    "collect.py": "6af3ce5848cbc4797abcab4bb1ccb9f65cd954c63726f971f829d58e6a1942ce",
+    "evidence.json": "cbd69c2acaa9f354da5f95809dc39c6189d10440cab1dce6653801f84f22d2b1",
+    "gitlab-tool-recheck.json": "22dec798f90b42bf1f1f15e51528f6f7d5ebc0a80f6986ddf11050a50ae97aed",
+    "README.md": "a036dbd9b4ab579ecab4b74bbbdf2bc40071458c81b8e3db16b607d18787bfc1",
+    "repository-url-witnesses.json": "10d8b2a633459cedc67593f27a4af0de25abf1a0cf1d3abe59b747a4c12f6d38",
+    "shape-check.json": "4f63c401a645e5b5f9d383228b299ce3b1416e331256ff7c18d1a3c0e6c125e8",
+    "summarize.py": "24c075b7ae7b5704e325d051dedb95707bbba10233451bde89150f6efe391723",
+    "system-shape-check.json": "77cf837212d028322ad1975bc81cbb6d27d3b5f98b94febb1c680d6dfafac4d6"
+  },
+  "local_validation": "Python syntax, unique request identities, candidate membership integrity and <=20 bounded witnesses per request passed; git diff --check passed for wiki change.",
+  "repository_url_count_verified": 10
+}

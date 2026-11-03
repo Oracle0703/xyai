@@ -1,0 +1,21 @@
+{
+  "scan_counts": {
+    "request": 25238,
+    "response": 25224,
+    "invalid": 5
+  },
+  "salvaged_suffix_events": 5,
+  "unrecoverable_request_fragments": 5,
+  "missing_request_summaries": 92,
+  "request_input_candidates": 388,
+  "response_candidates": 87,
+  "missing_response_facts": 87,
+  "response_conflicts": 0,
+  "response_without_request_in_same_file": 7,
+  "response_without_summary_in_snapshot": 81,
+  "missing_response_time_range": [
+    "2026-10-31T02:07:12.861389209Z",
+    "2026-10-31T02:37:00.274268498Z"
+  ],
+  "plan_rows": 567
+}

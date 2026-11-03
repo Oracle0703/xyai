@@ -32,21 +32,29 @@
               <h1 class="text-xl font-semibold text-gray-950 dark:text-white">{{ formTitle }}</h1>
               <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ formSubtitle }}</p>
             </div>
-            <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">gpt-image-2</span>
+            <span
+              data-test="model-badge"
+              class="max-w-[50%] truncate rounded-md px-2 py-1 text-xs font-medium"
+              :class="modelBadgeClass"
+              :title="modelBadgeText"
+            >{{ modelBadgeText }}</span>
           </div>
 
           <form class="space-y-4" @submit.prevent="generate">
             <div>
               <label class="input-label" for="image-gen-key">API Key</label>
               <div class="relative">
+                <!-- 只有回车（及“加载模型”按钮）会把 Key 发往模型接口；粘贴、失焦、输入不发请求，
+                     防止密码管理器自动填入的内容被发出。回车阻止表单提交，避免误发付费生图。 -->
                 <input
                   id="image-gen-key"
-                  v-model.trim="apiKey"
+                  v-model.trim="apiKeyModel"
                   data-test="api-key-input"
                   :type="showKey ? 'text' : 'password'"
                   class="input pr-11"
                   autocomplete="off"
                   placeholder="sk-..."
+                  @keydown.enter.prevent="handleApiKeyEnter"
                 />
                 <button
                   type="button"
@@ -57,7 +65,90 @@
                   <Icon :name="showKey ? 'eyeOff' : 'eye'" size="sm" />
                 </button>
               </div>
-              <p class="input-hint">页面不会保存 API Key；请求仍走现有鉴权、审核和计费。</p>
+              <label class="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-dark-200">
+                <input
+                  data-test="remember-key-checkbox"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-dark-600"
+                  :checked="rememberKey"
+                  @change="handleRememberChange"
+                />
+                <span>在此浏览器记住 API Key</span>
+              </label>
+              <p class="input-hint">{{ keyHint }}</p>
+              <p v-if="keySaveStatus" data-test="key-save-status" class="mt-1 text-xs text-gray-600 dark:text-dark-300">{{ keySaveStatus }}</p>
+              <p v-if="keyStorageMessage" data-test="key-storage-message" class="mt-1 text-xs text-amber-600 dark:text-amber-300">{{ keyStorageMessage }}</p>
+              <p v-if="keyRemovalFailed" data-test="key-removal-warning" class="mt-1 text-xs text-amber-600 dark:text-amber-300">
+                未能清除浏览器中保存的 API Key，可能仍有残留。
+                <button
+                  data-test="retry-key-removal"
+                  type="button"
+                  class="font-medium underline hover:text-red-600 dark:hover:text-red-300"
+                  @click="retrySavedKeyRemoval"
+                >
+                  重试清除
+                </button>
+              </p>
+              <button
+                v-if="hasSavedConfig"
+                data-test="clear-saved-config"
+                type="button"
+                class="mt-1 text-xs font-medium text-gray-500 hover:text-red-600 dark:text-dark-400 dark:hover:text-red-300"
+                @click="handleClearSavedConfig"
+              >
+                清除已保存配置
+              </button>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <label class="input-label" for="image-gen-model">模型</label>
+                <button
+                  v-if="discoveryStatus !== 'disabled'"
+                  data-test="model-refresh-button"
+                  type="button"
+                  class="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
+                  :disabled="!apiKey || discoveryStatus === 'loading'"
+                  @click="triggerModelDiscovery()"
+                >
+                  {{ modelLoadLabel }}
+                </button>
+              </div>
+              <div class="flex gap-2">
+                <select id="image-gen-model" v-model="selectedListModel" data-test="model-select" class="input min-w-0 flex-1">
+                  <option value="" disabled>{{ modelSelectPlaceholder }}</option>
+                  <option v-if="unlistedModel" :value="unlistedModel">{{ unlistedModel }}（未确认）</option>
+                  <option v-for="id in modelCandidates" :key="id" :value="id">{{ id }}</option>
+                </select>
+                <button
+                  data-test="model-manual-toggle"
+                  type="button"
+                  class="btn btn-secondary btn-sm shrink-0"
+                  @click="startManualModel"
+                >
+                  手动输入
+                </button>
+              </div>
+              <!-- 回车只确认模型，阻止表单提交。 -->
+              <input
+                v-if="showManualInput"
+                v-model="manualModelDraft"
+                data-test="model-manual-input"
+                class="input mt-2"
+                autocomplete="off"
+                placeholder="输入模型 ID（可用别名），是否支持图片生成以接口结果为准"
+                @blur="confirmManualModel"
+                @keydown.enter.prevent="confirmManualModel"
+              />
+              <p v-if="manualModelError" data-test="model-manual-error" class="mt-1 text-xs text-red-600 dark:text-red-300">{{ manualModelError }}</p>
+              <p
+                data-test="model-status"
+                class="input-hint"
+                :class="{ 'text-red-600 dark:text-red-300': discoveryStatus === 'error' }"
+              >
+                {{ modelStatusText }}
+              </p>
+              <p v-if="modelNotice" data-test="model-notice" class="mt-1 text-xs text-amber-600 dark:text-amber-300">{{ modelNotice }}</p>
             </div>
 
             <div>
@@ -199,6 +290,9 @@
               <span v-else class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
               <span>{{ isGenerating ? '处理中...' : submitLabel }}</span>
             </button>
+            <p v-if="isGenerating && activeRequestModel" data-test="active-request-model" class="input-hint text-center">
+              本次请求模型：{{ activeRequestModel }}
+            </p>
           </form>
         </div>
 
@@ -362,6 +456,21 @@ const {
   historyItems,
   sourceImages,
   totalSourceSize,
+  activeRequestModel,
+  model,
+  modelSource,
+  modelConfirmed,
+  modelNotice,
+  modelCandidates,
+  discoveryStatus,
+  discoveryError,
+  discoveryStale,
+  rememberKey,
+  keySaved,
+  keySavedIsCurrent,
+  keyRemovalFailed,
+  keyStorageMessage,
+  hasSavedConfig,
 } = storeToRefs(imageGenStore)
 const {
   generate,
@@ -371,6 +480,13 @@ const {
   deleteHistoryItem,
   clearHistory,
   restoreHistory,
+  updateApiKey,
+  setRememberKey,
+  retrySavedKeyRemoval,
+  clearSavedConfig,
+  selectModel,
+  setManualModel,
+  triggerModelDiscovery,
 } = imageGenStore
 
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
@@ -401,6 +517,107 @@ const sizeOptions = [
 
 const showKey = ref(false)
 const sourceImageInput = ref<HTMLInputElement | null>(null)
+const manualEditing = ref(false)
+const manualModelDraft = ref(modelSource.value === 'manual' ? model.value : '')
+const manualModelError = ref('')
+
+// 用户输入走 updateApiKey，与恢复/清除等程序赋值区分。
+const apiKeyModel = computed({
+  get: () => apiKey.value,
+  set: (value: string) => updateApiKey(value),
+})
+
+const selectedListModel = computed({
+  get: () => (modelSource.value === 'list' ? model.value : ''),
+  set: (value: string) => {
+    manualEditing.value = false
+    manualModelError.value = ''
+    selectModel(value)
+  },
+})
+
+// 尚未被当前目录确认的列表模型（恢复的偏好、刷新失败等），单独列出以便下拉框显示当前值。
+const unlistedModel = computed(() =>
+  modelSource.value === 'list' && model.value && !modelCandidates.value.includes(model.value) ? model.value : ''
+)
+const showManualInput = computed(() => manualEditing.value || modelSource.value === 'manual')
+
+const modelStatusLabel = computed(() => {
+  if (modelSource.value === 'manual') {
+    return '手动'
+  }
+  return modelConfirmed.value ? '已确认' : '未确认'
+})
+const modelBadgeText = computed(() => (model.value ? `${model.value} · ${modelStatusLabel.value}` : '未选择模型'))
+const modelBadgeClass = computed(() => {
+  if (!model.value) {
+    return 'bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-300'
+  }
+  if (modelSource.value === 'manual') {
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+  }
+  if (!modelConfirmed.value) {
+    return 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+  }
+  return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+})
+
+const modelSelectPlaceholder = computed(() => {
+  if (modelSource.value === 'manual') {
+    return '已使用手动模型'
+  }
+  if (modelCandidates.value.length > 0) {
+    return '请选择模型'
+  }
+  return discoveryStatus.value === 'loading' ? '加载中...' : '暂无可选模型'
+})
+
+const modelStatusText = computed(() => {
+  switch (discoveryStatus.value) {
+    case 'disabled':
+      return '模型端点与生图端点不在同一来源，已停用自动加载，请手动输入模型（检查 VITE_IMAGE_MODELS_ENDPOINT 配置）。'
+    case 'loading':
+      return '正在加载当前 Key 的模型列表...'
+    case 'ready':
+      return `当前 Key 有 ${modelCandidates.value.length} 个图片模型；列表不代表能力已验证，以生成结果为准。`
+    case 'empty':
+      return '当前 Key 的目录中没有图片模型，可手动输入模型。'
+    case 'error':
+      return discoveryStale.value ? `${discoveryError.value}（当前为旧目录）` : discoveryError.value
+    default:
+      return apiKey.value
+        ? '按回车或点击“加载模型”加载当前 Key 的图片模型；粘贴或离开输入框不会发送 Key。'
+        : '输入 API Key 后按回车或点击“加载模型”。'
+  }
+})
+
+const modelLoadLabel = computed(() => {
+  if (discoveryStatus.value === 'loading') {
+    return '加载中...'
+  }
+  return modelCandidates.value.length > 0 || discoveryStatus.value === 'empty' ? '刷新模型' : '加载模型'
+})
+
+const keyHint = computed(() => (rememberKey.value
+  ? '仅保存在当前浏览器，其他使用此浏览器的人可能访问；公共设备请勿勾选。站内退出登录不会清除。'
+  : '默认不保存 API Key；请求仍走现有鉴权、审核和计费。'))
+// 区分三种 Key：输入框中的当前 Key（生成直接使用）、浏览器中已保存的 Key、两者不同的情形。
+const keySaveStatus = computed(() => {
+  if (!rememberKey.value) {
+    return ''
+  }
+  if (keySavedIsCurrent.value) {
+    return '已保存'
+  }
+  const commit = discoveryStatus.value === 'disabled' ? '按回车后' : '当前 Key 加载模型成功后'
+  if (keySaved.value) {
+    return apiKey.value ? `浏览器中保存的是之前的 Key，${commit}替换` : '浏览器中保存的是之前的 Key'
+  }
+  if (!apiKey.value) {
+    return '待保存：输入 API Key 后保存'
+  }
+  return `待保存：${commit}保存`
+})
 
 const formTitle = computed(() => generationMode.value === 'edit' ? '图改图' : '文生图')
 const formSubtitle = computed(() => generationMode.value === 'edit'
@@ -426,6 +643,55 @@ onBeforeUnmount(() => {
   // 否则切回页面后缩略图失效。
   window.removeEventListener('paste', handleSourceImagePaste)
 })
+
+function handleApiKeyEnter(event: KeyboardEvent): void {
+  // 按住回车的连发会在每次响应后重复请求，累计无效鉴权限流。
+  if (event.isComposing || event.repeat) {
+    return
+  }
+  triggerModelDiscovery()
+}
+
+function handleRememberChange(event: Event): void {
+  const input = event.target as HTMLInputElement
+  setRememberKey(input.checked)
+  // 保存失败时 store 会退回未记住；状态前后相同不会触发重渲染，需手动同步勾选框。
+  input.checked = rememberKey.value
+}
+
+function handleClearSavedConfig(): void {
+  manualEditing.value = false
+  manualModelDraft.value = ''
+  manualModelError.value = ''
+  clearSavedConfig()
+}
+
+function startManualModel(): void {
+  manualEditing.value = true
+  manualModelError.value = ''
+  manualModelDraft.value = modelSource.value === 'manual' ? model.value : ''
+}
+
+function confirmManualModel(): void {
+  const draft = manualModelDraft.value.trim()
+  if (!draft) {
+    // 空输入不改动当前模型：已在手动模式则回填原值，否则收起输入框。
+    manualModelError.value = ''
+    if (modelSource.value === 'manual') {
+      manualModelDraft.value = model.value
+    } else {
+      manualEditing.value = false
+    }
+    return
+  }
+  if (!setManualModel(draft)) {
+    manualModelError.value = '模型 ID 不能包含控制字符'
+    return
+  }
+  manualModelError.value = ''
+  manualModelDraft.value = model.value
+  manualEditing.value = false
+}
 
 function handleSourceImageChange(event: Event): void {
   const input = event.target as HTMLInputElement

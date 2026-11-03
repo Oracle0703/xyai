@@ -369,6 +369,7 @@ CSP 注意点:
 - `security_headers.go` 的 `requiredCSPDirectiveValues` 是"旧自定义策略缺新指令"的运行时补丁列表(支付 SDK 域名、`img-src blob:` 等都走这里)。给 CSP 加新的必需指令时**必须同时改默认串和该列表**, 否则覆盖了 policy 的存量部署不会生效。
 - 0.1.171 默认 CSP 已包含腾讯验证码 `https://turing.captcha.qcloud.com` / `https://*.captcha.gtimg.com` 与阿里云验证码 `https://*.alicdn.com`。新增或替换验证码 SDK 域名时同样要同步默认 CSP、运行时补丁列表、`deploy/config.example.yaml` 和安全头测试。
 - `img-src` 必须含 `blob:`: 图片生成页原图预览用 `URL.createObjectURL`, 缺了会被浏览器静默拦截(dev 无 CSP 头, 只在生产复现)。
+- 图片生成页可按用户显式勾选把网关 API Key 明文存入 localStorage `image-gen-key-v1`: 同源脚本(含 CSP 放行的第三方脚本)可读取, 不做前端"加密"; 默认不保存, 站内登出不清除, 页面提供清除入口。模型发现只向与两种生图端点同 origin 的地址发送 Key, 不跟随重定向, 且只在回车/加载按钮等显式操作时发送(防密码管理器自动填入的登录密码被发出, `autocomplete="off"` 不可依赖); 服务端错误回显的 Key 按请求快照脱敏后才展示。
 - 前端渲染 public settings 时, `site_logo` 和 `doc_url` 必须经过 `sanitizeUrl`; 邮件模板中的 `site_name` 必须 HTML escape。不能依赖管理员输入天然可信, 对应回归测试在 layout URL sanitization 与 `email_html_escape_test.go`。
 - `Server-Timing` 默认关闭。开启后只为 admin UI 或 allowlist 内的 authenticated user UI scope 收集; `X-Admin-UI-Request: 1` / `X-User-UI-Request: 1` 只是 scope signal, 不能替代认证。响应写出前必须再按 context role 与 user path allowlist gate: 管理员可读取已收集的 admin/user UI timing, 普通已认证用户只能读取 allowlisted user API; 未认证请求、公开 payment/webhook 和 AI gateway 不得返回 SQL/Redis/依赖耗时。CORS allow/expose headers 必须与两类 UI signal 和 `Server-Timing` 保持同步。
 - embedded static cache 只信任 `assets/` 下文件名中的 8 字符 fingerprint; 只有这类资源可返回一年 immutable。unhashed assets、默认 `logo.svg`、favicon、HTML/SPA 和根级 API fallback 都不得长缓存; Caddy 不应覆盖后端的 fingerprint 判定。

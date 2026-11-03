@@ -1,5 +1,14 @@
 # 前端知识基线
 
+## 图片生成页动态模型与记住 Key
+
+- 设计: `docs/features/image-gen-model-selection-design-cn.md`。纯函数在 `frontend/src/utils/imageGenModels.ts`(候选判定/目录解析/排序/origin 校验/存储读写), 时序与状态在 `frontend/src/stores/imageGen.ts`。
+- 模型不再写死: 按当前 Key 独立 `fetch` `VITE_IMAGE_MODELS_ENDPOINT`(默认 `/v1/models`), 不带登录 JWT 与 `client_version`; 候选判定镜像后端 `validateCompatibleImagesModel`(gpt-image- / grok-imagine(-edit) / grok-imagine-image* / gemini-*-image), 改后端判定须同步。2.5 实际 ID 为 `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst`。
+- 触发: 只有 Key 框回车与"加载模型/刷新模型"按钮把当前 Key 发往目录端点(总是请求, 同 Key 在途去重, 按住回车连发被忽略); 输入、粘贴、失焦、勾选记住都不发请求——密码管理器可能把登录密码填入 Key 框, `autocomplete`/`isTrusted` 不能可靠区分。唯一例外: 打开页面时恢复显式记住的 Key 加载一次。Key 框与手动模型框回车 `preventDefault`, 不提交生图表单。生成不要求先加载模型, 直接用输入框 Key, 但不保存/不替换已保存 Key。
+- 选择: 目录失败不清除当前选择, 仅标"未确认"且仍可生成; 目录成功但缺少当前列表模型时清除并提示, 本次不自动改选; 无选择时取目录中的偏好或唯一候选; 手动模型不受目录影响; `restoreHistory` 不改模型。迟到响应按序号+Key 快照丢弃, 包括"成功目录后写入 Key"(写入前还读最新勾选状态, 跨标签页清除后不写回)。
+- 存储: 模型偏好 `image-gen-model-v1` 始终保存(不含 Key); Key 仅在勾选"记住"且当前 Key 最近一次获得结构合法的成功目录响应(其后无失败、未改 Key)时写入 `image-gen-key-v1`(端点不同源停用发现时改为勾选/回车写入)。编辑 Key 不删旧值, 新 Key 显式加载成功后才覆盖; 覆盖写入失败则删除旧值并退出记住。删除失败用响应式 `keyRemovalFailed` 保留残留警告、"重试清除"与清除入口, 直至删除/覆盖成功或其他标签页删除/覆盖该记录; 跨标签页只监听 Key 存储并退出记住状态; 退出时若存储里仍是本页写入的值(迟到写入先于对方事件)一并删除。
+- 错误脱敏: 目录与生图错误在进入页面/toast 前用请求发起时的 Key 快照替换为 `***`(`redactCredential`), 兼容 `message` 与 `error.message`。
+
 ## 0.2.19 管理密钥与模型界面
 
 - 设置安全页接入 `components/admin/settings/AdminAccessKeysSettings.vue` 与 `api/admin/adminAccessKeys.ts`：按操作/资源配置密钥，密钥明文仅创建/轮换结果显示；旧版全权密钥只保留已有密钥的轮换/删除，并使用 step-up。本地 Prompt Risk、归档配置及 JWT 子管理员菜单继续保留。
@@ -269,7 +278,7 @@ API 模块分布:
 - `adminSettings.ts`: 管理端设置缓存。
 - `payment.ts`: 支付流程状态。
 - `onboarding.ts`: 引导流程状态。
-- `imageGen.ts`: 图片生成页全部状态与生成请求(表单/原图列表/结果/历史)。路由切换卸载视图后状态不丢, 进行中的生成在 store 里跑完并经 app store toast 通知。API Key 只在内存, 禁止持久化; 历史用 localStorage key `image-gen-history-v1`。图改图支持多图(`image[]` 最多 16 张, 单张 ≤20MB——网关 multipart 分片在 20MB 处静默截断, 总量 ≤100MB)。store 内部从 `./app` 文件模块导入 app store(测试按文件模块 mock, 见 ImageGenView.spec.ts)。原图预览用 `URL.createObjectURL`, 依赖 CSP `img-src` 放行 `blob:`(security_headers.go 的 requiredCSPDirectiveValues 会给旧配置补上)。
+- `imageGen.ts`: 图片生成页全部状态与生成请求(表单/原图列表/结果/历史)。路由切换卸载视图后状态不丢, 进行中的生成在 store 里跑完并经 app store toast 通知。API Key 默认只在内存, 仅用户勾选"记住"后写入 `image-gen-key-v1`(规则见本页"图片生成页动态模型与记住 Key"); 历史用 localStorage key `image-gen-history-v1`, 不得写入 Key; 生成请求与历史的 model 均取发起时的快照。图改图支持多图(`image[]` 最多 16 张, 单张 ≤20MB——网关 multipart 分片在 20MB 处静默截断, 总量 ≤100MB)。store 内部从 `./app` 文件模块导入 app store(测试按文件模块 mock, 见 ImageGenView.spec.ts)。原图预览用 `URL.createObjectURL`, 依赖 CSP `img-src` 放行 `blob:`(security_headers.go 的 requiredCSPDirectiveValues 会给旧配置补上)。
 
 `auth.ts` localStorage key:
 

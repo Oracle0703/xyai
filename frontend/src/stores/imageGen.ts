@@ -4,17 +4,38 @@
  * 图片生成页的表单、原图列表、生成结果与历史记录全部放在 store 里，
  * 生成请求也由 store 发起：路由切换卸载视图后状态不丢，进行中的生成
  * 继续运行，完成后通过全局 toast 通知用户。
+ *
+ * 模型不写死：按当前 Key 请求 `/v1/models` 发现图片模型，也允许手动输入。
+ * Key 只在用户回车或点击“加载模型”时发往目录端点；粘贴、失焦、输入（含密码管理器
+ * 自动填充）都不发请求、不改动已保存的 Key。勾选“记住”后，Key 加载模型成功才写入 localStorage。
+ * 设计见 docs/features/image-gen-model-selection-design-cn.md。
  */
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 // 必须从文件模块导入而非 '@/stores' index，否则会形成 index -> imageGen -> index 循环依赖。
 import { useAppStore } from './app'
+import {
+  SAVED_API_KEY_STORAGE_KEY,
+  endpointsShareOrigin,
+  isValidModelId,
+  parseImageModelCatalog,
+  readModelPreference,
+  readSavedApiKey,
+  redactCredential,
+  removeModelPreference,
+  removeSavedApiKey,
+  writeModelPreference,
+  writeSavedApiKey,
+  type ModelPreference,
+  type ModelSource,
+} from '@/utils/imageGenModels'
 
 const HISTORY_STORAGE_KEY = 'image-gen-history-v1'
 const MAX_HISTORY_ITEMS = 20
-const DEFAULT_MODEL = 'gpt-image-2'
 const IMAGE_GENERATION_ENDPOINT = import.meta.env.VITE_IMAGE_GENERATION_ENDPOINT || '/v1/images/generations'
 const IMAGE_EDIT_ENDPOINT = import.meta.env.VITE_IMAGE_EDIT_ENDPOINT || '/v1/images/edits'
+const IMAGE_MODELS_ENDPOINT = import.meta.env.VITE_IMAGE_MODELS_ENDPOINT || '/v1/models'
+const MODEL_DISCOVERY_TIMEOUT_MS = 10_000
 
 export const MAX_SOURCE_IMAGES = 16
 // 网关对单个 multipart 分片在 20MB 处静默截断（openai_images.go openAIImageMaxUploadPartSize），
@@ -27,6 +48,7 @@ export const MAX_IMAGE_COUNT = 10
 const ALLOWED_SOURCE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 export type GenerationMode = 'generate' | 'edit'
+export type ModelDiscoveryStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'error' | 'disabled'
 
 export interface GeneratedImage {
   id: string
@@ -65,7 +87,8 @@ export const useImageGenStore = defineStore('imageGen', () => {
   const appStore = useAppStore()
 
   // ==================== State ====================
-  // API Key 只保留在内存里，页面承诺“不会保存 API Key”，不得写入任何持久化存储。
+  // API Key 默认只在内存里；仅当用户勾选“记住”时写入 SAVED_API_KEY_STORAGE_KEY，
+  // 不得写入历史或其他存储。用户编辑走 updateApiKey，恢复/清除等程序赋值直接改 ref。
   const apiKey = ref('')
   const prompt = ref('')
   const size = ref('1024x1024')
@@ -76,10 +99,50 @@ export const useImageGenStore = defineStore('imageGen', () => {
   const results = ref<GeneratedImage[]>([])
   const historyItems = ref<HistoryItem[]>([])
   const sourceImages = ref<SourceImage[]>([])
+  // 生成中的请求模型，用于标注当前任务（表单模型可能已被改动）。
+  const activeRequestModel = ref('')
+
+  // 模型选择：modelConfirmed 表示当前列表模型已被当前 Key 的目录确认；手动模型不参与确认。
+  const model = ref('')
+  const modelSource = ref<ModelSource>('list')
+  const modelConfirmed = ref(false)
+  const modelNotice = ref('')
+  const preferredModel = ref<ModelPreference | null>(null)
+  // 模型偏好是否确实在存储中（写入失败时只存在内存，不显示“清除已保存配置”）
+  const preferenceStored = ref(false)
+
+  // 模型发现：三个端点不同源时停用，避免把 Key 发给生图请求不会访问的 origin。
+  const discoveryEnabled = endpointsShareOrigin(
+    [IMAGE_MODELS_ENDPOINT, IMAGE_GENERATION_ENDPOINT, IMAGE_EDIT_ENDPOINT],
+    window.location.origin
+  )
+  const discoveryStatus = ref<ModelDiscoveryStatus>(discoveryEnabled ? 'idle' : 'disabled')
+  const discoveryError = ref('')
+  // 同 Key 刷新失败时保留的旧目录
+  const discoveryStale = ref(false)
+  const modelCandidates = ref<string[]>([])
+
+  // 记住 Key：rememberKey 为勾选状态；savedKey 为本页写入或恢复的已保存 Key（不导出），
+  // 输入框改动后两者可以不同，直到新 Key 加载模型成功后覆盖。
+  const rememberKey = ref(false)
+  const savedKey = ref('')
+  const keySaved = computed(() => savedKey.value !== '')
+  const keySavedIsCurrent = computed(() => keySaved.value && savedKey.value === apiKey.value)
+  // 删除已保存 Key 失败：浏览器可能仍残留凭据，保留警告与重试入口，直到删除或覆盖成功。
+  const keyRemovalFailed = ref(false)
+  const keyStorageMessage = ref('')
+
+  // 请求时序（非响应式）：迟到的响应按序号与 Key 快照丢弃，不能只依赖 abort。
+  let discoverySeq = 0
+  let discoveryController: AbortController | null = null
+  let inflightKey = ''
+  // 当前 Key 最近一次获得结构合法的成功目录响应；之后任何失败或 Key 变化都会清除
+  let keyVerified = false
 
   const totalSourceSize = computed(() =>
     sourceImages.value.reduce((sum, item) => sum + item.file.size, 0)
   )
+  const hasSavedConfig = computed(() => keySaved.value || preferenceStored.value || keyRemovalFailed.value)
 
   // ==================== Generation ====================
 
@@ -96,9 +159,15 @@ export const useImageGenStore = defineStore('imageGen', () => {
     const mode = generationMode.value
     const requestSize = size.value
     const files = sourceImages.value.map((item) => item.file)
+    const requestModel = model.value
+    const requestModelSource = modelSource.value
 
     if (!key) {
       errorMessage.value = '请输入 API Key'
+      return
+    }
+    if (!requestModel) {
+      errorMessage.value = '请选择或手动输入模型'
       return
     }
     if (!text) {
@@ -110,15 +179,17 @@ export const useImageGenStore = defineStore('imageGen', () => {
       return
     }
 
+    saveModelPreference({ model: requestModel, source: requestModelSource })
+    activeRequestModel.value = requestModel
     isGenerating.value = true
     try {
       const response = mode === 'edit'
-        ? await editImages(key, text, imageCount, requestSize, files)
-        : await createImages(key, text, imageCount, requestSize)
+        ? await editImages(key, requestModel, text, imageCount, requestSize, files)
+        : await createImages(key, requestModel, text, imageCount, requestSize)
 
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(extractErrorMessage(payload, response.status))
+        throw new Error(extractErrorMessage(payload, `生成失败，网关返回 ${response.status}`))
       }
 
       const images = normalizeImagesResponse(payload as ImagesResponse)
@@ -131,22 +202,30 @@ export const useImageGenStore = defineStore('imageGen', () => {
         id: createID(),
         createdAt: new Date().toISOString(),
         prompt: text,
-        model: DEFAULT_MODEL,
+        model: requestModel,
         size: requestSize,
         images: images.map((item) => item.src),
         mode,
       })
       appStore.showSuccess(`${mode === 'edit' ? '图改图' : '图片生成'}完成，共 ${images.length} 张`)
     } catch (error) {
-      const message = error instanceof Error ? error.message : '生成失败，请稍后重试'
+      // 用发起请求时的 Key 快照脱敏：服务端文案可能回显凭据，且此时输入框可能已换成别的 Key。
+      const message = redactCredential(error instanceof Error ? error.message : '生成失败，请稍后重试', key)
       errorMessage.value = message
       appStore.showError(message)
     } finally {
       isGenerating.value = false
+      activeRequestModel.value = ''
     }
   }
 
-  function createImages(key: string, text: string, imageCount: number, requestSize: string): Promise<Response> {
+  function createImages(
+    key: string,
+    requestModel: string,
+    text: string,
+    imageCount: number,
+    requestSize: string
+  ): Promise<Response> {
     return fetch(IMAGE_GENERATION_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -154,7 +233,7 @@ export const useImageGenStore = defineStore('imageGen', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: DEFAULT_MODEL,
+        model: requestModel,
         prompt: text,
         size: requestSize,
         n: imageCount,
@@ -165,13 +244,14 @@ export const useImageGenStore = defineStore('imageGen', () => {
 
   function editImages(
     key: string,
+    requestModel: string,
     text: string,
     imageCount: number,
     requestSize: string,
     files: File[]
   ): Promise<Response> {
     const formData = new FormData()
-    formData.set('model', DEFAULT_MODEL)
+    formData.set('model', requestModel)
     formData.set('prompt', text)
     formData.set('size', requestSize)
     formData.set('n', String(imageCount))
@@ -188,6 +268,358 @@ export const useImageGenStore = defineStore('imageGen', () => {
       },
       body: formData,
     })
+  }
+
+  // ==================== API Key ====================
+
+  // 用户编辑 Key（含密码管理器自动填充触发的输入事件）：只改内存中的当前 Key，
+  // 不发请求，也不删除已保存的 Key；已保存的 Key 只在新 Key 加载模型成功后被覆盖。
+  function updateApiKey(next: string): void {
+    if (next === apiKey.value) {
+      return
+    }
+    apiKey.value = next
+    resetDiscoveryForKeyChange()
+    keyStorageMessage.value = ''
+  }
+
+  // 勾选只保存已验证的当前 Key，不发请求；未验证的 Key 待用户回车或点击“加载模型”成功后保存。
+  function setRememberKey(checked: boolean): void {
+    keyStorageMessage.value = ''
+    if (!checked) {
+      rememberKey.value = false
+      removeSavedKey()
+      return
+    }
+    rememberKey.value = true
+    const key = apiKey.value
+    // 自动发现停用时没有目录可校验，勾选即视为确认。
+    if (key && (!discoveryEnabled || keyVerified)) {
+      persistApiKey(key)
+    }
+  }
+
+  function persistApiKey(key: string): void {
+    if (!key) {
+      return
+    }
+    if (writeSavedApiKey(key)) {
+      savedKey.value = key
+      keyRemovalFailed.value = false
+      keyStorageMessage.value = ''
+      return
+    }
+    // 写入失败退回未记住；覆盖失败时旧 Key 仍在存储中，按取消记住处理一并删除。
+    rememberKey.value = false
+    removeSavedKey()
+    keyStorageMessage.value = '无法保存，当前仅本次页面有效'
+  }
+
+  // 删除已保存的 Key。本页已知存在记录（或上次删除失败）时，失败要保留“可能残留”状态；
+  // 从未保存过时只是尽力删除，存储不可用也不误报残留。
+  function removeSavedKey(): void {
+    const mayExist = keySaved.value || keyRemovalFailed.value
+    savedKey.value = ''
+    const removed = removeSavedApiKey()
+    if (mayExist) {
+      keyRemovalFailed.value = !removed
+    }
+  }
+
+  function retrySavedKeyRemoval(): void {
+    if (removeSavedApiKey()) {
+      keyRemovalFailed.value = false
+      appStore.showSuccess('已清除浏览器中保存的 API Key')
+      return
+    }
+    appStore.showError('仍未能清除，请检查浏览器存储设置后重试')
+  }
+
+  // 删除已保存的 Key 与模型偏好，并清空当前 Key 和模型；提示词、结果与历史不动，
+  // 已提交的生图任务继续完成。
+  function clearSavedConfig(): void {
+    removeSavedKey()
+    const preferenceRemoved = removeModelPreference()
+    apiKey.value = ''
+    resetDiscoveryForKeyChange()
+    model.value = ''
+    modelSource.value = 'list'
+    modelConfirmed.value = false
+    preferredModel.value = null
+    preferenceStored.value = !preferenceRemoved
+    rememberKey.value = false
+    keyStorageMessage.value = preferenceRemoved ? '' : '未能清除浏览器中保存的模型偏好'
+    if (!keyRemovalFailed.value && preferenceRemoved) {
+      appStore.showSuccess('已清除保存的 API Key 和模型')
+    }
+  }
+
+  // 其他标签页改动已保存的 Key 时，本页退出记住状态且不自动导入，防止把已清除的 Key 写回。
+  function handleStorageEvent(event: StorageEvent): void {
+    if (event.key !== SAVED_API_KEY_STORAGE_KEY && event.key !== null) {
+      return
+    }
+    // 记录已被其他标签页删除或覆盖，本页此前删除失败留下的旧值已不存在。
+    keyRemovalFailed.value = false
+    if (!rememberKey.value) {
+      return
+    }
+    // 本页的写入可能与其他标签页的删除/改写交错（迟到的目录成功先于本事件写入）：
+    // 退出记住时，存储里若仍是本页的值则一并删除，避免留下两边都不认的 Key。
+    const ownKey = savedKey.value
+    rememberKey.value = false
+    savedKey.value = ''
+    const stored = readSavedApiKey()
+    if (ownKey && stored.kind === 'ok' && stored.apiKey === ownKey) {
+      keyRemovalFailed.value = !removeSavedApiKey()
+    }
+    keyStorageMessage.value = '其他标签页修改了已保存的 API Key，本页已退出记住状态'
+  }
+
+  // ==================== Model selection ====================
+
+  function selectModel(id: string): void {
+    if (!id) {
+      return
+    }
+    model.value = id
+    modelSource.value = 'list'
+    modelConfirmed.value = modelCandidates.value.includes(id) && !discoveryStale.value
+    modelNotice.value = ''
+    saveModelPreference({ model: id, source: 'list' })
+  }
+
+  // 手动模型：不限前缀，能否生图以接口结果为准。返回 false 表示输入不合法未采用。
+  function setManualModel(raw: string): boolean {
+    const id = raw.trim()
+    if (!isValidModelId(id)) {
+      return false
+    }
+    model.value = id
+    modelSource.value = 'manual'
+    modelConfirmed.value = false
+    modelNotice.value = ''
+    saveModelPreference({ model: id, source: 'manual' })
+    return true
+  }
+
+  // 模型偏好不敏感，写入失败静默降级。
+  function saveModelPreference(preference: ModelPreference): void {
+    preferredModel.value = preference
+    if (writeModelPreference(preference)) {
+      preferenceStored.value = true
+    }
+  }
+
+  // ==================== Model discovery ====================
+
+  // 加载模型：只由用户显式操作（Key 框回车、“加载模型”按钮）调用，把当前 Key 发往目录端点。
+  function triggerModelDiscovery(): void {
+    const key = apiKey.value
+    if (!key) {
+      return
+    }
+    if (!discoveryEnabled) {
+      // 无目录可校验 Key，回车即视为确认，按记住状态直接保存。
+      if (rememberKey.value && savedKey.value !== key) {
+        persistApiKey(key)
+      }
+      return
+    }
+    if (inflightKey === key) {
+      return
+    }
+    void loadModels(key)
+  }
+
+  async function loadModels(key: string): Promise<void> {
+    cancelDiscovery()
+    const seq = discoverySeq
+    const controller = new AbortController()
+    discoveryController = controller
+    inflightKey = key
+    discoveryStatus.value = 'loading'
+    discoveryError.value = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, MODEL_DISCOVERY_TIMEOUT_MS)
+    const isCurrent = () => seq === discoverySeq && apiKey.value === key
+
+    try {
+      // 独立 fetch：不带登录 JWT，不带 client_version（否则会转入 Codex manifest 分支）。
+      const response = await fetch(IMAGE_MODELS_ENDPOINT, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+        redirect: 'error',
+        signal: controller.signal,
+      })
+      const payload = await response.json().catch(() => undefined)
+      if (!isCurrent()) {
+        return
+      }
+      // 超时可能发生在读取响应体期间，json() 的失败已被吞掉，不能误报为格式异常。
+      if (timedOut) {
+        applyDiscoveryFailure('模型列表加载超时，可重试或手动输入模型', false)
+        return
+      }
+      if (!response.ok) {
+        applyDiscoveryHttpError(response, payload, key)
+        return
+      }
+      const candidates = parseImageModelCatalog(payload)
+      if (candidates === null) {
+        applyDiscoveryFailure('模型列表响应格式异常，可重试或手动输入模型', false)
+        return
+      }
+      applyCatalog(candidates)
+      keyVerified = true
+      // 覆盖保存前再读最新勾选状态：其他标签页清除或用户取消记住后，迟到的成功不能写回。
+      if (rememberKey.value && savedKey.value !== key) {
+        persistApiKey(key)
+      }
+    } catch {
+      if (!isCurrent()) {
+        return
+      }
+      applyDiscoveryFailure(
+        timedOut ? '模型列表加载超时，可重试或手动输入模型' : '模型列表加载失败，可重试或手动输入模型',
+        false
+      )
+    } finally {
+      clearTimeout(timer)
+      if (seq === discoverySeq) {
+        discoveryController = null
+        inflightKey = ''
+      }
+    }
+  }
+
+  function cancelDiscovery(): void {
+    discoverySeq++
+    discoveryController?.abort()
+    discoveryController = null
+    inflightKey = ''
+  }
+
+  function resetDiscoveryForKeyChange(): void {
+    cancelDiscovery()
+    keyVerified = false
+    modelCandidates.value = []
+    discoveryError.value = ''
+    discoveryStale.value = false
+    modelNotice.value = ''
+    if (discoveryEnabled) {
+      discoveryStatus.value = 'idle'
+    }
+    if (modelSource.value === 'list') {
+      modelConfirmed.value = false
+    }
+  }
+
+  // 目录成功返回：手动模型不受影响；列表模型不在目录时清除并提示，本次不自动改选；
+  // 没有当前选择时依次取目录中的模型偏好、唯一候选。
+  function applyCatalog(candidates: string[]): void {
+    modelCandidates.value = candidates
+    discoveryStatus.value = candidates.length > 0 ? 'ready' : 'empty'
+    discoveryError.value = ''
+    discoveryStale.value = false
+    modelNotice.value = ''
+    if (model.value && modelSource.value === 'manual') {
+      return
+    }
+    if (model.value) {
+      if (candidates.includes(model.value)) {
+        modelConfirmed.value = true
+        return
+      }
+      modelNotice.value = `原模型 ${model.value} 不在当前 Key 的目录，请重新选择`
+      model.value = ''
+      modelConfirmed.value = false
+      return
+    }
+    const preferred = preferredModel.value
+    let next = ''
+    if (preferred && candidates.includes(preferred.model)) {
+      next = preferred.model
+    } else if (candidates.length === 1) {
+      next = candidates[0]
+    }
+    if (next) {
+      model.value = next
+      modelSource.value = 'list'
+      modelConfirmed.value = true
+    }
+  }
+
+  // 目录请求失败不清除当前选择（以生成接口结果为准），只把列表模型标记为未确认。
+  function applyDiscoveryFailure(message: string, clearCandidates: boolean): void {
+    discoveryStatus.value = 'error'
+    discoveryError.value = message
+    keyVerified = false
+    if (clearCandidates) {
+      modelCandidates.value = []
+    }
+    discoveryStale.value = modelCandidates.value.length > 0
+    if (modelSource.value === 'list') {
+      modelConfirmed.value = false
+    }
+  }
+
+  // /v1/models 与生图经过同一套鉴权/计费前置检查，403/429 同样会拒绝生图，展示服务端信息；
+  // 展示前用请求 Key 快照脱敏。
+  function applyDiscoveryHttpError(response: Response, payload: unknown, requestKey: string): void {
+    const status = response.status
+    if (status >= 500) {
+      applyDiscoveryFailure(`模型列表加载失败（HTTP ${status}），可重试或手动输入模型`, false)
+      return
+    }
+    const message = redactCredential(extractErrorMessage(payload, `HTTP ${status}`), requestKey)
+    if (status === 401) {
+      applyDiscoveryFailure(`模型列表加载失败：${message}`, true)
+      if (rememberKey.value && savedKey.value !== requestKey) {
+        keyStorageMessage.value = 'Key 无效，未保存'
+      }
+      return
+    }
+    if (status === 429 && extractErrorCode(payload) === 'INVALID_AUTH_RATE_LIMITED') {
+      const retryAfter = Number.parseInt(response.headers.get('Retry-After') ?? '', 10)
+      const wait = retryAfter > 0 ? `请 ${retryAfter} 秒后再试` : '请稍后再试'
+      applyDiscoveryFailure(`${message}，${wait}`, false)
+      return
+    }
+    const hint = status === 404 || status === 405 ? '，请检查模型端点配置' : ''
+    applyDiscoveryFailure(`模型列表加载失败：${message}${hint}`, false)
+  }
+
+  function restorePreferences(): void {
+    const preference = readModelPreference()
+    if (preference) {
+      preferredModel.value = preference
+      preferenceStored.value = true
+      model.value = preference.model
+      modelSource.value = preference.source
+    }
+    const saved = readSavedApiKey()
+    if (saved.kind === 'invalid') {
+      keyStorageMessage.value = '已保存的 API Key 配置无效，已忽略'
+      keyRemovalFailed.value = !saved.removed
+      return
+    }
+    if (saved.kind === 'ok') {
+      // 显式记住过的 Key 按约定恢复并加载模型；程序赋值，不走 updateApiKey。
+      apiKey.value = saved.apiKey
+      rememberKey.value = true
+      savedKey.value = saved.apiKey
+      if (discoveryEnabled) {
+        void loadModels(saved.apiKey)
+      }
+    }
   }
 
   // ==================== Source images ====================
@@ -305,6 +737,12 @@ export const useImageGenStore = defineStore('imageGen', () => {
   }
 
   loadHistory()
+  restorePreferences()
+  window.addEventListener('storage', handleStorageEvent)
+  onScopeDispose(() => {
+    window.removeEventListener('storage', handleStorageEvent)
+    cancelDiscovery()
+  })
 
   return {
     // State
@@ -319,8 +757,30 @@ export const useImageGenStore = defineStore('imageGen', () => {
     historyItems,
     sourceImages,
     totalSourceSize,
+    activeRequestModel,
+    model,
+    modelSource,
+    modelConfirmed,
+    modelNotice,
+    modelCandidates,
+    discoveryStatus,
+    discoveryError,
+    discoveryStale,
+    rememberKey,
+    keySaved,
+    keySavedIsCurrent,
+    keyRemovalFailed,
+    keyStorageMessage,
+    hasSavedConfig,
     // Actions
     generate,
+    updateApiKey,
+    setRememberKey,
+    retrySavedKeyRemoval,
+    clearSavedConfig,
+    selectModel,
+    setManualModel,
+    triggerModelDiscovery,
     addSourceImages,
     removeSourceImage,
     clearSourceImages,
@@ -378,7 +838,8 @@ function normalizeCount(value: number): number {
   return Math.min(MAX_IMAGE_COUNT, Math.max(1, Math.trunc(value)))
 }
 
-function extractErrorMessage(payload: unknown, status: number): string {
+// 兼容 OpenAI 风格 { error: { message } } 与鉴权中间件 { code, message } 两种错误体。
+function extractErrorMessage(payload: unknown, fallback: string): string {
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, any>
     const nested = record.error
@@ -389,7 +850,21 @@ function extractErrorMessage(payload: unknown, status: number): string {
       return record.message
     }
   }
-  return `生成失败，网关返回 ${status}`
+  return fallback
+}
+
+function extractErrorCode(payload: unknown): string {
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, any>
+    if (typeof record.code === 'string') {
+      return record.code
+    }
+    const nested = record.error
+    if (nested && typeof nested === 'object' && typeof nested.code === 'string') {
+      return nested.code
+    }
+  }
+  return ''
 }
 
 function isHistoryItem(value: unknown): value is HistoryItem {

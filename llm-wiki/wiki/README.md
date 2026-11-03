@@ -26,7 +26,11 @@
 - 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 - 2026-10-29 `feature/hy/10226_department_member_management` 已实现独立权限 `admin.department_members` 与「我的部门」页：限授权部门的普通成员，可加入同组织未分配用户、移出、改用户名/负责人备注和启停用；无 grants 拒绝，只能恢复负责人停用的成员。migration 261 增加 `disabled_source`、独立 `department_note`（1000 Unicode 字符，归属变化清空并审计）；管理员备注不披露，负责人备注对管理员只读。设计：`docs/features/department-member-management-design-cn.md`；固定接口、分阶段门禁与锁定测试基线 `a058b81c6`：`docs/features/department-member-management-implementation-plan-cn.md`。运行合同见 backend/frontend/data/security 部门章节，验证入口见 ops。2026-10-29 已通过实现复核（`8060a1e91`…`5e6c1ee55`，结论见设计第 13 节）；未推送、未部署、未合回 main。
 
-更新时间: 2026-10-29
+## 图片生成页入口
+
+- 2026-11-02 `feature/hy/10227_image_gen_upgrade` 已实现 `/image-gen` 动态模型、手动模型、模型偏好与显式记住 Key；未改后端、未提交。状态：代码修复完成，待 Codex 独立审核与浏览器验收。设计文档 `docs/features/image-gen-model-selection-design-cn.md`：第 12 节为 Codex 交叉复核（R1 错误回显 Key、R2 删除失败清除入口消失、R3/R4 文档口径、U1 密码自动填充风险），第 13 节为修复记录与最终交互规则（只在回车/加载按钮发送 Key，编辑不删已保存 Key，错误按请求快照脱敏，删除失败可重试；生成前不强制确认，理由见 13.1）。正式同源 Chrome 自动填充、真实 Key/生图与 Grok/Gemini 参数兼容未验证。第 11 节为历史实现方结论。运行合同入口仍见 frontend/security/ops。
+
+更新时间: 2026-11-02
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 

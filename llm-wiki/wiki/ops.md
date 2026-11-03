@@ -117,6 +117,7 @@
 
 - 后台任务锁分两类: `LeaderLockCache` 的 Redis 键是 `leader:lock:` + 逻辑键（如 `dashboard:aggregation:leader`、`backup:scheduled:leader`、`token-analysis:classification:leader`(Token Analysis 分类作业, 每分钟, TTL 10 分钟, 仅 `index_enabled` 时启动)、`payment:order:expiry:leader`、`jobs:openai-auto-reset-credit`）, 无续约、完成即释放, Redis 不可用回退 PG advisory; Ops 系列（`ops:metrics:collector:leader`、`ops:aggregation:hourly|daily:leader`、`ops:alert:evaluator:leader`、`ops:cleanup:leader`、`ops:scheduled_reports:leader`）是业务自行 `SETNX` 的裸键, 没有 `leader:lock:` 前缀; Channel Monitor V2 聚合只用 PG advisory。
 - 无跨实例锁、多副本会重复执行的任务: TokenRefreshService（靠 per-account 锁与 provider 并发/QPS 门减轻）、Channel Monitor V1 runner（每实例都探测）、TokenAnalysis 自动索引、CN provider 余额检查、UsageCleanup 任务执行器（任务表抢活）。
+- Token Analysis 历史故障恢复不能只点增量索引或清空错误数字：需保留原文，按 archive_id/字节位置/哈希预检缺口，分别恢复摘要、净输入、响应事实，再核对计费关联。损坏正文不可推测补造，失败计数含 response 与坏行，不能当请求数。一次性生产恢复与隔离 helper 测试入口：`docs/delivery/2026-11-02-token-analysis-repair/README.md`；正式机制设计：`docs/features/token-analysis-recovery-design-cn.md`，尚未部署。
 - 启动迁移的 PostgreSQL advisory lock ID 为 `694208311321144027`, `pg_try_advisory_lock` 每 500ms 轮询, 迁移总超时 10 分钟; 瞬时错误重试实现在 `backend/internal/repository/ent.go`, 不在 `migrations_runner.go`。
 - settings 没有统一缓存也没有 settings 级 Redis pub/sub: Panel 限流与网关运行态各 60s（出错 5s）, 请求归档 5s（出错 1s）, OpenAI API Key 健康熔断 30s, Ops 运行态 30s; 只有 Prompt Audit 配置额外用 Redis 频道 `sub2api:prompt_guard:config:invalidate`。
 
@@ -213,6 +214,8 @@ pnpm --dir frontend run build
 ```
 
 前端构建产物输出到 `backend/internal/web/dist`, 后端使用 embed tag 打包前端。
+
+图片生成页端点为构建期变量: `VITE_IMAGE_GENERATION_ENDPOINT`(默认 `/v1/images/generations`)、`VITE_IMAGE_EDIT_ENDPOINT`(默认 `/v1/images/edits`)、`VITE_IMAGE_MODELS_ENDPOINT`(默认 `/v1/models`)。三者解析后的 origin 必须一致, 否则页面停用模型自动发现、仅允许手动模型; 把生图端点指向外部网关时须同时配置同 origin 的模型端点, 并由该服务提供 HTTPS 与 CORS。
 
 人员表截图依赖 `html2canvas`，`frontend/vite.config.ts` 将其单独分为 `vendor-screenshot`，只在点击截图时动态加载。验证分包时应确认产物含该 chunk，且 `index.html` 不预加载它；单独运行 Vite 验证时显式传 `--config vite.config.ts`，避免本机旧生成的 `vite.config.js` 覆盖源码配置（正式 build 先执行 `vue-tsc -b`）。
 

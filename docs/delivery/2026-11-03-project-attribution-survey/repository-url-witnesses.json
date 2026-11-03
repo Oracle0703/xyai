@@ -1,0 +1,19 @@
+{
+  "retained_urls": [
+    "http://192.168.1.23/orig-web/orig.client-web-page.git",
+    "http://192.168.1.23/orig-web/orig.xyweb-lib.git",
+    "http://192.168.1.27/micro-manager/perm-server.git",
+    "http://192.168.1.27/micro-perm/modules.git",
+    "http://192.168.1.27/microservice/gateway.git",
+    "ssh://192.168.8.6:30102/atlas/service_sdk.git",
+    "ssh://192.168.8.6:30102/compass/component/process.git",
+    "ssh://192.168.8.6:30102/compass/component/screen-perception.git",
+    "ssh://192.168.8.6:30102/compass/runtime/llm-core.git"
+  ],
+  "additional_archive_witnesses": [
+    {
+      "archive_id": "8c16cecfeb177ae68b1e0709d3f7d542",
+      "url": "http://192.168.1.23/orig-web/orig.cddada7d.xunyou.com.git"
+    }
+  ]
+}
