@@ -72,6 +72,9 @@
 - 成员管理扩展：`admin.department_members` 独立于报表/订阅权限，仍使用同一 grants。`department.go` 的 `/admin/department-members` 提供 scope、列表、candidates、POST assign、PUT `/:id` 五个接口；完整管理员接口不加入子管理员白名单。`ManagedScope` 无 grants 返回 403，不能复用旧空目录作为全站回退。
 - `department_query_scope.go` 的成员列表和候选查询在只读 repeatable-read 事务内检查权限并分页：成员保留 disabled 和只读特权角色；候选先鉴权 active 目标部门，再查同组织未分配普通用户，邮箱/用户名转义模糊匹配且 SQL LIMIT 20。只读行的 `department_note` 为空，始终不输出管理员 notes。
 - `ManagedAssign`/`UpdateManagedMember` 复用用户升序锁、当前授权重读和 `departmentAudit`；整批先鉴权再 CAS，真正写入与审计原子提交。重复加入同一授权部门可无变化成功，移出后重试 403；PUT 用 `expected_department_id`/`expected_department_version` 防归属往返。用户名 trim 后最多 100 UTF-8 字节，备注最多 1000 Unicode 字符；未知字段（含 notes/source）由严格 JSON 拒绝。完整管理员/Admin API Key 不能写负责人备注。
+- 订阅响应统一经 `adminSubscriptionResponse` 投影（含幂等重放）：受限管理密钥按读写权限裁剪；JWT 子管理员（全站或部门订阅权限）只保留订阅字段、`user{id,email,username,status}` 与 `group{id,name,platform,status,subscription_type,rate_multiplier,*_limit_usd}`，不返回 notes/assigned_by/assigned_at/assigned_by_user 及成员余额、通知设置；管理员与非受限密钥保持完整 DTO。允许子管理员给自己分配订阅（2026-11-03 用户裁定）。
+- 管理端单人/批量分配在停用分组新建订阅返回 `GROUP_NOT_ACTIVE`；已有订阅的续期与幂等返回不受影响，兑换/支付履约/默认订阅走 `assignOrExtendSubscription` 不受此限。`GetSubscriptionProgress` 原样返回仓储错误（越范围 403、不存在 404）。组织用量 `page` 使 OFFSET 溢出时返回 400。
+- `SetAccess` 要求显式 `department_ids`：省略或 null 返回 400（否则仓储 `ANY(NULL)` 既不删也不加），`[]` 才清空。撤销全部部门权限时保留 grants，重新授予任一部门权限即恢复原范围（2026-11-03 用户裁定）；降级/软删除仍清 grants。
 - `DepartmentService` 注入既有 `APIKeyAuthCacheInvalidator`，仅实际状态变化且仓储提交成功后失效缓存。通用 `UserRepository.Update(fields.Status)` 显式 disabled 始终写 other，内容审计达到封禁条件时已 disabled 也写入，首次邮件判断独立；管理员/公开 DTO 字段隔离见 data/security。`SetAccess.manage_members` 省略保留、false 撤销，沿用授权 CAS，不隐式授予其它权限。
 
 状态：2026-09-20 S1–S6 已实现，RV1–RV8 本机隔离验收通过。合同与证据见 `docs/features/organization-department-usage-implementation-plan-cn.md` 和 `docs/delivery/2026-09-19-department-usage/acceptance.md`。

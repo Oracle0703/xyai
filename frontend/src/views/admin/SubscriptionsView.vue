@@ -902,7 +902,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { departmentsAPI, type DepartmentScope } from '@/api/admin/departments'
 import { formatOrganizationUsageOrganization } from '@/utils/organizations'
-import { departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
+import { departmentErrorKey, departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
@@ -1718,12 +1718,23 @@ const confirmResetQuota = async () => {
     closeResetQuotaConfirm()
     await loadSubscriptions()
   } catch (error: any) {
+    if (isResetScopeFailure(error)) {
+      // 成员已离开授权范围或权限被撤销：关闭过期确认并重载，由列表请求清除受保护数据。
+      closeResetQuotaConfirm()
+      appStore.showError(t(departmentErrorKey(error)))
+      void loadSubscriptions()
+      return
+    }
     appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToResetQuota'))
     console.error('Error resetting quota:', error)
   } finally {
     resettingQuota.value = false
   }
 }
+
+// 403 表示权限已失效，409 REPORT_SCOPE_CHANGED 表示查询范围已变化；两者重试同一快照都不会成功。
+const isResetScopeFailure = (error: unknown) =>
+  departmentErrorStatus(error) === 403 || isDepartmentScopeChanged(error)
 
 const createResetDailyFilteredIdempotencyKey = () => {
   const requestID = globalThis.crypto?.randomUUID?.()
@@ -1770,6 +1781,15 @@ const confirmResetDailyFiltered = async () => {
     resetDailyFilteredIdempotencyKey.value = null
     await loadSubscriptions()
   } catch (error) {
+    if (isResetScopeFailure(error)) {
+      // 新查询必须重新建立快照和幂等键，不能沿用旧确认。
+      showResetDailyFilteredConfirm.value = false
+      resetDailyFilteredSnapshot.value = null
+      resetDailyFilteredIdempotencyKey.value = null
+      appStore.showError(t(departmentErrorKey(error)))
+      void loadSubscriptions()
+      return
+    }
     appStore.showError(t('admin.subscriptions.bulkResetDailyFailed'))
     console.error('Error resetting filtered daily quotas:', error)
   } finally {

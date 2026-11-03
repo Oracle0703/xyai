@@ -63,7 +63,7 @@ export default {
     memberHint: '成员归属独立于 API 分组；调整部门不会改变已有订阅。',
     searchManagers: '搜索子管理员邮箱', selectManager: '选择负责人',
     allowDepartment: '授权访问本部门', reportPermission: '查看及导出部门报表',
-    resetPermission: '查看订阅及重置额度', accessHint: '以上权限适用于该负责人的全部授权部门。其他部门的授权会保留。',
+    resetPermission: '查看订阅及重置额度', accessHint: '以上权限适用于该负责人的全部授权部门。其他部门的授权会保留；取消全部部门权限后，已授权部门仍会保留，再次授予任一部门权限时恢复生效。',
     resetHint: '允许单项额度重置和按筛选重置每日额度，不能分配、延期或撤销订阅。',
     replaceGlobal: '将现有全站订阅权限替换为部门订阅权限',
     otherPermissions: '该账号另有全站权限：{permissions}。部门授权不会限制这些权限，请在用户管理中核对。',

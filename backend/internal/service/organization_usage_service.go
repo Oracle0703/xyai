@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -484,6 +485,10 @@ func normalizeOrganizationUsageQuery(startRaw, endRaw, asOfRaw, organization, q 
 	}
 	if pageSize < 1 || pageSize > 1000 {
 		return normalizedOrganizationUsageQuery{}, organizationUsageValidation("page_size", "page_size must be between 1 and 1000")
+	}
+	// 仓储按 (page-1)*pageSize 计算 OFFSET，超界会溢出成负数或回绕到错误页。
+	if page-1 > math.MaxInt/pageSize {
+		return normalizedOrganizationUsageQuery{}, organizationUsageValidation("page", "page is too large")
 	}
 
 	return normalizedOrganizationUsageQuery{

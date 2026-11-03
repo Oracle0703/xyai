@@ -27,7 +27,7 @@ func (*scopedDepartmentSubscriptionStub) ListAdmin(_ context.Context, page, size
 func TestSubscriptionListDepartmentEnvelopeHonorsScopedProjection(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := newSubscriptionHandler(&scopedDepartmentSubscriptionStub{})
-	h.departments = service.NewDepartmentService(nil)
+	h.departments = service.NewDepartmentService(nil, nil)
 	for _, scoped := range []bool{false, true} {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)

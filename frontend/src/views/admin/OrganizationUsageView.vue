@@ -568,7 +568,8 @@ async function exportReport() {
     estimatedTime: t('admin.organizationUsage.feedback.exportPreparing')
   })
 
-  const { page: _page, page_size: _pageSize, ...query } = currentQuery()
+  // 已加载的页面沿用其成功快照导出，保证 Excel 与页面数字一致；尚无快照时由 fetchAll 现取。
+  const { page: _page, page_size: _pageSize, ...query } = currentQuery(snapshotAsOf.value || undefined)
   try {
     const data = await adminAPI.organizationUsage.fetchAll(query, {
       signal: controller.signal,

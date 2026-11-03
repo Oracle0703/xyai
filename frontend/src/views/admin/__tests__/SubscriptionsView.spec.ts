@@ -455,6 +455,47 @@ describe('admin SubscriptionsView quota reset actions', () => {
     expect(findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').attributes('disabled')).toBeUndefined()
   })
 
+  it('closes a stale single reset confirmation and reloads when scope access is lost', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    resetQuota.mockRejectedValueOnce(Object.assign(new Error('denied'), { status: 403, reason: 'DEPARTMENT_SCOPE_DENIED' }))
+    const wrapper = await mountView()
+    const listCalls = listSubscriptions.mock.calls.length
+
+    await findButtonByText(wrapper, 'admin.subscriptions.resetDailyQuota').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.departments.scopeDenied')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+    expect(listSubscriptions.mock.calls.length).toBe(listCalls + 1)
+  })
+
+  it('drops the bulk reset snapshot and idempotency key when the scope changed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('33333333-3333-4333-8333-333333333333')
+      .mockReturnValueOnce('44444444-4444-4444-8444-444444444444')
+    resetDailyFiltered.mockRejectedValueOnce(Object.assign(new Error('changed'), { status: 409, reason: 'REPORT_SCOPE_CHANGED' }))
+    const wrapper = await mountView()
+    const listCalls = listSubscriptions.mock.calls.length
+
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.departments.scopeChanged')
+    expect(wrapper.find('[data-test="confirm-dialog"]').exists()).toBe(false)
+    expect(listSubscriptions.mock.calls.length).toBe(listCalls + 1)
+
+    await findButtonByText(wrapper, 'admin.subscriptions.bulkResetDaily').trigger('click')
+    await wrapper.get('[data-test="confirm"]').trigger('click')
+    await flushPromises()
+    expect(resetDailyFiltered).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'subscription-reset-44444444-4444-4444-8444-444444444444'
+    )
+  })
+
   it('reports zero matches and keeps the dialog and idempotency key on failure retry', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
