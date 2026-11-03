@@ -45,7 +45,8 @@ var cursorResponsesUnsupportedFields = []string{
 // 模型名后缀指定过 effort。任一不满足返回原 body。
 func applyDefaultOpenAIReasoningEffort(body []byte, account *Account, defaultMappedModel, configEffort string) []byte {
 	def := normalizeOpenAIReasoningEffort(configEffort)
-	if def == "" {
+	// 归一化保留 none 供客户端显式值使用；作为站点默认值时 none 与空值一样表示不注入。
+	if def == "" || def == "none" {
 		return body
 	}
 	// 排除 Cursor 等把 Responses 形状(input,无 messages)发到 CC URL 的透传(见下方 isResponsesShape)。

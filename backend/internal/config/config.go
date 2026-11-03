@@ -1061,7 +1061,7 @@ type GatewayConfig struct {
 	// 关闭（默认）可避免 x-stainless-timeout 等头导致上游提前断流。
 	OpenAIPassthroughAllowTimeoutHeaders bool `mapstructure:"openai_passthrough_allow_timeout_headers"`
 	// OpenAIDefaultReasoningEffort: CC 请求未携带 reasoning_effort 时，对 OpenAI 推理模型注入的
-	// 默认推理等级。空=关闭（默认，不改变现有行为）。合法值：low/medium/high/xhigh。
+	// 默认推理等级。空或 none=关闭（默认，不改变现有行为）。合法值：low/medium/high/xhigh。
 	OpenAIDefaultReasoningEffort string `mapstructure:"openai_default_reasoning_effort"`
 	// OpenAICompactModel: /responses/compact 上游使用的模型。
 	// compact 端点支持模型滞后于普通 /responses 时，可用该配置降级规避上游错误。
