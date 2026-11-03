@@ -1,5 +1,12 @@
 # 运维, 配置与验证基线
 
+## 2026-11-03 PR #45–#47 合并后验证
+
+- 固定 `main@0157f2c79`，前端 lint/typecheck、423 files / 3456 tests 和 build、Go normal/embed build、时间轮文件集 `-race -count=3` 通过。隔离 PostgreSQL 18.1：部门/成员/订阅 38 顶层通过（2 个性能用例 skip），受限管理密钥 `-tags=unit` 专项 57 顶层通过、0 skip；临时库已停止。
+- 全量尚未全绿：unit 的两个分区清理 SQL mock 失败在合并前 `7d0f760fc` 复现；Command Code 协议用例当前精确复跑 2 pass / 1 fail、合并前 1 pass / 2 fail。PR #45 已修复默认 effort `none` 的既有 unit 失败。
+- 默认全量曾出现一次 `TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover` 关闭帧超时；unit/integration 全量及当前/基线各 3 次精确复跑通过，根因未闭环。全量 lint 34 项分布在本轮未改文件，增量 lint 0；integration 命令退出 0 但无 Docker 的 repository 整包跳过，另有 18 显式 skip，不能称完整集成通过。
+- 命令、失败归属、平台限制与日志入口：`docs/reviews/2026-11-03-main-pr45-47-validation-cn.md`。未做真实账号浏览器或生产端到端验收。
+
 ## 0.2.19 合并验证入口
 
 - 固定目标 `a9240d5016c226b341242a8c54a01a8605cbbc72`，Go 1.27.3；升级 x/net 等依赖，前端 package/lockfile 无上游变化。新增 `gateway.max_same_account_retries_gemini`：默认 4，不含首次请求；0 禁用同号重试，允许范围 0–10。
