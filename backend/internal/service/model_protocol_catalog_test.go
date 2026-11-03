@@ -327,6 +327,8 @@ func TestProtocolRulesWithProtocolSets(t *testing.T) {
 }
 
 // 经真实入口验证：目录声明模型支持入站协议时原样直通，不做协议转换。
+var commandCodeCatalogTestSeq atomic.Int64
+
 func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 	type observation struct {
 		url  string
@@ -334,7 +336,9 @@ func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 	}
 	forward := func(t *testing.T, ingress routingMatrixIngress, model string, catalog map[string][]string) observation {
 		t.Helper()
-		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), time.Now().UnixNano())
+		// 每次调用必须是独立的目录缓存键：Windows 时钟粒度下连续两次 UnixNano 可能相同，
+		// 而目录出错时保留旧目录，会让“目录不可用”场景读到上一场景的目录。
+		base := fmt.Sprintf("http://cc-%s-%d-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), time.Now().UnixNano(), commandCodeCatalogTestSeq.Add(1))
 		account := commandCodeTestAccount(12)
 		account.Credentials["api_base_urls"] = map[string]any{
 			APIProtocolChatCompletions: base + "/provider/v1",
