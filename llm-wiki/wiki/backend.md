@@ -245,6 +245,8 @@
 
 很多后台服务在 Provider 中自动 `Start()`, 例如 token refresh, dashboard aggregation, usage cleanup, ops collector, scheduled report, account/subscription expiry, proxy expiry(代理有效期清理与回退), token analysis 自动索引, channel monitor runner, user platform quota flusher、Ops ingress rejection aggregator 和 auth-cache invalidation worker。新增后台服务时要同时考虑 Wire 注入, 启动时机, multi-instance leader lock 和 `provideCleanup` 停止逻辑。
 
+`TimingWheelService` 的周期任务按名称登记：`Cancel`、同名 `Schedule`/`ScheduleRecurring` 或 `Stop` 会标记旧任务取消，正在执行的回调结束后不再重新注册（go-zero 在触发时已移除定时器，单靠 `RemoveTimer` 拦不住回调里的重注册）。
+
 0.1.171 之后 `provideCleanup` 还必须覆盖 `OpenAICodexVersionSyncService.Stop()`；合并 Wire 冲突时要同时保留本地 `TokenAnalysisService.StopAutoIndex()` 和上游新增后台服务停止步骤。
 
 Prompt Audit 由 `backend/internal/securityaudit/` 提供。`Application.PromptAudit` 在 `main.go` 启动, `provideCleanup` 调用 `PromptService.Shutdown`; 配置默认关闭。`Coordinator` 始终保留既有内容审核：off 只执行 legacy moderation, async 先 best-effort 入队再执行 legacy, blocking 并行执行 Prompt Audit 与 legacy 并按阻断优先级合并结果。
