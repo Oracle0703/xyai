@@ -245,6 +245,10 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionedSortsAndInvali
 		mock.ExpectExec(`UPDATE usage_group_rollup_state`).
 			WithArgs(partition.start, "Asia/Shanghai").
 			WillReturnResult(sqlmock.NewResult(0, 1))
+		// DROP 分区不触发行级触发器，组织用量日汇总要在同一事务里先把整月标脏。
+		mock.ExpectExec(`SELECT mark_user_usage_rollup_dirty_day`).
+			WithArgs(partition.start, partition.start.AddDate(0, 1, 0)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec(`DROP TABLE IF EXISTS "` + partition.name + `"`).
 			WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectCommit()
@@ -316,6 +320,9 @@ func TestDashboardAggregationRepositoryCleanupUsageLogsPartitionFailureRollsBack
 	mock.ExpectExec(`UPDATE usage_group_rollup_state`).
 		WithArgs(aprilStart, "Asia/Shanghai").
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`SELECT mark_user_usage_rollup_dirty_day`).
+		WithArgs(aprilStart, aprilStart.AddDate(0, 1, 0)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(`DROP TABLE IF EXISTS "usage_logs_202604"`).
 		WillReturnError(dropErr)
 	mock.ExpectRollback()
