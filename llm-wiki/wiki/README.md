@@ -22,7 +22,7 @@
 - `catalog_version`（目录）、`admin_access_version`（角色/权限/grant）、`scope_version`（实际查询范围）明确分离；统一 CAS、降级/软删除清授权、SQL 分页/批量统计及候选成员锁已实现。
 - 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
 - 2026-09-21 代码精简与复审见 `docs/reviews/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
-- 同日实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant。
+- 同日实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant，2026-11-03 已在 `hotfix/hy/0000_department_review_followups` 修复（同时收窄子管理员订阅字段、停用分组禁止新建订阅，按 2026-11-03 未合并分支复审的用户裁定）。
 - 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
 - 2026-10-29 `feature/hy/10226_department_member_management` 已实现独立权限 `admin.department_members` 与「我的部门」页：限授权部门的普通成员，可加入同组织未分配用户、移出、改用户名/负责人备注和启停用；无 grants 拒绝，只能恢复负责人停用的成员。migration 261 增加 `disabled_source`、独立 `department_note`（1000 Unicode 字符，归属变化清空并审计）；管理员备注不披露，负责人备注对管理员只读。设计：`docs/features/department-member-management-design-cn.md`；固定接口、分阶段门禁与锁定测试基线 `a058b81c6`：`docs/features/department-member-management-implementation-plan-cn.md`。运行合同见 backend/frontend/data/security 部门章节，验证入口见 ops。2026-10-29 已通过实现复核（`8060a1e91`…`5e6c1ee55`，结论见设计第 13 节）；未推送、未部署、未合回 main。
 

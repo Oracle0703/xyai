@@ -81,7 +81,7 @@
 - 成员页按错误原因恢复：范围/权限类 403 清空名单、候选、选择和编辑快照，作废在途请求并至多刷新一次 scope；`DEPARTMENT_MEMBER_ENABLE_DENIED` 提示联系管理员并刷新成员状态，不误判为全部授权丢失；`DEPARTMENT_CONFLICT` 关闭旧确认状态后刷新。普通写失败保留编辑草稿并在弹窗内显示错误。
 - 读请求捕获各自的 AbortSignal，成功、失败及 finally 都检查取消状态，不能仅依赖传输层取消；切换范围、关闭弹窗及卸载使迟到响应失效。成员写入另以页面上下文版本保护写后副作用，写入期间禁止重复提交、切换范围和关闭确认框。
 - 报表先读 `catalog_version` 目录，再并行请求首个 Summary 与 Trend；Summary 建立 canonical `as_of/scope_version`，Trend 与之不一致或失败时每周期最多重拉一次（2026-10-23 起恢复并行）。仅 REPORT_SCOPE_CHANGED 最多重建一次，持续冲突停止。403/范围切换清数据、取消导出并作废迟到响应，空授权不回退全站。
-- 订阅重置绑定最新成功列表返回的筛选及 scope_version；加载/失败立即使旧快照失效，不能使用目录版本。负责人姓名不链接全站 usage。
+- 订阅重置绑定最新成功列表返回的筛选及 scope_version；加载/失败立即使旧快照失效，不能使用目录版本。单项或按筛选重置返回 403 / `REPORT_SCOPE_CHANGED` 时关闭确认、丢弃快照与幂等键并重载列表，其他失败保留确认以便用同一幂等键重试。组织用量导出沿用页面已建立的 `as_of` 快照，与页面数字一致。负责人姓名不链接全站 usage。
 - `utils/departmentErrors.ts` 优先读取业务 `reason`，兼容中间件字符串 `code` 及 Axios/普通错误对象；数字 HTTP code 或普通 409 不能触发报表范围重载。部门停用、跨组织、版本、启用拒绝和全站切换错误分别显示中英文提示。
 - Excel 的页面筛选、当前归属、as_of/scope_version 与各分页/Sheet 一致；变化中止。首响应必须有 as_of/scope_version，后续页及 Sheet 严格一致，不回退客户端时间或无版本结果。仅部门权限账号在标准/backend 模式均按“报表 → 订阅 → 我的部门”选择默认登录页，保留显式 redirect 与个人 dashboard。
 - 前端专项入口：`views/admin/__tests__/MyDepartmentView.spec.ts`、`components/admin/department/__tests__/DepartmentAccessManageMembers.spec.ts`（锁定）、`DepartmentManagement.spec.ts`、`components/layout/__tests__/AppSidebarDepartmentMembers.spec.ts`、router 的 `subAdminRoutes/feature-access` 以及 utils 的 `adminPermissions/departmentErrors`；中英文 key 由 `i18n/__tests__/localeKeyCompleteness.spec.ts` 检查。测试结果与真实浏览器/部署验收分别记录。

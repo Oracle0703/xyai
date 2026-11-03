@@ -499,7 +499,7 @@ func TestAssignSubscriptionConflictWhenSemanticsMismatch(t *testing.T) {
 func TestBulkAssignSubscriptionCreatedReusedAndConflict(t *testing.T) {
 	start := time.Now().Add(-time.Hour)
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	// user 1: 语义一致，可 reused
@@ -590,7 +590,7 @@ func TestBulkAssignSubscriptionRenewsExpiredSemanticMatch(t *testing.T) {
 
 func TestAssignSubscriptionKeepsWorkingWhenIdempotencyStoreUnavailable(t *testing.T) {
 	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusActive},
 	}
 	subRepo := newSubscriptionUserSubRepoStub()
 	SetDefaultIdempotencyCoordinator(NewIdempotencyCoordinator(failingIdempotencyRepo{}, DefaultIdempotencyConfig()))
@@ -669,6 +669,53 @@ func TestAssignSubscriptionGroupTypeValidation(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, infraerrors.Code(ErrGroupNotSubscriptionType), infraerrors.Code(err))
+}
+
+func TestAssignSubscriptionInactiveGroupBlocksOnlyNewSubscriptions(t *testing.T) {
+	start := time.Now().Add(-time.Hour)
+	groupRepo := &subscriptionGroupRepoStub{
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription, Status: StatusDisabled},
+	}
+	subRepo := newSubscriptionUserSubRepoStub()
+	// user 1：语义一致的有效订阅，幂等返回；user 2：已过期订阅，续期。
+	subRepo.seed(&UserSubscription{ID: 21, UserID: 1, GroupID: 1, StartsAt: start, ExpiresAt: start.AddDate(0, 0, 30), Status: SubscriptionStatusActive})
+	subRepo.seed(&UserSubscription{ID: 22, UserID: 2, GroupID: 1, StartsAt: start.AddDate(0, 0, -60), ExpiresAt: start.AddDate(0, 0, -30), Status: SubscriptionStatusExpired})
+	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
+
+	reused, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{UserID: 1, GroupID: 1, ValidityDays: 30})
+	require.NoError(t, err)
+	require.Equal(t, int64(21), reused.ID)
+
+	renewed, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{UserID: 2, GroupID: 1, ValidityDays: 30})
+	require.NoError(t, err)
+	require.Equal(t, int64(22), renewed.ID)
+	require.Equal(t, SubscriptionStatusActive, renewed.Status)
+
+	_, err = svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{UserID: 3, GroupID: 1, ValidityDays: 30})
+	require.Equal(t, "GROUP_NOT_ACTIVE", infraerrors.Reason(err))
+
+	result, err := svc.BulkAssignSubscription(context.Background(), &BulkAssignSubscriptionInput{UserIDs: []int64{1, 3}, GroupID: 1, ValidityDays: 30})
+	require.NoError(t, err)
+	require.Equal(t, 1, result.SuccessCount)
+	require.Equal(t, 1, result.FailedCount)
+	require.Equal(t, 0, subRepo.createCalls)
+}
+
+type progressErrorSubRepo struct {
+	userSubRepoNoop
+	err error
+}
+
+func (r progressErrorSubRepo) GetByID(context.Context, int64) (*UserSubscription, error) {
+	return nil, r.err
+}
+
+func TestGetSubscriptionProgressKeepsRepositoryError(t *testing.T) {
+	for _, repoErr := range []error{ErrSubscriptionNotFound, ErrDepartmentScopeDenied, context.DeadlineExceeded} {
+		svc := NewSubscriptionService(groupRepoNoop{}, progressErrorSubRepo{err: repoErr}, nil, nil, nil)
+		_, err := svc.GetSubscriptionProgress(context.Background(), 1)
+		require.ErrorIs(t, err, repoErr)
+	}
 }
 
 func strconvFormatInt(v int64) string {

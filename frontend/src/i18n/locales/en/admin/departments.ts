@@ -63,7 +63,7 @@ export default {
     memberHint: 'Departments are independent of API groups. Moving a member does not change subscriptions.',
     searchManagers: 'Search sub-admin email', selectManager: 'Select a manager',
     allowDepartment: 'Grant access to this department', reportPermission: 'View and export department reports',
-    resetPermission: 'View subscriptions and reset quotas', accessHint: 'These permissions apply to all departments authorized for this manager. Access to other departments is preserved.',
+    resetPermission: 'View subscriptions and reset quotas', accessHint: 'These permissions apply to all departments authorized for this manager. Access to other departments is preserved. Removing every department permission keeps the authorized departments, which take effect again when any department permission is granted.',
     resetHint: 'Allows individual quota resets and filtered daily resets, but not assigning, extending or revoking subscriptions.',
     replaceGlobal: 'Replace global subscription access with department subscription access',
     otherPermissions: 'This account also has global permissions: {permissions}. Department access does not restrict them. Review them in user management.',

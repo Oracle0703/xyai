@@ -76,3 +76,27 @@ func TestDepartmentSubscriptionPermissionNeverGrantsAssignment(t *testing.T) {
 	_, err := NormalizeAdminPermissions(RoleSubAdmin, []string{AdminPermissionSubscriptions, AdminPermissionDepartmentSubscriptions})
 	require.ErrorContains(t, err, "mutually exclusive")
 }
+
+type departmentAccessRecorder struct {
+	DepartmentRepository
+	input *DepartmentAccessInput
+}
+
+func (r *departmentAccessRecorder) SetAccess(_ context.Context, _ int64, in DepartmentAccessInput) (*DepartmentAccess, error) {
+	r.input = &in
+	return &DepartmentAccess{}, nil
+}
+
+func TestDepartmentSetAccessRequiresExplicitDepartmentIDs(t *testing.T) {
+	repo := &departmentAccessRecorder{}
+	svc := NewDepartmentService(repo, nil)
+	// 省略或 null 的 department_ids 不能被当作“保留”或“清空”，必须在进入仓储前拒绝。
+	_, err := svc.SetAccess(context.Background(), 7, DepartmentAccessInput{Report: true, ExpectedVersion: "v1"})
+	require.ErrorIs(t, err, ErrDepartmentInvalid)
+	require.Nil(t, repo.input)
+
+	_, err = svc.SetAccess(context.Background(), 7, DepartmentAccessInput{DepartmentIDs: []int64{}, ExpectedVersion: "v1"})
+	require.NoError(t, err)
+	require.NotNil(t, repo.input)
+	require.Empty(t, repo.input.DepartmentIDs)
+}

@@ -64,7 +64,7 @@
 
 状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
-- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`。
+- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`；2026-11-03 起服务层对省略或 null 返回 400。
 
 - `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members` 分别控制报表、订阅、成员管理，三者共用 `department_access_grants`。成员权限不隐含另外两项；全站订阅权限不能扩大成员管理范围。撤权或空 grants 不回退全站，省略筛选或 `all` 仅代表授权范围内全部。
 - 成员写入限未删除普通用户和当前授权部门，同组织未分配用户可加入，不能从其他部门拉人。写操作锁 actor/目标用户后重读授权，批量先完成全部鉴权再检查版本；当前越权 403，仍授权但部门 ID/版本变化 409。负责人本人及其它特权角色只读；管理员/API Key 保留独立完整身份，但负责人备注仍只读。

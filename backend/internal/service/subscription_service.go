@@ -35,6 +35,7 @@ var (
 	ErrSubscriptionNotRevoked      = infraerrors.Conflict("SUBSCRIPTION_NOT_REVOKED", "subscription is not revoked")
 	ErrSubscriptionRestoreConflict = infraerrors.Conflict("SUBSCRIPTION_RESTORE_CONFLICT", "subscription already exists for this user and group")
 	ErrGroupNotSubscriptionType    = infraerrors.BadRequest("GROUP_NOT_SUBSCRIPTION_TYPE", "group is not a subscription type")
+	ErrGroupNotActive              = infraerrors.BadRequest("GROUP_NOT_ACTIVE", "group is not active")
 	ErrInvalidInput                = infraerrors.BadRequest("INVALID_INPUT", "at least one of resetDaily, resetWeekly, or resetMonthly must be true")
 	ErrDailyLimitExceeded          = infraerrors.TooManyRequests("DAILY_LIMIT_EXCEEDED", "daily usage limit exceeded")
 	ErrWeeklyLimitExceeded         = infraerrors.TooManyRequests("WEEKLY_LIMIT_EXCEEDED", "weekly usage limit exceeded")
@@ -541,6 +542,12 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 			})
 		}
 		return sub, true, nil
+	}
+
+	// 停用分组只拦截新建；已有订阅的续期与幂等重放不受影响。兑换、支付履约与默认订阅走
+	// assignOrExtendSubscription，保持原有语义。
+	if !group.IsActive() {
+		return nil, false, ErrGroupNotActive
 	}
 
 	sub, err := s.createSubscription(ctx, input)
@@ -1256,7 +1263,8 @@ type UsageWindowProgress struct {
 func (s *SubscriptionService) GetSubscriptionProgress(ctx context.Context, subscriptionID int64) (*SubscriptionProgress, error) {
 	sub, err := s.userSubRepo.GetByID(ctx, subscriptionID)
 	if err != nil {
-		return nil, ErrSubscriptionNotFound
+		// 仓储已把不存在映射为 ErrSubscriptionNotFound；部门范围拒绝与基础设施错误需原样返回。
+		return nil, err
 	}
 
 	group := sub.Group

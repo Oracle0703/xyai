@@ -493,7 +493,9 @@ func (s *DepartmentService) SetAccess(ctx context.Context, userID int64, in Depa
 	if in.ExpectedVersion == "" {
 		return nil, ErrAdminAccessVersionRequired
 	}
-	if userID <= 0 || len(in.DepartmentIDs) > 200 {
+	// department_ids 必须显式给出：省略或 null 在仓储中会绑定为 SQL NULL，既不删除也不新增授权，
+	// 与“[] 表示清空”的语义容易混淆，因此直接拒绝。
+	if userID <= 0 || in.DepartmentIDs == nil || len(in.DepartmentIDs) > 200 {
 		return nil, ErrDepartmentInvalid
 	}
 	seen := make(map[int64]bool)

@@ -12,10 +12,13 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/adminaccess"
+	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+var assignerID int64 = 8
 
 type scopedSubscriptionRepo struct {
 	service.UserSubscriptionRepository
@@ -24,7 +27,8 @@ type scopedSubscriptionRepo struct {
 
 func (*scopedSubscriptionRepo) GetByID(context.Context, int64) (*service.UserSubscription, error) {
 	return &service.UserSubscription{ID: 1, UserID: 2, GroupID: 3, DailyUsageUSD: 4, ExpiresAt: time.Now().Add(time.Hour),
-		User:           &service.User{ID: 2, Email: "private-user@example.com", Balance: 987},
+		AssignedBy: &assignerID, Notes: "private-note",
+		User:           &service.User{ID: 2, Email: "private-user@example.com", Username: "member", Balance: 987},
 		AssignedByUser: &service.User{ID: 8, Email: "private-admin@example.com", Balance: 654},
 		Group:          &service.Group{ID: 3, Name: "group", RateMultiplier: 42}}, nil
 }
@@ -160,5 +164,99 @@ func TestScopedAdminQuotaResetRequiresReadToReturnUsage(t *testing.T) {
 		} else {
 			require.NotContains(t, w.Body.String(), "platform_quotas")
 		}
+	}
+}
+
+func withSubAdminRole(c *gin.Context) {
+	c.Set(string(middleware2.ContextKeyUserRole), service.RoleSubAdmin)
+}
+
+func TestSubAdminSubscriptionHidesMemberAccountAndAssignment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	s := service.NewSubscriptionService(nil, &scopedSubscriptionRepo{}, nil, nil, nil)
+	defer s.Stop()
+	h := newSubscriptionHandler(s)
+	for _, subAdmin := range []bool{false, true} {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/subscriptions/1", nil)
+		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		if subAdmin {
+			withSubAdminRole(c)
+		}
+		h.GetByID(c)
+		require.Equal(t, 200, w.Code)
+		var result struct {
+			Data map[string]json.RawMessage `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+		body := w.Body.String()
+		// 页面所需字段两种身份都保留。
+		for _, field := range []string{`"daily_usage_usd":4`, "private-user@example.com", `"username":"member"`, `"name":"group"`, `"rate_multiplier":42`} {
+			require.Contains(t, body, field)
+		}
+		hidden := []string{`"balance"`, "private-note", "private-admin@example.com", `"assigned_by"`, `"assigned_at"`, `"notes"`, `"assigned_by_user"`}
+		for _, field := range hidden {
+			if subAdmin {
+				require.NotContains(t, body, field)
+			} else {
+				require.Contains(t, body, field)
+			}
+		}
+		if subAdmin {
+			var user map[string]any
+			require.NoError(t, json.Unmarshal(result.Data["user"], &user))
+			require.ElementsMatch(t, []string{"id", "email", "username", "status"}, mapKeys(user))
+		}
+	}
+}
+
+func TestSubAdminSubscriptionReplayAndBulkUseSubAdminView(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previous := service.DefaultIdempotencyCoordinator()
+	t.Cleanup(func() { service.SetDefaultIdempotencyCoordinator(previous) })
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), service.DefaultIdempotencyConfig()))
+	repo := &scopedSubscriptionRepo{}
+	svc := service.NewSubscriptionService(nil, repo, nil, nil, nil)
+	defer svc.Stop()
+	h := newSubscriptionHandler(svc)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		if c.GetHeader("X-Test-Mode") == "sub-admin" {
+			withSubAdminRole(c)
+		}
+	})
+	r.POST("/subscriptions/:id/extend", h.Extend)
+	// 管理员先执行写入，子管理员重放同一幂等键时也只能拿到子管理员视图。
+	for i, mode := range []string{"admin", "sub-admin"} {
+		req := httptest.NewRequest("POST", "/subscriptions/1/extend", strings.NewReader(`{"days":1}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", "same-extension")
+		req.Header.Set("X-Test-Mode", mode)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, 200, w.Code, w.Body.String())
+		if i > 0 {
+			require.Equal(t, "true", w.Header().Get("X-Idempotency-Replayed"))
+			require.NotContains(t, w.Body.String(), "private-note")
+			require.NotContains(t, w.Body.String(), `"balance"`)
+			require.Contains(t, w.Body.String(), "private-user@example.com")
+		} else {
+			require.Contains(t, w.Body.String(), "private-note")
+		}
+	}
+	require.Equal(t, 1, repo.writes)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	withSubAdminRole(c)
+	sub, _ := repo.GetByID(context.Background(), 1)
+	data := &dto.BulkAssignResult{SuccessCount: 1, Subscriptions: []dto.AdminUserSubscription{*dto.UserSubscriptionFromServiceAdmin(sub)}}
+	raw, err := json.Marshal(adminSubscriptionResponse(c, data))
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"success_count":1`)
+	require.Contains(t, string(raw), `"daily_usage_usd":4`)
+	for _, field := range []string{"private-note", `"balance"`, "private-admin@example.com"} {
+		require.NotContains(t, string(raw), field)
 	}
 }
