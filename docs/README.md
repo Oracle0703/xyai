@@ -44,6 +44,7 @@
 - `features/gpt-account-quota-display-design-cn.md`（`backend/migrations/243_*.sql`、`gpt_quota_display.go`）
 - `features/codex-prompt-risk-filter-design-cn.md`（`prompt_risk.go`）
 - `features/organization-department-usage-design-cn.md`（`frontend/src/components/admin/organization-usage/README.md`）
+- `features/organization-leader-design-cn.md`（`organization_leader_integration_test.go`；组织负责人相关仓储/服务注释按节号引用，如 `design §4.4`，改节号须同步注释）
 
 ## 路径迁移记录
 

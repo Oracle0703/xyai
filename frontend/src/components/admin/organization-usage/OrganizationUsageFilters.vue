@@ -151,7 +151,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { DepartmentScope } from '@/api/admin/departments'
+import type { DepartmentScope, OrganizationKey } from '@/api/admin/departments'
 import type { OrganizationUsageOrganizationFilter, OrganizationUsageRange } from '@/api/admin/organizationUsage'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
@@ -211,7 +211,8 @@ const departmentOptions = computed(() => {
   for (const department of props.scope?.departments ?? []) {
     if (department.organization_key === props.modelValue.organization) options.push({ value: String(department.id), label: department.name })
   }
-  if (props.scope?.unrestricted) options.push({ value: 'unassigned', label: t('admin.departments.unassigned') })
+  // Organization leaders also see their organizations' unassigned members.
+  if (props.scope?.unrestricted || props.scope?.full_organizations?.includes(props.modelValue.organization as OrganizationKey)) options.push({ value: 'unassigned', label: t('admin.departments.unassigned') })
   return options
 })
 const platformOptions = computed(() => [

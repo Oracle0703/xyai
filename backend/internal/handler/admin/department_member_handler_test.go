@@ -26,7 +26,7 @@ func (r *managedDepartmentRecorder) UpdateManagedMember(_ context.Context, id in
 	if r.err != nil {
 		return nil, false, r.err
 	}
-	return &service.ManagedDepartmentMember{ID: id, DepartmentID: *in.ExpectedDepartmentID, DepartmentVersion: *in.ExpectedDepartmentVersion}, false, nil
+	return &service.ManagedDepartmentMember{ID: id, DepartmentID: in.ExpectedDepartmentID, DepartmentVersion: *in.ExpectedDepartmentVersion}, false, nil
 }
 
 func (r *managedDepartmentRecorder) ManagedAssign(_ context.Context, in service.DepartmentAssignInput) (int, error) {

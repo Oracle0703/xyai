@@ -140,7 +140,7 @@ const route = useRoute()
 const scope = ref<DepartmentScope | null>(null)
 const scopeLoading = ref(true)
 const scopeVersion = ref('')
-const canViewScope = computed(() => !!scope.value && (scope.value.unrestricted || scope.value.departments.length > 0))
+const canViewScope = computed(() => !!scope.value && (scope.value.unrestricted || scope.value.departments.length > 0 || !!scope.value.full_organizations?.length))
 let scopeController: AbortController | null = null
 let scopeInitialized = false
 let scopeRetryAvailable = true
@@ -363,7 +363,7 @@ function selectionAllowed(current: DepartmentScope, organization: string, depart
   if (organization !== 'all' && !current.organizations.includes(organization as DepartmentScope['organizations'][number])) return false
   if (department === 'all') return true
   if (organization === 'all') return false
-  if (department === 'unassigned') return current.unrestricted
+  if (department === 'unassigned') return current.unrestricted || !!current.full_organizations?.includes(organization as DepartmentScope['organizations'][number])
   return current.departments.some(item => String(item.id) === department && item.organization_key === organization)
 }
 

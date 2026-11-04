@@ -60,7 +60,19 @@ func prepareUserAdminAccessWrite(ctx context.Context, q sqlExecutor, userID int6
 	return actor, access, err
 }
 
+// clearUserDepartmentGrants removes department and organization grants when a
+// user leaves the sub_admin role or is deleted.
 func clearUserDepartmentGrants(ctx context.Context, q sqlExecutor, actor *service.User, access *service.DepartmentAccess, reason string) error {
+	if len(access.Organizations) > 0 {
+		if _, err := q.ExecContext(ctx, `DELETE FROM organization_access_grants WHERE user_id=$1`, access.UserID); err != nil {
+			return err
+		}
+		if err := departmentAudit(ctx, q, actor, "organization.clear_user_grants", map[string]any{
+			"user_id": access.UserID, "organizations": access.Organizations, "reason": reason,
+		}); err != nil {
+			return err
+		}
+	}
 	if len(access.DepartmentIDs) == 0 {
 		return nil
 	}

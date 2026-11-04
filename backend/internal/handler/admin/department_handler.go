@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"strconv"
@@ -193,6 +194,12 @@ func (h *DepartmentHandler) UpdateManagedMember(c *gin.Context) {
 	if !ok {
 		return
 	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.BadRequest(c, "invalid department request")
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
 	var input *service.ManagedMemberUpdateInput
 	if !departmentJSON(c, &input) {
 		return
@@ -200,6 +207,12 @@ func (h *DepartmentHandler) UpdateManagedMember(c *gin.Context) {
 	if input == nil {
 		departmentReply(c, nil, service.ErrDepartmentInvalid)
 		return
+	}
+	// An explicit null confirms the member is unassigned; omitting the field
+	// leaves both unset and the request is rejected.
+	var presence map[string]json.RawMessage
+	if json.Unmarshal(body, &presence) == nil && string(presence["expected_department_id"]) == "null" {
+		input.ExpectedUnassigned = true
 	}
 	v, err := h.departments.UpdateManagedMember(c.Request.Context(), id, *input)
 	departmentReply(c, v, err)
@@ -256,5 +269,67 @@ func (h *DepartmentHandler) SubscriptionUsers(c *gin.Context) {
 
 func (h *DepartmentHandler) SubscriptionGroups(c *gin.Context) {
 	v, err := h.departments.SubscriptionGroups(c.Request.Context(), c.Query("q"))
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) SetOrganizationAccess(c *gin.Context) {
+	id, ok := departmentPathID(c)
+	if !ok {
+		return
+	}
+	var input *service.OrganizationAccessInput
+	if !departmentJSON(c, &input) {
+		return
+	}
+	if input == nil {
+		response.BadRequest(c, "scope object required")
+		return
+	}
+	v, err := h.departments.SetOrganizationAccess(c.Request.Context(), id, *input)
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) OrganizationScope(c *gin.Context) {
+	v, err := h.departments.OrganizationScope(c.Request.Context())
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) OrganizationLeaders(c *gin.Context) {
+	f, ok := departmentListFilter(c)
+	if !ok {
+		return
+	}
+	v, err := h.departments.OrganizationLeaders(c.Request.Context(), f)
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) OrganizationLeader(c *gin.Context) {
+	id, ok := departmentPathID(c)
+	if !ok {
+		return
+	}
+	v, err := h.departments.OrganizationLeader(c.Request.Context(), id)
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) OrganizationLeaderCandidates(c *gin.Context) {
+	v, err := h.departments.OrganizationLeaderCandidates(c.Request.Context(), c.Query("organization"), c.Query("q"))
+	departmentReply(c, v, err)
+}
+
+func (h *DepartmentHandler) UpdateOrganizationLeader(c *gin.Context) {
+	id, ok := departmentPathID(c)
+	if !ok {
+		return
+	}
+	var input *service.OrganizationLeaderInput
+	if !departmentJSON(c, &input) {
+		return
+	}
+	if input == nil {
+		departmentReply(c, nil, service.ErrDepartmentInvalid)
+		return
+	}
+	v, err := h.departments.UpdateOrganizationLeader(c.Request.Context(), id, *input)
 	departmentReply(c, v, err)
 }

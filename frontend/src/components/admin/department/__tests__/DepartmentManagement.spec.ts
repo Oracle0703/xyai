@@ -5,7 +5,7 @@ import DepartmentsView from '@/views/admin/DepartmentsView.vue'
 import DepartmentMembersDialog from '../DepartmentMembersDialog.vue'
 import DepartmentAccessDialog from '../DepartmentAccessDialog.vue'
 import DepartmentAssignmentDialog from '../DepartmentAssignmentDialog.vue'
-import type { Department, DepartmentMember } from '@/api/admin/departments'
+import type { Department, DepartmentMemberRow } from '@/api/admin/departments'
 
 const { api, listUsers, showSuccess, showError } = vi.hoisted(() => ({
   api: { list: vi.fn(), save: vi.fn(), members: vi.fn(), assign: vi.fn(), getAccess: vi.fn(), setAccess: vi.fn() },
@@ -14,6 +14,7 @@ const { api, listUsers, showSuccess, showError } = vi.hoisted(() => ({
 vi.mock('@/api/admin/departments', () => ({ departmentsAPI: api, default: api }))
 vi.mock('@/api/admin/users', () => ({ default: { list: listUsers } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess, showError }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: true, hasAdminPermission: () => true }) }))
 vi.mock('vue-i18n', async () => ({ ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'), useI18n: () => ({ t: (key: string) => key }) }))
 
 const SelectStub = defineComponent({
@@ -36,8 +37,8 @@ const stubs = {
   Select: SelectStub, DataTable: DataTableStub, Pagination: true, RouterLink: { template: '<a><slot/></a>' }
 }
 const department: Department = { id: 7, organization_key: 'xunyou', name: '研发部', status: 'active', version: 2, sort_order: 0, member_count: 1, active_member_count: 1, managers: [] }
-const current: DepartmentMember = { id: 10, email: 'current@xunyou.com', username: '', organization: 'xunyou', status: 'active', department_id: 7, department_name: '研发部', department_version: 2 }
-const candidate: DepartmentMember = { ...current, id: 11, email: 'candidate@xunyou.com', department_id: 8, department_name: '运营部', department_version: 5 }
+const current: DepartmentMemberRow = { id: 10, email: 'current@xunyou.com', username: '', organization: 'xunyou', status: 'active', department_id: 7, department_name: '研发部', department_version: 2, manageable: true }
+const candidate: DepartmentMemberRow = { ...current, id: 11, email: 'candidate@xunyou.com', department_id: 8, department_name: '运营部', department_version: 5 }
 const page = <T,>(items: T[]) => ({ items, total: items.length, page: 1, page_size: 20 })
 
 beforeEach(() => {
@@ -70,7 +71,7 @@ describe('department administration', () => {
   })
 
   it('ignores a late member list after closing and reopening the dialog', async () => {
-    let resolveOld!: (value: ReturnType<typeof page<DepartmentMember>>) => void
+    let resolveOld!: (value: ReturnType<typeof page<DepartmentMemberRow>>) => void
     api.members.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
     const wrapper = mount(DepartmentMembersDialog, { props: { show: true, department }, global: { stubs } })
     await flushPromises()
@@ -87,7 +88,7 @@ describe('department administration', () => {
   })
 
   it('keeps the new assignment snapshot when an aborted request resolves late', async () => {
-    let resolveOld!: (value: ReturnType<typeof page<DepartmentMember>>) => void
+    let resolveOld!: (value: ReturnType<typeof page<DepartmentMemberRow>>) => void
     api.members.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve }))
     const wrapper = mount(DepartmentAssignmentDialog, { props: { show: true, userIds: [10] }, global: { stubs } })
     await flushPromises()
@@ -136,6 +137,38 @@ describe('department administration', () => {
     await wrapper.get('[data-testid="save-department-access"]').trigger('click')
     await flushPromises()
     expect(api.setAccess).toHaveBeenCalledWith(100, { department_ids: [7], report: true, reset_quota: false, manage_members: false, replace_global_subscriptions: false, expected_version: 'report-version' })
+    wrapper.unmount()
+  })
+
+  it('keeps protected rows read-only so select-page submits only manageable members', async () => {
+    // The actor, an administrator and an unmanaged leader share the department with ordinary members.
+    const protectedRows = [50, 60, 70].map(id => ({ ...current, id, email: `p${id}@xunyou.com`, manageable: false }))
+    const managedLeader = { ...current, id: 12, email: 'leader@xunyou.com' }
+    api.members.mockResolvedValue(page([protectedRows[0]!, current, ...protectedRows.slice(1), managedLeader]))
+    const wrapper = mount(DepartmentMembersDialog, { props: { show: true, department }, global: { stubs } })
+    await flushPromises()
+    for (const row of protectedRows) {
+      const box = wrapper.get(`[data-row="${row.id}"] input[type="checkbox"]`)
+      expect((box.element as HTMLInputElement).disabled).toBe(true)
+      await box.trigger('change')
+      expect(wrapper.get(`[data-row="${row.id}"]`).text()).toContain('admin.departments.memberManagement.readonly')
+    }
+    await wrapper.findAll('button').find(button => button.text() === 'admin.departments.selectCurrentPage')!.trigger('click')
+    await wrapper.get('[data-testid="apply-department-members"]').trigger('click')
+    await flushPromises()
+    expect(api.assign).toHaveBeenCalledWith(null, [
+      { user_id: 10, expected_department_id: 7, expected_department_version: 2 },
+      { user_id: 12, expected_department_id: 7, expected_department_version: 2 }
+    ])
+
+    // Add mode lists the whole organization and applies the same rule.
+    api.members.mockResolvedValue(page([{ ...candidate, id: 80, manageable: false }, candidate]))
+    await wrapper.findAll('button').find(button => button.text() === 'admin.departments.addMembers')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === 'admin.departments.selectCurrentPage')!.trigger('click')
+    await wrapper.get('[data-testid="apply-department-members"]').trigger('click')
+    await flushPromises()
+    expect(api.assign).toHaveBeenLastCalledWith(7, [{ user_id: 11, expected_department_id: 8, expected_department_version: 5 }])
     wrapper.unmount()
   })
 

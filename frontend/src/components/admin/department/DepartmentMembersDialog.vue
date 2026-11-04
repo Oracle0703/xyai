@@ -9,7 +9,8 @@
       <form class="flex gap-2" @submit.prevent="search"><input v-model="query" class="input flex-1" :placeholder="t('admin.departments.searchMembers')" :disabled="saving" /><button class="btn btn-secondary" :disabled="loading || saving">{{ t('admin.departments.search') }}</button></form>
       <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       <DataTable :columns="columns" :data="members" :loading="loading">
-        <template #cell-select="{ row }"><input type="checkbox" :aria-label="row.email" :checked="selected.has(row.id)" :disabled="saving || (mode === 'add' && row.department_id === department?.id)" @change="toggle(row)" /></template>
+        <template #cell-select="{ row }"><input type="checkbox" :aria-label="row.email" :checked="selected.has(row.id)" :disabled="saving || !selectable(row)" @change="toggle(row)" /></template>
+        <template #cell-email="{ row }">{{ row.email }}<span v-if="!row.manageable" class="badge badge-gray ml-2" :title="t('admin.departments.protectedMember')">{{ t('admin.departments.memberManagement.readonly') }}</span></template>
         <template #cell-department_name="{ row }">{{ row.department_name || t('admin.departments.unassigned') }}</template>
         <template #cell-status="{ row }">{{ t(row.status === 'active' ? 'admin.departments.active' : 'admin.departments.inactive') }}</template>
       </DataTable>
@@ -33,7 +34,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import type { Column } from '@/components/common/types'
 import Pagination from '@/components/common/Pagination.vue'
-import { departmentsAPI, type Department, type DepartmentMember } from '@/api/admin/departments'
+import { departmentsAPI, type Department, type DepartmentMemberRow } from '@/api/admin/departments'
 import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{ show: boolean; department: Department | null }>()
@@ -46,8 +47,8 @@ const appliedQuery = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-const members = ref<DepartmentMember[]>([])
-const selected = ref(new Map<number, DepartmentMember>())
+const members = ref<DepartmentMemberRow[]>([])
+const selected = ref(new Map<number, DepartmentMemberRow>())
 const selectedMembers = computed(() => [...selected.value.values()])
 const loading = ref(false)
 const saving = ref(false)
@@ -75,8 +76,13 @@ async function load() {
     if (!signal.aborted) { error.value = t('admin.departments.failed'); total.value = 0 }
   } finally { if (!signal.aborted) loading.value = false }
 }
-function toggle(member: DepartmentMember) {
-  if (saving.value || (mode.value === 'add' && member.department_id === props.department?.id)) return
+// Protected rows (the actor, administrators, peers, unmanaged leaders) stay read-only
+// so a selected batch is never rejected as a whole by assign-members.
+function selectable(member: DepartmentMemberRow) {
+  return member.manageable && !(mode.value === 'add' && member.department_id === props.department?.id)
+}
+function toggle(member: DepartmentMemberRow) {
+  if (saving.value || !selectable(member)) return
   if (selected.value.has(member.id)) selected.value.delete(member.id)
   else if (selected.value.size < 200) selected.value.set(member.id, member)
   else app.showError(t('admin.departments.maxSelection'))
@@ -84,7 +90,7 @@ function toggle(member: DepartmentMember) {
 function selectPage() {
   for (const member of members.value) {
     if (selected.value.size >= 200) break
-    if (mode.value === 'add' && member.department_id === props.department?.id) continue
+    if (!selectable(member)) continue
     selected.value.set(member.id, member)
   }
 }

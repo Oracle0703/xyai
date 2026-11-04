@@ -32,6 +32,38 @@ func TestNormalizeAdminPermissions(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, permissions)
 	})
+
+	t.Run("organization management always carries the department capabilities", func(t *testing.T) {
+		_, err := NormalizeAdminPermissions(RoleSubAdmin, []string{AdminPermissionOrganizationManage, AdminPermissionOrganizationUsage, AdminPermissionDepartmentMembers})
+		require.ErrorIs(t, err, ErrOrganizationScopeEndpointRequired)
+		permissions, err := NormalizeAdminPermissions(RoleSubAdmin, append([]string{AdminPermissionOrganizationManage}, OrganizationLeaderDepartmentPermissions...))
+		require.NoError(t, err)
+		require.Len(t, permissions, 4)
+		// The capabilities alone never imply an organization leader (I2 is one-way).
+		permissions, err = NormalizeAdminPermissions(RoleSubAdmin, OrganizationLeaderDepartmentPermissions)
+		require.NoError(t, err)
+		require.NotContains(t, permissions, AdminPermissionOrganizationManage)
+	})
+}
+
+func TestOrganizationManageRouteWhitelist(t *testing.T) {
+	leader := &User{Role: RoleSubAdmin, AdminPermissions: []string{AdminPermissionOrganizationManage}}
+	for _, rule := range []struct {
+		method, route string
+		allowed       bool
+	}{
+		{http.MethodPost, "/api/v1/admin/departments", true},
+		{http.MethodPut, "/api/v1/admin/departments/:id", true},
+		{http.MethodPost, "/api/v1/admin/departments/assign-members", true},
+		{http.MethodPut, "/api/v1/admin/organization/leaders/:id", true},
+		{http.MethodGet, "/api/v1/admin/organization/leader-candidates", true},
+		{http.MethodGet, "/api/v1/admin/users", false},
+		{http.MethodPut, "/api/v1/admin/users/:id/department-scope", false},
+		{http.MethodPut, "/api/v1/admin/users/:id/organization-scope", false},
+		{http.MethodPut, "/api/v1/admin/users/:id", false},
+	} {
+		require.Equal(t, rule.allowed, CanAccessAdminRoute(leader, rule.method, rule.route), rule.method+" "+rule.route)
+	}
 }
 
 func TestCanAccessAdminRoute(t *testing.T) {
@@ -110,7 +142,7 @@ func TestCanAccessAdminRoute(t *testing.T) {
 
 func TestAdminPermissionCatalogReturnsDefensiveCopy(t *testing.T) {
 	first := AdminPermissionCatalog()
-	require.Len(t, first, 7)
+	require.Len(t, first, 8)
 	require.Equal(t, AdminPermissionSubscriptions, first[0].Code)
 	first[0].Code = "changed"
 	second := AdminPermissionCatalog()
@@ -146,6 +178,12 @@ func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/bulk-assign"}:          {},
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/reset-quota"}:      {},
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/reset-daily-filtered"}: {},
+		},
+		AdminPermissionOrganizationManage: {
+			{method: http.MethodPost, route: "/api/v1/admin/departments"}:                {},
+			{method: http.MethodPut, route: "/api/v1/admin/departments/:id"}:             {},
+			{method: http.MethodPost, route: "/api/v1/admin/departments/assign-members"}: {},
+			{method: http.MethodPut, route: "/api/v1/admin/organization/leaders/:id"}:    {},
 		},
 		AdminPermissionUsage:         {},
 		AdminPermissionTokenAnalysis: {},

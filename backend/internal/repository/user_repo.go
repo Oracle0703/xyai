@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -300,6 +301,12 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 		}
 		if accessBefore.Version != fields.ExpectedAdminAccessVersion {
 			return service.ErrAdminAccessChanged
+		}
+		// Organization management is written only together with its grants by the
+		// organization scope endpoint; leaving the sub_admin role clears both.
+		if userIn.Role == service.RoleSubAdmin &&
+			slices.Contains(accessBefore.Permissions, service.AdminPermissionOrganizationManage) != slices.Contains(userIn.AdminPermissions, service.AdminPermissionOrganizationManage) {
+			return service.ErrOrganizationScopeEndpointRequired
 		}
 	}
 	existing, err := clientFromContext(txCtx, txClient).User.Get(txCtx, userIn.ID)

@@ -68,9 +68,11 @@
 
 ## 部门管理与负责人入口
 
+- 组织负责人复用 `DepartmentsView.vue`（组织选项来自 `/admin/organization/scope` 的 `full_organizations`），负责人任命用 `OrganizationLeaderDialog.vue`，编辑前必须取详情接口的完整授权；管理员在用户编辑中经 `OrganizationScopeDialog.vue` 配置，`admin.organization_manage` 及其捆绑能力在通用权限勾选中锁定、新建用户不提供。`MyDepartmentView.vue` 的未分配选项值为 `unassigned:<组织>`，更新未分配成员必须发送 `expected_department_id: null`。`DepartmentMembersDialog.vue` 只勾选 `manageable` 行（组织负责人的本人、admin、同级、不可托管负责人只读），“选择本页”也跳过，避免整批被后端 403；写入仍按最新权限重新鉴权，列表标记不代表授权。规则见设计 §14 K9–K10。
+
 完整管理员部门合同见 `docs/features/organization-department-usage-design-cn.md`；负责人受限成员管理见 `docs/features/department-member-management-design-cn.md`，执行与验证要求见对应 implementation-plan 及 [[ops]]。
 
-- `views/admin/DepartmentsView.vue` 仅完整管理员可用；`components/admin/department/` 管理成员、负责人授权和用户页分配。成员 CAS 冲突需刷新再确认；授权保留其他部门，切换全站订阅需显式确认。
+- `views/admin/DepartmentsView.vue` 向完整管理员和 `admin.organization_manage` 组织负责人开放；`components/admin/department/` 管理成员、负责人授权和用户页分配。成员 CAS 冲突需刷新再确认；管理员授权保留其他部门，切换全站订阅需显式确认。
 - `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members` 分别控制报表、订阅查询/额度重置、成员管理，共用后端 grants；勾选一个权限不自动授予另外两项。`DepartmentAccessDialog.vue` 的成员管理默认关闭，加载已有账号时从权限集合恢复三项勾选，保存始终发送 `manage_members` 布尔值；member-only 账号重开保存不得隐式增加报表/额度权限。
 - `views/admin/MyDepartmentView.vue` 对应 `/admin/my-department`，仅使用 `api/admin/departments.ts` 的五个 `/admin/department-members` 接口。先读 scope，单部门自动选中，无 grants 显示空授权状态并停止循环请求；全部范围仅指已授权部门。选项、名单及添加弹窗以“组织 · 部门名”区分跨组织同名部门。
 - 负责人名单包含停用成员；`manageable=false` 的行只读且不显示负责人备注，写操作以服务端可管理标记及归属快照为准。启用按钮仅在 `can_enable=true` 时出现；停用来源区分“负责人停用”和“管理员或系统停用”。停用部门禁止加入，已有可管理成员仍可编辑、启停用或移出。

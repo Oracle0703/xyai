@@ -643,6 +643,7 @@ export default {
         'admin.organization_usage': { label: '组织用量报表', description: '查看和导出获授权部门的用量。' },
         'admin.department_subscriptions': { label: '部门订阅与额度重置', description: '查询和重置获授权部门成员的额度，不能分配订阅。' },
         'admin.department_members': { label: '部门成员管理', description: '维护获授权部门的普通成员、启停用和负责人备注。' },
+        'admin.organization_manage': { label: '组织负责人', description: '维护本组织部门并任命部门负责人；只能在“组织负责人”配置中授予或撤销。' },
         'admin.token_analysis': {
           label: 'Token 分析',
           description: '查看统计、项目、请求、输入内容和索引状态。'

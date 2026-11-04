@@ -5,7 +5,7 @@ import MyDepartmentView from '../MyDepartmentView.vue'
 import type { Department, DepartmentMember, DepartmentPage, DepartmentScope, ManagedDepartmentMember } from '@/api/admin/departments'
 
 const { api, auth, showSuccess } = vi.hoisted(() => ({
-  api: { managedScope: vi.fn(), managedMembers: vi.fn(), managedCandidates: vi.fn(), managedAssign: vi.fn(), updateManagedMember: vi.fn() },
+  api: { managedScope: vi.fn(), managedMembers: vi.fn(), managedCandidates: vi.fn(), managedAssign: vi.fn(), updateManagedMember: vi.fn(), assign: vi.fn() },
   auth: { isAdmin: false },
   showSuccess: vi.fn()
 }))
@@ -408,5 +408,57 @@ describe('MyDepartmentView', () => {
     expect(wrapper.text()).toContain(member.email)
     expect(api.managedScope).toHaveBeenCalledTimes(1)
     expect(api.managedCandidates).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MyDepartmentView for organization leaders', () => {
+  const leaderScope = (): DepartmentScope => ({ ...scope([department]), organizations: ['xunyou'], full_organizations: ['xunyou'], default_department_id: 'all' })
+  const unassigned: ManagedDepartmentMember = { ...member, id: 30, email: 'free@xunyou.com', department_note: '', department_id: null, department_name: null, department_version: 4 }
+
+  it('lists unassigned members of the organization and confirms them with an explicit null', async () => {
+    api.managedScope.mockResolvedValue(leaderScope())
+    api.managedMembers.mockResolvedValue(asPage([unassigned]))
+    const wrapper = await openPage()
+    const options = wrapper.get('[data-testid="managed-department"]').findAll('option').map(option => option.element.value)
+    expect(options).toEqual(['all', '7', 'unassigned:xunyou'])
+    await wrapper.get('[data-testid="managed-department"]').setValue('unassigned:xunyou')
+    await flushPromises()
+    expect(api.managedMembers).toHaveBeenLastCalledWith(expect.objectContaining({ department_id: 'unassigned', organization: 'xunyou' }), expect.anything())
+    expect(wrapper.find('[data-testid="remove-member-30"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="edit-member-30"]').trigger('click')
+    expect(wrapper.get('[data-testid="managed-note"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="managed-username"]').setValue('renamed')
+    await wrapper.get('#managed-member-editor').trigger('submit')
+    await flushPromises()
+    expect(api.updateManagedMember).toHaveBeenCalledWith(30, { expected_department_id: null, expected_department_version: 4, username: 'renamed' })
+  })
+
+  it('transfers through the department assignment endpoint', async () => {
+    api.managedScope.mockResolvedValue(leaderScope())
+    api.managedMembers.mockResolvedValue(asPage([unassigned]))
+    api.assign.mockResolvedValue({ updated_count: 1 })
+    const wrapper = await openPage()
+    await wrapper.get('[data-testid="transfer-member-30"]').trigger('click')
+    await wrapper.get('[data-testid="transfer-target"]').setValue('7')
+    await wrapper.get('[data-testid="confirm-transfer"]').trigger('click')
+    await flushPromises()
+    expect(api.assign).toHaveBeenCalledWith(7, [{ user_id: 30, expected_department_id: null, expected_department_version: 4 }])
+    expect(api.managedAssign).not.toHaveBeenCalled()
+  })
+
+  it('labels organization leader disables', async () => {
+    api.managedScope.mockResolvedValue(leaderScope())
+    api.managedMembers.mockResolvedValue(asPage([{ ...member, status: 'disabled', disabled_source: 'organization_manager', can_enable: true }]))
+    const wrapper = await openPage()
+    expect(wrapper.text()).toContain('admin.departments.organizationManagerDisabled')
+    expect(wrapper.find('[data-testid="enable-member-10"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="transfer-member-10"]').exists()).toBe(true)
+  })
+
+  it('does not offer transfers or unassigned members to department managers', async () => {
+    const wrapper = await openPage()
+    const options = wrapper.get('[data-testid="managed-department"]').findAll('option').map(option => option.element.value)
+    expect(options).not.toContain('unassigned:xunyou')
+    expect(wrapper.find('[data-testid="transfer-member-10"]').exists()).toBe(false)
   })
 })

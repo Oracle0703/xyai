@@ -760,6 +760,7 @@ export default {
         'admin.organization_usage': { label: 'Organization usage', description: 'View and export usage for authorized departments.' },
         'admin.department_subscriptions': { label: 'Department subscriptions and quota resets', description: 'View and reset quotas for authorized departments, without assigning subscriptions.' },
         'admin.department_members': { label: 'Department member management', description: 'Manage regular members, account status and manager notes in authorized departments.' },
+        'admin.organization_manage': { label: 'Organization leader', description: 'Maintain the organization’s departments and appoint department leaders; granted or revoked only in the organization leader settings.' },
         'admin.token_analysis': {
           label: 'Token analysis',
           description: 'View token statistics, projects, requests, inputs and index status.'

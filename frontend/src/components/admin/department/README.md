@@ -4,7 +4,10 @@
 
 - `DepartmentMembersDialog.vue`：完整管理员按组织搜索成员，预览后批量转入/移出部门；预览提示负责人备注将清空。请求携带旧部门 ID 和版本，单次最多 200 人；冲突清空旧选择并刷新，不覆盖并发转岗。API 分组及订阅不参与人员归属。
 - `DepartmentAccessDialog.vue`：只选择已有子管理员，维护当前部门授权并保留其他部门。报表、部门订阅与成员管理分别配置，适用于全部授权部门；成员管理默认关闭，编辑仅持有成员管理的负责人时不自动增加报表/额度权限，每次保存显式发送 `manage_members`。从全站订阅切换需显式勾选，其他全站权限会展示提示。
-- 部门维护入口为 `views/admin/DepartmentsView.vue`，仅完整管理员可见；持有 `admin.department_members` 的负责人通过 `/admin/my-department` 管理授权部门的普通成员，仍不调用完整管理员成员维护接口。
+- 部门维护入口为 `views/admin/DepartmentsView.vue`，完整管理员与组织负责人（`admin.organization_manage`）可见；组织负责人的组织选项来自 `/admin/organization/scope` 的 `full_organizations`，不显示授权弹窗。部门负责人通过 `/admin/my-department` 管理授权部门的普通成员，仍不调用部门维护接口。
+- `DepartmentMembersDialog.vue` 只勾选 `manageable` 行：完整管理员恒为 true；组织负责人的本人、admin、同级组织负责人和不可托管负责人只读显示，逐行勾选与“选择本页”都跳过。该标记与后端 `assign-members` 的转岗判定是同一查询，后端仍整批拒绝被篡改的请求。
+- `OrganizationLeaderDialog.vue`：组织负责人列出、任命、调整、撤销部门负责人。编辑前读取 `/admin/organization/leaders/:id` 的完整授权与版本，按组织分组显示增删，避免多组织操作者覆盖另一组织的授权；撤销需二次确认。
+- `OrganizationScopeDialog.vue`：完整管理员在用户编辑中配置组织负责人。替换已有部门授权或全站订阅需显式勾选确认，只有提交 `organizations: []` 才撤销。
 - 列表请求有取消和序号保护；保存期间关闭按钮及重复提交禁用。服务端权限、事务、组织一致性与 CAS 校验仍是权威边界。
 
 - 授权的 `expected_version` 与用户编辑 `admin_access_version` 共用后端 CAS；缺失/冲突须刷新，不能旧窗口覆写。`departmentErrors.ts` 优先识别 reason 并兼容字符串 code，分别显示停用、跨组织、重名、版本与全站切换原因。普通 409 不作为报表范围变化。

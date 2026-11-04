@@ -3,6 +3,7 @@
 - 0.2.15：`UserPlatformQuotaModal.vue` 使用 `platformQuotaPlatforms()` 从内置清单构建额度行，包含 Command Code/Cline；`BulkEditUserModal.vue` 通过 `extractApiErrorMessage` 展示后端规范错误。本地角色、权限目录、部门归属和 CAS 合同继续独立保留。
 
 - `UserCreateModal.vue`、`UserEditModal.vue` 从服务端权限目录生成子管理员权限选项；`admin.subscriptions` 与 `admin.department_subscriptions` 互斥选择，后端仍独立验证。
+- 组织负责人（`admin.organization_manage`）只能经 `../department/OrganizationScopeDialog.vue` 配置：新建用户不提供该选项；编辑时该项始终锁定，组织负责人捆绑的报表、部门订阅、成员管理三项也锁定，通用编辑请求改变组织管理码会被后端拒绝。
 - 部门报表、部门订阅与成员管理权限分别授权；仅勾选权限不会自动获得全站或部门数据，需在部门管理页维护负责人部门集合。
 - 用户页部门归属通过 `../department/DepartmentAssignmentDialog.vue` 单独维护，提交显式成员 ID、旧部门和版本；不混入普通用户编辑或已有分组/订阅写入。
 - 部门调整不改变 API Key 分组或多平台订阅；归属实际变化会清空负责人备注。完整管理员负责转岗与订阅分配，具备 `admin.department_members` 的负责人可经专用页面加入同组织未分配普通用户、移出、启停用、改用户名与负责人备注。

@@ -29,6 +29,10 @@ var (
 	ErrDepartmentScopeDenied        = infraerrors.Forbidden("DEPARTMENT_SCOPE_DENIED", "department access denied")
 	ErrDepartmentScopeChanged       = infraerrors.Conflict("REPORT_SCOPE_CHANGED", "department scope changed; refresh and retry")
 	ErrDepartmentMemberEnableDenied = infraerrors.Forbidden("DEPARTMENT_MEMBER_ENABLE_DENIED", "member was disabled by an administrator or the system")
+
+	ErrOrganizationLeaderProtected              = infraerrors.Forbidden("ORGANIZATION_LEADER_PROTECTED", "this leader is maintained by an administrator")
+	ErrOrganizationScopeEndpointRequired        = infraerrors.BadRequest("ORGANIZATION_SCOPE_ENDPOINT_REQUIRED", "organization leader permissions can only be changed through the organization scope")
+	ErrOrganizationDepartmentGrantsConfirmation = infraerrors.BadRequest("ORGANIZATION_DEPARTMENT_GRANTS_CONFIRMATION_REQUIRED", "confirm removal of the existing department grants")
 )
 
 type departmentActorKey struct{}
@@ -107,11 +111,19 @@ type DepartmentList struct {
 	PageSize int          `json:"page_size"`
 }
 
+// DepartmentMemberRow is a row of the department maintenance member list. Manageable
+// is exactly what Assign accepts for this actor, so a batch built from manageable rows
+// is never rejected for its targets.
+type DepartmentMemberRow struct {
+	DepartmentMember
+	Manageable bool `json:"manageable"`
+}
+
 type DepartmentMemberList struct {
-	Items    []DepartmentMember `json:"items"`
-	Total    int64              `json:"total"`
-	Page     int                `json:"page"`
-	PageSize int                `json:"page_size"`
+	Items    []DepartmentMemberRow `json:"items"`
+	Total    int64                 `json:"total"`
+	Page     int                   `json:"page"`
+	PageSize int                   `json:"page_size"`
 }
 
 type ManagedDepartmentMember struct {
@@ -123,8 +135,8 @@ type ManagedDepartmentMember struct {
 	DisabledSource    *string `json:"disabled_source"`
 	CanEnable         bool    `json:"can_enable"`
 	Manageable        bool    `json:"manageable"`
-	DepartmentID      int64   `json:"department_id"`
-	DepartmentName    string  `json:"department_name"`
+	DepartmentID      *int64  `json:"department_id"` // nil for unassigned members (organization leaders only)
+	DepartmentName    *string `json:"department_name"`
 	DepartmentVersion int64   `json:"department_version"`
 }
 
@@ -136,7 +148,11 @@ type ManagedDepartmentMemberList struct {
 }
 
 type ManagedMemberUpdateInput struct {
-	ExpectedDepartmentID      *int64  `json:"expected_department_id"`
+	ExpectedDepartmentID *int64 `json:"expected_department_id"`
+	// ExpectedUnassigned records an explicit JSON null for expected_department_id:
+	// the caller confirms the member is unassigned. An omitted field leaves both
+	// unset and is rejected (design §4.7).
+	ExpectedUnassigned        bool    `json:"-"`
 	ExpectedDepartmentVersion *int64  `json:"expected_department_version"`
 	Username                  *string `json:"username"`
 	DepartmentNote            *string `json:"department_note"`
@@ -166,6 +182,7 @@ type DepartmentAccess struct {
 	Role          string   `json:"-"`
 	UserID        int64    `json:"user_id"`
 	DepartmentIDs []int64  `json:"department_ids"`
+	Organizations []string `json:"organizations"`
 	Permissions   []string `json:"permissions"`
 	Version       string   `json:"version"`
 }
@@ -180,15 +197,20 @@ type DepartmentAccessInput struct {
 }
 
 type DepartmentScope struct {
-	Unrestricted        bool               `json:"unrestricted"`
-	Organizations       []string           `json:"organizations"`
-	Departments         []Department       `json:"departments"`
-	CatalogVersion      string             `json:"catalog_version"`
-	Version             string             `json:"-"`
-	Actor               *User              `json:"-"`
-	DefaultOrganization string             `json:"default_organization"`
-	DefaultDepartment   string             `json:"default_department_id"`
-	Members             []DepartmentMember `json:"-"`
+	Unrestricted  bool     `json:"unrestricted"`
+	Organizations []string `json:"organizations"`
+	// FullOrganizations are reached through an organization grant: every
+	// department plus unassigned members, even before any department exists.
+	FullOrganizations   []string     `json:"full_organizations"`
+	Departments         []Department `json:"departments"`
+	CatalogVersion      string       `json:"catalog_version"`
+	Version             string       `json:"-"`
+	Actor               *User        `json:"-"`
+	DefaultOrganization string       `json:"default_organization"`
+	// DelegablePermissions is only filled by the organization scope endpoint.
+	DelegablePermissions []string           `json:"delegable_permissions,omitempty"`
+	DefaultDepartment    string             `json:"default_department_id"`
+	Members              []DepartmentMember `json:"-"`
 }
 
 type DepartmentScopeQuery struct {
@@ -261,10 +283,10 @@ func (s *DepartmentScope) ValidateSelection(org, department string) error {
 	if s == nil {
 		return ErrDepartmentScopeDenied
 	}
-	if !s.Unrestricted && len(s.Departments) == 0 {
+	if !s.Unrestricted && len(s.Departments) == 0 && len(s.FullOrganizations) == 0 {
 		return ErrDepartmentScopeDenied
 	}
-	if department == "unassigned" && !s.Unrestricted {
+	if department == "unassigned" && !s.Unrestricted && !slices.Contains(s.FullOrganizations, org) {
 		return ErrDepartmentScopeDenied
 	}
 	if org != OrganizationAll && !s.Unrestricted && !slices.Contains(s.Organizations, org) {
@@ -301,6 +323,7 @@ type DepartmentRepository interface {
 	ManagedCandidates(context.Context, int64, string) ([]DepartmentMember, error)
 	ManagedAssign(context.Context, DepartmentAssignInput) (int, error)
 	UpdateManagedMember(context.Context, int64, ManagedMemberUpdateInput) (*ManagedDepartmentMember, bool, error)
+	OrganizationLeaderRepository
 }
 
 type DepartmentService struct {
@@ -408,7 +431,9 @@ func (s *DepartmentService) ManagedScope(ctx context.Context) (*DepartmentScope,
 	if err != nil {
 		return nil, err
 	}
-	if scope == nil || (!scope.Unrestricted && len(scope.Departments) == 0) {
+	// An organization leader manages unassigned members even before the
+	// organization has any department.
+	if scope == nil || (!scope.Unrestricted && len(scope.Departments) == 0 && len(scope.FullOrganizations) == 0) {
 		return nil, ErrDepartmentScopeDenied
 	}
 	return scope, nil
@@ -417,7 +442,9 @@ func (s *DepartmentService) ManagedScope(ctx context.Context) (*DepartmentScope,
 func (s *DepartmentService) ManagedMembers(ctx context.Context, f DepartmentListFilter) (*ManagedDepartmentMemberList, error) {
 	f.DepartmentID = strings.TrimSpace(f.DepartmentID)
 	f.Organization = strings.TrimSpace(f.Organization)
-	if f.DepartmentID == "unassigned" || (f.Status != "" && f.Status != StatusActive && f.Status != StatusDisabled) {
+	// "unassigned" requires an organization and is only granted to organization
+	// leaders; the repository denies department managers.
+	if f.Status != "" && f.Status != StatusActive && f.Status != StatusDisabled {
 		return nil, ErrDepartmentInvalid
 	}
 	// This endpoint selects a department directly; it does not require an organization filter.

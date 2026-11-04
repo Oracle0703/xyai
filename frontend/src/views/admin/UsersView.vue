@@ -613,8 +613,8 @@
               <span class="text-sm text-gray-700 dark:text-gray-300">
                 {{ value === 'active' ? t('common.active') : t('admin.users.disabled') }}
               </span>
-              <span v-if="value === 'disabled' && row.disabled_source === 'department_manager'" class="text-xs text-amber-700 dark:text-amber-300" data-testid="user-manager-disabled">
-                {{ t('admin.departments.managerDisabled') }}
+              <span v-if="value === 'disabled' && (row.disabled_source === 'department_manager' || row.disabled_source === 'organization_manager')" class="text-xs text-amber-700 dark:text-amber-300" data-testid="user-manager-disabled">
+                {{ t(row.disabled_source === 'organization_manager' ? 'admin.departments.organizationManagerDisabled' : 'admin.departments.managerDisabled') }}
               </span>
             </div>
           </template>

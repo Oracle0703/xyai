@@ -1044,6 +1044,9 @@ const subAdminNavItems = computed((): NavItem[] => {
 	if (authStore.hasAdminPermission('admin.organization_usage')) {
 		items.push({ path: '/admin/organization-usage', label: t('nav.organizationUsage'), icon: BuildingOfficeIcon })
 	}
+	if (authStore.hasAdminPermission('admin.organization_manage')) {
+		items.push({ path: '/admin/departments', label: t('admin.departments.title'), icon: BuildingOfficeIcon })
+	}
 	if (authStore.hasAdminPermission('admin.department_members')) {
 		items.push({ path: '/admin/my-department', label: t('admin.departments.myDepartmentTitle'), icon: UsersIcon })
 	}

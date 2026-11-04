@@ -76,6 +76,8 @@
 
 ## 部门功能验证与上线
 
+- 组织负责人专项：先跑 `go test -tags=unit -count=1 ./internal/service -run 'AdminPermission|SubAdminWrite|OrganizationManage'`（`admin_permission_test.go` 带 `unit` 构建标签，默认标签跑不到；新增权限码必须同步目录项数与写白名单）。隔离 PG 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后运行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run 'TestOrganizationLeader|TestDepartment|TestOrganizationUsage|TestUserAdminAccessIntegration|SubscriptionSelfReset' -v`。上线顺序：迁移 262 → 所有实例发布新版本 → 再配置组织负责人；D5 会立即收紧现有部门负责人的额度重置对象，发布前需告知。回退先在新版本上撤销全部组织负责人、等待在途写入结束，再替换应用。
+
 - 成员管理扩展的固定签名、四阶段门禁和交付要求见 `docs/features/department-member-management-implementation-plan-cn.md`；锁定测试基线 `a058b81c6`，只允许管理集成测试去掉 pending 标签。保持 Go 1.27.3、每命令独立 GOTMPDIR、repo 缓存；Ent/Wire 生成后还原工具引入的 module 条目并验证无漂移。
 - 在全新隔离 PostgreSQL 库通过 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 执行 `go test -tags integration -p 1 -count=1 ./internal/repository -run 'TestDepartmentMember|TestDepartmentRepositoryIntegration|TestDepartmentSubscriptionsIntegration|TestOrganizationUsageDepartmentIntegration|TestDepartmentQueryCountIntegration|TestUserAdminAccessIntegration' -v`。`TestDepartmentMember` 包含锁定测试、迁移/审计补测及并发/鉴权补测；不能把无 Docker 时仓储包整体 skip 当通过。
 - `department_member_outbox_integration_test.go` 以隔离 PG、生产 worker/APIKeyService 和 miniredis TCP/PubSub 验证遗漏主动失效后的远端 L1/L2 收敛，保留实际 30 秒二次投递；Claim 仅筛选测试自己的随机 key hash，哨兵断言其他事件不被消费。此替身测试不代表真实 Redis 故障或生产多进程验收。

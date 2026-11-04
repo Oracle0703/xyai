@@ -125,7 +125,8 @@ const loadPermissionCatalog = async () => {
   permissionsLoadFailed.value = false
   try {
     const catalog = await adminAPI.users.getPermissionCatalog()
-    adminPermissionOptions.value = catalog.map((item) => ({
+    // Organization leaders are configured after creation, together with their organizations.
+    adminPermissionOptions.value = catalog.filter((item) => item.code !== 'admin.organization_manage').map((item) => ({
       code: item.code,
       labelKey: `admin.users.permissions[${JSON.stringify(item.code)}].label`,
       descriptionKey: `admin.users.permissions[${JSON.stringify(item.code)}].description`,

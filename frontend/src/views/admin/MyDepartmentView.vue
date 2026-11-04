@@ -25,17 +25,18 @@
       </template>
       <template #table>
         <DataTable :columns="columns" :data="members" :loading="loading || scopeLoading">
-          <template #cell-department_name="{ row }">{{ departmentLabels.get(row.department_id) ?? row.department_name }}</template>
-          <template #cell-department_note="{ row }"><span v-if="row.manageable" class="block max-w-xs whitespace-pre-wrap break-words">{{ row.department_note || '—' }}</span><span v-else>—</span></template>
+          <template #cell-department_name="{ row }">{{ row.department_id === null ? t('admin.departments.unassigned') : departmentLabels.get(row.department_id) ?? row.department_name }}</template>
+          <template #cell-department_note="{ row }"><span v-if="row.manageable && row.department_id !== null" class="block max-w-xs whitespace-pre-wrap break-words">{{ row.department_note || '—' }}</span><span v-else>—</span></template>
           <template #cell-status="{ row }">
-            <span :class="['badge', row.status === 'active' ? 'badge-success' : 'badge-gray']">{{ t(row.status === 'active' ? 'admin.departments.active' : row.disabled_source === 'department_manager' ? 'admin.departments.managerDisabled' : 'admin.departments.otherDisabled') }}</span>
+            <span :class="['badge', row.status === 'active' ? 'badge-success' : 'badge-gray']">{{ t(statusLabelKey(row)) }}</span>
           </template>
           <template #cell-actions="{ row }">
             <div v-if="row.manageable" class="flex flex-wrap gap-2">
               <button class="text-primary-600 hover:underline" :data-testid="`edit-member-${row.id}`" :disabled="saving || loading" @click="openEditor(row)">{{ t('admin.departments.memberManagement.editProfile') }}</button>
               <button v-if="row.status === 'active'" class="text-amber-700 hover:underline dark:text-amber-400" :data-testid="`disable-member-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'disable')">{{ t('admin.departments.memberManagement.disable') }}</button>
               <button v-else-if="row.can_enable" class="text-primary-600 hover:underline" :data-testid="`enable-member-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'enable')">{{ t('admin.departments.memberManagement.enable') }}</button>
-              <button class="text-red-600 hover:underline" :data-testid="`remove-member-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'remove')">{{ t('admin.departments.memberManagement.remove') }}</button>
+              <button v-if="organizationLeader" class="text-primary-600 hover:underline" :data-testid="`transfer-member-${row.id}`" :disabled="saving || loading" @click="openTransfer(row)">{{ t('admin.departments.memberManagement.transfer') }}</button>
+              <button v-if="row.department_id !== null" class="text-red-600 hover:underline" :data-testid="`remove-member-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'remove')">{{ t('admin.departments.memberManagement.remove') }}</button>
             </div>
             <span v-else class="text-gray-500">{{ t('admin.departments.memberManagement.readonly') }}</span>
           </template>
@@ -49,8 +50,8 @@
       <form id="managed-member-editor" class="space-y-4" @submit.prevent="saveProfile">
         <p class="break-all text-sm">{{ editing?.email }}</p>
         <label class="block space-y-1"><span>{{ t('admin.departments.memberManagement.username') }}</span><input v-model="form.username" data-testid="managed-username" class="input" :disabled="saving" /></label>
-        <label class="block space-y-1"><span>{{ t('admin.departments.departmentNote') }}</span><textarea v-model="form.department_note" data-testid="managed-note" class="input" rows="4" :disabled="saving || auth.isAdmin"></textarea></label>
-        <p class="text-sm text-gray-500">{{ t(auth.isAdmin ? 'admin.departments.memberManagement.adminNoteReadonly' : 'admin.departments.memberManagement.noteHint') }}</p>
+        <label class="block space-y-1"><span>{{ t('admin.departments.departmentNote') }}</span><textarea v-model="form.department_note" data-testid="managed-note" class="input" rows="4" :disabled="saving || !noteEditable"></textarea></label>
+        <p class="text-sm text-gray-500">{{ t(auth.isAdmin ? 'admin.departments.memberManagement.adminNoteReadonly' : editing?.department_id === null ? 'admin.departments.memberManagement.unassignedNoteHint' : 'admin.departments.memberManagement.noteHint') }}</p>
         <p v-if="profileError" data-testid="profile-error" role="alert" class="text-sm text-red-600">{{ profileError }}</p>
         <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
       </form>
@@ -82,6 +83,16 @@
       </div>
       <template #footer><button class="btn btn-secondary" :disabled="saving" @click="closeCandidates">{{ t('admin.departments.cancel') }}</button><button class="btn btn-primary" data-testid="add-selected-members" :disabled="saving || candidateLoading || !selectedCandidates.size || !canAdd" @click="addSelected">{{ t('admin.departments.addSelected') }}</button></template>
     </BaseDialog>
+
+    <BaseDialog :show="transferring !== null" :title="t('admin.departments.memberManagement.transferTitle')" :show-close-button="!saving" :close-on-escape="!saving" @close="closeTransfer">
+      <div class="space-y-3">
+        <p class="break-all font-medium">{{ transferring?.email }}</p>
+        <label class="block space-y-1"><span class="text-sm">{{ t('admin.departments.memberManagement.transferTarget') }}</span><Select v-model="transferTarget" data-testid="transfer-target" :options="transferOptions" :searchable="false" :disabled="saving" /></label>
+        <p class="text-sm text-gray-500">{{ t('admin.departments.memberManagement.transferHint') }}</p>
+        <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
+      </div>
+      <template #footer><button class="btn btn-secondary" :disabled="saving" @click="closeTransfer">{{ t('admin.departments.cancel') }}</button><button class="btn btn-primary" data-testid="confirm-transfer" :disabled="saving || transferTarget === currentTransferValue" @click="confirmTransfer">{{ t('admin.departments.memberManagement.confirm') }}</button></template>
+    </BaseDialog>
   </AppLayout>
 </template>
 
@@ -97,7 +108,8 @@ import Pagination from '@/components/common/Pagination.vue'
 import type { Column } from '@/components/common/types'
 import { departmentsAPI, type Department, type DepartmentMember, type DepartmentMemberChange, type ManagedDepartmentMember, type ManagedMemberUpdateInput } from '@/api/admin/departments'
 import { departmentErrorCode, departmentErrorKey, departmentErrorStatus } from '@/utils/departmentErrors'
-import { formatOrganizationUsageOrganization } from '@/utils/organizations'
+import { formatOrganizationUsageOrganization, organizationForEmail } from '@/utils/organizations'
+import type { OrganizationKey } from '@/api/admin/departments'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
@@ -105,6 +117,9 @@ const { t } = useI18n()
 const app = useAppStore()
 const auth = useAuthStore()
 const departments = ref<Department[]>([])
+// Organizations managed through an organization grant: all departments plus unassigned members.
+const fullOrganizations = ref<OrganizationKey[]>([])
+const organizationLeader = computed(() => fullOrganizations.value.length > 0)
 const departmentID = ref('all')
 const status = ref('')
 const query = ref('')
@@ -134,6 +149,26 @@ let candidateController: AbortController | null = null
 let contextVersion = 0
 
 const selectedDepartment = computed(() => departments.value.find(department => String(department.id) === departmentID.value))
+const organizationLabel = (key: OrganizationKey) => formatOrganizationUsageOrganization(key, t('admin.organizationUsage.organizations.other'))
+const transferring = ref<ManagedDepartmentMember | null>(null)
+const transferTarget = ref('')
+const currentTransferValue = computed(() => transferring.value?.department_id == null ? 'unassigned' : String(transferring.value.department_id))
+const transferOptions = computed(() => {
+  const organization = transferring.value ? organizationForEmail(transferring.value.email) : null
+  return [
+    { value: 'unassigned', label: t('admin.departments.unassigned') },
+    ...departments.value
+      .filter(department => department.organization_key === organization && (department.status === 'active' || String(department.id) === currentTransferValue.value))
+      .map(department => ({ value: String(department.id), label: departmentLabels.value.get(department.id)! }))
+  ]
+})
+const noteEditable = computed(() => !auth.isAdmin && editing.value?.department_id !== null)
+function statusLabelKey(member: ManagedDepartmentMember) {
+  if (member.status === 'active') return 'admin.departments.active'
+  if (member.disabled_source === 'department_manager') return 'admin.departments.managerDisabled'
+  if (member.disabled_source === 'organization_manager') return 'admin.departments.organizationManagerDisabled'
+  return 'admin.departments.otherDisabled'
+}
 const canAdd = computed(() => scopeReady.value && selectedDepartment.value?.status === 'active')
 const departmentLabels = computed(() => new Map(departments.value.map(department => [
   department.id,
@@ -141,7 +176,8 @@ const departmentLabels = computed(() => new Map(departments.value.map(department
 ])))
 const departmentOptions = computed(() => [
   { value: 'all', label: t('admin.departments.allDepartments') },
-  ...departments.value.map(department => ({ value: String(department.id), label: departmentLabels.value.get(department.id)! }))
+  ...departments.value.map(department => ({ value: String(department.id), label: departmentLabels.value.get(department.id)! })),
+  ...fullOrganizations.value.map(organization => ({ value: `unassigned:${organization}`, label: t('admin.departments.memberManagement.unassignedOption', { organization: organizationLabel(organization) }) }))
 ])
 const statusOptions = computed(() => [
   { value: '', label: t('admin.departments.allStatuses') },
@@ -168,7 +204,7 @@ const profileError = computed(() => {
   return ''
 })
 const profileChanged = computed(() => editing.value && (
-  form.username.trim() !== editing.value.username || (!auth.isAdmin && form.department_note.trim() !== editing.value.department_note)
+  form.username.trim() !== editing.value.username || (noteEditable.value && form.department_note.trim() !== editing.value.department_note)
 ))
 const actionTitle = computed(() => t(`admin.departments.memberManagement.${pendingAction.value?.kind === 'remove' ? 'confirmRemove' : pendingAction.value?.kind === 'enable' ? 'confirmEnable' : 'confirmDisable'}`))
 const actionHint = computed(() => t(`admin.departments.memberManagement.${pendingAction.value?.kind === 'remove' ? 'removeHint' : pendingAction.value?.kind === 'enable' ? 'enableHint' : 'disableHint'}`))
@@ -197,6 +233,7 @@ function clearProtectedState() {
   saving.value = false
   editing.value = null
   pendingAction.value = null
+  transferring.value = null
   candidateOpen.value = false
   candidateQuery.value = ''
 }
@@ -208,6 +245,7 @@ async function loadScope(message = '') {
   const signal = scopeController.signal
   clearProtectedState()
   departments.value = []
+  fullOrganizations.value = []
   scopeReady.value = false
   noScope.value = false
   scopeLoading.value = true
@@ -217,9 +255,10 @@ async function loadScope(message = '') {
     const scope = await departmentsAPI.managedScope(signal)
     if (signal.aborted) return
     departments.value = scope.departments
-    if (!scope.departments.length) { noScope.value = true; return }
-    departmentID.value = scope.departments.length === 1 ? String(scope.departments[0]!.id)
-      : scope.departments.some(department => String(department.id) === preferredDepartment) ? preferredDepartment
+    fullOrganizations.value = scope.full_organizations ?? []
+    if (!scope.departments.length && !fullOrganizations.value.length) { noScope.value = true; return }
+    departmentID.value = scope.departments.length === 1 && !fullOrganizations.value.length ? String(scope.departments[0]!.id)
+      : preferredDepartment !== 'all' && departmentOptions.value.some(option => option.value === preferredDepartment) ? preferredDepartment
         : scope.departments.some(department => String(department.id) === scope.default_department_id) ? scope.default_department_id : 'all'
     scopeReady.value = true
     scopeLoading.value = false
@@ -241,7 +280,10 @@ async function loadMembers(allowScopeRefresh = true) {
   members.value = []
   total.value = 0
   try {
-    const result = await departmentsAPI.managedMembers({ department_id: departmentID.value, status: status.value, q: appliedQuery.value, page: page.value, page_size: pageSize }, signal)
+    const unassigned = departmentID.value.startsWith('unassigned:') ? departmentID.value.slice('unassigned:'.length) as OrganizationKey : null
+    const result = await departmentsAPI.managedMembers(unassigned
+      ? { department_id: 'unassigned', organization: unassigned, status: status.value, q: appliedQuery.value, page: page.value, page_size: pageSize }
+      : { department_id: departmentID.value, status: status.value, q: appliedQuery.value, page: page.value, page_size: pageSize }, signal)
     if (signal.aborted) return
     members.value = result.items
     total.value = result.total
@@ -336,7 +378,7 @@ async function saveProfile() {
   if (!editing.value || saving.value || profileError.value || !profileChanged.value) return
   const fields: Pick<ManagedMemberUpdateInput, 'username' | 'department_note'> = {}
   if (form.username.trim() !== editing.value.username) fields.username = form.username.trim()
-  if (!auth.isAdmin && form.department_note.trim() !== editing.value.department_note) fields.department_note = form.department_note.trim()
+  if (noteEditable.value && form.department_note.trim() !== editing.value.department_note) fields.department_note = form.department_note.trim()
   await updateMember(editing.value, fields)
 }
 
@@ -346,15 +388,18 @@ function openAction(member: ManagedDepartmentMember, kind: 'disable' | 'enable' 
   error.value = ''
 }
 
-async function assignMembers(target: number | null, changes: DepartmentMemberChange[]) {
+// Organization leaders transfer through the department assignment endpoint (D3);
+// the manager endpoint only joins from unassigned or removes.
+async function assignMembers(target: number | null, changes: DepartmentMemberChange[], transfer = false) {
   if (saving.value || !changes.length) return
   saving.value = true
   error.value = ''
   const version = contextVersion
   try {
-    const result = await departmentsAPI.managedAssign(target, changes)
+    const result = transfer ? await departmentsAPI.assign(target, changes) : await departmentsAPI.managedAssign(target, changes)
     if (version !== contextVersion) return
     pendingAction.value = null
+    transferring.value = null
     candidateOpen.value = false
     clearCandidateResults()
     app.showSuccess(t('admin.departments.moved', { count: result.updated_count }))
@@ -370,6 +415,21 @@ async function confirmAction() {
   if (action.kind === 'remove') {
     await assignMembers(null, [{ user_id: action.member.id, expected_department_id: action.member.department_id, expected_department_version: action.member.department_version }])
   } else await updateMember(action.member, { status: action.kind === 'enable' ? 'active' : 'disabled' })
+}
+
+function openTransfer(member: ManagedDepartmentMember) {
+  if (saving.value || !member.manageable || !organizationLeader.value) return
+  transferring.value = { ...member }
+  transferTarget.value = currentTransferValue.value
+  error.value = ''
+}
+function closeTransfer() { if (!saving.value) transferring.value = null }
+async function confirmTransfer() {
+  const member = transferring.value
+  if (!member || saving.value || transferTarget.value === currentTransferValue.value) return
+  await assignMembers(transferTarget.value === 'unassigned' ? null : Number(transferTarget.value), [
+    { user_id: member.id, expected_department_id: member.department_id, expected_department_version: member.department_version }
+  ], true)
 }
 
 function openCandidates() {

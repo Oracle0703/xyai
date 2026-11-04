@@ -59,6 +59,7 @@
             type="checkbox"
             :value="permission.code"
             :data-admin-permission="permission.code"
+            :disabled="permissionLocked(permission.code)"
             @change="enforceSubscriptionPermissionChoice(permission.code)"
             class="mt-1"
           />
@@ -67,6 +68,10 @@
             <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t(permission.descriptionKey) }}</span>
           </span>
         </label>
+        <div v-if="details.role === 'sub_admin'" class="flex items-center justify-between gap-3 rounded border border-gray-200 p-3 text-sm dark:border-dark-600">
+          <span>{{ t('admin.departments.organizationScope.title') }}</span>
+          <button type="button" class="btn btn-secondary btn-sm" data-testid="open-organization-scope" :disabled="submitting" @click="organizationScopeOpen = true">{{ t('admin.departments.organizationScope.configure') }}</button>
+        </div>
       </fieldset>
       <div>
         <label class="input-label">{{ t('admin.users.notes') }}</label>
@@ -109,6 +114,7 @@
     </template>
   </BaseDialog>
 
+  <OrganizationScopeDialog :show="organizationScopeOpen" :user-id="details?.id ?? null" @close="organizationScopeOpen = false" @saved="loadDetails" />
   <!-- 角色提升为管理员时后端要求 step-up 2FA，弹出 TOTP 验证后自动重试 -->
   <TotpStepUpDialog :controller="stepUp" />
 </template>
@@ -127,6 +133,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { departmentErrorCode, departmentErrorKey } from '@/utils/departmentErrors'
+import OrganizationScopeDialog from '@/components/admin/department/OrganizationScopeDialog.vue'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
@@ -168,6 +175,14 @@ const roleOptions = computed(() => [
   { value: 'sub_admin', label: t('admin.users.roles.sub_admin') },
   { value: 'admin', label: t('admin.users.roles.admin') }
 ])
+const organizationScopeOpen = ref(false)
+const organizationLeaderBundle: AdminPermission[] = ['admin.organization_usage', 'admin.department_subscriptions', 'admin.department_members']
+// Organization management and its bundled capabilities are written only by the
+// organization leader settings; the generic edit would be rejected by the server.
+function permissionLocked(permission: AdminPermission) {
+  if (permission === 'admin.organization_manage') return true
+  return organizationLeaderBundle.includes(permission) && !!details.value?.admin_permissions?.includes('admin.organization_manage')
+}
 function enforceSubscriptionPermissionChoice(permission: AdminPermission) {
   if (!form.admin_permissions.includes(permission)) return
   const opposite = permission === 'admin.subscriptions' ? 'admin.department_subscriptions' : permission === 'admin.department_subscriptions' ? 'admin.subscriptions' : null

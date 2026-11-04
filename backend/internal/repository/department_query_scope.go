@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,7 +31,7 @@ func departmentMemberPredicates(actor *service.User, activeOnly bool, f service.
 		p.clauses = append(p.clauses, "u.status='active'")
 	}
 	if actor.Role != service.RoleAdmin {
-		p.add("EXISTS(SELECT 1 FROM department_access_grants dg WHERE dg.user_id=$%d AND dg.department_id=d.id)", actor.ID)
+		p.clauses = append(p.clauses, departmentMemberScope(actor, &p.args))
 	}
 	if f.Organization != "" && f.Organization != "all" {
 		p.add(organizationUsageOrganizationExpression("u")+"=$%d", f.Organization)
@@ -58,15 +59,32 @@ func departmentMemberFrom() string {
 
 const managedDepartmentMemberColumns = `u.id,u.email,u.username,CASE WHEN u.role='user' THEN u.department_note ELSE '' END,u.status,u.disabled_source,u.role='user',d.id,d.name,u.department_version`
 
-func scanManagedDepartmentMember(row interface{ Scan(...any) error }) (*service.ManagedDepartmentMember, error) {
+func scanManagedDepartmentMember(row interface{ Scan(...any) error }, actor *service.User) (*service.ManagedDepartmentMember, error) {
 	var member service.ManagedDepartmentMember
 	err := row.Scan(&member.ID, &member.Email, &member.Username, &member.DepartmentNote, &member.Status,
 		&member.DisabledSource, &member.Manageable, &member.DepartmentID, &member.DepartmentName, &member.DepartmentVersion)
 	if err != nil {
 		return nil, err
 	}
-	member.CanEnable = member.Manageable && member.Status == service.StatusDisabled && member.DisabledSource != nil && *member.DisabledSource == "department_manager"
+	member.CanEnable = member.Manageable && member.Status == service.StatusDisabled && member.DisabledSource != nil &&
+		slices.Contains(enableableDisabledSources(actor), *member.DisabledSource)
 	return &member, nil
+}
+
+// Disable sources are ranked department_manager < organization_manager < other;
+// an actor may only lift a disable at or below its own rank (design §4.4).
+func enableableDisabledSources(actor *service.User) []string {
+	if actor.Role == service.RoleAdmin || departmentActorIsOrganizationLeader(actor) {
+		return []string{"department_manager", "organization_manager"}
+	}
+	return []string{"department_manager"}
+}
+
+func managerDisabledSource(actor *service.User) string {
+	if departmentActorIsOrganizationLeader(actor) {
+		return "organization_manager"
+	}
+	return "department_manager"
 }
 
 func (r *departmentRepository) ManagedMembers(ctx context.Context, f service.DepartmentListFilter) (*service.ManagedDepartmentMemberList, error) {
@@ -84,7 +102,13 @@ func (r *departmentRepository) ManagedMembers(ctx context.Context, f service.Dep
 		return nil, err
 	}
 	org := f.Organization
-	if f.DepartmentID != "all" {
+	if f.DepartmentID == "unassigned" {
+		// Department managers never manage unassigned members (design §4.7);
+		// ValidateSelection limits organization leaders to their organizations.
+		if !departmentActorIsOrganizationLeader(actor) {
+			return nil, service.ErrDepartmentInvalid
+		}
+	} else if f.DepartmentID != "all" {
 		found := false
 		for _, department := range scope.Departments {
 			if strconv.FormatInt(department.ID, 10) == f.DepartmentID {
@@ -105,7 +129,9 @@ func (r *departmentRepository) ManagedMembers(ctx context.Context, f service.Dep
 	search := f.Q
 	f.Q = ""
 	p := departmentMemberPredicates(actor, false, f)
-	p.clauses = append(p.clauses, "d.id IS NOT NULL")
+	if !departmentActorIsOrganizationLeader(actor) {
+		p.clauses = append(p.clauses, "d.id IS NOT NULL")
+	}
 	if search != "" {
 		p.add(`(u.email ILIKE $%[1]d ESCAPE E'\\' OR u.username ILIKE $%[1]d ESCAPE E'\\')`, organizationUsageSearchPattern(search))
 	}
@@ -120,7 +146,7 @@ func (r *departmentRepository) ManagedMembers(ctx context.Context, f service.Dep
 		return nil, err
 	}
 	for rows.Next() {
-		member, scanErr := scanManagedDepartmentMember(rows)
+		member, scanErr := scanManagedDepartmentMember(rows, actor)
 		if scanErr != nil {
 			_ = rows.Close()
 			return nil, scanErr
@@ -146,9 +172,9 @@ func (r *departmentRepository) ManagedCandidates(ctx context.Context, department
 		return nil, err
 	}
 	var organization, status string
+	args := []any{departmentID}
 	err = tx.QueryRowContext(ctx, `SELECT d.organization_key,d.status FROM departments d WHERE d.id=$1
-AND ($2 OR EXISTS(SELECT 1 FROM department_access_grants dg WHERE dg.user_id=$3 AND dg.department_id=d.id))`,
-		departmentID, actor.Role == service.RoleAdmin, actor.ID).Scan(&organization, &status)
+AND `+departmentRowScope(actor, "d", &args), args...).Scan(&organization, &status)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrDepartmentScopeDenied
 	}
@@ -183,8 +209,13 @@ AND ($2 OR EXISTS(SELECT 1 FROM department_access_grants dg WHERE dg.user_id=$3 
 	return result, tx.Commit()
 }
 
-func querySelectedDepartmentMembers(ctx context.Context, q sqlExecutor, actor *service.User, activeOnly bool, f service.DepartmentListFilter) ([]service.DepartmentMember, error) {
+// subscriptionTargets narrows a scoped actor's members to those whose
+// subscriptions the actor may read and reset (design §4.5).
+func querySelectedDepartmentMembers(ctx context.Context, q sqlExecutor, actor *service.User, activeOnly, subscriptionTargets bool, f service.DepartmentListFilter) ([]service.DepartmentMember, error) {
 	p := departmentMemberPredicates(actor, activeOnly, f)
+	if subscriptionTargets {
+		p.clauses = append(p.clauses, departmentSubscriptionTargets(actor, &p.args))
+	}
 	statement := `SELECT ` + departmentMemberColumns + organizationUsageOrganizationExpression("u") + `,d.id,COALESCE(d.name,''),u.department_version` + departmentMemberFrom() + ` WHERE ` + p.where() + ` ORDER BY u.id`
 	if f.PageSize > 0 {
 		p.args = append(p.args, f.PageSize, max(0, f.Page-1)*f.PageSize)
@@ -249,7 +280,8 @@ func departmentQueryScopeForActor(ctx context.Context, q sqlExecutor, actor *ser
 	if selection.UserID != nil {
 		f.UserIDs = []int64{*selection.UserID}
 	}
-	scope.Members, err = querySelectedDepartmentMembers(ctx, q, &queryActor, true, f)
+	subscriptionTargets := permission == service.AdminPermissionDepartmentSubscriptions && !unrestricted
+	scope.Members, err = querySelectedDepartmentMembers(ctx, q, &queryActor, true, subscriptionTargets, f)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +320,11 @@ func departmentQueryScopeForActor(ctx context.Context, q sqlExecutor, actor *ser
 	if platform == "" {
 		platform = "all"
 	}
-	scope.Version = service.HashDepartmentScope([]any{actor.ID, actor.Role, permission, unrestricted, org, dept, strings.ToLower(strings.TrimSpace(selection.Q)), platform, selection.UserID, selection.GroupID, selection.Status, departments, members})
+	versionInput := []any{actor.ID, actor.Role, permission, unrestricted, org, dept, strings.ToLower(strings.TrimSpace(selection.Q)), platform, selection.UserID, selection.GroupID, selection.Status, departments, members}
+	if len(scope.FullOrganizations) > 0 {
+		versionInput = append(versionInput, scope.FullOrganizations)
+	}
+	scope.Version = service.HashDepartmentScope(versionInput)
 	if selection.ExpectedVersion != "" && scope.Version != selection.ExpectedVersion {
 		return nil, service.ErrDepartmentScopeChanged
 	}

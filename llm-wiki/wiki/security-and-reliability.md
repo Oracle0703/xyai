@@ -187,9 +187,9 @@ Passkey / WebAuthn:
 
 管理端角色与细粒度权限:
 
-- `AdminAuth` 支持 `admin` 和 `sub_admin`; 完整管理员与 Admin API Key 绕过细粒度检查。
+- `AdminAuth` 支持 `admin` 和 `sub_admin`；完整管理员与传统全权 Admin API Key 绕过 JWT 子管理员细粒度检查。受限管理密钥走 `authenticateScopedAdminRequest` 与 `internal/pkg/adminaccess/catalog.go` 的独立方法/路径白名单，新接口默认拒绝；不能因审计主体为 admin 就视为全权。
 - 子管理员权限以数据库最新用户为准, 不信任 JWT 内旧角色或前端菜单状态。检查键是 HTTP 方法 + Gin 路由模板, 白名单外默认拒绝并返回 `ADMIN_PERMISSION_DENIED`。
-- 权限目录和白名单在 `backend/internal/service/admin_permission.go`；包含原订阅管理、使用记录、Token 分析，以及三个部门权限 `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members`。部门订阅权限与全站 `admin.subscriptions` 互斥，切换须显式确认，其他管理权限不自动追加。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。
+- 权限目录和白名单在 `backend/internal/service/admin_permission.go`；包含原订阅管理、使用记录、Token 分析，以及三个部门权限 `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members`。部门订阅权限与全站 `admin.subscriptions` 互斥，切换须显式确认，其他管理权限不自动追加。新增权限时必须同步后端 catalog/白名单、前端路由 meta/侧边栏/i18n 和允许/拒绝测试。组织负责人 `admin.organization_manage` 捆绑三项部门权限，只能经管理员的 `organization-scope` 配置，可访问 `/admin/departments*` 与 `/admin/organization/*`（规则见 `docs/features/organization-leader-design-cn.md`）；新增权限还须同步 `admin_permission_test.go`（unit 标签）的目录项数与写白名单。
 - `admin.subscriptions` 子管理员允许 `POST /api/v1/admin/subscriptions/assign`、`bulk-assign`、`:id/reset-quota` 和 `reset-daily-filtered`；`admin.department_subscriptions` 负责人只允许后两个重置，且须通过仓储范围检查。使用记录清理、Token 立即索引、订阅延期/撤销/恢复/删除及 `bulk-action` 继续拒绝；成员管理需另授 `admin.department_members`，仅放行专用五路由，不能访问完整 `/admin/users`、`/admin/departments`。无 `admin.subscriptions` 的子管理员不能分配或读取 `assignable-groups`。
 - GPT 账号额度展示的 4 个 `/api/v1/admin/gpt-quota` 路由只给完整管理员，不进 `subAdminCommonRouteRules` 或任何权限白名单（`gpt_quota_display_test.go` 有拒绝测试）。用户侧 `/api/v1/gpt-quota` 只返回卡片白名单（不含账号 ID、原名、邮箱、尝试状态）。读取路径不得触发上游；主动采集只用 `QueryUsageReadOnly`，不得写 `accounts.extra`、调度键或触发 reset-credit/自动用卡，token 预检避免走到 `disableAccountMissingRefreshToken`。管理员豁免面板限流，刷新防重依赖 60 秒冷却 + singleflight，不依赖限流。详见 [[gpt-account-quota-display-design]]。
 - 依赖筛选数据必须使用 compact DTO。子管理员不得为筛选方便访问 `/admin/groups/all`、`/admin/proxies/all`（含代理密码）等完整管理接口；`/admin/accounts` 只对 `admin.accounts_operator` 开放。

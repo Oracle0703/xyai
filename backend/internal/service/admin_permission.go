@@ -14,6 +14,7 @@ const (
 	AdminPermissionOrganizationUsage       = "admin.organization_usage"
 	AdminPermissionDepartmentSubscriptions = "admin.department_subscriptions"
 	AdminPermissionDepartmentMembers       = "admin.department_members"
+	AdminPermissionOrganizationManage      = "admin.organization_manage"
 	AdminPermissionAccountsOperator        = "admin.accounts_operator"
 )
 
@@ -35,10 +36,24 @@ var adminPermissionCatalog = []AdminPermissionCatalogItem{
 	{Code: AdminPermissionOrganizationUsage, MenuKey: "organization_usage", Route: "/admin/organization-usage"},
 	{Code: AdminPermissionDepartmentSubscriptions, MenuKey: "department_subscriptions", Route: "/admin/subscriptions"},
 	{Code: AdminPermissionDepartmentMembers, MenuKey: "department_members", Route: "/admin/my-department"},
+	{Code: AdminPermissionOrganizationManage, MenuKey: "organization_manage", Route: "/admin/departments"},
 	{Code: AdminPermissionAccountsOperator, MenuKey: "accounts", Route: "/admin/accounts"},
 }
 
 var adminPermissionRouteRules = map[string][]adminRouteRule{
+	AdminPermissionOrganizationManage: {
+		{"GET", "/api/v1/admin/organization/scope"},
+		{"GET", "/api/v1/admin/departments"},
+		{"POST", "/api/v1/admin/departments"},
+		{"PUT", "/api/v1/admin/departments/:id"},
+		{"GET", "/api/v1/admin/departments/members"},
+		{"GET", "/api/v1/admin/departments/:id/members"},
+		{"POST", "/api/v1/admin/departments/assign-members"},
+		{"GET", "/api/v1/admin/organization/leaders"},
+		{"GET", "/api/v1/admin/organization/leaders/:id"},
+		{"GET", "/api/v1/admin/organization/leader-candidates"},
+		{"PUT", "/api/v1/admin/organization/leaders/:id"},
+	},
 	AdminPermissionDepartmentMembers: {
 		{"GET", "/api/v1/admin/department-members/scope"},
 		{"GET", "/api/v1/admin/department-members"},
@@ -164,6 +179,14 @@ var subAdminCommonRouteRules = []adminRouteRule{
 	{"POST", "/api/v1/admin/compliance/accept"},
 }
 
+// OrganizationLeaderDepartmentPermissions are bundled with organization management
+// and are the only capabilities an organization leader may delegate.
+var OrganizationLeaderDepartmentPermissions = []string{
+	AdminPermissionOrganizationUsage,
+	AdminPermissionDepartmentSubscriptions,
+	AdminPermissionDepartmentMembers,
+}
+
 func AdminPermissionCatalog() []AdminPermissionCatalogItem {
 	return append([]AdminPermissionCatalogItem(nil), adminPermissionCatalog...)
 }
@@ -200,6 +223,15 @@ func NormalizeAdminPermissions(role string, permissions []string) ([]string, err
 	_, departmentSubscriptions := requested[AdminPermissionDepartmentSubscriptions]
 	if globalSubscriptions && departmentSubscriptions {
 		return nil, infraerrors.BadRequest("CONFLICTING_ADMIN_PERMISSIONS", "global and department subscription permissions are mutually exclusive")
+	}
+	// Organization management always carries the three department capabilities;
+	// the capabilities alone never imply an organization leader.
+	if _, ok := requested[AdminPermissionOrganizationManage]; ok {
+		for _, code := range OrganizationLeaderDepartmentPermissions {
+			if _, held := requested[code]; !held {
+				return nil, ErrOrganizationScopeEndpointRequired
+			}
+		}
 	}
 
 	normalized := make([]string, 0, len(requested))

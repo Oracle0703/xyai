@@ -2,6 +2,8 @@ import { apiClient } from '../client'
 import type { AdminPermission } from '@/types'
 
 export type OrganizationKey = 'xunyou' | 'wsdashi' | 'other'
+// Organizations that may have an organization leader (never "other").
+export const ORGANIZATION_LEADER_ORGANIZATIONS = ['xunyou', 'wsdashi'] as const
 export type DepartmentOrganizationFilter = OrganizationKey | 'all'
 
 export interface Department {
@@ -27,6 +29,12 @@ export interface DepartmentMember {
   department_version: number
 }
 
+// A /admin/departments/members row; manageable mirrors what assign-members accepts
+// for the caller (always true for administrators).
+export interface DepartmentMemberRow extends DepartmentMember {
+  manageable: boolean
+}
+
 export interface DepartmentPage<T> {
   items: T[]
   total: number
@@ -41,11 +49,15 @@ export interface DepartmentScope {
   catalog_version: string
   default_organization: DepartmentOrganizationFilter
   default_department_id: string
+  // Organizations reached through an organization grant: every department plus unassigned members.
+  full_organizations?: OrganizationKey[]
+  delegable_permissions?: AdminPermission[]
 }
 
 export interface DepartmentAccess {
   user_id: number
   department_ids: number[]
+  organizations: OrganizationKey[]
   permissions: AdminPermission[]
   version: string
 }
@@ -80,16 +92,18 @@ export interface ManagedDepartmentMember {
   username: string
   department_note: string
   status: 'active' | 'disabled'
-  disabled_source: 'department_manager' | 'other' | null
+  disabled_source: 'department_manager' | 'organization_manager' | 'other' | null
   can_enable: boolean
   manageable: boolean
-  department_id: number
-  department_name: string
+  // null for unassigned members, which only organization leaders see
+  department_id: number | null
+  department_name: string | null
   department_version: number
 }
 
 export interface ManagedMemberUpdateInput {
-  expected_department_id: number
+  // Always sent: null confirms the member is unassigned, omitting it is rejected.
+  expected_department_id: number | null
   expected_department_version: number
   username?: string
   department_note?: string
@@ -102,6 +116,52 @@ export interface DepartmentAccessInput {
   reset_quota: boolean
   manage_members?: boolean
   replace_global_subscriptions: boolean
+  expected_version: string
+}
+
+export interface OrganizationAccessInput {
+  // [] revokes; the field must always be an explicit array.
+  organizations: OrganizationKey[]
+  expected_version: string
+  replace_global_subscriptions: boolean
+  replace_department_grants: boolean
+}
+
+export interface OrganizationLeaderDepartment {
+  id: number
+  organization_key: OrganizationKey
+  name: string
+  status: Department['status']
+}
+
+export interface OrganizationLeader {
+  id: number
+  email: string
+  username: string
+  status: string
+  organization: OrganizationKey
+  departments: OrganizationLeaderDepartment[]
+  permissions: AdminPermission[]
+  managed: boolean
+  version?: string
+}
+
+export interface OrganizationLeaderCandidate {
+  id: number
+  email: string
+  username: string
+  organization: OrganizationKey
+  department_id: number | null
+  department_name: string | null
+  version: string
+}
+
+// The final grant set; empty departments with every capability off revokes the leader.
+export interface OrganizationLeaderInput {
+  department_ids: number[]
+  report: boolean
+  reset_quota: boolean
+  manage_members: boolean
   expected_version: string
 }
 
@@ -130,7 +190,7 @@ export const departmentsAPI = {
       : (await apiClient.put<Department>(`/admin/departments/${id}`, input)).data
   },
   async members(params: DepartmentListQuery, signal?: AbortSignal) {
-    return (await apiClient.get<DepartmentPage<DepartmentMember>>('/admin/departments/members', { params, signal })).data
+    return (await apiClient.get<DepartmentPage<DepartmentMemberRow>>('/admin/departments/members', { params, signal })).data
   },
   async assign(department_id: number | null, members: DepartmentMemberChange[]) {
     return (await apiClient.post<{ updated_count: number }>('/admin/departments/assign-members', { department_id, members })).data
@@ -140,6 +200,27 @@ export const departmentsAPI = {
   },
   async setAccess(userID: number, input: DepartmentAccessInput) {
     return (await apiClient.put<DepartmentAccess>(`/admin/users/${userID}/department-scope`, input)).data
+  },
+  async getOrganizationAccess(userID: number, signal?: AbortSignal) {
+    return (await apiClient.get<DepartmentAccess>(`/admin/users/${userID}/organization-scope`, { signal })).data
+  },
+  async setOrganizationAccess(userID: number, input: OrganizationAccessInput) {
+    return (await apiClient.put<DepartmentAccess>(`/admin/users/${userID}/organization-scope`, input)).data
+  },
+  async organizationScope(signal?: AbortSignal) {
+    return (await apiClient.get<DepartmentScope>('/admin/organization/scope', { signal })).data
+  },
+  async organizationLeaders(params: DepartmentListQuery, signal?: AbortSignal) {
+    return (await apiClient.get<DepartmentPage<OrganizationLeader>>('/admin/organization/leaders', { params, signal })).data
+  },
+  async organizationLeader(userID: number, signal?: AbortSignal) {
+    return (await apiClient.get<OrganizationLeader>(`/admin/organization/leaders/${userID}`, { signal })).data
+  },
+  async organizationLeaderCandidates(organization: DepartmentOrganizationFilter, q: string, signal?: AbortSignal) {
+    return (await apiClient.get<OrganizationLeaderCandidate[]>('/admin/organization/leader-candidates', { params: { organization, q }, signal })).data
+  },
+  async updateOrganizationLeader(userID: number, input: OrganizationLeaderInput) {
+    return (await apiClient.put<DepartmentAccess>(`/admin/organization/leaders/${userID}`, input)).data
   },
   async reportScope(signal?: AbortSignal) {
     return (await apiClient.get<DepartmentScope>('/admin/usage/organization-report/scope', { signal })).data

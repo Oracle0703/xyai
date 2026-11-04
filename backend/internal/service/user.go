@@ -20,6 +20,9 @@ type User struct {
 	Role               string
 	AdminPermissions   []string
 	AdminAccessVersion string // Admin detail only, excluded from public/shallow DTOs.
+	// OrganizationGrants is loaded only for department actors by the department
+	// repositories; it is never part of a DTO.
+	OrganizationGrants []string
 	DepartmentID       *int64
 	DepartmentVersion  int64
 	DepartmentNote     string

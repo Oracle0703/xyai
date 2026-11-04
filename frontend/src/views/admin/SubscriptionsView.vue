@@ -900,7 +900,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { departmentsAPI, type DepartmentScope } from '@/api/admin/departments'
+import { departmentsAPI, type DepartmentScope, type OrganizationKey } from '@/api/admin/departments'
 import { formatOrganizationUsageOrganization } from '@/utils/organizations'
 import { departmentErrorKey, departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
 import { adminAPI } from '@/api/admin'
@@ -1234,7 +1234,7 @@ const organizationFilterOptions = computed(() => [
 const departmentFilterOptions = computed(() => [
   { value: '', label: t('admin.departments.allDepartments') },
   ...(departmentScope.value?.departments ?? []).filter(department => department.organization_key === filters.organization).map(department => ({ value: String(department.id), label: department.name })),
-  ...(departmentScope.value?.unrestricted && filters.organization ? [{ value: 'unassigned', label: t('admin.departments.unassigned') }] : [])
+  ...((departmentScope.value?.unrestricted || departmentScope.value?.full_organizations?.includes(filters.organization as OrganizationKey)) && filters.organization ? [{ value: 'unassigned', label: t('admin.departments.unassigned') }] : [])
 ])
 function changeSubscriptionOrganization() {
   filters.department_id = ''
@@ -1305,7 +1305,7 @@ const loadSubscriptions = async () => {
         }
         departmentScopeInitialized = true
       }
-      if (!currentScope.unrestricted && !currentScope.departments.length) {
+      if (!currentScope.unrestricted && !currentScope.departments.length && !currentScope.full_organizations?.length) {
         departmentScopeError.value = t('admin.departments.noDepartmentScope')
         departmentScopeInitialized = false
         ++groupRequestSequence

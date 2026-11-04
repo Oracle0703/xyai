@@ -69,6 +69,8 @@
 
 ## 部门管理与用量范围
 
+- 组织负责人（设计 `docs/features/organization-leader-design-cn.md`）：`admin.organization_manage` + `organization_access_grants`（migration 262，仅 xunyou/wsdashi）。所有部门类范围 SQL 必须经 `repository/department_scope_sql.go` 生成，按操作者类型二选一（组织授权或部门授权），不取并集；`loadDepartmentActor` 对“有组织授权但缺组织管理码”或“组织授权与部门授权并存”直接拒绝。组织授权与组织管理码只能由 `organization-scope` 写入，通用编辑、新建用户、`department-scope` 均拒绝；角色离开 sub_admin 和软删除经 `clearUserDepartmentGrants` 一并清除。订阅对象谓词排除本人、admin 和不可托管的 sub_admin（对部门负责人同样生效）。`/admin/departments/members` 每行的 `manageable` 与 `Assign` 校验共用 `organizationTransferTargets`，新增转岗限制时只改这一处，不要在列表侧另写判断。
+
 - 成员管理扩展：`admin.department_members` 独立于报表/订阅权限，仍使用同一 grants。`department.go` 的 `/admin/department-members` 提供 scope、列表、candidates、POST assign、PUT `/:id` 五个接口；完整管理员接口不加入子管理员白名单。`ManagedScope` 无 grants 返回 403，不能复用旧空目录作为全站回退。
 - `department_query_scope.go` 的成员列表和候选查询在只读 repeatable-read 事务内检查权限并分页：成员保留 disabled 和只读特权角色；候选先鉴权 active 目标部门，再查同组织未分配普通用户，邮箱/用户名转义模糊匹配且 SQL LIMIT 20。只读行的 `department_note` 为空，始终不输出管理员 notes。
 - `ManagedAssign`/`UpdateManagedMember` 复用用户升序锁、当前授权重读和 `departmentAudit`；整批先鉴权再 CAS，真正写入与审计原子提交。重复加入同一授权部门可无变化成功，移出后重试 403；PUT 用 `expected_department_id`/`expected_department_version` 防归属往返。用户名 trim 后最多 100 UTF-8 字节，备注最多 1000 Unicode 字符；未知字段（含 notes/source）由严格 JSON 拒绝。完整管理员/Admin API Key 不能写负责人备注。

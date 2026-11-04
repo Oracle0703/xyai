@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -236,7 +237,8 @@ func (r *organizationUsageRepository) breakdowns(ctx context.Context, p service.
 			departments[key] = &service.OrganizationUsageDepartment{DepartmentID: &id, DepartmentName: d.Name, Organization: d.Organization}
 			order = append(order, key)
 		}
-		if r.scope.Unrestricted && (applied.DepartmentID == "all" || applied.DepartmentID == "unassigned") {
+		// Organization leaders see their organization's unassigned bucket too.
+		if (r.scope.Unrestricted || slices.Contains(r.scope.FullOrganizations, applied.Organization)) && (applied.DepartmentID == "all" || applied.DepartmentID == "unassigned") {
 			key := departmentBucketKey(applied.Organization, nil)
 			departments[key] = &service.OrganizationUsageDepartment{DepartmentName: "", Organization: applied.Organization}
 			order = append(order, key)

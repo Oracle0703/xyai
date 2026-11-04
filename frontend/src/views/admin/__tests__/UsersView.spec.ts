@@ -221,9 +221,10 @@ describe('admin UsersView', () => {
     listUsers.mockResolvedValue({
       items: [
         createAdminUser({ department_id: 7, department_note: 'Department-only note', status: 'disabled', disabled_source: 'department_manager' }),
-        createAdminUser({ id: 43, status: 'disabled', disabled_source: 'other', department_note: '' })
+        createAdminUser({ id: 43, status: 'disabled', disabled_source: 'other', department_note: '' }),
+        createAdminUser({ id: 44, status: 'disabled', disabled_source: 'organization_manager', department_note: '' })
       ],
-      total: 2, page: 1, page_size: 20, pages: 1
+      total: 3, page: 1, page_size: 20, pages: 1
     })
     const wrapper = mountBulkDeleteView()
     await flushPromises()
@@ -234,6 +235,8 @@ describe('admin UsersView', () => {
     expect(note.find('input, textarea').exists()).toBe(false)
     expect(wrapper.get('[data-test="status-42"]').text()).toContain('admin.departments.managerDisabled')
     expect(wrapper.get('[data-test="status-43"]').text()).not.toContain('admin.departments.managerDisabled')
+    expect(wrapper.get('[data-test="status-43"]').text()).not.toContain('admin.departments.organizationManagerDisabled')
+    expect(wrapper.get('[data-test="status-44"]').text()).toContain('admin.departments.organizationManagerDisabled')
     expect(wrapper.findAll('[data-testid="user-department-note"]')).toHaveLength(1)
     wrapper.unmount()
   })

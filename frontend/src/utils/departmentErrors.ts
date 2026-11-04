@@ -30,7 +30,11 @@ export function departmentErrorKey(error: unknown): string {
     DEPARTMENT_MEMBER_ORGANIZATION_MISMATCH: 'organizationMismatch',
     DEPARTMENT_GLOBAL_SUBSCRIPTION_CONFIRMATION_REQUIRED: 'globalConfirmationRequired',
     DEPARTMENT_SCOPE_DENIED: 'scopeDenied',
-    DEPARTMENT_MEMBER_ENABLE_DENIED: 'enableDenied'
+    DEPARTMENT_MEMBER_ENABLE_DENIED: 'enableDenied',
+    ORGANIZATION_LEADER_PROTECTED: 'organizationLeaders.protected',
+    ORGANIZATION_SCOPE_ENDPOINT_REQUIRED: 'organizationScope.endpointRequired',
+    ORGANIZATION_DEPARTMENT_GRANTS_CONFIRMATION_REQUIRED: 'organizationScope.confirmationRequired',
+    DEPARTMENT_INVALID: 'invalidRequest'
   }
   return `admin.departments.${keys[departmentErrorCode(error) ?? ''] ?? 'failed'}`
 }

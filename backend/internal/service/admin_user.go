@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -133,6 +134,11 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	adminPermissions, err := NormalizeAdminPermissions(role, input.AdminPermissions)
 	if err != nil {
 		return nil, err
+	}
+	// A new account has no organization grant; organization management is only
+	// written together with its grants through the organization scope endpoint.
+	if slices.Contains(adminPermissions, AdminPermissionOrganizationManage) {
+		return nil, ErrOrganizationScopeEndpointRequired
 	}
 
 	user := &User{

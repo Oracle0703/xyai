@@ -7,7 +7,8 @@
           <label class="w-36 space-y-1"><span class="text-sm">{{ t('admin.departments.status') }}</span><Select v-model="status" :options="statusOptions" :searchable="false" /></label>
           <div class="ml-auto flex gap-2">
             <button class="btn btn-secondary" :disabled="loading" @click="load">{{ t('admin.departments.refresh') }}</button>
-            <button class="btn btn-primary" data-testid="create-department" @click="openEditor(null)">{{ t('admin.departments.create') }}</button>
+            <button v-if="organizationLeader" class="btn btn-secondary" data-testid="open-organization-leaders" :disabled="!scope" @click="leadersOpen = true">{{ t('admin.departments.organizationLeaders.open') }}</button>
+            <button class="btn btn-primary" data-testid="create-department" :disabled="organizationLeader && !scope" @click="openEditor(null)">{{ t('admin.departments.create') }}</button>
           </div>
         </div>
         <p class="mt-3 text-sm text-gray-500 dark:text-dark-400">{{ t('admin.departments.lifecycleHint') }}</p>
@@ -21,7 +22,7 @@
             <div class="flex flex-wrap gap-2">
               <button class="text-primary-600 hover:underline" :disabled="saving" @click="openEditor(row)">{{ t('admin.departments.edit') }}</button>
               <button class="text-primary-600 hover:underline" :disabled="saving" @click="membersTarget = row">{{ t('admin.departments.manageMembers') }}</button>
-              <button class="text-primary-600 hover:underline" :disabled="saving" @click="accessTarget = row">{{ t('admin.departments.manageAccess') }}</button>
+              <button v-if="!organizationLeader" class="text-primary-600 hover:underline" :disabled="saving" @click="accessTarget = row">{{ t('admin.departments.manageAccess') }}</button>
               <button class="text-primary-600 hover:underline" :disabled="saving" @click="toggleStatus(row)">{{ t(row.status === 'active' ? 'admin.departments.deactivate' : 'admin.departments.reactivate') }}</button>
               <RouterLink class="text-primary-600 hover:underline" :to="{ path: '/admin/organization-usage', query: { organization: row.organization_key, department_id: String(row.id) } }">{{ t('admin.departments.viewUsage') }}</RouterLink>
             </div>
@@ -41,7 +42,8 @@
       <template #footer><button class="btn btn-secondary" :disabled="saving" @click="editorOpen = false">{{ t('admin.departments.cancel') }}</button><button form="department-editor" type="submit" class="btn btn-primary" :disabled="saving || !form.name.trim() || !Number.isInteger(form.sort_order)">{{ t('admin.departments.save') }}</button></template>
     </BaseDialog>
     <DepartmentMembersDialog :show="membersTarget !== null" :department="membersTarget" @close="membersTarget = null" @saved="load" />
-    <DepartmentAccessDialog :show="accessTarget !== null" :department="accessTarget" @close="accessTarget = null" @saved="load" />
+    <DepartmentAccessDialog v-if="!organizationLeader" :show="accessTarget !== null" :department="accessTarget" @close="accessTarget = null" @saved="load" />
+    <OrganizationLeaderDialog v-if="organizationLeader && scope" :show="leadersOpen" :organizations="scope.full_organizations ?? []" :departments="scope.departments" @close="leadersOpen = false" @saved="load" />
   </AppLayout>
 </template>
 
@@ -58,12 +60,20 @@ import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import DepartmentMembersDialog from '@/components/admin/department/DepartmentMembersDialog.vue'
 import DepartmentAccessDialog from '@/components/admin/department/DepartmentAccessDialog.vue'
-import { departmentsAPI, type Department, type DepartmentSaveInput, type OrganizationKey } from '@/api/admin/departments'
+import OrganizationLeaderDialog from '@/components/admin/department/OrganizationLeaderDialog.vue'
+import { departmentsAPI, type Department, type DepartmentSaveInput, type DepartmentScope, type OrganizationKey } from '@/api/admin/departments'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { formatOrganizationUsageOrganization } from '@/utils/organizations'
 
 const { t } = useI18n()
 const app = useAppStore()
+const auth = useAuthStore()
+// Organization leaders reuse this page limited to their organizations; leader
+// appointment replaces the administrator's access dialog.
+const organizationLeader = computed(() => !auth.isAdmin && auth.hasAdminPermission('admin.organization_manage'))
+const scope = ref<DepartmentScope | null>(null)
+const leadersOpen = ref(false)
 const organization = ref<OrganizationKey>('xunyou')
 const status = ref('')
 const page = ref(1)
@@ -82,7 +92,7 @@ const form = reactive<DepartmentSaveInput>({ organization_key: 'xunyou', name: '
 let controller: AbortController | null = null
 
 const organizationLabel = (key: OrganizationKey) => formatOrganizationUsageOrganization(key, t('admin.organizationUsage.organizations.other'))
-const organizationOptions = computed(() => (['xunyou', 'wsdashi', 'other'] as const).map(value => ({ value, label: organizationLabel(value) })))
+const organizationOptions = computed(() => (organizationLeader.value ? scope.value?.full_organizations ?? [] : (['xunyou', 'wsdashi', 'other'] as const)).map(value => ({ value, label: organizationLabel(value) })))
 const statusOptions = computed(() => [{ value: '', label: t('admin.departments.allStatuses') }, ...(['active', 'inactive'] as const).map(value => ({ value, label: t(`admin.departments.${value}`) }))])
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('admin.departments.name') }, { key: 'status', label: t('admin.departments.status') },
@@ -105,6 +115,7 @@ async function load() {
     if (signal.aborted) return
     departments.value = result.items
     total.value = result.total
+    if (organizationLeader.value) scope.value = await departmentsAPI.organizationScope(signal)
   } catch (cause) {
     if (!signal.aborted) { error.value = errorMessage(cause); total.value = 0 }
   } finally { if (!signal.aborted) loading.value = false }
@@ -137,6 +148,14 @@ async function toggleStatus(department: Department) {
   } catch (cause) { app.showError(errorMessage(cause)); await load() } finally { saving.value = false }
 }
 watch([organization, status], () => { page.value = 1; void load() })
-onMounted(load)
+async function loadScope() {
+  try {
+    scope.value = await departmentsAPI.organizationScope()
+    const first = scope.value.full_organizations?.[0]
+    if (first && organization.value !== first) { organization.value = first; return }
+  } catch (cause) { error.value = errorMessage(cause); return }
+  await load()
+}
+onMounted(() => { if (organizationLeader.value) void loadScope(); else void load() })
 onUnmounted(() => { controller?.abort() })
 </script>

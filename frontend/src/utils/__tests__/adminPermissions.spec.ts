@@ -18,6 +18,11 @@ describe('sub-admin landing path', () => {
     expect(departmentLoginDestination('/dashboard', '/login', undefined, ['admin.department_members'], backendMode)).toBe('/admin/my-department')
     expect(departmentLoginDestination('/dashboard', '/login', '/dashboard', ['admin.department_members'], backendMode)).toBe('/dashboard')
   })
+  it.each([false, true])('lands organization leaders on department management (backend mode %s)', (backendMode) => {
+    const permissions = ['admin.organization_manage', 'admin.organization_usage', 'admin.department_subscriptions', 'admin.department_members']
+    expect(getAdminLandingPath(permissions, backendMode)).toBe('/admin/departments')
+    expect(departmentLoginDestination('/dashboard', '/login', undefined, permissions, backendMode)).toBe('/admin/departments')
+  })
   it('lands department managers on reports in standard mode and preserves explicit destinations', () => {
     const permissions = ['admin.organization_usage', 'admin.department_subscriptions']
     expect(departmentLoginDestination('/dashboard', '/login', undefined, permissions, false)).toBe('/admin/organization-usage')
