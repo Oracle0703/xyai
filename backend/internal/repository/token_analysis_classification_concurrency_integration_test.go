@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 以下用例沿用 2026-10-27 分支审核(docs/reviews/2026-10-27-token-analysis-branch-code-review-cn.md)
-// 的复现交错, 断言改为修正后的合同。只能在独立测试库运行。
+// 以下用例沿用审核复现的交错(编号 R2/R3/R4/N3/T1/第四轮 F1 的含义见
+// docs/features/token-analysis-risk-classification-design-cn.md 第 17 节), 断言改为修正后的合同。只能在独立测试库运行。
 
 func waitTokenAnalysisDBCondition(ctx context.Context, query string, args ...any) error {
 	ticker := time.NewTicker(20 * time.Millisecond)

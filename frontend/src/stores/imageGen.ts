@@ -8,7 +8,7 @@
  * 模型不写死：按当前 Key 请求 `/v1/models` 发现图片模型，也允许手动输入。
  * Key 只在用户回车或点击“加载模型”时发往目录端点；粘贴、失焦、输入（含密码管理器
  * 自动填充）都不发请求、不改动已保存的 Key。勾选“记住”后，Key 加载模型成功才写入 localStorage。
- * 设计见 docs/features/image-gen-model-selection-design-cn.md。
+ * 设计见 docs/features/image-gen-design-cn.md。
  */
 import { defineStore } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'

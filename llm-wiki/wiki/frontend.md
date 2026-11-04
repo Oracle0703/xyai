@@ -2,7 +2,7 @@
 
 ## 图片生成页动态模型与记住 Key
 
-- 设计: `docs/features/image-gen-model-selection-design-cn.md`。纯函数在 `frontend/src/utils/imageGenModels.ts`(候选判定/目录解析/排序/origin 校验/存储读写), 时序与状态在 `frontend/src/stores/imageGen.ts`。
+- 设计: `docs/features/image-gen-design-cn.md`。纯函数在 `frontend/src/utils/imageGenModels.ts`(候选判定/目录解析/排序/origin 校验/存储读写), 时序与状态在 `frontend/src/stores/imageGen.ts`。
 - 模型不再写死: 按当前 Key 独立 `fetch` `VITE_IMAGE_MODELS_ENDPOINT`(默认 `/v1/models`), 不带登录 JWT 与 `client_version`; 候选判定镜像后端 `validateCompatibleImagesModel`(gpt-image- / grok-imagine(-edit) / grok-imagine-image* / gemini-*-image), 改后端判定须同步。2.5 实际 ID 为 `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst`。
 - 触发: 只有 Key 框回车与"加载模型/刷新模型"按钮把当前 Key 发往目录端点(总是请求, 同 Key 在途去重, 按住回车连发被忽略); 输入、粘贴、失焦、勾选记住都不发请求——密码管理器可能把登录密码填入 Key 框, `autocomplete`/`isTrusted` 不能可靠区分。唯一例外: 打开页面时恢复显式记住的 Key 加载一次。Key 框与手动模型框回车 `preventDefault`, 不提交生图表单。生成不要求先加载模型, 直接用输入框 Key, 但不保存/不替换已保存 Key。
 - 选择: 目录失败不清除当前选择, 仅标"未确认"且仍可生成; 目录成功但缺少当前列表模型时清除并提示, 本次不自动改选; 无选择时取目录中的偏好或唯一候选; 手动模型不受目录影响; `restoreHistory` 不改模型。迟到响应按序号+Key 快照丢弃, 包括"成功目录后写入 Key"(写入前还读最新勾选状态, 跨标签页清除后不写回)。
@@ -17,7 +17,7 @@
 
 ## 公司介绍资料（独立 HTML）
 
-- `docs/delivery/2026-10-29-company-introduction/index.html` 是面向管理层及各岗位的离线介绍页，包含岗位预设演示、协作链、收益测算及章节演示模式，不属于应用路由，也不调用业务或模型 API。讲解提纲、来源和使用方式见同目录 `README.md`。
+- `docs/presentations/2026-10-29-company-introduction/index.html` 是面向管理层及各岗位的离线介绍页，包含岗位预设演示、协作链、收益测算及章节演示模式，不属于应用路由，也不调用业务或模型 API。讲解提纲、来源和使用方式见同目录 `README.md`。
 - 使用数据为 2026-10-23 15:41 北京时间的既有核验快照：135 个启用账号、近 30 天 111 个使用账号和 1,049,987 条用量记录、91 个连续有记录日期。不能替换为实时人数、成功业务任务、节省工时或可用率；该快照尚无部门归属配置。
 - 岗位案例是推荐场景，收益计算参数是假设，不能作为已验证的提效或现金节约。更新介绍时保持这些口径，以及开源底座、平台贡献、客户端能力和模型能力的边界。
 
@@ -280,7 +280,7 @@ API 模块分布:
 - `adminSettings.ts`: 管理端设置缓存。
 - `payment.ts`: 支付流程状态。
 - `onboarding.ts`: 引导流程状态。
-- `imageGen.ts`: 图片生成页全部状态与生成请求(表单/原图列表/结果/历史)。路由切换卸载视图后状态不丢, 进行中的生成在 store 里跑完并经 app store toast 通知。API Key 默认只在内存, 仅用户勾选"记住"后写入 `image-gen-key-v1`(规则见本页"图片生成页动态模型与记住 Key"); 历史用 localStorage key `image-gen-history-v1`, 不得写入 Key; 生成请求与历史的 model 均取发起时的快照。图改图支持多图(`image[]` 最多 16 张, 单张 ≤20MB——网关 multipart 分片在 20MB 处静默截断, 总量 ≤100MB)。store 内部从 `./app` 文件模块导入 app store(测试按文件模块 mock, 见 ImageGenView.spec.ts)。原图预览用 `URL.createObjectURL`, 依赖 CSP `img-src` 放行 `blob:`(security_headers.go 的 requiredCSPDirectiveValues 会给旧配置补上)。
+- `imageGen.ts`: 图片生成页全部状态与生成请求(表单/原图列表/结果/历史)。路由切换卸载视图后状态不丢, 进行中的生成在 store 里跑完并经 app store toast 通知。API Key 默认只在内存, 仅用户勾选"记住"后写入 `image-gen-key-v1`(规则见本页"图片生成页动态模型与记住 Key"); 历史用 localStorage key `image-gen-history-v1`, 不得写入 Key; 生成请求与历史的 model 均取发起时的快照。图改图支持多图(`image[]` 最多 16 张, 前端单张 ≤20MB(`MAX_SOURCE_IMAGE_SIZE`), 总量 ≤100MB; 后端 `openAIImageMaxUploadPartSize` 自 `cde6ddfd8` 起为 50MB 且超限直接报错、不再静默截断, 前端上限是否放宽待定, 见 `docs/features/image-gen-design-cn.md` §5)。store 内部从 `./app` 文件模块导入 app store(测试按文件模块 mock, 见 ImageGenView.spec.ts)。原图预览用 `URL.createObjectURL`, 依赖 CSP `img-src` 放行 `blob:`(security_headers.go 的 requiredCSPDirectiveValues 会给旧配置补上)。
 
 `auth.ts` localStorage key:
 
@@ -316,7 +316,7 @@ API 模块分布:
 
 订阅管理:
 
-- 用户订阅自助日重置已实现：用户页在续费后显示“重置（N）”，每订阅独立计次，组织默认上限 1；用尽显示 0 并禁用。日卡、零用量、无日限或不可用订阅不能自助，管理端原重置不限次。设计见 `docs/features/subscription-self-daily-reset-design-cn.md`，交付证据见 `docs/features/subscription-self-daily-reset-implementation-cn.md`，实现审核见 `docs/reviews/subscription-self-daily-reset-implementation-review-cn.md`。审核问题已于 2026-09-23 修复，见交付记录“审核后修复”。
+- 用户订阅自助日重置已实现：用户页在续费后显示“重置（N）”，每订阅独立计次，组织默认上限 1；用尽显示 0 并禁用。日卡、零用量、无日限或不可用订阅不能自助，管理端原重置不限次。设计见 `docs/features/subscription-self-daily-reset-design-cn.md`，交付证据见 `docs/features/subscription-self-daily-reset-design-cn.md` §14–§15（交付记录已并入），实现审核见 `docs/features/subscription-self-daily-reset-design-cn.md` §16（审核已并入）。审核问题已于 2026-09-23 修复，见交付记录“审核后修复”。
 - `useSubscriptionSelfReset.ts` 的 refresh 同时读次数状态和页面列表。刷新期间保留上一份状态，不闪成“—”；只有状态请求失败才清空状态、禁用按钮并显示“状态暂不可用”。列表失败由 `loadSubscriptions` 自己提示 `failedToLoad`，不连带丢弃状态。全局 store 只在重置成功后强制刷新；失败时提示并在下一次 refresh 补刷，切回标签页平时不刷新它。旧响应按代次丢弃，按钮只认 can_reset。
 - 操作键首次提交用 getRandomValues 生成，提交前按订阅记入内存和按用户隔离的 sessionStorage（写入失败退回内存，不拒绝提交）。未知结果、401/408/429、处理中/退避都保留原键原日期，并遵守 Retry-After；关闭弹窗或刷新页面后再次打开同一订阅仍沿用原键并提示结果未确认。只有成功或确定性失败才删除，日期变化后作废。不能靠 NO_USAGE 兜底：上限 ≥2 且原请求已提交后又有新用量时，新键会再清零、再扣一次。未确认的键不锁其他订阅。
 - 管理订阅页“自助重置设置”只对完整管理员显示；独立 `SubscriptionSelfResetPolicyDialog.vue` 配置三类组织的 0–100 整数、以及 `rollout=off/admin/all`。默认 `admin` 只开放完整管理员，验证后切为 `all`，异常时可切回 `off`。用户页对 `ROLLOUT_DISABLED` 或尚未加载成功的状态不渲染按钮和提示行，灰度期间普通用户看不到该功能。读取失败时显示空白输入框，不填默认值，可重试，也可填满三项后保存覆盖损坏或缺失的配置。
@@ -343,7 +343,7 @@ API 模块分布:
 
 管理端组织用量报表:
 
-- 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-trend-chart-design-cn.md`。
+- 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-report-design-cn.md` §4.4、§5.4、§8.5（趋势图设计已并入）。
 - 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持授权组织/部门/平台/邮箱筛选、服务端排序分页、范围内组织/部门/平台汇总、用量趋势折线和个人/团队日周月峰值。
 - 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面先读取 scope 目录，再用同一候选 `as_of` 并行发起首个 Summary 与 Trend（首个 Trend 不带 `scope_version`）; Summary 确定查询 `scope_version` 与 canonical `as_of`, Trend 只在两者一致时保留, 否则单次用 Summary 快照重拉; 目录 `catalog_version` 不作为查询版本; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
 - 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/总 Token 与请求数。`total_tokens` 包含缓存创建和缓存读取两类 Token，不能视为输入与输出两条可见曲线之和。
@@ -354,11 +354,11 @@ API 模块分布:
 
 管理端 Token Analysis 计费用量趋势:
 
-- 索引状态展示的既有歧义：标签数字是 `archiveFiles.length`（当前目录文件数），不是错误数；`last_error` 为历史粘性错误，仍被 `tokenAnalysisIndexState` 映射为非运行态 `error`，状态卡无条件显示，最近水位仅展示前 5 条。失败合计来自最近更新的 50 个水位，不是本轮/所选日期失败数，历史文件退出窗口会使合计下降。它不能证明本轮执行失败或历史错误恢复；区分当前运行状态与历史失败、展示错误来源及统计范围的建议尚未实施，机制见 `docs/reviews/2026-10-25-token-analysis-index-errors-investigation-cn.md`，页面 8 行与全库 14 行的生产复核见 `docs/reviews/2026-10-27-token-analysis-eight-index-errors-investigation-cn.md`。
+- 索引状态展示的既有歧义：标签数字是 `archiveFiles.length`（当前目录文件数），不是错误数；`last_error` 为历史粘性错误，仍被 `tokenAnalysisIndexState` 映射为非运行态 `error`，状态卡无条件显示，最近水位仅展示前 5 条。失败合计来自最近更新的 50 个水位，不是本轮/所选日期失败数，历史文件退出窗口会使合计下降。它不能证明本轮执行失败或历史错误恢复；区分当前运行状态与历史失败、展示错误来源及统计范围的建议尚未实施，机制见 `docs/features/token-analysis-design-cn.md` §12–§13（调查结论已并入），页面 8 行与全库 14 行的生产复核见 `docs/features/token-analysis-design-cn.md` §12–§13（调查结论已并入）。
 
-- 页面布局: 顶部筛选卡(共用 `DateRangePicker` + 邮箱/项目/模型/风险分, ID 类与"排行含未关联请求"收在"更多筛选"; 已应用筛选按最近一次提交的快照 `appliedFilters` 显示为可移除标签, 概览/列表/排序翻页续查/趋势/索引触发也都只读该快照, 排序翻页不提交输入框草稿; 已知例外: 索引完成轮询仍调用 `reloadAll` 并提交当前草稿, 待分离提交与刷新入口, 见 `docs/reviews/2026-10-24-token-analysis-request-origin-implementation-review-cn.md` 的 P3; 右侧索引状态胶囊与"索引当前范围") → `TokenAnalysisOverview.vue`(5 张 KPI 卡、Token 构成条、风险原因条形列表, 点击条目切换全局 `risk_reason`) → 四个标签页(用户排行+趋势 / 项目 / 请求明细 / 索引与归档)。标签页用 `v-show`, 各列表仍在 `reloadAll` 中一次加载, 计数显示在标签上。数据加载、竞态与索引轮询仍集中在 View, 目录组件只做展示。默认日期取浏览器本地日(与请求 `timezone` 一致), 不用 UTC 日期。
-- 请求来源：请求表与抽屉共用 `components/admin/token-analysis/requestOrigin.ts` 校验 v1/v2；v2 的 compaction_resume 为 ai/medium，非法组合/未知版本显示“—”，不从预览或重复数推断。概览、用户/项目排行展示 human_input_count 估算及 title 说明，邮箱筛选同时作用于概览（含计费分母）。明细来源与“最近用户输入”口径不同，机器通知/压缩文本仍可能进入预览。当前实现已复审、未部署；合同见 `docs/features/token-analysis-request-origin-design-cn.md`，验证见 `docs/reviews/2026-10-28-token-origin-v2-implementation-review-cn.md`。
-- 计费关联展示：`components/admin/token-analysis/usageLink.ts` 读取 `usage_link_status`/`usage_match_method`（旧接口缺字段时按 `usage_log_id`），非 linked 行在请求表与抽屉显示 `—` 和状态标签（未关联计费/请求失败/不计费），说明 Token/费用未知、不代表零消耗；抽屉“计费关联”组显示关联方式、匹配置信度、账单 ID、完成时间、响应状态。请求明细是完整归档视角（服务端忽略 `include_unmatched`），该勾选改名“排行含未关联请求”，只影响排行请求数。来源列为“本次调用来源”，预览列为“最近用户输入”，两者口径不同。筛选卡在风险分旁有来源筛选（全部/人工/AI/尚未识别，参数 `origin`），进入 `appliedFilters` 快照与已应用标签，作用于概览、排行和请求明细；“尚未识别”含未写入来源的旧行，计费趋势不受影响。缺陷与修复见 `docs/reviews/2026-10-24-token-origin-human-input-investigation-cn.md`、`docs/features/token-analysis-usage-link-design-cn.md`。
+- 页面布局: 顶部筛选卡(共用 `DateRangePicker` + 邮箱/项目/模型/风险分, ID 类与"排行含未关联请求"收在"更多筛选"; 已应用筛选按最近一次提交的快照 `appliedFilters` 显示为可移除标签, 概览/列表/排序翻页续查/趋势/索引触发也都只读该快照, 排序翻页不提交输入框草稿; 已知例外: 索引完成轮询仍调用 `reloadAll` 并提交当前草稿, 待分离提交与刷新入口, 见 `docs/features/token-analysis-request-origin-design-cn.md` §9（审核已并入） 的 P3; 右侧索引状态胶囊与"索引当前范围") → `TokenAnalysisOverview.vue`(5 张 KPI 卡、Token 构成条、风险原因条形列表, 点击条目切换全局 `risk_reason`) → 四个标签页(用户排行+趋势 / 项目 / 请求明细 / 索引与归档)。标签页用 `v-show`, 各列表仍在 `reloadAll` 中一次加载, 计数显示在标签上。数据加载、竞态与索引轮询仍集中在 View, 目录组件只做展示。默认日期取浏览器本地日(与请求 `timezone` 一致), 不用 UTC 日期。
+- 请求来源：请求表与抽屉共用 `components/admin/token-analysis/requestOrigin.ts` 校验 v1/v2；v2 的 compaction_resume 为 ai/medium，非法组合/未知版本显示“—”，不从预览或重复数推断。概览、用户/项目排行展示 human_input_count 估算及 title 说明，邮箱筛选同时作用于概览（含计费分母）。明细来源与“最近用户输入”口径不同，机器通知/压缩文本仍可能进入预览。当前实现已复审、未部署；合同见 `docs/features/token-analysis-request-origin-design-cn.md`，验证见 `docs/features/token-analysis-request-origin-design-cn.md` §9、§11（复审已并入）。
+- 计费关联展示：`components/admin/token-analysis/usageLink.ts` 读取 `usage_link_status`/`usage_match_method`（旧接口缺字段时按 `usage_log_id`），非 linked 行在请求表与抽屉显示 `—` 和状态标签（未关联计费/请求失败/不计费），说明 Token/费用未知、不代表零消耗；抽屉“计费关联”组显示关联方式、匹配置信度、账单 ID、完成时间、响应状态。请求明细是完整归档视角（服务端忽略 `include_unmatched`），该勾选改名“排行含未关联请求”，只影响排行请求数。来源列为“本次调用来源”，预览列为“最近用户输入”，两者口径不同。筛选卡在风险分旁有来源筛选（全部/人工/AI/尚未识别，参数 `origin`），进入 `appliedFilters` 快照与已应用标签，作用于概览、排行和请求明细；“尚未识别”含未写入来源的旧行，计费趋势不受影响。缺陷与修复见 `docs/features/token-analysis-usage-link-design-cn.md` §1–§2（缺陷调查已并入）、`docs/features/token-analysis-usage-link-design-cn.md`。
 - `frontend/src/views/admin/TokenAnalysisView.vue` 的用户排行可跨分页选择最多 5 名存在 `user_id` 的用户; 选择状态保存用户 ID、邮箱和选择顺序, 达到上限后只禁用未选项, 已选项仍可取消。
 - 趋势面板调用 `adminAPI.dashboard.getUserUsageTrend`, 数据源是后端 `usage_logs` 计费用量而不是归档摘要。`frontend/src/api/admin/dashboard.ts` 把 `number[]` 序列化为逗号分隔 `user_ids`; 空数组不发送该参数, 避免误进入后端严格选人模式。
 - 日粒度按筛选范围生成完整日期轴; 小时粒度只在同一日期可选并生成 24 个北京时间整点。颜色槽位在选中时分配并固定(取消其他用户不重排颜色, `tokenAnalysisFormat.ts` 的亮/暗两套色板已用 dataviz 校验且不含红色), 图上方已选用户标签即图例, 缺失周期补 0, 完全无用量仍渲染零值折线并显示空用量提示。
@@ -417,7 +417,7 @@ API 模块分布:
 - `AppSidebar.vue` 为子管理员增加“管理功能”分区, 只显示已授权的订阅管理、组织用量报表、我的部门（`admin.department_members`）、使用记录、Token 分析、账号管理（`admin.accounts_operator`）; 风控、请求拦截、设置和管理员自定义菜单不显示。完整管理员侧栏继续使用部门管理和用户管理，不增加“我的部门”入口；直达新路由仍允许完整管理员。
 - 账号页受限模式统一用 `composables/useAccountOperatorAccess.ts` 的 `canManageAccounts`（= 完整管理员）判断：`AccountsView.vue` 隐藏编辑/删除、勾选列与批量栏、数据/工具菜单、回退代理，调度开关只读，优先级纯展示，管理员专用弹窗不挂载，分组/代理改走 `accounts.getFormOptions()`，不读取计费探测设置；行菜单只剩测试连接、统计、重新授权；配额重置/推荐邀请/用量刷新/Claude 兑换/计费探测/代理测试/临时不可调度恢复按钮在组件内隐藏；`CreateAccountModal.vue` 跳过 Web Search 与额度通知设置、TLS 指纹、创建后的模型同步与计费探测。任何越权请求都会经 `admin-permission-denied` 把用户重定向走，新增账号页调用前必须确认已在白名单。
 - `ReAuthAccountModal.vue` 所有平台（含 Gemini/Antigravity）都用 `applyOAuthCredentials` 落库，不再调用 `PUT /accounts/:id` + `clear-error`。挂载账号页组件的单测需 mock `useAccountOperatorAccess`（返回 `ref(true)` 走管理员路径）。
-- Gemini 重新授权已知接口边界（用户决定暂缓）：直接调用 ApplyOAuthCredentials 把 Code Assist 改为 AI Studio 且省略 project_id 时，全 key 合并会保留旧项目，兼容转发仍按非空项目走 Code Assist。当前 `ReAuthAccountModal.vue` 的 Gemini 类型是只读展示、取自原账号，不能描述成用户可在该弹窗直接切换类型。将来开放类型切换时需区分身份字段清理与 model_mapping 等配置保留。证据与首轮表述更正见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`。
+- Gemini 重新授权已知接口边界（用户决定暂缓）：直接调用 ApplyOAuthCredentials 把 Code Assist 改为 AI Studio 且省略 project_id 时，全 key 合并会保留旧项目，兼容转发仍按非空项目走 Code Assist。当前 `ReAuthAccountModal.vue` 的 Gemini 类型是只读展示、取自原账号，不能描述成用户可在该弹窗直接切换类型。将来开放类型切换时需区分身份字段清理与 model_mapping 等配置保留。证据与首轮表述更正见 `docs/features/sub-admin-accounts-operator-design-cn.md` §9–§10（审核已并入）。
 - `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。`admin.department_subscriptions` 负责人只显示范围内全量/仅日限重置。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
 - 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询 active 未删除用户（后端按部门范围收口，全站订阅权限即全站），通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。

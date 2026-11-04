@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Locked acceptance tests for the manager member-management API (phase 2 of
-// docs/features/department-member-management-implementation-plan-cn.md).
-// At the start of phase 2 remove "&& deptmembers_pending" from the build line; change nothing else.
+// Locked acceptance tests for the manager member-management API
+// (docs/features/department-member-management-design-cn.md §4, §4.4 and §9.1).
+// The "&& deptmembers_pending" build tag has already been removed; do not weaken or delete assertions.
 
 type departmentMemberSetup struct {
 	f                   *departmentMemberFixture

@@ -477,7 +477,7 @@ User x platform quota:
 - `accounts` 新增 `proxy_fallback_origin_id`, 记录手动回切来源。
 - 后台逻辑见 `backend.md` 的"代理有效期与失败回退"。
 
-> 已知约束不一致(上游自带, 当前不修): `backend/ent/schema/proxy.go` 的 `backup_proxy` edge 用 `.Unique()`(无反向 `.From()` 边), 生成的 `ent/migrate/schema.go` 把 `backup_proxy_id` 标记为唯一列; 但 migration 149 是普通外键 + 普通索引(非唯一)。本项目建表只走 SQL migration、不使用 Ent auto-migrate, 故真实库为非唯一(多个代理可共用同一备用代理), 与回退链逻辑一致, 运行无影响。修改该 edge 或新增相关 migration 时需对齐二者。详见 `docs/upstream-sync/reviews/sub2api-v0.1.135-merge-review-cn.md` P2。
+> 备用代理约束（2026-11-04 核对源码）：0.1.135 合并时 `backup_proxy` edge 只有 `.Unique()`、生成的 Ent schema 把 `backup_proxy_id` 标成唯一列，与 migration 149 的普通外键 + 非唯一索引不一致；上游 `e835f7981`（随 0.2.4 合入）已补反向边 `primary_proxies`，现在 `proxy_backup_proxy_id` 为非唯一索引，多个代理可共用同一备用代理，与回退链逻辑一致。修改该 edge 或新增相关 migration 时仍需保持 Ent 与 SQL 一致。历史见 `docs/upstream-sync/2026-06-09-v0.1.135/review.md`。
 
 ## 相关页面
 

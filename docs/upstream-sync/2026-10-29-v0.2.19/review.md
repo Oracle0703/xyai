@@ -1,4 +1,8 @@
-# 0.2.19 上游合并审核
+# Sub2API 0.2.19 上游同步记录（固定提交）
+
+合并日期 2026-10-29 ｜ 工作分支 `feature/hy/10225_merge_sub2api_219`（第一父 = 本地 `main@eb34cc973ef9`）｜ 上游 `Wei-Shaw/sub2api main@a9240d5016c226b341242a8c54a01a8605cbbc72`（VERSION 0.2.19）｜ 合并提交 `ecd61d8d05b6baf68f81eed7e946e2a7299e4799` ｜ 状态：经 `70e90d706`（2026-10-30，`Merge branch 'feature/hy/10225_merge_sub2api_219'`）合入 main
+
+本文是该轮同步的唯一记录，审核结论已直接写入正文，没有另存的审核原文。正文中"尚未创建/等待审核/未 commit"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-10-29 — 0.2.19 固定提交合并（待审核、未 commit）` 节。
 
 ## 范围与状态
 
@@ -14,7 +18,7 @@
 | fetch 时 upstream/main | `a3298b46e`；其后于指定目标的内容不纳入 |
 | 上游增量 | 71 commits / 259 paths，46 个双方修改路径 |
 | 合并方式 | `git merge --no-commit --no-ff <固定目标>` |
-| 合并提交 | 尚未创建，保留 MERGE_HEAD 等待用户审核 |
+| 合并提交 | `ecd61d8d05b6baf68f81eed7e946e2a7299e4799`（审核时尚未创建，保留 MERGE_HEAD） |
 | 边界 | 仅解决文本/语义合并冲突；不修上游自身 bug，不推送、不合回 main、不部署 |
 
 ## 文本冲突裁决
@@ -106,7 +110,7 @@
 
 原始 main 由 `git archive HEAD backend` 导出至忽略缓存目录 `backend/.gocache/merge219-main-baseline`，不创建分支或 worktree，不修改原始源码来跑对照。基线验证与合并结果使用同一 Go 1.27.3 工具链；两个 PG 数据库相互隔离。
 
-## 最终审核状态与证据
+## 提交前状态与证据（审核快照）
 
 - `HEAD=main=eb34cc973ef99e9e20b9c6f8e7f4936a0551cd11`；`MERGE_HEAD=a9240d5016c226b341242a8c54a01a8605cbbc72`。本轮合并未 commit、未 push、未合回 main、未部署，全部交付改动暂存供审核。
 - 34 个 features 文件逐 blob 保留；仅上游生产路径逐 blob 等于固定目标；旧 migration 零修改。合并台账保留原文件完整字节前缀，只追加本轮。

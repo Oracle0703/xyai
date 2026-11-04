@@ -12,6 +12,8 @@
 - 安全/可靠性/限流/幂等: `llm-wiki/wiki/security-and-reliability.md`
 - AI 日常协作流程: `llm-wiki/wiki/ai-workflow.md`
 
+新增/修改文档或合并分支前, 必须读取 `docs/README.md` 与 `llm-wiki/wiki/ai-workflow.md` 的归档规则; 上游合并还须读取 `docs/upstream-sync/playbook.md`。收尾按根目录 `AGENTS.md` 检查重复文档、旧目录复活和每轮上游同步的唯一 review。
+
 ## 自动更新规则
 
 当建议或生成的改动影响以下内容时, 同步更新 `llm-wiki/wiki/`:

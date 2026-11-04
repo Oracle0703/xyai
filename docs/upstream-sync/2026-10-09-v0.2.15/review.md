@@ -1,4 +1,8 @@
-# Sub2API 0.2.15 固定提交合并审核
+# Sub2API 0.2.15 上游同步记录（固定提交）
+
+合并日期 2026-10-09 ｜ 工作分支 `feature/hy/10216_merge_sub2api_215`（第一父 = 本地 `main@cdc5178d26f5`）｜ 上游 `Wei-Shaw/sub2api main@3a6fd1c9db07203ca308aaba69e502bc1f35b307`（VERSION 0.2.15）｜ 合并提交 `ded494b6dbcd6841818e494d0f694d8a96dd2b90` ｜ 状态：在 main 第一父历史上
+
+本文是该轮同步的唯一记录，审核结论已直接写入正文，没有另存的审核原文。正文中"尚未创建/等待审核/未 commit"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-10-09 - Sub2API 0.2.15 固定提交合并（待审核）` 节。
 
 ## 边界
 
@@ -9,7 +13,7 @@
 | 上游分支 / 固定目标 | `Wei-Shaw/sub2api main@3a6fd1c9db07203ca308aaba69e502bc1f35b307` |
 | 共同祖先 | `b8dece9000c68815a5b867ca5a1e6f236e173905` |
 | 版本 / 上游增量 | `0.2.15`；154 commits / 301 paths / `+20051/-1402` |
-| 合并提交 | 尚未创建；`HEAD` 保持第一父，`MERGE_HEAD` 固定目标，等待用户 commit 前审核 |
+| 合并提交 | `ded494b6dbcd6841818e494d0f694d8a96dd2b90`（审核时尚未创建，`HEAD` 保持第一父，`MERGE_HEAD` 固定目标） |
 | 范围 | 仅解决冲突；本地独有能力保留，重叠实现采用上游，不修上游 bug |
 
 本地 main 在操作前干净；从其新建分支后执行 `git merge --no-commit --no-ff <固定目标>`。此前 0.2.13 已由第一父 merge commit 提交并进入本地 main；不改写上轮历史审核报告或台账。
@@ -91,7 +95,7 @@
 
 本机日志统一为 `backend/.gocache/merge215-*.log`；不提交缓存、overlay、测试二进制、临时目录或运行日志。
 
-## 交付状态
+## 提交前状态（审核快照）
 
 | 最终门禁 | 结果 |
 | --- | --- |

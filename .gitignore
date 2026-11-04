@@ -156,10 +156,8 @@ docs/*
 # 本地文档目录整体跟踪, 结构见 docs/README.md
 !docs/README.md
 !docs/features/
-!docs/reviews/
-!docs/delivery/
 !docs/upstream-sync/
-!docs/superpowers/
+!docs/presentations/
 !docs/安装与操作手册.md
 !docs/admin-api-keys.md
 !docs/PAYMENT.md
@@ -208,21 +206,6 @@ llm-wiki/.understand-anything/tmp/
 
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
-
-# Archived feature reviews retained with their design documents
-!docs/reviews/codex-prompt-risk-filter-design-audit-cn.md
-!docs/reviews/codex-prompt-risk-filter-implementation-audit-cn.md
-!docs/reviews/prompt-risk-judge-release-review-cn.md
-!docs/reviews/request-archive-async-writer-review-cn.md
-!docs/reviews/request-archive-dir-runtime-config-code-review-cn.md
-!docs/reviews/sub2api-v0.1.135-merge-review-cn.md
-!docs/reviews/sub2api-v0.1.146-merge-review-cn.md
-!docs/reviews/subscription-self-daily-reset-design-audit-cn.md
-!docs/reviews/subscription-self-daily-reset-design-review-cn.md
-!docs/reviews/subscription-self-daily-reset-review-decisions-cn.md
-!docs/reviews/token-analysis-user-input-retention-main-merge-review-cn.md
-!docs/reviews/token-analysis-user-input-retention-staged-code-review-cn.md
-!docs/reviews/features-review-archive-index.md
 
 # 本地合并中间产物与运行快照（精确路径，保留正式补丁和验收材料）
 /_conflict_oai.diff

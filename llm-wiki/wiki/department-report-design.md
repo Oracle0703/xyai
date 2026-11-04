@@ -2,7 +2,7 @@
 
 状态：2026-09-20 S1–S6 已完成，RV1–RV8 本机隔离验收通过；未推送、部署或合回 main。
 
-实施方案：`docs/features/organization-department-usage-implementation-plan-cn.md`；验收：`docs/delivery/2026-09-19-department-usage/acceptance.md`。验收表保留旧基线并单列本轮修正证据。
+实施要求、验收与性能：`docs/features/organization-department-usage-design-cn.md` §11、§14（原实施方案与验收目录已并入）。验收表保留旧基线并单列本轮修正证据。
 
 完整设计：`docs/features/organization-department-usage-design-cn.md`，含关系图、管理/鉴权/导出流程图、数据模型、接口合同、验收及估算。
 

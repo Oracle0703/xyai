@@ -27,7 +27,7 @@ Excel 使用 `organizationUsageReport.ts` 与可终止 Worker，按报表概览�
 
 PNG 截图仅包含当前页已渲染的表头与人员行，末页按实际行数，覆盖横向滚动隐藏的列；通过 `utils/tableScreenshot.ts` 按需加载 `html2canvas`，仅解除克隆 DOM 的滚动裁剪，不改页面布局。文件名含报表日期范围与页码；加载中、空数据及截图中禁用按钮。分页/查询数据变化或卸载会作废在途截图，避免下载旧范围数据。
 
-设计：`docs/features/organization-department-usage-design-cn.md`。专项覆盖 View 403/409/迟到响应、scope 汇总、分页导出/取消/超限及工作簿字符串安全；真实浏览器与 Excel 对账见 `docs/delivery/2026-09-19-department-usage/acceptance.md`。
+设计：`docs/features/organization-department-usage-design-cn.md`。专项覆盖 View 403/409/迟到响应、scope 汇总、分页导出/取消/超限及工作簿字符串安全；真实浏览器与 Excel 对账见 `docs/features/organization-department-usage-design-cn.md` §11.2（验收证据已并入）。
 
 - 2026-09-21 精简：Summary 建立快照后再启动 Trend，移除旧并行对齐函数及请求时间状态；人员续页不允许更换 as_of。导出必须取得完整 as_of/scope_version，并校验每页/Sheet 一致，删除缺字段继续导出的兼容兜底；保留取消、总行数和分页上限。
 - 2026-10-23 恢复并行：生产实测 Summary 约 5.2s、Trend 约 1.8s，串行使趋势约 7s 才出现。首个 Trend 与 Summary 并行，到达后按 Summary 快照校验，失配只重拉一次；`realignTrend` 与失败重试共用每周期一次的预算。

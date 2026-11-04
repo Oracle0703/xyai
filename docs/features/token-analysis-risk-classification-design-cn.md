@@ -1,10 +1,17 @@
 # Token Analysis 风险分类设计(成本观察与缓存复用)
 
-状态: 数据基础与分类计算(冷暖、原因、资格、金额、版本传播、分类作业)已实现(第 16 节); 读接口与页面、连续活跃、受控重索引尚未实施。分支 `feature/hy/10221_token_risk_classification`。
+更新: 2026-11-04。状态: **数据基础与分类计算(摘要修复、客户端识别、转发侧记录、前缀指纹与候选、冷暖/原因/资格/金额、版本传播、分类作业)已实现, 随提交 `02cf7a07c`(2026-10-27)合入 main; 2026-10-27 的代码审核与四次复核提出的问题均已修正, 最后一次复核无 P1/P2。读接口与发布可见性(10.4)、新版页面、连续活跃(9)、受控重索引(10.6)尚未实施, 新结果对用户不可见(第 16 节)。**
 
 用"成本观察 + 有证据的缓存复用机会"取代 `/admin/token-analysis` 现有的 `risk_score`。所有结果只用于展示和排序, 不作为惩罚依据。
 
-本文是该功能唯一的设计文档。2026-10-26 设计过程中各轮审核的结论已并入正文; 第 13 节列出其中不明显、容易被改回去的约束。源码引用用函数名, 不用行号。
+本文是该功能的唯一文档, 包含背景、规则、数据模型、配置、代码位置、易错点和验证方式。2026-10-26 设计审核、2026-10-26 数据层代码审核、2026-10-27 分支代码审核及其后四次复核的结论都已并入正文: 采纳的规则写在对应章节, 不直观的约束集中在第 13 节, 代码与测试注释引用的审核编号(F1–F4、R1–R8、N1–N4、T1、第四轮 F1/F2)在第 17 节对照。审核原文与证据目录已移出仓库, 最后存在于提交 `26f6363af`(可用 `git show 26f6363af:docs/reviews/2026-10-27-token-analysis-branch-code-review-cn.md` 这类命令查看, 证据在 `docs/delivery/2026-10-2*-token-analysis-*/`)。源码引用用函数名, 不用行号。
+
+阅读顺序建议:
+- 修改指纹、候选或摘要器: 先读第 5 节、4.1 和第 13 节;
+- 修改分类、资格或金额: 读第 6-8 节、10.1-10.3 和第 13 节;
+- 修改并发、版本传播或失效登记: 读 5.5、10.1-10.2、10.7, 再看第 17 节对应的回归测试;
+- 实现读接口与页面: 读 10.4、12.4、12.5 和第 16 节待办;
+- 跑测试: 读 14.3。
 
 ## 1. 背景与样本证据
 
@@ -68,11 +75,11 @@
 
 | 协议 | 现状 | 修复 |
 | --- | --- | --- |
-| Responses | `function_call_output` / `custom_tool_call_output` 等条目的正文在 `output` 键(`tool_search_output` 的结果在 `tools`), `tokenAnalysisExtractText` 不读这些键, 工具输出哪里都没计; assistant 消息落入 default 分支, 计进了 `user_chars` | 按条目类型取结果字段计入工具字段; `user_chars` 不含 assistant 文本 |
+| Responses | `function_call_output` / `custom_tool_call_output` 等条目的正文在 `output` 键(`tool_search_output` 的结果在 `tools`), `tokenAnalysisExtractText` 不读这些键, 工具输出哪里都没计; assistant 消息落入 default 分支, 计进了 `user_chars` | 按条目类型取结果字段计入工具字段: `tool_search_output` 取 `tools`, 其余取 `output`(审核 F2: 统一读 `output` 时 512 KiB 的 `tools` 载荷记为 0 字节); `user_chars` 不含 assistant 文本。"是不是工具输出"与"结果在哪个字段"是两个判断, 测试 fixture 要用真实协议结构, 不能给所有类型统一造 `output` |
 | Messages | user 消息中的 `tool_result` 计进了 `user_chars` | 计入工具字段, 从 `user_chars` 剔除 |
 | Gemini | `functionResponse` 没计 | 计入工具字段 |
 | 图片数 | 内容中的任意非空字符串都被记为一张图片; Responses/Chat/Messages 都允许 `content` 为纯文本字符串, 纯文本请求因此 `image_count > 0`, 被金额门槛误判为图片请求(2026-10-27 审核 R7) | 只按图片字段(`image_url`、`input_image`、`inline_data` 等)与图片块类型(`image`、`input_image`、`image_url`)计数; 字符串只在图片字段下才算一张图; Responses 工具输出(如 `function_call_output` 的 `input_image` 块)同样计入(复核 N1) |
-| 工具定义数 | 只数顶层 `tools` 的条目; Codex 把工具定义放在 `input` 的 `additional_tools` 条目中(namespace 内嵌叶子工具), 顶层没有 `tools`, 因此 `tools_count` 几乎恒为 0(2026-10-27 样本: Codex Desktop 各版本 99%-100%) | `tools_count` 统计顶层 `tools` 与 `additional_tools` 中的叶子工具定义, namespace 递归计其叶子; namespace 子项与 apicompat 适配器口径一致: 非空 `tools` 优先, 否则回退 `children`(只对 namespace 认 `children`, 第四轮复核 F2) |
+| 工具定义数 | 只数顶层 `tools` 的条目; Codex 把工具定义放在 `input` 的 `additional_tools` 条目中(namespace 内嵌叶子工具), 顶层没有 `tools`, 因此 `tools_count` 几乎恒为 0(2026-10-27 样本: Codex Desktop 各版本 99%-100%) | `tools_count` 统计顶层 `tools` 与 `additional_tools` 中的叶子工具定义, namespace 递归计其叶子; namespace 子项与 apicompat 适配器口径一致: 非空 `tools` 优先, 否则回退 `children`(只对 namespace 认 `children`, 第四轮 F2) |
 
 工具字段指 `tool_message_count` / `tool_output_bytes` / `max_tool_output_bytes`。旧风险分以这些字段为输入, 修复后会变化, 这是已接受的结果; 旧规则在 12.4 的 C 阶段下线。
 
@@ -85,7 +92,11 @@
   - 内置族: codex、claude_code、copilot、cursor、cline_like、gemini_cli、opencode、sdk_script、hertz(自有客户端)。
   - "agent 族"指除 sdk_script、other 以外的族。
 - UA 截断到 512 字符, 经 `sanitizeTokenAnalysisText` 清洗, 每行记录 `client_family_version`(规则内容的哈希, 0 表示列上线前的历史行)。
-- 规则变化后, 自动索引每轮按 id 游标补映射一批旧版本行, 扫完一遍后隔 1 小时再复查, 使滚动发布期间旧实例晚写入的行最终也被补上。写回按读出时的 UA 与版本快照条件提交, 期间被改过的行跳过, 由下一遍重新读取。版本是哈希, 不能按大小比较先后。
+- 规则变化后, 自动索引每轮按 id 游标补映射一批旧版本行(`ListStaleClientFamilies`, 读出 UA 与当时的版本), 扫完一遍后隔 1 小时再复查, 使滚动发布期间旧实例晚写入的行最终也被补上。写回按读出时的 UA 与版本快照条件提交, 期间被改过的行跳过, 由下一遍重新读取。版本是哈希, 不能按大小比较先后。
+  - 不能"一次查不到旧版本行就认为已追平、本进程不再查"(审核 F3, 曾复现): 表由多个实例共享, 新实例追平后旧实例仍可能写入旧版本行, 之后再也不会被补上。
+  - 写回不能只比较"不是目标版本"(审核 F4, 曾复现): 读出 UA=codex 后, 另一次索引把同一行改成 UA=hertz 及新版本, 旧任务写回时把 family 覆盖回 codex。
+  - 版本 0 的历史行不由自动补映射处理, 等 10.6 的受控重索引。
+  - 已否决: 追平后立即再查一遍。原因: 游标扫完一轮后隔 1 小时复查已能收敛, 立即复查只增加扫描量。
 - 运行约束: 所有实例必须使用相同的 `client_family_rules`; 规则不同的实例长期并存会互相改写对方的结果, 只允许在滚动发布期间短暂出现。
 - UA 是客户端自报的, 不作可信度依据。
 
@@ -288,7 +299,7 @@
 分类用两对版本(migration 259), 任一对不等即待分类:
 - `cls_input_version` / `cls_checked_version`: 本行**自身**的分类输入版本。只在下列源事件中加一, 且总在同一事务内登记失效(10.2); 子请求记下的 `parent_cls_version_used` 与它比较。
 - `cls_dep_version` / `cls_dep_checked_version`: 依赖版本。由依赖传播(10.2)、规则版本扫描(10.5)、候选变化标记(5.5 的晚到父请求与父指纹变化)加一, 只表示"需要重算", 不改变本行对子请求的版本。
-- 拆开的原因(第四轮复核 F1, 已复现): 若传播也改输入版本, 一个消费者(过期的或正常的)在查完子孙之后才给某行加版本时, 期间新挂上并已按旧版本写回的子请求会与它永久失配, 且没有任何登记能修复。只改依赖版本则不会让任何子请求的父版本失配。
+- 拆开的原因(第四轮 F1, 已复现): 若传播也改输入版本, 一个消费者(过期的或正常的)在查完子孙之后才给某行加版本时, 期间新挂上并已按旧版本写回的子请求会与它永久失配, 且没有任何登记能修复。只改依赖版本则不会让任何子请求的父版本失配。
 
 沿用计费关联的版本对模式。`cls_state` 取 `classified`、`pending:usage_link`(当前请求账单待复核)、`pending:candidates`(候选快照未完成); 三者都按版本写回, 待相应输入变化经传播重新登记, 不长期保持脏状态。以下事件在**同一事务**内给自身加版本:
 - 索引 upsert
@@ -308,7 +319,7 @@
 | P 的其他输入变化 | 以 P 为父的边所指的子请求的 cls 版本; 再沿边逐层传播, 不超过 D 层、不超出 L |
 
 实现:
-- 源写入(`UpsertRequestSummary`、`ReplacePrefixEdges`、`RecordResponse`、`MergePendingResponses`、`SetUsageLink` 含被夺回的行、`ClearUsageLinkPending`)在事务内只给自身加 cls 版本, 并把自身写入失效登记表 `token_analysis_cls_invalidations`, 见 `markTokenAnalysisClassificationDirty`。每次登记(新建或重复)都从全局序列 `token_analysis_cls_invalidation_seq` 取新的 `seq`: 若只在行内加一, 登记被删除后重建又从 1 开始, 持有旧快照的另一消费者会按相同的 `(archive_id, seq)` 误删新登记(第三轮复核 T1, ABA, 已复现); 单实例锁是 best-effort, 不能排除多消费者。
+- 源写入(`UpsertRequestSummary`、`ReplacePrefixEdges`、`RecordResponse`、`MergePendingResponses`、`SetUsageLink` 含被夺回的行、`ClearUsageLinkPending`)在事务内只给自身加 cls 版本, 并把自身写入失效登记表 `token_analysis_cls_invalidations`, 见 `markTokenAnalysisClassificationDirty`。每次登记(新建或重复)都从全局序列 `token_analysis_cls_invalidation_seq` 取新的 `seq`: 若只在行内加一, 登记被删除后重建又从 1 开始, 持有旧快照的另一消费者会按相同的 `(archive_id, seq)` 误删新登记(审核 T1, ABA, 已复现); 单实例锁是 best-effort, 不能排除多消费者。
 - 分类作业每轮先处理登记: 读取 `(archive_id, seq)`, 从这些行出发逐层查前缀边(不含关联边)找子孙, 去重后最多 D 层、不按 L 截断(只会多算), 按 id 顺序加锁给登记行及其子孙加**依赖版本**(`propagateTokenAnalysisClassification`), 再按读取时的 `seq` 删除登记; 处理期间又被登记的行保留到下一批。过期或重复的消费者只会让这些行多重算一次。
 - 为什么必须在提交后查边(复核 N3, 已复现): 若在源事务内查边, 并发提交的新边 C→P 对它不可见; C 若在 P 提交前按 P 的旧事实分类并写回, P 提交后再无通知。提交后查边则不会漏: 凡是可能读到 P 旧事实的子请求, 其边在 P 提交前已提交, 处理登记时必然可见; 之后才提交的边, 其子请求的分类已能读到 P 的新事实。
 - 所选父请求的版本另由写回条件(10.3)与读路径(10.4)立即保护; 子孙在登记处理前(通常不超过一轮)保持旧的已对齐状态, 读路径的 `classified_through` 须把未处理的登记计入。
@@ -337,6 +348,8 @@
 
 接口同时返回 `classified_through`(最早一条脏行或未处理失效登记的时间)、覆盖率和规则版本。
 
+读接口实现时仍须闭合(复核遗留, 未实施): 源事务提交到失效登记被消费之间(通常不超过一轮作业), 子孙仍显示版本对齐; `classified_through` 只是水位, 本身不阻止旧结果展示。须明确这段窗口内旧金额的可见性策略(例如待处理登记所涉 Key 或时间段的金额按"计算中"返回), 并验收。计算侧的审核通过不代替这一项验收。
+
 ### 10.5 作业资源
 
 - 每分钟运行一次, 整轮期限 5 分钟; 使用 `tryAcquireSingletonLeaderLock`, TTL 10 分钟。
@@ -346,7 +359,8 @@
 - 一批内分类器缺少祖先行或候选边时, 汇总缺口一次加载后对未完成的行重算, 每层回溯至多两次加载。
 - 每轮先处理失效登记(10.2、10.7), 每批 2,000 条, 每轮最多 10 批。
 - 维护扫描(每轮最多 10 段、每段 2 万个 id, 扫完全表后 1 小时再扫): 只给已对齐但 `cls_rule_version` 不是当前版本的行加**依赖**版本(不传播, 不改输入版本, 以免分段扫描使已重算的子请求与后扫到的父请求失配)。首次上线时全部存量行因规则版本为 0 被逐段登记。
-- 作业在 `index_enabled` 时随服务启动(`ProvideTokenAnalysisService` 注入 `LeaderLockCache` 与 `*sql.DB`), 与自动索引共用停机控制; `RunClassification` 执行一轮(不取锁), 供测试与手动触发。
+- 作业在 `index_enabled` 时随服务启动(`ProvideTokenAnalysisService` 注入 `LeaderLockCache` 与 `*sql.DB`), 与自动索引共用停机控制。完整一轮是 `classificationOnce`: 先 `DrainClassificationInvalidations` 消费登记, 再分类, 再维护扫描。
+- `RunClassification` 只执行分类部分(不取锁、不消费登记、不做维护扫描), 供测试与手动触发。测试并发场景时要先消费登记再调用它, 不能把单独调用它当成完整作业; 否则依赖登记传播的子请求不会被选中, 测试会误判。
 
 ### 10.6 受控重索引
 
@@ -395,6 +409,9 @@
 
 - **不设全局默认值。** 每次转发尝试进入 `Forward` 时清空上一次尝试的记录, 并记下入口的 `prompt_cache_key`。只有 `Forward` 内调用两个原生请求构造函数(`buildUpstreamRequest`、`buildUpstreamRequestOpenAIPassthrough`)的两处调用点写入记录; 构造函数本身也被兼容转换路径复用, 所以不在构造函数里写。改走协议转换或其他平台的尝试不写, 一律为 unknown。换账号重试时, 最终留下的是最后一次尝试的记录。
 - **实际 transport 是插件时降级。** 发送由 `doOpenAIUpstreamReportingTransport` 报告本次是否实际交给了 OpenAI OAuth 插件(route 可随时切换, 只有这里的判定与真实 transport 一致)。交给插件时, 记录改为 `forward_path = openai_responses_plugin`, 只保留缓存键处理方式作观测, 清空哈希与 usage 来源; 资格判定为 unknown, 直到插件行为核实(11.1)。
+  - 依据(审核 F1, 曾复现): 早期实现在 `doOpenAIUpstream` 之前记录, 插件路由 100% 命中时记录仍是 `openai_responses` + `upstream_parsed` + 非空哈希, 未核实的插件请求会带着看似完整的资格证据进入分类。
+  - 不要依据"存在插件管理器"或在更早时刻读一次路由配置来降级: 前者误伤未命中插件的原生请求, 后者漏掉路由变化。
+  - 已否决: 交给插件时整条记录置为空。原因: 保留 `forward_path` 与 `cache_key_handling` 便于观测插件流量占比, 资格仍为 unknown, 不影响正确性。
 - 记录内容:
   - `forward_path`: `openai_responses`(非透传)或 `openai_responses_passthrough`
   - `cache_key_handling`: 比较最终 body 与入口的 `prompt_cache_key`, 相同为 `passthrough`, 两边都没有为 `absent`, 否则为 `scoped` / `injected` / `deleted`, 只作观测
@@ -435,6 +452,11 @@
 - 每个子请求最多 2K 条边, 与请求数呈线性关系; 1,000 条连续追加约 2,000 条边。
 - 摘要行每行增加约 250 字节, 另加 6 个索引。
 - 验收用真实分布与极端场景(长会话、同 Key 高频相同输入、持续追加、多协议分支)测出边数、存储、批算吞吐和传播成本, 以实测为准。
+- 尚未压测、只是静态疑点(不要写成已证实的性能故障):
+  - 失效登记的子孙传播只有深度上限 D, 没有宽度上限;
+  - `ListStaleClientFamilies` 没有专用索引(migration 249 未加), 数据量大时用 `EXPLAIN (ANALYZE, BUFFERS)` 判断是否需要;
+  - 归档单行上限约 3 GiB(5.6)只是编码覆盖上限, 不代表该体量的峰值内存与吞吐已验证;
+  - 最终提示词哈希在请求协程内、响应结束后计算(11.2), 复制与哈希成本未测。
 
 ### 12.3 配置
 
@@ -470,7 +492,7 @@ YAML 配置在启动时与已存配置的哈希比对, 变化时按"变化时"�
 
 ## 13. 关键约束与依据
 
-以下约束在设计审核中逐条对照源码确认。它们不直观, 实施或后续修改时不要改回去:
+以下约束在设计审核与代码审核中逐条对照源码确认, 标"曾复现"的是审核中用真实代码路径复现过的失败场景(对应回归测试见第 17 节)。它们不直观, 实施或后续修改时不要改回去:
 
 | 约束 | 依据 |
 | --- | --- |
@@ -511,8 +533,21 @@ YAML 配置在启动时与已存配置的哈希比对, 变化时按"变化时"�
 | 缓存键按原值哈希 | 网关原样发送首尾空白, TrimSpace 会把不同的键归并成相同证据 |
 | 重读校验对正文重算哈希 | 行内 `body_sha256` 只是元数据, 正文变了它仍可能是旧值 |
 | 重复键不单独检测 | 单独检测需要再逐 token 解析一遍, 成本与解码相当; 解码结果与网关、上游一致为后者生效 |
+| 插件降级按本次实际 transport 判定 | 曾复现: 提前记录时插件请求带着原生路径的完整证据; 按"存在插件管理器"判定会误伤原生请求(审核 F1) |
+| 客户端族补映射没有"永久追平"状态 | 曾复现: 新实例追平后旧实例写入的旧版本行再也不会被补(审核 F3) |
+| 客户端族写回校验读出时的 UA 与版本 | 曾复现: 只比较目标版本时, 读后被改成 hertz 的行被覆盖回 codex(审核 F4) |
+| 图片计数只认图片字段与图片块, 但图片门槛不能撤 | 纯文本 `content` 字符串曾被计为图片(R7); 工具结果里的 `input_image` 曾被漏计(N1)。修计数, 不删金额门槛, 否则图文请求会进入只承诺纯文本的金额 |
+| namespace 只在 namespace 上认 `children`, 且非空 `tools` 优先 | 与 `apicompat` 适配器口径一致(第四轮 F2); 对任意对象的 `children` 无条件递归会误计; 顶层 `tools` 与 `additional_tools` 共用同一叶子计数, 改一处要两处一致 |
+| `RunClassification` 不等于完整作业 | 它不消费失效登记; 并发测试与手动重算要先 `DrainClassificationInvalidations`, 否则依赖传播的子请求不会被选中 |
+| 条件写回的测试要逐项隔离 | 多个版本同时过期的结果会被任一条件拒绝, 某个条件失效时测试仍通过; `TestTokenAnalysisClassificationCASGuardsAreIndependent` 每次只改一个版本, 并有"当前快照可写"的正向对照 |
+| 规则或哈希算法变化必须换版本 | 分类规则改动要递增 `TokenAnalysisClassificationRuleVersion`, 指纹或最终提示词哈希算法改动要换 `fp_version`; 否则旧行与新行按不同口径比较。已运行过旧版分类的环境(包括预发布)须安排受控重算 |
+| migration 258 不支持与 257 的旧程序混跑 | 旧程序仍按行内 `seq + 1` 登记, 不遵守全局序列合同; 258 的 `MAX(seq)` 种子覆盖不了旧消费者已读出的历史代次。若某环境运行过 257, 先停旧消费者与旧登记写入再切换 |
+| 拆分依赖版本(259)不修复已有失配 | 新增的 dep 列不会自动修复旧版本在某环境留下的父版本永久失配, 需要受控重分类 |
+| 并发回归只在独立测试库运行 | 测试用 trigger/advisory gate 固定交错时机, 会改库内对象; 不要对共享或业务库运行 integration 测试 |
 
 ## 14. 验收
+
+### 14.1 场景
 
 | 场景 | 期望 |
 | --- | --- |
@@ -561,10 +596,30 @@ YAML 配置在启动时与已存配置的哈希比对, 变化时按"变化时"�
 | 补入 10 天前的一小时活跃 | 对应区间被延长或合并 |
 | 新旧前后端组合、子管理员、新排序、从 C 阶段回切 | 无 400、无越权; 未知与 0 可区分; 补算前显示"未计算" |
 
-测试方式:
+### 14.2 测试方式
+
 - 单元测试: 规范化、指纹、边选择与回溯、资格、金额、传播谓词。
 - 集成测试: migration、条件写回、候选快照条件提交、原子传播、重索引任务, 在嵌入式 PG 上验证。
 - 回放: 新算法在服务器上以只读方式, 从归档原文为 Codex、Claude Code、Copilot、hertz 各取连续请求, 人工标注父请求和可判定性, 约 200 对。旧样本包只能验证降级路径。
+- 并发回归(第 17 节): 用测试专用 trigger/advisory gate 固定交错时机, 断言修正后的合同; 断言必须落在"正确行为"上, 不能用超时或阻塞代替。
+
+### 14.3 验证命令与最近结果
+
+在 `backend` 目录执行:
+
+```bash
+# 专项单元测试(CI 单测门禁是 -tags=unit, 默认 tag 跑不到这些用例)
+go test -tags=unit -p 1 -count=1 -run 'TokenAnalysis|BootstrapSecrets|SecuritySecret|GenerateHexSecret|SecretNotFound|MigrationExecutionMode|ApplyMigrationsFS|OpenAI.*Plugin' ./internal/config ./internal/service ./internal/repository ./internal/server/middleware ./internal/handler/admin ./internal/server/routes
+# 仓储集成测试: SUB2API_POSTGRES_ONLY_INTEGRATION_DSN 指向新建的空库(会自动应用全部 migration)
+go test -tags=integration -p 1 -count=1 -run 'TestTokenAnalysis' ./internal/repository
+go build ./cmd/server
+```
+
+最近结果(2026-10-27 最后一次复核, Windows, 本机隔离 PostgreSQL 18.1, 合成 fixture):
+- 专项单元测试 180 个顶层用例通过、0 跳过; `routes` 包没有匹配用例, 只完成编译。
+- 仓储专项 52 个顶层用例通过、0 跳过, 其中 31 个来自 integration 标签文件(其余为同包单元测试, 不能都算数据库集成测试)。
+- 历次审核的复现(第 17 节)全部在修正后重放通过; 后端构建、`gofmt -l`、`git diff --check` 通过。
+- 未覆盖: 生产 PostgreSQL 15 兼容性、全仓库测试、浏览器验收、负载压测、真实 OAuth 插件端到端、正在运行 257 的环境的滚动升级、生产重索引。本次文档整理未重新运行上述命令。
 
 ## 15. 实施顺序
 
@@ -576,21 +631,61 @@ YAML 配置在启动时与已存配置的哈希比对, 变化时按"变化时"�
 6. OpenAI 原生 Responses 金额(阶段 3), 验收通过后打开开关。
 7. 完成后同步 `llm-wiki/wiki/backend.md`、`frontend.md`、`data-and-domain.md`、`security-and-reliability.md`。
 
-## 16. 实施进度
+## 16. 实施进度与待办
 
 | 项 | 状态 |
 | --- | --- |
-| 4.1 摘要器修复 | 已实现; 工具输出判定与来源分类共用 `tokenAnalysisIsToolOutputItemType` / `tokenAnalysisIsToolResultBlock` |
-| 4.2 客户端识别 | 已实现(migration 249); 规则版本变化后由自动索引按存下的 UA 补映射 |
-| 11.1 前置调查(源码部分) | 已完成, 结论见 11.1 表 |
-| Codex 结构样本(2026-10-27) | 已分析: `tools_count` 计入 `additional_tools`(已实现); `client_metadata` 加入白名单、去尾 1 条匹配(已写入 5.2/5.4, 随指纹实现落地) |
-| 11.2 转发侧记录 | 已实现(migration 250); 指纹密钥经 `security_secrets` 引导 |
-| 2026-10-26 数据基础层代码审核 | 4 项已修正: 插件 transport 降级(F1); `tool_search_output` 结果取 `tools`(F2); 客户端族补映射改为游标分批 + 低频复查(F3); 写回按 UA 与版本快照条件提交(F4)。审核报告见 `docs/reviews/2026-10-26-token-analysis-data-layer-code-review-cn.md` |
-| 5 前缀指纹与候选 | 已实现(migration 251/252): 指纹、去尾哈希、候选边与快照版本对、晚到父请求与父指纹变化的传播、索引时计算、重新匹配任务、行首/长度定位; K/L 为代码常量。生产结构样本回放与离线分析一致(Codex 完整前缀 27/26/27, Claude Code 去尾 29/29, Copilot/hertz 28/28) |
-| 6-8 冷暖、原因、资格、金额; 10.1-10.3 版本对、传播、条件写回; 10.5 分类作业与维护扫描; 10.7 账单删除 | 已实现(migration 253/254): `token_analysis_classification.go`(分类器, 纯函数)、`token_analysis_classification_job.go`(作业)、`token_analysis_classification_repo.go`。W/D/阈值为代码常量; 估算金额、`session_link`、`fp_version_mismatch` 首版不实现 |
-| 2026-10-27 分支审核(8 项) | 已修正(migration 255/256): R1 最终提示词哈希门槛; R2 同 Key 候选锁与锁内查找; R3 写回 SKIP LOCKED + 源事务死锁重试; R4 账单删除触发器与失效登记; R5 缓存键原值哈希; R6 重读正文重算哈希并核对存储指纹; R7 图片计数只认图片字段/块; R8 归档行上限按正文上限与转义推出。另: 当前请求缺完成事实按待复核; 候选查找结果有界。审核复现改写为回归测试。审核报告见 `docs/reviews/2026-10-27-token-analysis-branch-code-review-cn.md` |
-| 2026-10-27 第二轮复核(4 项) | 已修正(migration 257): N1 工具结果图片计入图片数; N2 最终提示词证据取自构造器产出的请求(`GetBody`); N3 分类版本改为源事务内自登记、提交后由作业沿边传播; N4 金额单次舍入。复现改写为回归测试。报告见 `docs/reviews/2026-10-27-token-analysis-branch-rereview-cn.md` |
-| 2026-10-27 第三轮复核(1 项) | 已修正(migration 258): T1 失效登记 seq 改取全局序列, 消除删除重建后的 ABA; 复现改写为回归测试 `TestTokenAnalysisInvalidationSeqCannotReuseDeletedGeneration`。报告见 `docs/reviews/2026-10-27-token-analysis-branch-third-review-cn.md` |
-| 2026-10-27 第四轮复核(2 项) | 已修正(migration 259/260): F1 分类版本拆为输入版本与依赖版本, 传播/规则扫描/候选标记只改依赖版本; F2 namespace `children` 别名按适配器口径计入工具数。另删除示例配置重复注释。复现改写为回归测试 `TestTokenAnalysisStaleConsumerCannotStrandCleanChild`、`TestTokenAnalysisToolCountNamespaceChildren`。报告见 `docs/reviews/2026-10-27-token-analysis-branch-fourth-review-cn.md` |
-| 2026-10-27 第五轮复核 | 通过, 无 P1/P2。P3 已处理: 条件写回测试改为逐项隔离(`TestTokenAnalysisClassificationCASGuardsAreIndependent`), 10.3 无父终态的校验表述已同步。报告见 `docs/reviews/2026-10-27-token-analysis-branch-fifth-review-cn.md` |
-| 10.4 读路径可见性、12 接口与页面、9 连续活跃、10.6 受控重索引任务 | 未开始 |
+| 4.1 摘要器修复 | 已实现; 工具输出判定与来源分类共用 `tokenAnalysisIsToolOutputItemType` / `tokenAnalysisIsToolResultBlock`; `tool_search_output` 取 `tools`(F2)、图片计数只认图片字段与块(R7、N1)、namespace `children` 按适配器口径(第四轮 F2) |
+| 4.2 客户端识别 | 已实现(migration 249); 规则版本变化后由自动索引按存下的 UA 游标补映射、扫完隔 1 小时复查, 写回按 UA 与版本快照条件提交(F3、F4) |
+| 11.1 前置调查(源码部分) | 已完成, 结论见 11.1 表; 服务器侧第 2-4 项仍待调查 |
+| Codex 结构样本(2026-10-27) | 已分析并落地: `tools_count` 计入 `additional_tools`; `client_metadata` 加入白名单; 去尾 1 条匹配(5.2、5.4) |
+| 11.2 转发侧记录 | 已实现(migration 250/255); 指纹密钥经 `security_secrets` 引导; 插件 transport 降级(F1); 缓存键原值哈希(R5); 最终提示词哈希取自构造器产出的请求(R1、N2) |
+| 5 前缀指纹与候选 | 已实现(migration 251/252): 指纹、去尾哈希、候选边与快照版本对、晚到父请求与父指纹变化的传播、同 Key 候选锁(R2)、索引时计算、重新匹配任务、行首/长度定位、重读重算哈希(R6)与行上限(R8); K/L 为代码常量。生产结构样本回放与离线分析一致(Codex 完整前缀 27/26/27, Claude Code 去尾 29/29, Copilot/hertz 28/28) |
+| 6-8 冷暖、原因、资格、金额; 10.1-10.3 版本对、传播、条件写回; 10.5 分类作业与维护扫描; 10.7 账单删除 | 已实现(migration 253/254/256-260): `token_analysis_classification.go`(分类器, 纯函数)、`token_analysis_classification_job.go`(作业)、`token_analysis_classification_repo.go`。W/D/阈值为代码常量; 估算金额、`session_link`、`fp_version_mismatch` 首版不实现 |
+| 代码审核 | 2026-10-26 数据层审核与 2026-10-27 分支审核(含四次复核)提出的问题全部修正, 复现改写为回归测试(第 17 节); 最后一次复核无 P1/P2 |
+| 10.4 读路径可见性(含 10.4 末尾的异步窗口策略)、12 接口与页面、9 连续活跃、10.6 受控重索引任务 | 未开始 |
+
+待办:
+1. 10.4 读接口与发布可见性, 连同异步传播窗口的可见性策略一起验收; 之后才能打开 `observation_enabled` / `amount_enabled`。
+2. 12.4 接口、筛选、DTO 与新版页面; 12.5 权限白名单。
+3. 第 9 节连续活跃表与区间。
+4. 10.6 受控重索引任务。规则改动导致的历史重算并入同一次受控重索引, 需用户授权后执行。
+5. 11.1 服务器侧调查: W 的文档依据、OpenAI OAuth 插件是否改写请求、Anthropic 改写触发统计。
+6. 12.2 的容量与性能实测(含传播宽度、`ListStaleClientFamilies` 执行计划)。
+7. 在生产同版本 PostgreSQL 15 上跑一遍 14.3 的集成测试。
+8. 完成后同步 `llm-wiki/wiki/backend.md`、`frontend.md`、`data-and-domain.md`、`security-and-reliability.md`。
+
+## 17. 审核编号对照
+
+代码与测试注释引用下列编号。两组 F 编号含义不同: 不带前缀的 F1–F4 来自 2026-10-26 数据层审核; "第四轮 F1/F2"来自 2026-10-27 分支审核的第四次复核。"曾复现"指审核时用真实代码路径(实际 `Forward`、真实仓储与 PG)在正确行为断言处失败, 修正后改写为下表的回归测试。
+
+| 编号 | 规则(曾复现的失败场景) | 正文 | 落点与回归测试 |
+| --- | --- | --- | --- |
+| F1 | 插件 transport 按实际发送降级为 `openai_responses_plugin`, 资格 unknown(插件请求曾带原生路径的完整证据) | 11.2 | `doOpenAIUpstreamReportingTransport`; `TestTokenAnalysisForwardFactsPluginTransport` |
+| F2 | `tool_search_output` 的结果取 `tools`(512 KiB 载荷曾记为 0 字节) | 4.1 | `token_analysis_summary.go`; `TestTokenAnalysisSummarizeToolOutputsAcrossProtocols` |
+| F3 | 客户端族补映射游标分批、扫完隔 1 小时复查(追平后旧实例写入的行曾永不补映射) | 4.2 | `ListStaleClientFamilies`; `TestTokenAnalysisRefreshClientFamiliesCursorAndRecheck` |
+| F4 | 客户端族写回校验读出的 UA 与版本(读后改成 hertz 的行曾被覆盖回 codex) | 4.2 | `UpdateClientFamilies`; `TestTokenAnalysisRefreshClientFamiliesSkipsChangedRows` |
+| R1 | 资格要求最终条目哈希等于入口条目哈希、父子最终 root 相同(加密 reasoning 重试剥离、compaction 触发器重排后资格曾未降级) | 7 门槛 4、11.2 | `tokenAnalysisUpstreamPromptHashes`, migration 255; `TestTokenAnalysisForwardFactsDetectRewrittenRetryPrompt` |
+| R2 | 摘要写入与候选查找+写边同取 Key 级候选锁, 查找在锁内(并发新父提交后, 子请求曾以 1/1 版本确认空候选) | 5.5 | `pg_advisory_xact_lock`; `TestTokenAnalysisConcurrentParentCannotEscapeChildCandidates`、`TestTokenAnalysisClassificationCandidateLookupWaitsForConcurrentParent` |
+| R3 | 分类写回 `SKIP LOCKED`; 源事务遇 40P01/40001 整体重试最多 3 次(曾返回 `deadlock detected`) | 10.2 | `TestTokenAnalysisSourceLockOrderDoesNotDeadlockClassification`、`TestTokenAnalysisClassificationWriteSkipsLockedRows`、`TestTokenAnalysisRepositoryRetriesDeadlockedTransaction` |
+| R4 | 账单删除由触发器登记失效, 不靠扫描(父被先判 no_usage 后扫描曾为 0, 子永久保留旧原因) | 10.7 | migration 256 `token_analysis_usage_detached`; `TestTokenAnalysisUsageDeletionWhileParentDirtyStillInvalidatesChild`、`TestTokenAnalysisClassificationUsageDeletionReachesDependents` |
+| R5 | 缓存键按原值 HMAC, 不 TrimSpace(`"k"` 与 `" k "` 在标准与透传路径曾得到相同哈希) | 11.2 | `TestTokenAnalysisForwardFactsHashExactCacheKey` |
+| R6 | 重读对正文重算 SHA-256, 并核对重算指纹与存储指纹(正文 A 改 B、保留旧哈希字段时曾被接受) | 5.6 | `TestReadTokenAnalysisArchiveRequestRehashesBody` |
+| R7 | 图片计数只认图片字段与图片块(纯文本 `content` 字符串曾被计为图片, 金额证据变成 `unavailable:image_input`) | 4.1 | `TestTokenAnalysisTextOnlySummaryKeepsExactPrice` |
+| R8 | 归档行上限 = 512 MiB × 6 + 8 MiB(23 MiB 合法正文转义后曾超过旧 128 MiB 上限, 重匹配失败) | 5.6 | `TestTokenAnalysisArchiveLineLimitCoversEscapedBody` |
+| (R 同批, 无编号) | 当前请求缺完成事实按账单待复核, 与 usage 版本不等同属关联状态 | 7 | `TestTokenAnalysisClassifyPendingStates` |
+| (R 同批, 无编号) | 候选查找按完整前缀、去尾、关联三类各取 K+1 行, 结果有界(原实现查找无行数上限) | 5.5 | `TokenAnalysisPrefixEdgeWrite.Query/Select` |
+| N1 | 工具结果里的 `input_image` 计入图片数(图文请求曾得到 `row_exact`) | 4.1 | `TestTokenAnalysisToolOutputImageBlocksExactPrice` |
+| N2 | 最终提示词证据取自构造器产出请求的 `GetBody`(DeepSeek 构造器改写后, 记录的哈希曾与实际发送不同) | 11.2 | `TestTokenAnalysisForwardFactsHashBuilderFinalBody` |
+| N3 | 源事务只给自身加版本并登记, 提交后由作业沿边传播(父事实变化与首次建边交错时, 子曾按旧父事实永久对齐) | 10.2 | migration 257, `markTokenAnalysisClassificationDirty`; `TestTokenAnalysisNewEdgeCannotMissConcurrentParentFactChange` |
+| N4 | 金额合成一个有理式, 最后只舍入一次(曾得 0.7190783219, 精确值 0.7190783220) | 8 | `TestTokenAnalysisAmountRoundsOnlyOnce` |
+| T1 | 失效登记的 `seq` 取全局序列(删除重建后 seq 曾回到 1, 旧消费者误删新登记) | 10.2 | migration 258; `TestTokenAnalysisInvalidationSeqCannotReuseDeletedGeneration` |
+| 第四轮 F1 | 分类版本拆为输入版本与依赖版本, 传播只改依赖版本(过期消费者删除 0 行仍提交父版本 +1, 子引用的父版本曾永久失配) | 10.1 | migration 259/260, `propagateTokenAnalysisClassification`; `TestTokenAnalysisStaleConsumerCannotStrandCleanChild` |
+| 第四轮 F2 | namespace 子工具非空 `tools` 优先, 否则回退 `children`(只有 `children` 的 10 个工具曾计为 1 或 0) | 4.1 | `TestTokenAnalysisToolCountNamespaceChildren` |
+| 最后一次复核 P3 | 条件写回的四个条件逐项隔离验证 | 10.3 | `TestTokenAnalysisClassificationCASGuardsAreIndependent` |
+
+已否决或未采纳的审核建议(对后续修改有约束):
+- 已否决: 插件路径的转发记录整条置空。原因: 保留 `forward_path` 与 `cache_key_handling` 作观测, 资格仍为 unknown(11.2)。
+- 已否决: 客户端族追平后立即复查。原因: 游标扫完一轮后隔 1 小时复查已能收敛(4.2)。
+- 未采纳: 第四轮 F1 的"先原子认领有效登记、只对认领成功的集合传播"。原因: 改为拆分依赖版本后, 过期消费者最多让若干行多重算一次, 不再改变任何子请求引用的父版本, 无需认领。
+- 未采纳: 用进程内互斥或单实例锁排除并发消费者。原因: `tryAcquireSingletonLeaderLock` 是 best-effort, 正确性只能靠条件写回与登记合同。

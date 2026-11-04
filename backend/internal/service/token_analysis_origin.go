@@ -17,7 +17,7 @@ type tokenAnalysisRequestOrigin struct {
 }
 
 // Version 2 adds the client shapes found by the 2026-10-27 production audit
-// (docs/features/token-analysis-request-origin-design-cn.md, "v2 修订").
+// (docs/features/token-analysis-request-origin-design-cn.md §3 "分类规则（v2 修订）").
 const tokenAnalysisOriginVersion = 2
 
 type tokenAnalysisOriginContract struct {
@@ -421,7 +421,9 @@ const tokenAnalysisCodexCompactionPrompt = "You are performing a CONTEXT CHECKPO
 
 // Fixed compaction prompts as SHA-256 of the normalized full text, keyed by
 // its byte length. Copilot and hertz send long Chat prompts kept only as
-// digests (docs/delivery/2026-10-27-token-origin-audit, 27 samples).
+// digests (27 Chat samples from the 2026-10-26 production audit; see
+// docs/features/token-analysis-request-origin-design-cn.md §6.3, evidence last
+// present in commit 26f6363af).
 var tokenAnalysisCompactionPromptDigests = map[int][]string{
 	len(tokenAnalysisCodexCompactionPrompt): {tokenAnalysisSHA256Hex(tokenAnalysisCodexCompactionPrompt)},
 	6857:                                    {"7fb5ec344af84c99b060ee221c7b624ed9e3b960729e1466f4e6a0659c7dd8a0"}, // hertz

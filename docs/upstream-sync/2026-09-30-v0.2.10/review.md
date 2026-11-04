@@ -1,4 +1,8 @@
-# Sub2API 0.2.10 固定提交合并审核
+# Sub2API 0.2.10 上游同步记录（固定提交）
+
+合并日期 2026-09-30 ｜ 工作分支 `feature/hy/10213_merge_sub2api_210`（第一父 = 本地 `main@bdf31e87223`）｜ 上游 `Wei-Shaw/sub2api main@a60a29549f488a854966aaec9541abbe006cac22`（VERSION 0.2.10）｜ 合并提交 `87abb8a89b40b51b94b3d18ad8a8076030e1a85e` ｜ 状态：在 main 第一父历史上
+
+本文是该轮同步的唯一记录，审核结论已直接写入正文，没有另存的审核原文。正文中"尚未创建/等待审核/未 commit"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-09-30 — 固定合并上游 0.2.10（待 commit 审核）` 节。
 
 ## 合并边界
 
@@ -10,7 +14,7 @@
 | 上游分支 / 目标 | `Wei-Shaw/sub2api main@a60a29549f488a854966aaec9541abbe006cac22` |
 | 共同祖先 | `9a62841fd124d026cf3694fcf9b79e98addcdbdc` |
 | 版本 / 增量 | `0.2.10`；33 commits、118 paths、+3759/-332 |
-| 合并提交 | 尚未创建；MERGE_HEAD 固定目标，等待人工审核 |
+| 合并提交 | `87abb8a89b40b51b94b3d18ad8a8076030e1a85e`（审核时尚未创建，MERGE_HEAD 固定目标） |
 | 范围 | 仅解决文本/语义冲突和必要适配，保留本地独有功能；不修复上游自身 bug |
 
 fetch 时 upstream/main 已前进到 `a0f41f95a`；本轮严格使用指定目标，没有把后续提交混入候选。
@@ -77,7 +81,7 @@ unit 的 `internal/service` 包不能编译：`payment_config_plans_validation_t
 - 18 个显式 skip 涉及 Docker 限流、Prompt Audit 专用 Redis/PG、Windows symlink 权限、TLS capture、TypeSafe/OpenAI live、插件包及 DingTalk sentinel；repository TestMain 另打印 Docker 不可用并跳过整包。用户趋势真实数据库/上海时区/Top 指标用例仅完成编译，未获得真实 PostgreSQL 运行覆盖。
 - 未配置业务库或调用真实模型补齐环境；不把通过编译或命令结束等同集成验收。
 
-## 提交门禁
+## 提交前门禁（审核快照）
 
 - 分支 `feature/hy/10213_merge_sub2api_210`；HEAD 与 main 仍为原第一父，MERGE_HEAD 精确等于目标。
 - 最终 129 个暂存路径；未解决冲突、未暂存修改、未跟踪文件均为 0，`git diff --cached --check` 通过。

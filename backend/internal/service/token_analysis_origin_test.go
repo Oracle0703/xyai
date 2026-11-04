@@ -9,9 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Case names tagged "#N" are rebuilt from docs/delivery/2026-10-24-token-origin-samples
-// (sanitized structure of the 2026-10-23 production archive); "prod history" shapes come
-// from its messages-history-audit.json.
+// Case names tagged "#N" are rebuilt from the sanitized structure samples of the 2026-10-23
+// production archive; "prod history" shapes come from their Messages history audit. See
+// docs/features/token-analysis-request-origin-design-cn.md §6.1 (evidence last present in
+// commit 26f6363af).
 func TestTokenAnalysisRequestOriginUsesLatestEffectiveInput(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -83,8 +84,9 @@ func TestTokenAnalysisRequestOriginUsesLatestEffectiveInput(t *testing.T) {
 	}
 }
 
-// docs/delivery/2026-10-24-token-origin-human-input/classifier-fixture.json: the
-// production human turn (archive 73eb6d29...) hidden by the usage-link defect. The
+// Fixture from the 2026-10-24 human-input evidence (docs/features/
+// token-analysis-request-origin-design-cn.md §6.2, evidence last present in commit
+// 26f6363af): the production human turn (archive 73eb6d29...) hidden by the usage-link defect. The
 // last user item carries the ambient wrapper before the real question.
 func TestTokenAnalysisRequestOriginProductionAmbientContextTurn(t *testing.T) {
 	const question = "我之前请求的来源是不是没有办法归类了,只有上线后的才能归类?"
@@ -220,8 +222,9 @@ func TestTokenAnalysisRequestOriginMultipart(t *testing.T) {
 	require.Equal(t, tokenAnalysisOrigin("no_signal"), summary.SummaryJSON["request_origin"])
 }
 
-// v2 shapes from the 2026-10-26 production audit (docs/delivery/2026-10-27-token-origin-audit)
-// and the 10-27 compaction follow-up (docs/delivery/2026-10-27-compaction-followup). Each
+// v2 shapes from the 2026-10-26 production audit and the 10-27 compaction follow-up
+// (docs/features/token-analysis-request-origin-design-cn.md §6.3 and §6.5, evidence last
+// present in commit 26f6363af). Each
 // machine event must fill the whole message; the guard cases keep user text human.
 func TestTokenAnalysisRequestOriginV2ProductionShapes(t *testing.T) {
 	user := func(content any) map[string]any { return map[string]any{"role": "user", "content": content} }

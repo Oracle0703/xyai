@@ -1,8 +1,8 @@
 # Sub2API llm-wiki 基线
 
-## 0.2.19 同步（待提交审核）
+## 0.2.19 同步（已合入 main）
 
-- 2026-10-29 在原仓库从本地 `main@eb34cc973ef99e9e20b9c6f8e7f4936a0551cd11` 创建 `feature/hy/10225_merge_sub2api_219`，固定合入 `Wei-Shaw/sub2api main@a9240d5016c226b341242a8c54a01a8605cbbc72`（0.2.19）。main 的前置资料提交已完成，本轮合并尚未 commit/push。
+- 2026-10-29 在原仓库从本地 `main@eb34cc973ef99e9e20b9c6f8e7f4936a0551cd11` 创建 `feature/hy/10225_merge_sub2api_219`，固定合入 `Wei-Shaw/sub2api main@a9240d5016c226b341242a8c54a01a8605cbbc72`（0.2.19）。合并提交 `ecd61d8d0` 已经 `70e90d706` 合入 main（2026-10-30，2026-11-04 核对）。
 - 71 commits / 259 上游路径，8 个文本冲突、46 个双方修改路径；保留本地独有功能，重叠 DeepSeek 缓存字段采用上游。仅解决文本和必要语义冲突，不修复上游 bug。审核、失败归属及验证边界见 `docs/upstream-sync/2026-10-29-v0.2.19/review.md`。
 
 ## 0.2.18 同步（已创建合并提交）
@@ -14,24 +14,24 @@
 ## 受限账号运维入口
 
 - `feature/hy/10220_sub_admin_accounts` 新增子管理员权限 `admin.accounts_operator`：可全量查看 `/admin/accounts`，只能新增、测试连接、重新授权；在用户管理里给 `sub_admin` 勾选即可，可多人。子管理员造成的新增/重新授权/测试后状态变化会邮件通知固定收件人。设计与决策见 `docs/features/sub-admin-accounts-operator-design-cn.md`，运行合同见 security/backend/frontend 子管理员章节。
-- 2026-10-25 两个 P1 修复已复核：子管理员导入命中已有账号一律跳过，单条/批量用量不直接清错误，Grok 额度探测不清限流；四包 Go 专项及 16 个独立角色/参数/并发场景通过。Gemini OAuth 类型变更的接口残留问题按用户决定暂缓，当前弹窗类型只读。记录见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`；尚未完成生产/真实 SMTP/浏览器端到端验收。
+- 2026-10-25 两个 P1 修复已复核：子管理员导入命中已有账号一律跳过，单条/批量用量不直接清错误，Grok 额度探测不清限流；四包 Go 专项及 16 个独立角色/参数/并发场景通过。Gemini OAuth 类型变更的接口残留问题按用户决定暂缓，当前弹窗类型只读。记录见 `docs/features/sub-admin-accounts-operator-design-cn.md` §9–§10（审核已并入）；尚未完成生产/真实 SMTP/浏览器端到端验收。
 
 ## 部门功能入口
 
 - `feature/hy/10207_department_usage` 已完成独立部门管理、多平台报表和受限额度重置；S1–S6 复核修正及 RV1–RV8 本机隔离验收完成。负责人仍不能分配订阅。
 - `catalog_version`（目录）、`admin_access_version`（角色/权限/grant）、`scope_version`（实际查询范围）明确分离；统一 CAS、降级/软删除清授权、SQL 分页/批量统计及候选成员锁已实现。
-- 设计/初始化/回退：`docs/features/organization-department-usage-design-cn.md`；执行记录：`docs/features/organization-department-usage-implementation-plan-cn.md`；逐项证据和性能：`docs/delivery/2026-09-19-department-usage/acceptance.md`、`performance.md`。
-- 2026-09-21 代码精简与复审见 `docs/reviews/organization-department-usage-code-review-cn.md`：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
-- 同日实现审核见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant，2026-11-03 已在 `hotfix/hy/0000_department_review_followups` 修复（同时收窄子管理员订阅字段、停用分组禁止新建订阅，按 2026-11-03 未合并分支复审的用户裁定）。
+- 唯一文档 `docs/features/organization-department-usage-design-cn.md`：设计、初始化/回退、实施要求（原 S1–S6 任务卡）、RV1–RV8 验收与性能（§11）、易错点（§14）、状态（§15）；原实施方案、审核与验收证据目录已并入并移出仓库。
+- 2026-09-21 代码精简与复审见 `docs/features/organization-department-usage-design-cn.md` §14 K8–K12（审核已并入）：必需权限详情接口、统一查询校验、授权增量锁、顺序报表请求和严格导出快照。
+- 同日实现审核见 `docs/features/organization-department-usage-design-cn.md` §11.2、§15（审核已并入）：无跨组织/跨部门越权或回退全站；剩余订阅进度错误改写、组织用量分页溢出、SetAccess 省略 department_ids 不清 grant，2026-11-03 已在 `hotfix/hy/0000_department_review_followups` 修复（同时收窄子管理员订阅字段、停用分组禁止新建订阅，按 2026-11-03 未合并分支复审的用户裁定）。
 - 部门分支现已合入本地 main（`273b76c3558e2f3a63d35d851e0e9783f7a66adb`）；部署状态不在本轮验证范围。创建时间上界、SQL 内摘要两个备选未启用。运行合同见 backend/frontend/data/security，验证入口见 ops。
-- 2026-10-29 `feature/hy/10226_department_member_management` 已实现独立权限 `admin.department_members` 与「我的部门」页：限授权部门的普通成员，可加入同组织未分配用户、移出、改用户名/负责人备注和启停用；无 grants 拒绝，只能恢复负责人停用的成员。migration 261 增加 `disabled_source`、独立 `department_note`（1000 Unicode 字符，归属变化清空并审计）；管理员备注不披露，负责人备注对管理员只读。设计：`docs/features/department-member-management-design-cn.md`；固定接口、分阶段门禁与锁定测试基线 `a058b81c6`：`docs/features/department-member-management-implementation-plan-cn.md`。运行合同见 backend/frontend/data/security 部门章节，验证入口见 ops。2026-10-29 已通过实现复核（`8060a1e91`…`5e6c1ee55`，结论见设计第 13 节）；2026-11-03 已核对当前 `main@3c75444f1` 包含成员管理实现，历史“未合回 main”状态不再适用；本轮未核验部署。
+- 2026-10-29 `feature/hy/10226_department_member_management` 已实现独立权限 `admin.department_members` 与「我的部门」页：限授权部门的普通成员，可加入同组织未分配用户、移出、改用户名/负责人备注和启停用；无 grants 拒绝，只能恢复负责人停用的成员。migration 261 增加 `disabled_source`、独立 `department_note`（1000 Unicode 字符，归属变化清空并审计）；管理员备注不披露，负责人备注对管理员只读。设计：`docs/features/department-member-management-design-cn.md`；固定接口、分阶段门禁与锁定测试基线 `a058b81c6`：`docs/features/department-member-management-design-cn.md` §4.4、§9（任务卡已并入）。运行合同见 backend/frontend/data/security 部门章节，验证入口见 ops。2026-10-29 已通过实现复核（`8060a1e91`…`5e6c1ee55`，结论见设计第 13 节）；2026-11-03 已核对当前 `main@3c75444f1` 包含成员管理实现，历史“未合回 main”状态不再适用；本轮未核验部署。
 - 组织负责人（2026-11-03 设计，D1–D8 用户确认；2026-11-04 设计两轮审核、实现两轮复核均通过）：`sub_admin` + `admin.organization_manage` + `organization_access_grants`（migration 262，仅 xunyou/wsdashi），范围按组织动态计算（含未分配），可建/维护本组织部门、任命/调整/撤销可托管部门负责人（撤销即降回 user），新增 `organization_manager` 停用等级；组织授权与部门授权互斥，范围按操作者类型二选一不取并集。D5 同时收紧现有部门负责人的额度重置（不能重置本人、admin、部门内 sub_admin），发布前需告知。已在 `feature/hy/10228_organization_leader` 提交，未推送、未部署，浏览器验收未做。唯一文档 `docs/features/organization-leader-design-cn.md`：规则、接口、代码地图、易错点（§14）、验证命令与结果（§15）都在其中，审核原文已并入、不再保留。
 
 ## 图片生成页入口
 
-- 2026-11-02 `feature/hy/10227_image_gen_upgrade` 已实现 `/image-gen` 动态模型、手动模型、模型偏好与显式记住 Key；未改后端、未提交。状态：代码修复完成，待 Codex 独立审核与浏览器验收。设计文档 `docs/features/image-gen-model-selection-design-cn.md`：第 12 节为 Codex 交叉复核（R1 错误回显 Key、R2 删除失败清除入口消失、R3/R4 文档口径、U1 密码自动填充风险），第 13 节为修复记录与最终交互规则（只在回车/加载按钮发送 Key，编辑不删已保存 Key，错误按请求快照脱敏，删除失败可重试；生成前不强制确认，理由见 13.1）。正式同源 Chrome 自动填充、真实 Key/生图与 Grok/Gemini 参数兼容未验证。第 11 节为历史实现方结论。运行合同入口仍见 frontend/security/ops。
+- 2026-11-02 `feature/hy/10227_image_gen_upgrade` 已实现 `/image-gen` 动态模型、手动模型、模型偏好与显式记住 Key；未改后端。唯一文档 `docs/features/image-gen-design-cn.md`（已并入首版整页工具、状态持久化/多图输入设计与交叉复核结论）：交互规则见 §7、§9，易错点（R1 错误回显 Key、R2 删除失败可重试、U1 自动填充风险等）见 §14，验证与未完成的浏览器/真实 Key/Grok/Gemini 兼容验证见 §16–§17。运行合同入口仍见 frontend/security/ops。
 
-更新时间: 2026-11-02
+更新时间: 2026-11-04（docs 全量整理：每个功能只保留一份文档，见 `docs/README.md`）
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。
 
@@ -104,7 +104,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 
 ## 文档地图（路径说明）
 
-- [[gpt-account-quota-display-design]]：GPT 账号额度共享展示，迅游/速宝双列；2026-09-28 已实施、待上线验收。读写隔离、只读上游、排程与接口合同见该页和 `docs/features/gpt-account-quota-display-design-cn.md` 第 13 节。
+- [[gpt-account-quota-display-design]]：GPT 账号额度共享展示，迅游/速宝双列；2026-09-28 已实施、待上线验收。读写隔离、只读上游、排程与接口合同见该页和 `docs/features/gpt-account-quota-display-design-cn.md` §8。
 
 - `backend.md`: 后端入口, 路由, Wire 依赖注入, service/repository 分层, 网关路径。
 - `frontend.md`: Vue 前端入口, 路由守卫, store, API client, 组件和样式约定。
@@ -113,7 +113,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 - `security-and-reliability.md`: 认证, 权限, 限流, 幂等, CSP, URL allowlist, 网关可靠性。
 - `ai-workflow.md`: Codex/Copilot 日常如何读取和更新 llm-wiki。
 - [[department-report-design]]: 已实现并完成隔离验收的部门管理、多平台报表及负责人授权方案，含完整设计入口与工作量估算。
-- 仓库文档目录索引: `docs/README.md`（features/reviews/delivery/upstream-sync 分工与路径迁移表）。
+- 仓库文档目录索引: `docs/README.md`（features/presentations/upstream-sync 分工与旧路径迁移表）；新增/修改文档或合并分支前必读，同时读取 [[ai-workflow]] 的归档规则。
 - 给人读的完整架构/运维手册（新同事与值班）: `docs/ARCHITECTURE_AND_OPS_HANDBOOK.md`（2026-09-11 对照源码重写）。结构: 第 4–13 章运转过程（启动/配置/网关 13 步鉴权/调度并发/计费/管理面/settings/后台任务/数据层/关联图）, 第 14–17 章维护不变量与改动清单, 第 18–26 章运维逐项配置（默认/范围/影响/方向/生效）与排障树。wiki 仍是 AI 开发前入口；手册写流程、配置步骤、上线和排障，不替代本知识库。
 
 ## 知识图谱

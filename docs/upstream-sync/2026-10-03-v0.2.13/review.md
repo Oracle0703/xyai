@@ -1,4 +1,8 @@
-# Sub2API 0.2.13 固定提交合并审核
+# Sub2API 0.2.13 上游同步记录（固定提交）
+
+合并日期 2026-10-03（合并提交创建于 2026-10-06）｜ 工作分支 `feature/hy/10215_merge_sub2api_213`（合并提交信息写作 `feature/hy/10215_merge_sub2api_212`；第一父 = 本地 `main@244b058680aa`）｜ 上游 `Wei-Shaw/sub2api main@b8dece9000c68815a5b867ca5a1e6f236e173905`（VERSION 0.2.13）｜ 合并提交 `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a` ｜ 状态：在 main 第一父历史上
+
+本文是该轮同步的唯一记录，审核结论已直接写入正文，没有另存的审核原文。正文中"尚未创建/等待审核/未 commit"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-10-03 - Sub2API 0.2.13 固定提交合并（待审核）` 节。
 
 ## 边界
 
@@ -10,7 +14,7 @@
 | 上游分支 / 固定目标 | `Wei-Shaw/sub2api main@b8dece9000c68815a5b867ca5a1e6f236e173905` |
 | 共同祖先 | `42bc7f6cffe24bcb471608e48e66b4a0afa1f882` |
 | 上游版本 / 增量 | `0.2.13`；39 commits / 157 paths / `+6027/-314` |
-| 合并提交 | 尚未创建；保留 `MERGE_HEAD`，等待人工审核 |
+| 合并提交 | `cdc5178d26f5b9a9300604bf09f74e5f3e1eb18a`（审核时尚未创建，保留 `MERGE_HEAD`） |
 | 范围 | 仅解决冲突；本地独有功能保留，重叠行为采用上游，不修上游 bug |
 
 ## 冲突裁决
@@ -52,14 +56,14 @@ Vitest 失败归属：该测试文件在第一父、指定上游和结果中的 
 
 Docker、真实 PostgreSQL/Redis、外部上游和生产浏览器验收不因本地测试通过而默认视为覆盖。Go 日志与最终前端日志位于 `backend/.gocache/merge212-*.log`；首次前端日志位于仓库外 `E:/allsite/merge212-frontend-*.log`，均为本机验证产物。日志前缀沿用版本核实前的名称，实际目标及版本以本报告固定 SHA 为准。
 
-## 复核补充（2026-10-04）
+## 独立复核结论（2026-10-04）
 
 - 独立复核：3 个冲突文件及 33 个双方修改路径的增量与上游一致；124 个上游独有路径 blob 一致；Ent/Wire 重新生成无漂移；增量 golangci-lint 0 issues。
 - unit：以临时 `-overlay` 绕过第一父 `ptrFloat` 重复声明补跑，service 包仅第一父已有的 `TestApplyDefaultOpenAIReasoningEffort/config_none_normalizes_to_empty_->_disabled` 失败，上游新增充值赠送/System One/支付 unit 用例全部通过。CI `make test-unit` 在修复 `ptrFloat` 前仍为红。
 - 嵌入式 PG16 postgres-only 集成：Migration/Payment/UserPlatformQuota/Composite/APIKey/Department 相关 90 pass、2 skip；Redis、PG18、Docker 全量集成未覆盖。
 - 语义缺口：本地 Prompt Risk、RequestArchive/Token Analysis、RequestIntercept、Prompt Metrics 未覆盖 `/v1/systemone`；订阅管理与部门用量平台白名单不含 `typesafe`（订阅管理页下拉已含 TypeSafe，选中返回 400）。TypeSafe 短期不启用，留待后续适配；详见 `llm-wiki/wiki/security-and-reliability.md`「0.2.13 安全与可靠性合同」。
 
-## 交付状态
+## 提交前状态（审核快照）
 
 当前未 commit、未 push、未创建 PR、未合回 `main`、未部署；等待用户审核后再决定是否创建 merge commit。
 

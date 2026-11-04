@@ -82,7 +82,7 @@
 | `service/image_storage.go` `download` | **无 host/SSRF 校验即 HTTP GET**（合并记录 + 读码确认） | TD-001 |
 | `service/openai_live.go` | Live **TotalCost/ActualCost 恒 0**，余额可白嫖长会话 | TD-027 |
 | `repository/usage_log_repo_trend.go` | `GetAllGroupUsageSummary` **全表扫 usage_logs** | TD-026 |
-| `repository/organization_usage_repo.go` | peak CTE **未 MATERIALIZED**（性能文 11s→0.4s 候选未落地） | TD-025 |
+| `repository/organization_usage_repo.go` | peak CTE 已 `AS MATERIALIZED`（`a9c53a9f6`，2026-11-04 核对）；新 SQL 未重跑基线 | TD-025 |
 | `service/content_moderation.go` | admin 命中 autoban 时 **不禁 API Key** | TD-034 |
 | `service/account_service.go` | Anthropic/OpenAI/Gemini 凭证测试 TODO | TD-016 |
 | `service/admin_account.go` | refresh logic TODO | TD-017 |
@@ -104,7 +104,7 @@
 | TD-001 | P0 | open | 异步图 URL 下载无 SSRF 防护（`image_storage.download`） | 安全 |
 | TD-002 | P0 | open | 异步图 processing 重启不恢复 | 可靠 |
 | TD-003 | P0 | open | 用户批量限额 cache/参数上限风险 | 配额边界 |
-| TD-004 | P0 | open | 全量 golangci-lint 基线红（~28–40） | CI |
+| TD-004 | P0 | open | 全量 golangci-lint 基线红（2026-11-03：34） | CI |
 | TD-005 | P0 | open | `/auth/me` × `admin_permissions` contract mismatch | 测试基线 |
 | TD-006 | P0 | open | Frontend Vitest 已知基线失败族 | 测试基线 |
 | TD-027 | P0 | open | OpenAI Live 会话计费恒 0（可白嫖时长） | 计费 |
@@ -114,7 +114,7 @@
 | TD-010 | P1 | open | migration **42 组**双前缀 + checksum 窄兼容 | 迁移工程 |
 | TD-011 | P1 | open | Responses path `LastIndex("/responses")` 重锚 | 网关 |
 | TD-012 | P1 | open | `go mod tidy -diff` 旧 checksum | 模块 |
-| TD-025 | P1 | open | 组织用量 summary-items 病态计划（~11s/90d） | 性能 |
+| TD-025 | P1 | doing | 组织用量 summary-items 病态计划（~11s/90d；peak 已物化，待重跑基线） | 性能 |
 | TD-026 | P1 | open | 分组用量汇总全表扫 `usage_logs` | 性能 |
 | TD-031 | P1 | open | first-output timeout 切号 → 重复上游计费 | 计费/设计 |
 | TD-039 | P1 | open | CI 前端仅 critical Vitest，全量可红进 main | CI |
@@ -144,8 +144,11 @@
 | TD-024 | P3 | open | Prompt Audit 生产 blocking 运营证据未齐 | 运营 |
 | TD-033 | P3 | open | 历史 ASYNC_IMAGE 仅 env 配置被静默丢弃 | 运维史 |
 | TD-043 | P3 | open | 大量 env/集成测试依赖 Skip（非债但掩盖覆盖） | 测试覆盖 |
+| TD-044 | P2 | open | 关机清理未覆盖 3 个后台服务；额度异步落库无在途等待 | 可靠 |
+| TD-045 | P2 | open | WebSocket passthrough 关闭帧时序用例偶发失败 | 测试 |
+| TD-046 | P3 | open | 未合并分支与遗留工作区清理（待授权） | 仓库卫生 |
 
-**条目数：40**（TD-001–043，编号保留历史 ID，中间有意不连续以便稳定引用）
+**条目数：43**（TD-001–046，编号保留历史 ID，中间有意不连续以便稳定引用）
 
 ---
 
@@ -188,11 +191,29 @@
 | | |
 | --- | --- |
 | 状态 | open |
-| 证据 | `docs/features/golangci-lint-debt-cleanup-plan-cn.md`（曾 40–44）；merge-list 持续 **~28–29** 基线；CI job **全量**扫描无 only-new |
+| 证据 | 2026-11-03 `main@0157f2c79` 全量 **34** 项（errcheck 20、gofmt 1、staticcheck 4、unused 9），分布在 19 个文件；`--new-from-rev=7d0f760fc` 增量 0。历史：2026-06-08 main 40 / `ace14582` 44；merge-log 各轮 ~28–29。CI job **全量**扫描，无 only-new |
 | 影响 | lint job 对任意 PR 可红，**失去存量拦截**；团队只靠 `--new-from-rev` 心理安慰 |
 | 建议 | chore 清零 **或** CI 正式 only-new + 本看板定期还债；二者必须选一并写进 ops |
 | 验证 | `golangci-lint run --timeout=30m --max-same-issues=0 --max-issues-per-linter=0` → 0 |
 | 关联 | TD-021 |
+
+存量性质：2026-06-08 对当时 44 项逐条判定，全部是风格级问题，没有运行时 bug。2026-11-03 的 34 项只有分类计数（errcheck 20、gofmt 1、staticcheck 4、unused 9），未逐条复判；unused 从 2 项增至 9 项，清理时需逐条确认是否真为死代码。
+
+| 类别 | 实质 | 修法 |
+| --- | --- | --- |
+| errcheck：`strings.Builder.WriteString/Write/WriteRune` | 假阳性，这些 API 保证返回 nil error | `_, _ = b.WriteString(...)`（这些方法返回两个值）或带说明的局部 `//nolint:errcheck` |
+| errcheck：`defer f.Close()` / `rows.Close()` / `db.Close()` | 只读文件、查询或测试里的 Close；数据正确性由 `rows.Err()`/`Scan` 保证 | `defer func() { _ = f.Close() }()` |
+| gofmt | 纯格式（配置含 `interface{}`→`any` 改写规则） | `golangci-lint fmt` |
+| staticcheck ST1005 / QF1001 | 错误串首字母大写、德摩根改写建议 | 按提示改 |
+| unused | 重构残留的死函数/字段 | 删除 |
+
+噪音多是配置选择的结果：errcheck 开了 `disable-default-exclusions: true`，连社区默认豁免的 `defer Close` 也查。
+
+清理要点：
+- 单独一个 `chore(lint)` commit/PR，不和版本合并或功能修复混在一起；清完后分支按"lint 0 新增"执行。
+- 清单以当场重跑为准，不按旧行号修。默认 `max-same-issues=3` 会把同文案问题截成抽样，必须加 `--max-same-issues=0 --max-issues-per-linter=0`。
+- 工具版本跟随 CI（当前 v2.14.0，见 ops）；旧版 golangci-lint 用低版本 Go 编译时会报 "Go language version lower than targeted"，无法检查 go 1.27 代码。
+- 2026-06 曾约定"合并 1.134 版本时一并清理"，该时机已过且未执行，现由本条统一跟踪。
 
 ### TD-005 · `/auth/me` contract mismatch
 
@@ -270,9 +291,9 @@
 
 | | |
 | --- | --- |
-| 状态 | open |
-| 证据 | `docs/features/organization-usage-report-performance-cn.md`：90 天 summary-items **~11s**，peak CTE 嵌套循环；`MATERIALIZED` 候选 **~418ms** |
-| 生产代码 | `organization_usage_repo.go` 仍为 `day_peak AS (` **无** `MATERIALIZED`；explain 测试里另有 candidate query |
+| 状态 | doing |
+| 证据 | `docs/features/organization-usage-report-design-cn.md` §7.1：90 天 summary-items **~11s**，peak CTE 嵌套循环；`MATERIALIZED` 候选 **~418ms** |
+| 生产代码 | 2026-11-04 核对：`period_aggregates`、`selected_users`、`day/week/month_peak` 均已 `AS MATERIALIZED`（随 `a9c53a9f6` 进入 main）；日汇总表已实现（同文档 §6）。导出分页仍重复计算组织汇总与 period 聚合（§7.1 第二阶段部分落地） |
 | 影响 | 管理报表超时/DB 打满；加索引无效 |
 | 建议 | 落地物化 peak 或一次聚合 per-user peak；重跑 30/90/366 基线 |
 | 关闭 | 生产 SQL 消除 600× 循环；基线文档更新数字 |
@@ -422,6 +443,42 @@ openspec verification 运营 TODO。未齐前勿开 blocking。
 
 E2E/Redis/Postgres/TLS/外部 Key 大量 Skip — **不是缺陷**，但让「集成全绿」含义变弱。建议 CI 矩阵标明必跑子集与可选子集。
 
+### TD-044 · 关机清理覆盖缺口
+
+来源：2026-11-03 对未合并分支 `feature/hy/10177_fork_governance_validation`（U1，生命周期补丁 L1–L5）的复审。关机顺序：`main.go` 只有一处 `defer app.Cleanup()`；先 `Server.Shutdown`（5 秒），再执行 `provideCleanup`（`cmd/server/wire.go`）：并行停服务，然后依次关 Redis、Ent。
+
+| 项 | 事实 | 处置 |
+| --- | --- | --- |
+| 未纳入清理的服务 | `DeferredService`、`TimingWheelService`、`DashboardAggregationService` 不在 `provideCleanup` 中：`DeferredService.Stop` 的 `last_used` 最终批量写回（10 秒一批）在关机时不执行；时间轮回调可能在 Redis/Ent 关闭后继续触发 | **待评估**，比 L1–L5 更值得单独处理 |
+| L3 额度异步落库 | 仅在 `database.user_platform_quota_flusher_enabled=true` 时存在（默认 false）。Stop 不等待在途 tick，可能旧快照覆盖新快照，或在 Redis/Ent 关闭后写失败；写入是绝对值 `SET usage = v.usage`，不会重复计数，Redis 仍是准数据源 | 用户 2026-11-03 表示生产未开启（未核对生产配置），暂不移植。**开启该配置前必须先补"等待在途 tick"**（tickWG + tick 内加锁），最小测试：tick 阻塞时 Stop 不得先返回 |
+| L2 Token Analysis 异步索引 | 关停前已接受、超过 5 秒才到达 `IndexRangeAsync` 的请求会命中；实际几乎不可达。旧补丁也未覆盖 `startClassificationWithInterval` | 低优先；如做须在当前 main 上重写 |
+| L4 时间轮取消周期任务 | 已由 PR #46 修复（取消执行中的周期任务后不再重新注册） | done |
+| L1、L5 | 二次 cleanup 不可达（只有一个 defer，`log.Fatalf` 不执行 defer）；Prompt Metrics 禁用时不采集、pond 池不预启 goroutine | 放弃 |
+
+### TD-045 · WebSocket passthrough 关闭帧时序用例偶发失败
+
+`TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover`（`openai_ws_v2_passthrough_lifecycle_test.go`）在 2026-11-03 `main@0157f2c79` 默认全量中失败一次：预期 `websocket.CloseError`，实际等到 `context deadline exceeded`，用例耗时约 6.3 秒，关闭帧读取预算 2500 ms。之后 unit/integration 全量、当前与合并前源码各 `-count=3` 精确复跑均通过。不能定性为旧失败或已修复；也不能仅归因于机器负载。处置：保留为时序敏感项，下次全量再现时保存日志定位。
+
+同次验证中的另两项已修复（PR #48，`c1858e06c`）：分区清理 SQL mock 未预期先标记 rollup dirty day；`TestCommandCodeGatewayPassesThroughCatalogProtocols` 的目录缓存键用 `time.Now().UnixNano()`，Windows 上连续调用可能相同，改为每次调用加序号。
+
+### TD-046 · 未合并分支与遗留工作区清理（待授权）
+
+2026-11-03 复审结论（执行前先 `git fetch --prune` 复核 tip；删除需用户授权）：
+
+| ID | 对象 | 结论 | 清理前提 |
+| --- | --- | --- | --- |
+| U1 | `feature/hy/10177_fork_governance_validation`（本地 + github） | 不合并；L4 已移植，其余见 TD-044。分支内治理设计/债务审计文档是历史材料 | 远端保留至用户决定是否继续 fork 治理（TD-009） |
+| U2 | `feature/hy/10178_merge_sub2api_178`（本地 + github） | 0.1.178 中间合并提交，已被后续同步包含 | 无 |
+| U3 | `feature/hy/10207_department_usage` 尾提交 `ce6ce97c9` | 不合并（旧授权清理会无冲突地误伤成员管理权限）；有效部分已由 PR #47 按用户裁定重做 | 删本地；远端可删 |
+| U4 | `feature/hy/10212_sub4api_request_locale` | 用户裁定"先保留"：不合并、不重做，见 `openai-request-locale-design-cn.md` | 保留本地与 github |
+| U5 | `hotfix/hy/0000_limit_codex_context_272k`（本地 + github + 内网 origin） | 停止采用：共享常量会把 GPT-6 Sol/Luna 也收缩到 272k；成本控制需求应按分组/模型配置另行设计 | 无 |
+| U6 | `github/chore/remove-merge-artifacts-20260930` | 合入不改变 main 树 | 无 |
+| U7 | `github/codex/server-runtime-fixes-review` | `dff279f26` 是其超集 | 无 |
+| W1 | 工作区 `C:/Users/Admin/.codex/worktrees/request-diagnostics/xyai` + 分支 `feature/hy/10219_request_diagnostics` | 用户已不使用；源码与文档已打包到 `E:/allsite/_archive/xyai-request-diagnostics-20261103.zip`（不含 `.localdev/`） | 删除工作区前再看 `git status --ignored` |
+| W2 | 工作区 `E:/allsite/xyai-plugin-wiring` + 分支 `hotfix/hy/10210_preserve_plugin_manager_wiring` | 内容即 main 已有的 `ProvidePluginManager` 接线 | `git worktree remove` 前再看 `status --ignored` |
+
+判定方法（以后复审同类问题时沿用）：用 `git log main..<ref>` 看分支独有补丁，不用 `git diff main <ref>`；用 `git merge-tree --write-tree --name-only main <ref>` 预演；符号搜不到不等于行为不存在；工作区 diff 相对其 `HEAD` 而非当前 main；不合并 `upstream` 分支，不把内网 `origin/main` 合并进 GitHub `main`。
+
 ---
 
 ## 推荐还债顺序
@@ -443,7 +500,7 @@ Sprint E — 巨石拆分（长期、可并行小步）
   TD-028 Settings 子页 → TD-042 大 SFC → TD-029/030 文件拆分 → TD-041 包拆分（最后）
 
 Sprint F — 功能洞与杂项
-  TD-016..019, 032, 035..038, 022, 024, 031, 033, 043
+  TD-016..019, 032, 035..038, 022, 024, 031, 033, 043, 044..046
 ```
 
 **并行约束（再次强调）**
@@ -458,8 +515,7 @@ Sprint F — 功能洞与杂项
 | 文档 | 用途 |
 | --- | --- |
 | `docs/upstream-sync/merge-log.md` | 上游合并与只记不修 |
-| `docs/features/golangci-lint-debt-cleanup-plan-cn.md` | lint 明细 |
-| `docs/features/organization-usage-report-performance-cn.md` | TD-025 基线 |
+| `docs/features/organization-usage-report-design-cn.md` | TD-025 性能基线与日汇总方案 |
 | `docs/ASYNC_IMAGE_TASKS.md` | 异步图/TD-033 |
 | `docs/upstream-sync/playbook.md` | 合并纪律 |
 | `llm-wiki/wiki/data-and-domain.md` | migration 风险 |
@@ -475,3 +531,4 @@ Sprint F — 功能洞与杂项
 | 2026-08-12 | 首版 TD-001–024（合并记录导向） |
 | 2026-08-12 | **深度扫描修订**：体量快照；migration 42 组双前缀；TODO 全表；读码确认 SSRF/Live 零计费/组织用量未物化；新增 TD-025–043；条目共 40；Sprint 重排 |
 | 2026-08-12 | 补全后台扫描：nolint/interface{}/recover/类型断言/gjson 热文件/本地能力文件足迹 |
+| 2026-11-04 | 并入 `golangci-lint-debt-cleanup-plan-cn.md`（TD-004 现状与修法）与 2026-11-03 未合并分支复审、PR #45–#47 验证中的遗留项（新增 TD-044–046）；原文件已移出仓库 |

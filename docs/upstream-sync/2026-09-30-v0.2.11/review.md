@@ -1,4 +1,8 @@
-# Sub2API 0.2.11 固定提交合并审核
+# Sub2API 0.2.11 上游同步记录（固定提交）
+
+合并日期 2026-09-30 ｜ 工作分支 `feature/hy/10214_merge_sub2api_211`（第一父 = 本地 `main@ba53ec78d557`）｜ 上游 `Wei-Shaw/sub2api main@42bc7f6cffe24bcb471608e48e66b4a0afa1f882`（VERSION 0.2.11）｜ 合并提交 `244b058680aa56b613a7cb0862e262ed028661ef` ｜ 状态：在 main 第一父历史上
+
+本文是该轮同步的唯一记录，审核结论已直接写入正文，没有另存的审核原文。正文中"尚未创建/等待审核/未 commit"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-09-30 - Sub2API 0.2.11 固定提交合并（待审核）` 节。
 
 ## 边界
 
@@ -10,7 +14,7 @@
 | 上游分支 / 固定目标 | `Wei-Shaw/sub2api main@42bc7f6cffe24bcb471608e48e66b4a0afa1f882` |
 | 共同祖先 | `a60a29549f488a854966aaec9541abbe006cac22` |
 | 版本 / 上游增量 | `0.2.11`；23 commits / 90 paths / +5146 -296 |
-| 合并提交 | 尚未创建；保留 MERGE_HEAD 等待人工审核 |
+| 合并提交 | `244b058680aa56b613a7cb0862e262ed028661ef`（审核时尚未创建，保留 MERGE_HEAD） |
 | 范围 | 仅冲突解决；本地独有功能保留，重叠行为采用上游，不修上游 bug |
 
 开始时本地 main 工作区干净，未拉取或改写本地 main；fetch 后 upstream/main 与指定目标一致。没有跟随其他提交。
@@ -87,7 +91,7 @@ unit 的 service 包未获得运行覆盖，包含本地默认 effort/Responses�
 - integration 日志已确认 Docker 不可用，repository 的 TestMain 跳过整包，真实数据库/事务覆盖未获得；不能把该包的 ok 输出当作数据库用例运行成功。Docker 限流与其他显式 skip 同样不计入覆盖。
 - 未启动业务服务或做浏览器/真实上游重置验收，本轮结论限于合并候选与本机自动检查，不是生产发布批准。
 
-## 提交审核状态
+## 提交前状态（审核快照）
 
 - HEAD 与本地 main 保持 `ba53ec78d557ba2aa08efa5e28f2dde869b011da`；MERGE_HEAD 为指定 `42bc7f6cffe24bcb471608e48e66b4a0afa1f882`。
 - 本轮只增加冲突融合、上游改动及相应文档/导航；上游与第一父既有问题不修。合并台账仅尾部追加，29 个 features 文件保持第一父。
@@ -95,7 +99,7 @@ unit 的 service 包未获得运行覆盖，包含本地默认 effort/Responses�
 
 最终检查：103 个暂存路径；未解决冲突、未暂存修改、未跟踪文件均为 0；`git diff --cached --check` 通过。71 个仅上游路径的 index blob 等于目标；仅本地路径除本轮文档/图谱/台账外全部保持第一父，台账历史字节前缀不变，29 个 features 文件逐 blob 不变。
 
-## 提交前复核补充
+## 独立复核结论
 
 - 冲突复核：两处冲突及 19 个双方修改路径的结果均为“第一父 + 上游增量”；`wire diff` 无差异；default tag 下 service/handler/apicompat/openai/server/config/repository 通过。
 - unit 补跑：用 `go test -overlay` 在临时文件中去掉 `payment_config_plans_validation_test.go` 的重复 `ptrFloat`（工作区不改），unit tag 下 server/handler/apicompat/openai/repository 通过；service 包仅 `TestApplyDefaultOpenAIReasoningEffort/config_none_normalizes_to_empty_->_disabled` 失败。

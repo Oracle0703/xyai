@@ -2,7 +2,7 @@
  * 图片生成页的模型目录解析、候选判定与本地偏好存储。
  *
  * 全部为纯函数，store 负责状态与请求时序。设计见
- * docs/features/image-gen-model-selection-design-cn.md。
+ * docs/features/image-gen-design-cn.md。
  */
 
 export const MODEL_PREFERENCE_STORAGE_KEY = 'image-gen-model-v1'

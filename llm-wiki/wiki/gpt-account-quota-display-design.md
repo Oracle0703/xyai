@@ -1,6 +1,6 @@
 # GPT 账号额度共享展示
 
-状态：2026-09-28 已实施，待上线验收。完整设计与实施记录：`docs/features/gpt-account-quota-display-design-cn.md`（第 13 节为最终接口与实施澄清）。审核稿 `docs/reviews/gpt-account-quota-display-design-review-cn.md` 仅作历史参考。
+状态：2026-09-28 已实施，待上线验收。唯一文档：`docs/features/gpt-account-quota-display-design-cn.md`（最终接口见 §8；设计审核结论已并入，原审核稿移出仓库）。
 
 - 范围：只展示 GPT/OpenAI 上游账号额度，不是用户订阅余额。通过现有模式门禁的登录用户看到同一列表；账号原名 TrimSpace 后按大小写不敏感的 `c-`/`d-` 前缀归入迅游（`xunyou`）/速宝（`wsdashi`），桌面左右双列，移动端单列迅游在前。与组织、分组授权无关。
 - 资格：OpenAI OAuth 普通主账号、未软删除；排除 shadow、PAT、Agent Identity，Setup Token 因类型不是 OAuth 天然排除。管理员勾选后才展示，暂停或错误账号仍展示已有快照。已保存但后来失去资格的条目在管理页标原因，用户侧和采集排除，但不挡保存。

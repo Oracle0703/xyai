@@ -50,11 +50,14 @@
 ## 功能文档与审核归档
 
 - 目录入口 `docs/README.md`：各目录用途、新文档放置规则、不可移动文件和路径迁移表。
-- `docs/features/` 保存功能设计、技术说明与实现交付记录，不存放 review、audit 或审核裁决报告。
-- 功能审核原文放 `docs/reviews/`；功能验收、性能、截图放 `docs/delivery/<日期>-<主题>/`。已采纳结论更新到对应设计正文，未采纳意见不得写成已实现行为。
-- 上游同步材料统一放 `docs/upstream-sync/`：台账 `merge-log.md`（只追加）、流程 `playbook.md`、每轮 `<YYYY-MM-DD>-v<版本>/review.md`。
-- `docs/` 根目录只放上游自带文档和本地总手册；`docs/legal/` 被前端打包和 Dockerfile 引用。被 SQL migration 注释引用的设计文档不能移动（migration 有 checksum 校验）。
-- 迁移记录：2026-09-23 见 `docs/reviews/features-review-archive-index.md`，2026-09-30 见 `docs/README.md`。历史报告保留当时证据，只修相对链接；合并台账仅追加路径迁移说明，不改写既有条目。
+- **一个功能只保留一份文档** `docs/features/<feature>-design-cn.md`，面向 Claude 阅读：现行规则、接口、数据模型/迁移、配置、代码地图（函数名，不写行号）、关键约束与易错点（规则 + 依据）、验证命令与最近结果、状态与待办。不建 v2/v3 文档，不写"第 N 轮审核"过程章节。
+- 审核、复核、交付证据、执行计划不进仓库：收到后把采纳的结论直接改进设计正文或易错点，未采纳但对后续有约束的写成"已否决：X，原因 Y"；原文先归档到仓库外再删除（未提交文件删除不可恢复）。2026-11-04 之前的原文最后存在于提交 `26f6363af`。
+- 面向人的演示材料（HTML 汇报、介绍页）放 `docs/presentations/`，文字结论仍以对应功能文档为准。
+- 上游同步材料统一放 `docs/upstream-sync/`：台账 `merge-log.md`（只追加）、流程 `playbook.md`、每轮只一个 `<YYYY-MM-DD>-v<版本>/review.md`。
+- `docs/` 根目录只放上游自带文档和本地总手册；`docs/legal/` 被前端打包和 Dockerfile 引用。被 SQL migration 注释引用的设计文档不能移动或改章节号（migration 有 checksum 校验）。
+- 路径迁移表见 `docs/README.md`。合并台账保留当时路径，不改写既有条目。
+- 合并旧分支先对照迁移表，把有效增量合入现行文档；不要为解决 modify/delete 冲突恢复已整合的旧文件或 reviews/delivery/superpowers 目录。`.gitignore` 不拦截已跟踪路径，收尾须检查工作区、暂存区和新增文件。
+- wiki 就地维护现行规则与最新验证边界，不按每轮合并重复追加 SHA、冲突过程和测试流水；历史事实集中在上游 review 与只追加台账。功能文档更新已有章节，不靠追加第 N 轮章节保存过程；仍有效的跨版本约束应归并到对应规则。
 
 ## 推荐写法
 
@@ -111,7 +114,7 @@ Windows 不要使用裸 `powershell -File ...`（RemoteSigned 下可能被拦截
 
 - 入库: wiki 正文、`llm-wiki/index.md`、共享 config/ignore、**wiki 图谱 JSON**、AGENTS 与本页规则。
 - 不入库: 代码图谱 JSON、fingerprints、dashboard 日志（见根 `.gitignore`）。
-- 不入库: 根目录旧合并 diff、`ours_numstat.txt` / `theirs_numstat.txt`、根目录 Redis `dump.rdb`、Python `__pycache__/` 及 `backend/_local_compat.go` / `backend/_upstream_fallback.go` 旧合并脚手架；精确忽略规则见根 `.gitignore`。正式补丁、source-freeze 和交付验收材料继续保留，不能按 `*.diff` / `*.patch` 批量删除或忽略。
+- 不入库: 根目录旧合并 diff、`ours_numstat.txt` / `theirs_numstat.txt`、根目录 Redis `dump.rdb`、Python `__pycache__/` 及 `backend/_local_compat.go` / `backend/_upstream_fallback.go` 旧合并脚手架；精确忽略规则见根 `.gitignore`。正式补丁和 source-freeze 不能按 `*.diff` / `*.patch` 批量删除或忽略；交付验收证据按本页归档规则处理，先确认仓库外可读取，再移出仓库，有效结论并入对应文档。
 
 ## 相关页面
 

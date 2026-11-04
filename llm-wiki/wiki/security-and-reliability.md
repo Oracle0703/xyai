@@ -64,7 +64,7 @@
 
 状态：2026-09-20 已补齐统一授权 CAS 与生命周期清理；RV1–RV8 本机隔离验收通过。通用用户权限修改要求 expected_admin_access_version，department-scope 沿用 expected_version，均在事务中锁用户、重读角色/权限/grants 后校验；缺版本 400、过期 409，无写入。审计显式记录 before_role/after_role；降级/软删除清 grants，提权不复活。
 
-- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/reviews/organization-department-usage-implementation-audit-cn.md`；2026-11-03 起服务层对省略或 null 返回 400。
+- 2026-09-21 锁范围精简：SetAccess 只给新增部门按 ID 加 FOR SHARE 并批量插入；保留授权依赖既有外键、用户行锁，不重复锁部门。操作者/成员行锁、订阅行锁、CAS、事务审计与幂等重放鉴权继续保留；真实 PG 验证保留授权不等待旧部门锁、新增停用部门仍拒绝。同日实现审核确认隔离 fail-closed；Admin API/裸 JSON 省略 `department_ids` 时 DELETE 绑 NULL，已有 grant 会留下，详见 `docs/features/organization-department-usage-design-cn.md` §11.2、§15（审核已并入）；2026-11-03 起服务层对省略或 null 返回 400。
 
 - `admin.organization_usage`、`admin.department_subscriptions`、`admin.department_members` 分别控制报表、订阅、成员管理，三者共用 `department_access_grants`。成员权限不隐含另外两项；全站订阅权限不能扩大成员管理范围。撤权或空 grants 不回退全站，省略筛选或 `all` 仅代表授权范围内全部。
 - 成员写入限未删除普通用户和当前授权部门，同组织未分配用户可加入，不能从其他部门拉人。写操作锁 actor/目标用户后重读授权，批量先完成全部鉴权再检查版本；当前越权 403，仍授权但部门 ID/版本变化 409。负责人本人及其它特权角色只读；管理员/API Key 保留独立完整身份，但负责人备注仍只读。
@@ -197,7 +197,7 @@ Passkey / WebAuthn:
 - 路由白名单不能证明接口无副作用。`AdminAuth` 给所有 `sub_admin` 请求打 `service.WithSubAdminAccountRestrictions`：Codex 导入命中已有账号时跳过（不改写、不建重复账号）；`AccountUsageService.tryClearRecoverableAccountError` 和 Grok 额度探测的限流恢复对子管理员不执行。Grok 探测在 singleflight 的独立 context 里运行，标记必须显式带入并单独作为 key；新增依赖请求 context 的限制时同样要检查 singleflight/`context.Background()` 断链。
 - 受限账号运维的每个非 GET 白名单路由必须在 `accountOperatorActivityRoutes` 声明通知方式（`TestAccountOperatorWritesAreClassifiedForNotification` 强制）。新增类、重新授权和测试连接后的状态变化由 admin 路由组上的 `AccountOperator.ActivityTracker()` 异步发邮件给代码常量 `AccountOperatorNotifyRecipient`；邮件只含字段名/身份/状态，不含凭据值，发送失败只记日志，审计日志仍是操作留痕来源。
 - 重新授权的 `extra` 合并不额外过滤 key；变更通过邮件里的"附加配置字段"列表暴露。测试连接沿用现有逻辑（可自定义 prompt/模式），测试成功会自动恢复限流/过载/临时不可调度。
-- 受限账号运维两个 P1 已于 2026-10-25 本机复核：真实 JWT 导入链覆盖 update_existing 缺省/true/false，已有账号跳过且新账号照常新增；单条/批量/force 用量不清错误，Grok 双角色并发不混用限制。当前合同禁止查询直接清错误/清限流，仍保留快照缓存、真实 429 的保护性限流和 OpenAI 自动重置策略信号，不等于全部查询严格无副作用。证据见 `docs/reviews/sub-admin-accounts-operator-implementation-audit-cn.md`。
+- 受限账号运维两个 P1 已于 2026-10-25 本机复核：真实 JWT 导入链覆盖 update_existing 缺省/true/false，已有账号跳过且新账号照常新增；单条/批量/force 用量不清错误，Grok 双角色并发不混用限制。当前合同禁止查询直接清错误/清限流，仍保留快照缓存、真实 429 的保护性限流和 OpenAI 自动重置策略信号，不等于全部查询严格无副作用。证据见 `docs/features/sub-admin-accounts-operator-design-cn.md` §9–§10（审核已并入）。
 - `admin_permissions` 只属于完整用户响应。`UserFromServiceShallow` 被 API Key、订阅、兑换码和用量日志等嵌套对象复用, 不得映射权限数组, 避免向无关响应扩散账号授权信息。
 - 权限撤销后下一次管理请求立即失败。backend mode 下权限清空还必须结束前端会话, 避免“已登录但只能停在登录页”的脏状态。
 
@@ -296,9 +296,9 @@ Grok OAuth session 与密码授权:
 - WS 后续轮次的 `BeforeTurn` 包含利润门复核、定价冻结及槽位重抢，`BeforeRequest` 包含模型白名单和审核，均不重跑 billing eligibility 或账号额度过滤，角色保护需单独接入。OpenAI 账号 gate 对非 OpenAI 直接返回不暂停；只有实际经过该 gate 的选号/复核才可能覆盖。Gemini、Grok 和 Anthropic 兜底不能因调用了公共 billing 入口就宣称自动覆盖；重试与兜底的角色身份须明确，不能随资源切换洗掉限制。
 - `GroupCapacityService` 汇总关联账号的并发、会话和 RPM；`groups/usage-summary` 展示分组费用。两者都是观测接口，不提供按池余量或整组累计用量自动暂停高用量组的准入机制。手动停用分组可阻止后续鉴权请求，但不等于自动阈值控制或取消已发往上游的请求。
 - 核对入口：`backend/internal/service/billing_cache_service.go`、`user_subscription.go`、`group_capacity_service.go`、`openai_gateway_scheduling.go`；`backend/internal/repository/account_repo.go#queryAccountsByGroup`；`backend/internal/server/middleware/api_key_auth.go#validateAPIKeyGroupAvailable`。
-- 面向管理汇报的方案与三张机制图见 `docs/features/shared-compute-pool-protection-report-cn.md`；两阶段实施及自动暂停/恢复均为建议方案，不能视为已上线能力。共享池保底需求应扣除独立保底已覆盖部分，避免重复预留。
-- 离线交互汇报版：`docs/features/shared-compute-pool-protection-report-cn.html`，内嵌三张 SVG、共享模式对比及暂停/恢复演示。1000 总量、200 暂停线、300 恢复线和两次有效观测均为示例，不是生产参数；演示与真实网关无连接。
-- 方案决策对比见 `docs/features/shared-compute-pool-three-options-comparison-cn.html`（2026-09-21 源码核对修订）：方案一按完整的“独立保底账号＋自动保护”比较，方案二为分组标识加“普通组近 7 天累计用量 × 1.05”的全共享触停，方案三在二上增加最低保底、数据过期保护和高用量组分级限速，方案四为在既有账号级自动暂停上按分组角色区分阈值的替代路线。页面先列前置门槛（快照仅百分比、日桶无资源维度、无后台刷新、过期 fail-open、WS `BeforeTurn` 不重跑准入），门槛未满足的二/三标记“暂不可实施”，评分不折算门槛；另含准入覆盖矩阵。演示改为按账号周重置事件恢复（离散归零，E 模型保留迟滞与两次观测，方案四无迟滞并沿用过期/预计重置放行语义）；总量 1000、普通组历史 200、动态线 210、方案一独立额度 300、方案四等价保留 200 及限速档位均为示例，非已实现能力或生产参数。三、四都不具备独立账号隔离，也不能保证覆盖突发需求；建议区改为先以方案四观察模式验证阈值与刷新，再决定是否升级二/三或选一。
+- 唯一文档 `docs/features/shared-compute-pool-design-cn.md`（需求、三方案对比、推荐路线、参数、两阶段实施与自动暂停/恢复；已并入独立设计说明、汇报稿与两次评审）；两阶段实施及自动暂停/恢复均为建议方案，不能视为已上线能力。共享池保底需求应扣除独立保底已覆盖部分，避免重复预留。
+- 离线交互汇报版：`docs/presentations/shared-compute-pool-protection-report-cn.html`，内嵌三张 SVG、共享模式对比及暂停/恢复演示。1000 总量、200 暂停线、300 恢复线和两次有效观测均为示例，不是生产参数；演示与真实网关无连接。
+- 方案决策对比演示：`docs/presentations/shared-compute-pool-three-options-comparison-cn.html`（2026-09-21 源码核对修订）：方案一按完整的“独立保底账号＋自动保护”比较，方案二为分组标识加“普通组近 7 天累计用量 × 1.05”的全共享触停，方案三在二上增加最低保底、数据过期保护和高用量组分级限速，方案四为在既有账号级自动暂停上按分组角色区分阈值的替代路线。页面先列前置门槛（快照仅百分比、日桶无资源维度、无后台刷新、过期 fail-open、WS `BeforeTurn` 不重跑准入），门槛未满足的二/三标记“暂不可实施”，评分不折算门槛；另含准入覆盖矩阵。演示改为按账号周重置事件恢复（离散归零，E 模型保留迟滞与两次观测，方案四无迟滞并沿用过期/预计重置放行语义）；总量 1000、普通组历史 200、动态线 210、方案一独立额度 300、方案四等价保留 200 及限速档位均为示例，非已实现能力或生产参数。三、四都不具备独立账号隔离，也不能保证覆盖突发需求；建议区改为先以方案四观察模式验证阈值与刷新，再决定是否升级二/三或选一。
 - 现有 OpenAI 路由按分组/平台获取 scheduler snapshot，随后过滤模型、transport、健康、quota 等条件，并在选中账号路径按需回读 DB；不是每次请求查询全部上游额度。`openai_gateway_usage.go#updateCodexUsageSnapshot` 从响应头更新额度，`OpenAIQuotaService.QueryUsage` 提供主动查询；`setting_gateway_runtime.go#GetOpenAIQuotaAutoPauseSettings` 的配置读取使用本机缓存和异步 singleflight 刷新。复用这些模式不等于已有整组保底机制。
 - 动态保底的拟议性能边界：后台汇总历史需求并按额度更新事件/有界定时任务更新保护快照，请求只读取有版本和有效期的状态；组级限速需共享原子计数。过期/缺失状态对受保护的高用量流量按明确的保守规则处理，禁止在网关请求中同步遍历上游或全表统计；需要独立刷新已暂停账号，避免无响应头更新导致无法恢复。
 - 动态保护范围必须匹配现有路由实际可用且配额可互换的账号/模型集合，按真实配额主体去重；5h 与 7d 是并存约束，不能相加，未来 reset 也不能提前计入当前容量。普通组能使用的稀缺模型子池不能被其它模型余量掩盖。首期宜约束在明确且稳定的资源范围；重叠池、多个重置窗口和强一致额度预占会扩大原人日估算。
@@ -308,7 +308,7 @@ Grok OAuth session 与密码授权:
 - 方案复核补充：历史受限/新用户会低估需求；七天样本清理、角色和账号范围变动必须更新策略版本；一个账号失效先剔除其可信供给，整体状态过期才对高用量保守拒绝。保底超过可用容量时明示资源不足，不自动压低保底；恢复需独立的新鲜快照，重复读同版本不算多次观测。其它模型余量、共享凭证和池外消耗不能被漏计或重复承诺。
 - 账号数、累计周额度和瞬时并发是不同维度。保底触停应使用同口径、去重且符合目标模型范围的有效周余量；配置并发/实际占用衡量瞬时服务压力，不能乘入周额度或代替真实吞吐。`ConcurrencyService.AcquireAccountSlot` 的 `maxConcurrency<=0` 表示不限制，不可把 0 当作零容量求和；`Account.EffectiveLoadFactor` 可能覆盖评分分母，实际抢槽/等待仍使用账号 `Concurrency`。`GroupCapacityService` 的容量汇总是观测值，共享账号跨组会重叠，不能把多个组的汇总再直接相加。
 - 保底余额并不保证并发可用：高用量组可在未触额度线时占满共享槽位。最少源码改动的隔离方式是配置普通组专用账号，并同时验证其周额度与并发能力；方案二保留原路由，只新增动态额度准入，不能宣称已预留普通组并发。若要共享账号并硬预留普通组并发，需新增组/池级原子槽位与租约释放、超时、重试及 WS 逐轮合同，属于独立容量控制范围，工作量高于单纯触停。
-- 独立设计需求见 `docs/features/shared-compute-pool-independent-design-brief-cn.md`。2026-09-22 对 Claude 旧稿的复评及源文件 hash 见 `docs/reviews/shared-compute-pool-claude-revision-review-cn.md`：角色百分比政策不等价于 `U7×1.05`，增大已用比例阈值 T 会减少名义保留。用户授权后已修订同路径 HTML 的文档与演示；这不代表后端角色 gate 已实现。
+- 独立设计需求与 2026-09-22 复评结论见 `docs/features/shared-compute-pool-design-cn.md`：角色百分比政策不等价于 `U7×1.05`，增大已用比例阈值 T 会减少名义保留。用户授权后已修订同路径 HTML 的文档与演示；这不代表后端角色 gate 已实现。
 - 2026-09-22 HTML 当前版：四方案按 82/69/71/83 条件性规划分比较，第四为修正设计目标（旧稿复评 74），投入 3–5 人日。第四明确原账号规则与额外角色检查取交集，高用量未知/过期/待重置确认时不放行；后台查询必须经过较新快照写回并对调度可见，首期按已确认 OpenAI 周池及约定文本 HTTP/WS 范围。演示为四方案各自的三账号数组，容量 500/300/200，账号分别重置、数据时效独立，包含偏斜消耗第五场景和 T 调节；同一快照不重复增加恢复观测。原规则豁免或用卡不自动绕过角色门，未知单次输出仍可能越线。真实计量、并发保障和多平台覆盖仍未验收。
 - `backend/internal/service/scheduler_snapshot_service.go`
 - `backend/internal/repository/scheduler_cache.go`, `scheduler_outbox_repo.go`

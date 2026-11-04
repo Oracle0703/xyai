@@ -1,4 +1,8 @@
-# Sub2API 0.2.9 固定提交合并审核
+# Sub2API 0.2.9 上游同步记录（固定提交）
+
+合并日期 2026-09-29 ｜ 工作分支 `feature/hy/10211_merge_sub2api_209`（第一父 = 本地 `main@7373dc2674be`）｜ 上游 `Wei-Shaw/sub2api main@9a62841fd124d026cf3694fcf9b79e98addcdbdc`（VERSION 0.2.9）｜ 合并提交 `bdf31e87223058200c614a807e24169e12bb31ea` ｜ 状态：在 main 第一父历史上
+
+本文是该轮同步的唯一记录，审核结论已直接写入正文，没有另存的审核原文。正文中"尚未创建/等待审核"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-09-29 v0.2.9 exact-SHA merge awaiting review` 节。
 
 ## 合并边界
 
@@ -10,7 +14,7 @@
 | 上游分支 / 目标 | `Wei-Shaw/sub2api main@9a62841fd124d026cf3694fcf9b79e98addcdbdc` |
 | 共同祖先 | `a3eb7ef302961cba716dc78b39b93b60c467db0e` |
 | 版本 / 上游增量 | `0.2.9`；70 commits、117 paths、+3133/-378 |
-| 合并提交 | 尚未创建；`MERGE_HEAD` 固定目标，等待用户审核 |
+| 合并提交 | `bdf31e87223058200c614a807e24169e12bb31ea`（审核时尚未创建，`MERGE_HEAD` 固定目标） |
 | 范围 | 仅冲突解决和必要调用适配；不修复上游自身 bug，不 commit/push/PR/部署 |
 
 ## 冲突裁决
@@ -65,7 +69,7 @@ integration 未执行范围包含：Docker 仓储和限流集成、Prompt Audit 
 - 两文件均与第一父 `7373dc2674be8266cd048b7a79e0c184650a3f8b` blob 一致；第一父已有相同声明和 tag，故为本地 main 既有 unit-tag 编译冲突，而非此次上游合并引入。该归属依据是第一父源码/构建条件对比，未另建基线 checkout 重跑。
 - 未改测试 helper、未删除测试、未绕过 unit tag；该包 unit 专属用例未能运行，不能宣称全量测试全绿。default 全量已通过。
 
-## 提交前状态
+## 提交前状态（审核快照）
 
 - 分支 `feature/hy/10211_merge_sub2api_209`；HEAD/main 仍为原第一父，MERGE_HEAD 精确等于指定目标。
 - 128 个暂存路径；未解决冲突、未暂存修改、未跟踪文件均为 0。`git diff --cached --check` 通过。

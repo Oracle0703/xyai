@@ -5,7 +5,7 @@
 - 固定 `main@0157f2c79`，前端 lint/typecheck、423 files / 3456 tests 和 build、Go normal/embed build、时间轮文件集 `-race -count=3` 通过。隔离 PostgreSQL 18.1：部门/成员/订阅 38 顶层通过（2 个性能用例 skip），受限管理密钥 `-tags=unit` 专项 57 顶层通过、0 skip；临时库已停止。
 - 全量尚未全绿：unit 的两个分区清理 SQL mock 失败在合并前 `7d0f760fc` 复现；Command Code 协议用例当前精确复跑 2 pass / 1 fail、合并前 1 pass / 2 fail。PR #45 已修复默认 effort `none` 的既有 unit 失败。
 - 默认全量曾出现一次 `TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover` 关闭帧超时；unit/integration 全量及当前/基线各 3 次精确复跑通过，根因未闭环。全量 lint 34 项分布在本轮未改文件，增量 lint 0；integration 命令退出 0 但无 Docker 的 repository 整包跳过，另有 18 显式 skip，不能称完整集成通过。
-- 命令、失败归属、平台限制与日志入口：`docs/reviews/2026-11-03-main-pr45-47-validation-cn.md`。未做真实账号浏览器或生产端到端验收。
+- 分区清理 SQL mock 与 Command Code 目录缓存键碰撞已由 PR #48（`c1858e06c`）修复；WebSocket 关闭帧时序与全量 lint 34 项见 `docs/features/technical-debt-board-cn.md` TD-045、TD-004。原验证报告已移出仓库（最后存在于 `26f6363af`），未做真实账号浏览器或生产端到端验收。
 
 ## 0.2.19 合并验证入口
 
@@ -78,7 +78,7 @@
 
 - 组织负责人专项：先跑 `go test -tags=unit -count=1 ./internal/service -run 'AdminPermission|SubAdminWrite|OrganizationManage'`（`admin_permission_test.go` 带 `unit` 构建标签，默认标签跑不到；新增权限码必须同步目录项数与写白名单）。隔离 PG 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后运行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run 'TestOrganizationLeader|TestDepartment|TestOrganizationUsage|TestUserAdminAccessIntegration|SubscriptionSelfReset' -v`。上线顺序：迁移 262 → 所有实例发布新版本 → 再配置组织负责人；D5 会立即收紧现有部门负责人的额度重置对象，发布前需告知。回退先在新版本上撤销全部组织负责人、等待在途写入结束，再替换应用。
 
-- 成员管理扩展的固定签名、四阶段门禁和交付要求见 `docs/features/department-member-management-implementation-plan-cn.md`；锁定测试基线 `a058b81c6`，只允许管理集成测试去掉 pending 标签。保持 Go 1.27.3、每命令独立 GOTMPDIR、repo 缓存；Ent/Wire 生成后还原工具引入的 module 条目并验证无漂移。
+- 成员管理扩展的固定签名、四阶段门禁和交付要求见 `docs/features/department-member-management-design-cn.md` §4.4、§9（任务卡已并入）；锁定测试基线 `a058b81c6`，只允许管理集成测试去掉 pending 标签。保持 Go 1.27.3、每命令独立 GOTMPDIR、repo 缓存；Ent/Wire 生成后还原工具引入的 module 条目并验证无漂移。
 - 在全新隔离 PostgreSQL 库通过 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 执行 `go test -tags integration -p 1 -count=1 ./internal/repository -run 'TestDepartmentMember|TestDepartmentRepositoryIntegration|TestDepartmentSubscriptionsIntegration|TestOrganizationUsageDepartmentIntegration|TestDepartmentQueryCountIntegration|TestUserAdminAccessIntegration' -v`。`TestDepartmentMember` 包含锁定测试、迁移/审计补测及并发/鉴权补测；不能把无 Docker 时仓储包整体 skip 当通过。
 - `department_member_outbox_integration_test.go` 以隔离 PG、生产 worker/APIKeyService 和 miniredis TCP/PubSub 验证遗漏主动失效后的远端 L1/L2 收敛，保留实际 30 秒二次投递；Claim 仅筛选测试自己的随机 key hash，哨兵断言其他事件不被消费。此替身测试不代表真实 Redis 故障或生产多进程验收。
 - migration 261 与新应用必须在所有写入实例就绪后再开放成员权限；旧版本不认识重复封禁来源协议，混合版本期间不开放。回退先撤销成员权限并等待在途写入结束，保留两列/兼容触发器；旧版本运行过后再次升级，须在开放前执行 `UPDATE users SET disabled_source='other' WHERE status='disabled';`，已应用迁移不会自动重跑。`TestDepartmentMemberManagementIntegration_LegacyRollbackRequiresSourceReset` 用测试用户验证旧写法、重置、负责人启用拒绝及管理员恢复；本轮仅在隔离库执行。测试 TypeSafeLive/真实 Redis/外部通知及既有 unit 失败分别记录，不用合成结果代替实际验收。
@@ -126,7 +126,7 @@
 
 - 后台任务锁分两类: `LeaderLockCache` 的 Redis 键是 `leader:lock:` + 逻辑键（如 `dashboard:aggregation:leader`、`backup:scheduled:leader`、`token-analysis:classification:leader`(Token Analysis 分类作业, 每分钟, TTL 10 分钟, 仅 `index_enabled` 时启动)、`payment:order:expiry:leader`、`jobs:openai-auto-reset-credit`）, 无续约、完成即释放, Redis 不可用回退 PG advisory; Ops 系列（`ops:metrics:collector:leader`、`ops:aggregation:hourly|daily:leader`、`ops:alert:evaluator:leader`、`ops:cleanup:leader`、`ops:scheduled_reports:leader`）是业务自行 `SETNX` 的裸键, 没有 `leader:lock:` 前缀; Channel Monitor V2 聚合只用 PG advisory。
 - 无跨实例锁、多副本会重复执行的任务: TokenRefreshService（靠 per-account 锁与 provider 并发/QPS 门减轻）、Channel Monitor V1 runner（每实例都探测）、TokenAnalysis 自动索引、CN provider 余额检查、UsageCleanup 任务执行器（任务表抢活）。
-- Token Analysis 历史故障恢复不能只点增量索引或清空错误数字：需保留原文，按 archive_id/字节位置/哈希预检缺口，分别恢复摘要、净输入、响应事实，再核对计费关联。损坏正文不可推测补造，失败计数含 response 与坏行，不能当请求数。一次性生产恢复与隔离 helper 测试入口：`docs/delivery/2026-11-02-token-analysis-repair/README.md`；正式机制设计：`docs/features/token-analysis-recovery-design-cn.md`，尚未部署。
+- Token Analysis 历史故障恢复不能只点增量索引或清空错误数字：需保留原文，按 archive_id/字节位置/哈希预检缺口，分别恢复摘要、净输入、响应事实，再核对计费关联。损坏正文不可推测补造，失败计数含 response 与坏行，不能当请求数。一次性生产恢复与隔离 helper 测试入口：`docs/features/token-analysis-design-cn.md` §13.2（补录验收已并入）；正式机制设计：`docs/features/token-analysis-design-cn.md` §13–§14（恢复方案已并入），尚未部署。
 - 启动迁移的 PostgreSQL advisory lock ID 为 `694208311321144027`, `pg_try_advisory_lock` 每 500ms 轮询, 迁移总超时 10 分钟; 瞬时错误重试实现在 `backend/internal/repository/ent.go`, 不在 `migrations_runner.go`。
 - settings 没有统一缓存也没有 settings 级 Redis pub/sub: Panel 限流与网关运行态各 60s（出错 5s）, 请求归档 5s（出错 1s）, OpenAI API Key 健康熔断 30s, Ops 运行态 30s; 只有 Prompt Audit 配置额外用 Redis 频道 `sub2api:prompt_guard:config:invalidate`。
 
@@ -307,7 +307,9 @@ ss -lntp | grep sub2api || ss -lntp | grep -E '8080|5299'
 curl -fsS http://127.0.0.1:52997/ | head -5
 ```
 
-`curl` 返回 `<!doctype html>` 和 `<html lang="zh-CN">` 说明前端已正确嵌入。`systemctl restart sub2api` 会进入应用启动流程, 应用启动会自动执行 `backend/migrations` 中未执行的 SQL migration; 不要手动处理数据库。若启动失败, 先看 `journalctl -u sub2api -n 120 --no-pager`。
+`curl` 返回 `<!doctype html>` 和 `<html lang="zh-CN">` 说明前端已正确嵌入。
+
+部署后核对清单（2026-10-25/26 两次部署沿用）：本机与公网 `/health` 返回 200 且 `status=ok`；本次改动涉及的页面路由返回 200，且线上对应 `assets/*.js` 与本次构建产物逐字节一致；运行中进程的二进制（`/proc/<pid>/exe`）与磁盘 `bin/server` 的 SHA-256 相同、`NRestarts=0`；记录 Redis、PostgreSQL、Nginx 部署前后的 PID 与启动时间，证明只重启了 sub2api；启动日志无 ERROR/FATAL/panic（既有 trusted_proxies/CORS 警告除外）。这些只证明构建与启动正确，不替代新功能的业务验收。`systemctl restart sub2api` 会进入应用启动流程, 应用启动会自动执行 `backend/migrations` 中未执行的 SQL migration; 不要手动处理数据库。若启动失败, 先看 `journalctl -u sub2api -n 120 --no-pager`。
 
 ## 验证命令
 
@@ -592,9 +594,9 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 
 ## 部署入口
 
-- 2026-10-26，118 的 `/opt/sub2api` 已从 main `777960134` 快进部署至 `25bedc620`，包含子管理员账号操作员与额度展示增量。前后端构建、内外网健康检查、Token Analysis/账号/额度页面资源一致性通过；仅重启 sub2api，Redis/PostgreSQL/Nginx 的 PID 与启动时间未变，无手工 SQL 或生产业务写操作。本轮无新增 migration；记录见 `docs/delivery/2026-10-26-main-source-deployment.md`。
+- 2026-10-26，118 的 `/opt/sub2api` 已从 main `777960134` 快进部署至 `25bedc620`，包含子管理员账号操作员与额度展示增量。前后端构建、内外网健康检查、Token Analysis/账号/额度页面资源一致性通过；仅重启 sub2api，Redis/PostgreSQL/Nginx 的 PID 与启动时间未变，无手工 SQL 或生产业务写操作。本轮无新增 migration；原记录已移出仓库（最后存在于 `26f6363af`）。
 
-- 2026-10-25，118 的 `/opt/sub2api` 已按 main `777960134` 完成 Token Analysis 关联修复源码部署。前后端构建、内外网健康及新版资源校验通过；只重启 sub2api，其他服务 PID 未变，迁移由应用启动处理，未手工 SQL 或历史重索引。执行证据见 `docs/delivery/2026-10-25-token-analysis-deployment.md`；此记录不替代生产样本恢复验收。
+- 2026-10-25，118 的 `/opt/sub2api` 已按 main `777960134` 完成 Token Analysis 关联修复源码部署。前后端构建、内外网健康及新版资源校验通过；只重启 sub2api，其他服务 PID 未变，迁移由应用启动处理，未手工 SQL 或历史重索引。部署结论见 `docs/features/token-analysis-usage-link-design-cn.md`；此记录不替代生产样本恢复验收。
 
 - Dockerfile: 根目录 `Dockerfile`, `deploy/Dockerfile`。
 - Compose: `deploy/docker-compose.yml`, `deploy/docker-compose.local.yml`, `deploy/docker-compose.dev.yml`, `deploy/docker-compose.standalone.yml`。
@@ -620,7 +622,7 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 - 后端在 `backend/` 按本页 Go 缓存入口运行 `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler ./internal/server/middleware ./internal/server/routes -run 'SubscriptionSelfReset|AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|BackendModeUserGuard|SubscriptionBulkActionRoutes'`。
 - 隔离 PostgreSQL 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后执行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run SubscriptionSelfReset`。覆盖并发、单连接池、回滚、DATE、组织一致性及两个服务实例缓存回读；缓存测试用 miniredis TCP/PubSub，不代表生产 Redis 集群故障验证。勿对业务库运行迁移测试。既没有 Docker 也没有设置该 DSN 时，`TestMain` 会打印 `docker is not available; skipping integration tests` 并返回 `ok`，必须加 `-v` 确认三个用例 `--- PASS`。main 上 CI 的单测步骤当前失败，集成步骤不会执行，CI 不能替代这一步。上线后的 SQL 验证步骤见交付记录「上线与 PostgreSQL 验证」。
 - 前端 `pnpm --dir frontend exec vitest run src/views/user/__tests__/SubscriptionsView.selfReset.spec.ts src/composables/__tests__/useSubscriptionSelfReset.spec.ts src/components/admin/subscription/__tests__/SubscriptionSelfResetPolicyDialog.spec.ts`，并运行既有管理订阅用例、locale 完整性、typecheck 与 ESLint。
-- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-implementation-cn.md`。实现审核见 `docs/reviews/subscription-self-daily-reset-implementation-review-cn.md`。
+- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-design-cn.md` §14–§15（交付记录已并入）。实现审核见 `docs/features/subscription-self-daily-reset-design-cn.md` §16（审核已并入）。
 
 ## 上游历史分支合并注意事项
 
@@ -641,7 +643,8 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 
 - 对比 `usage_logs.first_token_ms` 时先对齐实际账号、`upstream_model`、推理强度、`service_tier`、请求类型与上下文大小；账号相同不表示分组 Fast 策略相同。上下文按本项目字段 `input_tokens + cache_read_tokens` 观察，缓存命中高不代表长上下文无推理开销。
 - 原生 HTTP Responses 的计时起点在 `OpenAIGatewayService.Forward` 内，终点由 `openai_gateway_response_handling.go` 按 `openai_ttft_mode` 判定事件，首输出 staging 路径在事件提交/flush 附近记录。包含本次转发准备与上游等待，可能受下游写出等待影响；不是客户端 RTT 或实际渲染耗时，不能仅凭该字段判断 VPN，也不能全部归为模型计算。
-- 只读排查实例与控制变量边界：`docs/reviews/2026-10-27-huangyu-pankun-ttft-investigation-cn.md`。调整分组强制 Fast 前需同时核对收费配置，用户侧网络归因需要固定模型/档位/上下文的客户端对照。
+- 2026-10-27 只读排查实例：同一上游账号、同模型同推理强度下，强制 Fast（`service_tier=priority`）且平均上下文约 6 万 Token 的用户首字中位约 3.8 秒，未指定档位且平均上下文约 28 万 Token 的用户约 13.4 秒；后者当天随会话上下文从 6 万涨到 53 万，小时首字中位从约 7 秒升到约 27 秒。结论只能说明档位与长上下文是优先排查项，不能量化各自贡献，也不能排除客户端网络。排查顺序：先压缩/新开会话看上下文下降后的延迟，再在同模型、同档位、相近上下文与时段下对照，最后固定这些条件比较 VPN 开关。原报告已移出仓库（最后存在于 `26f6363af`）。
+- 调整分组强制 Fast 前需同时核对收费配置（`free_openai_fast` 是收费配置，不是速度档位），用户侧网络归因需要固定模型/档位/上下文的客户端对照。
 
 ## 相关页面
 
