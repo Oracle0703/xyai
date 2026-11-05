@@ -69,7 +69,7 @@
 
 ## 部门管理与用量范围
 
-- K21（权限替换）已修复：`CurrentSubscriptionWriter` 重读子管理员请求的当前身份并分三类（管理员 / 持 `admin.subscriptions` 的全站订阅子管理员 / 其余范围子管理员），`subscriptionWriteScope(ctx, action)` 对全站订阅子管理员只放行 assign/bulk-assign，延期、撤销、恢复与 `PrecheckSubscriptionWrite` 一律 403。中间件按请求入口时的权限放行，服务层必须按当前身份同时重验动作和范围，不能组合旧动作与新范围。改动时保留 PG 用例 `GrantSwapKeepsActionChecks`。
+- K21（权限替换）已修复，并在固定提交 `2a26e3730` 独立复核通过（结果见设计 §15.3）：`CurrentSubscriptionWriter` 重读子管理员请求的当前身份并分三类（管理员 / 持 `admin.subscriptions` 的全站订阅子管理员 / 其余范围子管理员），`subscriptionWriteScope(ctx, action)` 对全站订阅子管理员只放行 assign/bulk-assign，延期、撤销、恢复与 `PrecheckSubscriptionWrite` 一律 403。中间件按请求入口时的权限放行，服务层必须按当前身份同时重验动作和范围，不能组合旧动作与新范围。改动时保留 PG 用例 `GrantSwapKeepsActionChecks`。
 
 - D9–D12 的两个已复现边界已修复（设计 K19/K20）：`CurrentSubscriptionWriter` 对子管理员请求重读操作者，降为 `user`、删除或停用一律 403，不能当成无限制主体；`bulkAssignScopedSubscription` 在一个事务内先锁操作者与全部目标再逐人写入，逐人业务失败用 SAVEPOINT（`RunSubscriptionWriteStep`）隔离，范围类错误整批回滚。改动这两处时保留 `DemotedActorIsNeverUnrestricted`、`BulkAssignLocksWholeBatch` 两个 PG 用例。
 
