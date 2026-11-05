@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="迅游中转站 Claude Code 接入指南：仅限在 VS Code 的 Claude Code for VS Code 官方扩展面板中使用。安装扩展、获取 Key、一键配置、开始使用。">
+  <title>迅游中转站 · Claude Code for VS Code 接入指南</title>
+  <link rel="icon" href="data:,">
+  <style>
+
+/* 视觉升级：保留蓝绿品牌色、浅色背景与单文件结构；统一圆角、阴影与过渡动效。 */
+:root{
+  color-scheme:light;
+  --bg:#f4f7fb;
+  --panel:#ffffff;
+  --panel-soft:#f2f6fb;
+  --text:#0e1b2c;
+  --muted:#5b6a80;
+  --line:#e3e9f2;
+  --blue:#2563eb;
+  --blue-deep:#1d4ed8;
+  --cyan:#0891b2;
+  --green:#0b9e6d;
+  --ring:rgba(37,99,235,.35);
+  --shadow-sm:0 1px 2px rgba(13,27,44,.05),0 1px 3px rgba(13,27,44,.05);
+  --shadow-md:0 14px 34px -14px rgba(13,27,44,.22);
+  --radius-lg:18px;
+  --radius-md:12px;
+  --mono:"Cascadia Code",Consolas,monospace;
+  --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:110px}
+body{
+  margin:0;
+  background:
+    radial-gradient(880px 460px at 88% -6%,rgba(11,158,109,.13),transparent 62%),
+    radial-gradient(920px 520px at -6% 10%,rgba(37,99,235,.13),transparent 62%),
+    var(--bg);
+  font-family:var(--sans);
+  color:var(--text);
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+::selection{background:rgba(37,99,235,.16)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+button,a,summary{touch-action:manipulation}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--ring);outline-offset:3px}
+button:disabled{cursor:default;opacity:.7}
+code,pre{font-family:var(--mono)}
+code{font-size:.9em;overflow-wrap:anywhere}
+button svg,a svg{width:17px;height:17px;flex-shrink:0}
+svg{vertical-align:middle}
+.wrap{max-width:1120px;padding:0 32px;margin:auto}
+
+/* 顶栏 */
+.topbar{height:88px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:13px;color:var(--text)}
+.brand:hover{text-decoration:none}
+.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--cyan) 55%,var(--green));font-size:21px;font-weight:800;box-shadow:0 10px 20px -8px rgba(37,99,235,.5)}
+.brand strong{display:block;font-size:16px;letter-spacing:1px}
+.brand small{display:block;font-size:11px;color:var(--muted);letter-spacing:1.4px;margin-top:2px}
+.header-link{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#41516a;padding:9px 16px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.75);transition:border-color .2s,color .2s,box-shadow .2s,background .2s}
+.header-link:hover{text-decoration:none;color:var(--blue);border-color:#c3d5f0;background:#fff;box-shadow:var(--shadow-sm)}
+
+/* Hero */
+.hero{display:grid;grid-template-columns:1.35fr 1fr;gap:64px;align-items:center;padding:64px 0 48px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;color:#0a8a60;font-size:12px;font-weight:700;letter-spacing:1.6px;background:rgba(11,158,109,.08);border:1px solid rgba(11,158,109,.24);padding:6px 14px;border-radius:999px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(11,158,109,.18)}
+h1{font-size:46px;line-height:1.3;letter-spacing:-1.5px;margin:18px 0;font-weight:800}
+h1 span{background:linear-gradient(120deg,var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:15.5px;line-height:1.95;color:var(--muted);margin:0;max-width:530px}
+.hero-tags{display:flex;gap:10px;margin-top:24px;color:#43536b;font-size:12.5px;flex-wrap:wrap}
+.hero-tags span{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 14px;box-shadow:var(--shadow-sm)}
+.hero-tags span::before{content:'✓';color:var(--green);font-weight:700}
+.journey{padding:10px;background:rgba(255,255,255,.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);list-style:none;margin:0;position:relative}
+.journey li{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:12px;transition:background .2s}
+.journey li:hover{background:var(--panel-soft)}
+.journey li+li{border-top:1px dashed var(--line)}
+.journey .n{font:700 12px var(--mono);color:var(--blue);width:32px;height:32px;border:1px solid #d2e2fb;border-radius:10px;background:linear-gradient(180deg,#f6faff,#e9f1fd);display:grid;place-items:center;flex-shrink:0}
+.journey strong{font-size:13.5px;font-weight:650}
+.journey small{font-size:11px;color:var(--muted);margin-left:auto}
+
+/* 系统切换条 */
+.systembar{position:sticky;top:0;z-index:3;background:rgba(244,247,251,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.system-label strong{font-size:13.5px}
+.system-label small{font-size:11px;color:var(--muted);margin-left:8px}
+.tabs{display:flex;border:1px solid var(--line);border-radius:12px;padding:4px;background:#e8eef6;gap:4px}
+.tabs button{border:0;background:transparent;color:#5f6e82;font-size:12.5px;font-weight:600;padding:8px 20px;border-radius:9px;white-space:nowrap;transition:color .2s,background .2s,box-shadow .2s}
+.tabs button:hover{color:var(--text)}
+.tabs button[aria-pressed=true]{color:var(--blue-deep);background:#fff;box-shadow:var(--shadow-sm);font-weight:700}
+
+/* 步骤 */
+.guide{padding-top:4px}
+.step{display:grid;grid-template-columns:55px 258px minmax(0,1fr);gap:24px;position:relative;padding:40px 0;border-bottom:1px solid var(--line);scroll-margin-top:95px}
+.step:last-of-type{border-bottom:0}
+.number{width:40px;height:40px;border-radius:50%;border:1px solid #cfe0f6;background:#fff;color:var(--blue);display:grid;place-items:center;font:700 13px var(--mono);margin-top:3px;box-shadow:var(--shadow-sm)}
+.step h2{font-size:21px;line-height:1.4;margin:6px 0 10px;letter-spacing:-.3px}
+.step-copy p{font-size:13px;color:var(--muted);margin:0;line-height:1.9}
+.step-label{font-size:10.5px;font-weight:800;letter-spacing:2px;color:#8aa1bd;margin-bottom:8px}
+.surface{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-lg);padding:26px 28px;min-width:0;box-shadow:var(--shadow-sm);transition:box-shadow .25s,border-color .25s}
+.surface:hover{box-shadow:var(--shadow-md);border-color:#d4dfee}
+
+/* 第一步：下载 */
+.download-head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.app-icon{width:50px;height:50px;border-radius:14px;background:linear-gradient(150deg,#1a2941,#0d1725);color:#7ee2b8;display:grid;place-items:center;font:700 19px var(--mono);box-shadow:0 10px 18px -8px rgba(13,23,37,.5)}
+.download-head strong{display:block;font-size:15.5px}
+.download-head small{font-size:12px;color:var(--muted)}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;justify-content:center;align-items:center;gap:8px;border:1px solid #d7e1f0;border-radius:10px;font-size:12.5px;font-weight:600;padding:10px 16px;min-height:40px;background:#fff;color:#33475f;box-shadow:var(--shadow-sm);transition:transform .18s,box-shadow .18s,background .18s,border-color .18s}
+.btn:hover{text-decoration:none;background:#f6f9ff;border-color:#c0d3f0;transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.btn:active{transform:translateY(0)}
+.btn.primary{background:linear-gradient(135deg,var(--blue),var(--blue-deep));border-color:transparent;color:#fff;box-shadow:0 10px 20px -10px rgba(37,99,235,.6)}
+.btn.primary:hover{background:linear-gradient(135deg,#3070f5,#1a49c4)}
+.btn.green{background:linear-gradient(135deg,#10a575,#0b8a60);border-color:transparent;color:#fff}
+.micro{font-size:11px;color:var(--muted);line-height:1.8;margin:12px 0 0}
+.official-note{margin-top:15px;border-top:1px solid #ecf0f5;padding-top:12px}
+
+/* 第二步：站点与 Key */
+.site-link{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 16px;border:1px solid #d2e2fb;background:linear-gradient(180deg,#f6faff,#eef5ff);border-radius:10px;font:12.5px var(--mono);margin:14px 0 18px;overflow-wrap:anywhere;box-shadow:var(--shadow-sm);transition:border-color .2s,box-shadow .2s}
+.site-link:hover{text-decoration:none;border-color:#b3cdf7;box-shadow:var(--shadow-md)}
+.site-link svg{width:16px;flex-shrink:0}
+.mini-steps{list-style:none;padding:0;margin:16px 0 18px;display:grid;gap:12px;font-size:12.5px;color:#4c5d74}
+.mini-steps li{display:flex;gap:10px;align-items:flex-start}
+.mini-steps b{color:var(--blue);font:700 11px var(--mono);margin-top:2px;background:#eaf2fe;border:1px solid #d2e2fb;border-radius:6px;padding:1px 6px;flex-shrink:0}
+.key-sample{display:flex;align-items:center;gap:10px;background:var(--panel-soft);border:1px dashed #d4dfec;border-radius:10px;padding:11px 14px;margin-top:16px;color:#5e7186;font-size:11px}
+.key-sample code{letter-spacing:1px}
+.key-sample svg{width:16px;height:16px}
+
+/* 第三步：脚本与终端 */
+.script-card{padding:0;overflow:hidden}
+.script-intro{padding:22px 24px 16px}
+.script-intro strong{font-size:13.5px}
+.script-intro p{margin:8px 0 15px;font-size:12px;color:var(--muted)}
+.terminal{margin:0 24px 20px;border-radius:12px;overflow:hidden;background:#0e1a2b;color:#dbe9fb;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.terminal-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid rgba(255,255,255,.08);font:11px var(--mono);color:#8fa6c4;background:rgba(255,255,255,.04)}
+.terminal-head button{color:#cfe2f7;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;font-size:10.5px;padding:5px 10px;transition:background .2s}
+.terminal-head button:hover{background:rgba(255,255,255,.16)}
+.terminal pre{margin:0;padding:18px 16px;font-size:12.5px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere}
+.terminal-note{padding:0 16px 14px;font-size:10.5px;color:#87a0c0}
+.target-files{margin:0 24px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.file{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0;background:#fbfcfe;transition:border-color .2s,background .2s}
+.file:hover{border-color:#c7d8f1;background:#fff}
+.file strong{display:block;font:12px var(--mono);margin-bottom:3px;color:#28425f}
+.file span{font-size:10.5px;color:var(--muted)}
+.details-block{background:#f8fafd;border-top:1px solid var(--line);padding:16px 24px;font-size:11.5px;color:var(--muted);border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+details summary{cursor:pointer;color:#3f5878;font-size:12.5px;font-weight:600;line-height:1.8;list-style:none;display:flex;align-items:center;gap:9px}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:'';width:7px;height:7px;border-right:2px solid #94a8c2;border-bottom:2px solid #94a8c2;transform:rotate(-45deg);transition:transform .2s;flex-shrink:0}
+details[open] summary::before{transform:rotate(45deg)}
+details p{font-size:12px;line-height:1.9}
+details pre{font-size:11.5px;background:#eef3f9;border:1px solid #e1e9f3;padding:14px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;color:#37506e;line-height:1.8}
+
+/* 第四步：完成 */
+.success{background:linear-gradient(150deg,#f1fbf6,#f3fbfd);border-color:#cde8da}
+.success-title{display:flex;gap:10px;align-items:center;font-size:15px;font-weight:700;color:#0c7a53}
+.success-title svg{width:22px;height:22px}
+.launch-list{margin:16px 0;padding-left:19px;color:#4c6478;font-size:12.5px;line-height:2.15}
+.prompt{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #cee5db;background:#fff;padding:13px 16px;border-radius:10px;font-size:12.5px;color:#3e5e51;box-shadow:var(--shadow-sm)}
+.icon-button{background:#edf7f1;border:1px solid #d2e8dd;color:#3c7a60;display:flex;align-items:center;font-size:11px;font-weight:600;gap:5px;white-space:nowrap;padding:6px 12px;border-radius:8px;transition:background .2s}
+.icon-button:hover{background:#e0f1e8}
+.completion{font-size:11px;color:#5f7f70;line-height:1.8;margin:13px 0 0}
+
+/* FAQ 与页脚 */
+.faq{padding:32px 0 20px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.faq details{border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px;background:rgba(255,255,255,.9);box-shadow:var(--shadow-sm);transition:border-color .2s,box-shadow .2s}
+.faq details:hover{border-color:#d0ddef}
+.faq details[open]{background:#fff;border-color:#c6d7f0;box-shadow:var(--shadow-md)}
+.faq details p{color:var(--muted);font-size:11.5px}
+.footer{display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;font-size:10.5px;color:#8a97a8;padding:16px 0 34px;border-top:1px solid var(--line)}
+.footer a{color:#6d7f97}
+
+/* 其他 */
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);padding:12px 22px;border-radius:999px;background:rgba(14,26,43,.95);color:#fff;font-size:12.5px;z-index:8;max-width:90%;box-shadow:0 14px 34px -10px rgba(14,26,43,.5)}
+.toast:empty{display:none}
+[hidden]{display:none!important}
+.platform-note{font-size:12px;color:#8a6a1f;background:#fdf6e3;border:1px solid #f0e2b8;border-radius:10px;padding:12px 16px}
+.skip{position:absolute;top:-80px;left:20px}
+.skip:focus{top:10px;background:#fff;padding:8px 12px;z-index:20;border-radius:8px;box-shadow:var(--shadow-md)}
+.text-link{font-size:11px}
+.download-options{display:flex;gap:13px;flex-wrap:wrap;margin-top:12px}
+.download-options a{font-size:11px}
+.noscript{background:#fff8e6;padding:16px;border:1px solid #eedcae;border-radius:var(--radius-md)}
+
+/* 入场动效 */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.hero>div{animation:rise .6s ease both}
+.journey{animation:rise .6s .12s ease both}
+
+/* 响应式 */
+@media(min-width:1000px){.number::after{content:'';position:absolute;left:19px;top:92px;bottom:20px;width:2px;border-radius:2px;background:linear-gradient(180deg,#d3e2f5,rgba(211,226,245,0))}}
+@media(max-width:900px){.hero{gap:32px;grid-template-columns:1.3fr 1fr;padding:48px 0 36px}h1{font-size:36px}.hero-tags{gap:8px;font-size:11.5px}.step{grid-template-columns:38px minmax(0,1fr);gap:14px}.step-content{grid-column:2}.step-copy p{max-width:550px}.step-copy{padding-bottom:2px}.number{grid-row:1}.step h2{margin-bottom:6px}.step-label{display:none}.journey{padding:8px}.journey small{display:none}.system-label small{display:block;margin-left:0}}
+@media(max-width:580px){.wrap{padding:0 20px}.topbar{height:72px}.header-link{font-size:11px;padding:7px 12px}.brand strong{font-size:14px}.brand small{font-size:9px}.brand-mark{width:34px;height:34px;border-radius:10px;font-size:17px}.hero{display:block;padding:36px 0 28px}h1{font-size:32px}.hero p{font-size:13px}.hero-tags{gap:8px;font-size:10.5px}.journey{display:none}.systembar{align-items:flex-start;flex-direction:column;gap:10px;padding:12px 0}.system-label{display:flex;align-items:center;gap:8px}.system-label small{display:inline}.tabs{width:100%}.tabs button{flex:1;padding:8px 12px}.step{padding:28px 0;gap:12px;grid-template-columns:29px minmax(0,1fr)}.number{width:28px;height:28px;font-size:11px;margin-top:4px}.step h2{font-size:19px}.step-copy p{font-size:12px}.surface{padding:18px 16px;border-radius:14px}.script-card{padding:0}.script-intro{padding:18px 16px 14px}.terminal{margin:0 16px 16px}.terminal pre{font-size:11px}.terminal-note{padding:0 16px 12px}.target-files{margin:0 16px 16px;grid-template-columns:1fr}.details-block{padding:13px 16px;border-radius:0 0 14px 14px}.site-link{font-size:10.5px;padding:11px 12px}.download-head strong{font-size:14px}.btn{font-size:11px;padding:9px 12px;min-height:38px}.faq{grid-template-columns:1fr}.footer{padding-bottom:26px}.prompt{align-items:flex-start}.header-link svg{display:none}.launch-list{font-size:11px}.actions .primary{max-width:100%}.download-head{gap:10px}.app-icon{width:42px;height:42px;border-radius:12px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Claude guide additions; keep the reference site's visual language. */
+.guide-heading{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px}
+.hero{row-gap:18px}
+.contact-note{display:inline-block;padding:6px 12px;border:1px solid #b8d6ff;border-radius:8px;background:#e8f2ff;color:#1257b8;font-size:13px;font-weight:600;line-height:1.7}
+.usage-rule{display:flex;gap:14px;align-items:flex-start;padding:20px 24px;margin:0 0 28px;border:1px solid #bbd5fa;border-left:4px solid var(--blue);border-radius:12px;background:#edf5ff}
+.usage-rule .rule-icon{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:9px;background:#dbeaff;color:var(--blue);font-weight:800}
+.usage-rule strong{font-size:14px;color:#173f78}
+.usage-rule p{font-size:12px;color:#536a86;margin:5px 0 0;line-height:1.85}
+.token-tips{margin-top:16px;padding-top:14px;border-top:1px solid #c8dcf7}
+.token-tips ul{margin:8px 0 0;padding-left:18px;color:#536a86;font-size:12px;line-height:1.9}
+.token-tips li+li{margin-top:5px}
+.token-tips code{padding:2px 6px;border:1px solid #c8dcf7;border-radius:5px;background:#fff;color:#1d4ed8;white-space:nowrap}
+.app-icon{flex-shrink:0;color:#b5dcff}
+.download-head>div:last-child{min-width:0}
+.extension-id{display:block;margin:4px 0 0;color:#7a889c;font:11px var(--mono);overflow-wrap:anywhere}
+.setting-pair{display:grid;gap:10px;margin:16px 0 0;padding:14px 16px;background:#f4f7fb;border:1px solid var(--line);border-radius:10px}
+.setting-pair p{font-size:12px;line-height:1.8;margin:0;color:#4c5d74}
+.setting-pair code{color:#244b77}
+.bypass-note{margin-top:16px;padding:15px 16px;border:1px solid #ecd8a6;border-left:3px solid #c99527;border-radius:10px;background:#fff9ed}
+.bypass-note>strong{font-size:13px;color:#7d5816}
+.bypass-note p{margin:7px 0 0;font-size:12px;line-height:1.9;color:#6b604c}
+.bypass-note figure{margin:12px 0 0}
+.bypass-note figure a{display:block;border-radius:7px;overflow:hidden}
+.bypass-note img{display:block;width:100%;height:auto}
+.bypass-note figcaption{margin-top:7px;font-size:10.5px;color:#8a7959}
+.inline-label{font-size:10px;font-weight:700;letter-spacing:.8px;color:#7890ac;text-transform:uppercase}
+.usage-confirm{margin-top:18px;padding-top:14px;border-top:1px solid #cde8da;font-size:12px;font-weight:650;color:#176746}
+.full-file{grid-template-columns:1fr}
+.noscript p{font-size:12px}
+.hero p strong{font-weight:650;color:#3a5270}
+.copy-fallback{background:#fff;border:1px solid #c6d7f0;border-radius:10px;padding:12px;margin-top:12px;color:#37506e;font-size:12px}
+.copy-fallback textarea{display:block;width:100%;resize:vertical;min-height:64px;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px var(--mono)}
+@media(max-width:580px){.usage-rule{padding:15px 14px;gap:10px;margin-bottom:20px}.usage-rule strong{font-size:13px}.usage-rule p{font-size:11px}.contact-note{font-size:12px}.hero h1{font-size:31px}.download-head strong{font-size:13px}.setting-pair{padding:12px}.setting-pair p{font-size:11px}.header-link{flex-shrink:0}.footer{font-size:10px}}
+  </style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 8V3H3v13h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m8 12 3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="key" viewBox="0 0 24 24"><circle cx="8" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11 12 8 8m-3-3 3-3m-6 0 3-3" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="editor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 8h18M15 8v12m-7-9-2 3 2 3m3-6 2 3-2 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+</defs></svg>
+<a class="skip" href="#step1">跳到接入步骤</a>
+<div class="wrap">
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">迅</span><span><strong>迅游中转站</strong><small>CLAUDE CODE · VS CODE</small></span></a>
+    <a class="header-link" href="http://118.25.112.30:52997/" target="_blank" rel="noopener noreferrer">进入中转站 <svg aria-hidden="true"><use href="#arrow"/></svg></a>
+  </header>
+  <main>
+    <div class="hero">
+      <div class="guide-heading">
+        <div class="eyebrow"><span class="dot"></span> CLAUDE CODE 扩展接入指南</div>
+        <span class="contact-note">如果遇到安装使用问题，请钉钉联系<strong>黄宇</strong>。</span>
+      </div>
+      <div>
+        <h1>在 VS Code 中，<br><span>开启 Claude Code。</span></h1>
+        <p>安装 <strong>Claude Code for VS Code</strong> 官方扩展，获取个人 API Key，再让配置脚本帮你完成接入。四个步骤，在熟悉的编辑器里开始工作。</p>
+        <div class="hero-tags"><span>仅限 VS Code 扩展</span><span>Key 本地写入</span><span>原配置自动备份</span></div>
+      </div>
+      <ol class="journey" aria-label="接入流程">
+        <li><span class="n">01</span><strong>安装官方扩展</strong><small>Claude Code for VS Code</small></li>
+        <li><span class="n">02</span><strong>获取个人 Key</strong><small>公司邮箱注册</small></li>
+        <li><span class="n">03</span><strong>一键写入配置</strong><small>输入 Key 即可</small></li>
+        <li><span class="n">04</span><strong>在扩展中使用</strong><small>打开图形聊天面板</small></li>
+      </ol>
+    </div>
+    <aside class="usage-rule" aria-label="使用范围与节省 Token 小技巧">
+      <span class="rule-icon" aria-hidden="true">!</span>
+      <div><strong>使用范围：仅允许在 VS Code 的官方扩展面板中使用。</strong>
+        <p>请使用 <b>Claude Code for VS Code</b>。禁止在独立命令行、VS Code 终端会话、Claude 网页 / 桌面应用及其他编辑器或第三方客户端中使用本中转站的 Claude 服务。下方终端命令仅用于写入配置。</p>
+        <div class="token-tips">
+          <strong>节省 Token 小技巧</strong>
+          <ul>
+            <li>继续同一任务时，尽量在<b>缓存到期前</b>再次对话，复用已缓存的上下文，节省重复输入的 Token 费用。</li>
+            <li>如果<b>缓存已过期，且上下文较大</b>，建议在 VS Code 扩展中<b>新建会话窗口</b>，只带入必要背景，减少重复消耗。</li>
+            <li>想查看当前上下文大小？在扩展对话框中输入 <code>/context</code> 即可查看。</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="systembar">
+      <div class="system-label"><strong>选择你的系统</strong><small id="detected">默认展示 Windows · 可手动切换</small></div>
+      <div class="tabs" role="group" aria-label="操作系统">
+        <button type="button" data-os="windows" aria-pressed="true">Windows</button>
+        <button type="button" data-os="macos" aria-pressed="false">macOS</button>
+      </div>
+    </div>
+    <p id="platform-note" class="platform-note" hidden></p>
+    <noscript><div class="noscript"><p>当前展示 Windows 说明。macOS 请下载 <a href="setup-claude.sh" download>macOS 配置脚本</a>，在脚本目录运行 <code>bash ./setup-claude.sh</code>。两种系统都只允许使用 VS Code 官方扩展。</p></div></noscript>
+    <div class="guide">
+      <section class="step" id="step1">
+        <div class="number">01</div>
+        <div class="step-copy"><div class="step-label">INSTALL THE EXTENSION</div><h2>安装 VS Code 官方扩展</h2><p>先安装或更新 VS Code，再安装由 Anthropic 发布的 Claude Code for VS Code。</p></div>
+        <div class="step-content surface">
+          <div class="download-head"><div class="app-icon" aria-hidden="true"><svg width="28" height="28"><use href="#editor"/></svg></div><div><strong>Claude Code for VS Code</strong><small>发布者：Anthropic · 官方扩展</small><code class="extension-id">anthropic.claude-code</code></div></div>
+          <div class="actions">
+            <a class="btn primary" href="https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code" target="_blank" rel="noopener noreferrer">前往官方扩展页面 <svg aria-hidden="true"><use href="#arrow"/></svg></a>
+            <a class="btn" href="https://code.visualstudio.com/download" target="_blank" rel="noopener noreferrer">下载 VS Code <svg aria-hidden="true"><use href="#download"/></svg></a>
+          </div>
+          <ol class="mini-steps">
+            <li><b>1.</b><span>打开 VS Code，按 <code id="extensions-shortcut">Ctrl + Shift + X</code> 进入扩展。</span></li>
+            <li><b>2.</b><span>搜索 <strong>Claude Code for VS Code</strong>，核对发布者 <strong>Anthropic</strong> 后安装。</span></li>
+            <li><b>3.</b><span>打开 VS Code「设置」，搜索 <code>@ext:anthropic.claude-code</code>，按下方说明设置。</span></li>
+          </ol>
+          <div class="setting-pair">
+            <p><strong>关闭 Use Terminal</strong>：使用扩展图形面板，保持 <code>claudeCode.useTerminal</code> 为 <code>false</code>。</p>
+            <p><strong>开启 Disable Login Prompt</strong>：使用中转站配置，勾选 <code>claudeCode.disableLoginPrompt</code>。</p>
+          </div>
+          <aside class="bypass-note" aria-label="注意：勾选 bypass 权限设置">
+            <strong>注意：还需勾选 bypass 权限设置</strong>
+            <p>在 VS Code「设置」中搜索 <code>bypass</code>，找到并勾选 <strong>Claude Code: Allow Dangerously Skip Permissions</strong>，如下图红框所示。</p>
+            <p>此项允许使用 <strong>Bypass permissions</strong>（跳过权限确认）模式，是 VS Code 扩展中需要手动开启的独立设置。</p>
+            <figure>
+              <a href="assets/claude-bypass-permissions-b41ff86510.png" target="_blank" rel="noopener noreferrer" aria-label="放大查看 bypass 设置截图">
+                <img src="assets/claude-bypass-permissions-b41ff86510.png" width="1357" height="191" loading="lazy" alt="VS Code 设置中，Claude Code: Allow Dangerously Skip Permissions 已勾选，红框标出了该选项。">
+              </a>
+              <figcaption>勾选红框中的选项 · 点击图片可放大查看</figcaption>
+            </figure>
+          </aside>
+          <p class="micro official-note">需要 VS Code 1.94.0 或更高版本。扩展自带运行组件，无需另行安装命令行客户端。</p>
+        </div>
+      </section>
+      <section class="step" id="step2">
+        <div class="number">02</div>
+        <div class="step-copy"><div class="step-label">ACCOUNT &amp; KEY</div><h2>注册账号，创建 Key</h2><p>使用公司邮箱注册自己的中转站账号，并创建个人专属 Key。已有账号可直接登录。</p></div>
+        <div class="step-content surface">
+          <strong style="font-size:14px">前往迅游中转站</strong>
+          <a class="site-link" href="http://118.25.112.30:52997/" target="_blank" rel="noopener noreferrer"><span>http://118.25.112.30:52997/</span><svg aria-hidden="true"><use href="#arrow"/></svg></a>
+          <ol class="mini-steps">
+            <li><b>1.</b><span>使用<strong>公司邮箱</strong>完成注册并登录。</span></li>
+            <li><b>2.</b><span>进入「API 密钥」，创建具有 <strong>Claude 模型访问权限</strong>的个人 Key。</span></li>
+            <li><b>3.</b><span>复制完整 Key，在下一步的本地脚本中输入。<strong>不要粘贴到网页或聊天消息里。</strong></span></li>
+          </ol>
+          <a class="btn" href="http://118.25.112.30:52997/" target="_blank" rel="noopener noreferrer">注册 / 登录中转站 <svg aria-hidden="true"><use href="#arrow"/></svg></a>
+          <div class="key-sample"><svg aria-hidden="true"><use href="#key"/></svg><code>sk-••••••••••••••••</code><span>你的专属 Key</span></div>
+        </div>
+      </section>
+      <section class="step" id="step3">
+        <div class="number">03</div>
+        <div class="step-copy"><div class="step-label">CONFIGURE LOCALLY</div><h2>输入 Key，一键配置</h2><p>先完全退出 VS Code。下载对应脚本，在脚本所在文件夹打开系统终端，复制并运行右侧命令。</p><p style="margin-top:12px">脚本全程中文提示。粘贴的 Key 会直接显示，确认完整后按回车，脚本会自动写入 <code>ANTHROPIC_AUTH_TOKEN</code>。</p></div>
+        <div class="step-content surface script-card">
+          <div class="script-intro"><strong id="script-title">Windows 配置脚本</strong><p>自动识别当前用户目录，无需修改盘符和用户名，无需管理员权限。</p>
+            <a id="script-download" class="btn primary" href="setup-claude.ps1" download="setup-claude.ps1"><svg aria-hidden="true"><use href="#download"/></svg><span>下载 setup-claude.ps1</span></a>
+          </div>
+          <div class="terminal"><div class="terminal-head"><span id="terminal-name">PowerShell · 仅用于配置</span><button type="button" data-copy="run-command">复制命令</button></div>
+            <pre id="run-command">powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup-claude.ps1</pre>
+            <div class="terminal-note" id="terminal-help">打开脚本所在文件夹，在地址栏输入 powershell 并回车，再运行上方命令。</div>
+          </div>
+          <div class="target-files full-file" id="target-files">
+            <div class="file"><strong>settings.json</strong><span>写入 Key、中转站地址与指定的 Claude Code 配置</span></div>
+            <div class="file" id="shell-file" hidden><strong>.zshrc / .bashrc</strong><span>同步环境变量，并处理 Bash 登录配置</span></div>
+          </div>
+          <div class="details-block">
+            <div>默认写入：<code id="config-path">%USERPROFILE%\.claude\settings.json</code></div>
+            <div style="margin:5px 0 12px">已设置 <code>CLAUDE_CONFIG_DIR</code> 时使用该目录；实际位置会在终端中显示。</div>
+            <details><summary>查看配置内容、保留范围与备份方式</summary>
+              <p>脚本会先备份原文件，再合并本次配置。保留无关设置、已有插件及其他模型配置；重复运行可更新 Key。Key 以明文存于本机配置文件，网页不收集 Key。</p>
+              <p>网关地址为 <code>http://118.25.112.30:52997</code>。保留指定模板中的 <code>bypassPermissions</code>、<code>xhigh</code>、<code>Concise</code>、关闭遥测等配置，以及 <code>claude-opus-5-5</code> 的 <code>high</code> 设置；不强制切换当前模型。</p>
+              <p>备份位于 Claude 配置目录的 <code>backup-before-xunyou-时间-随机值/</code>。Windows 恢复备份中的 <code>settings.json</code>；macOS 按备份中的 <code>manifest.json</code> 恢复对应文件。</p>
+              <p>macOS 同时更新 <code>~/.zshrc</code>、<code>~/.bashrc</code> 及实际使用的 Bash 登录配置；设置了 <code>ZDOTDIR</code> 时使用该目录。请勿把配置文件或含 Key 的备份转发给别人。</p>
+            </details>
+          </div>
+        </div>
+      </section>
+      <section class="step" id="step4">
+        <div class="number">04</div>
+        <div class="step-copy"><div class="step-label">READY IN VS CODE</div><h2>回到 VS Code，开始使用</h2><p>看到配置写入成功后，重新打开 VS Code 和本地项目，进入 Claude Code 扩展面板。</p></div>
+        <div class="step-content surface success">
+          <div class="success-title"><svg aria-hidden="true"><use href="#check"/></svg>在扩展图形面板中发起对话</div>
+          <ol class="launch-list">
+            <li>重新打开 VS Code，选择本地项目文件夹。</li>
+            <li>按 <code id="palette-shortcut">Ctrl + Shift + P</code>，搜索 <code>Claude Code</code>，选择 <strong>Open in New Tab</strong> 或 <strong>Open in Side Bar</strong>。</li>
+            <li>在 Claude Code 面板中新建对话，选择账号可用的 Claude 模型，发送下方测试消息。</li>
+          </ol>
+          <div class="prompt"><span id="test-prompt">请用一句话介绍你能如何帮助我完成当前项目。</span><button type="button" class="icon-button" data-copy="test-prompt"><svg aria-hidden="true"><use href="#copy"/></svg>复制</button></div>
+          <p class="completion">扩展面板收到回复，并且中转站出现对应使用记录，才算完成接入。</p>
+          <div class="usage-confirm">后续使用始终在 VS Code 的 Claude Code for VS Code 面板中进行。</div>
+        </div>
+      </section>
+    </div>
+    <div class="faq">
+      <details><summary>仍然出现登录提示，怎么办？</summary><p>检查 VS Code 设置中的 <strong>Disable Login Prompt</strong> 已勾选，再完全退出并重新打开 VS Code。核对脚本显示的目录与扩展使用的 <code>CLAUDE_CONFIG_DIR</code> 是否一致；中转站 Key 不用于登录 Claude 官网。</p></details>
+      <details><summary>为什么打开的是终端界面？</summary><p>请关闭 VS Code 扩展设置中的 <strong>Use Terminal</strong>，然后通过命令面板选择 <strong>Claude Code: Open in New Tab</strong> 或 <strong>Open in Side Bar</strong>。本中转站仅允许扩展图形面板使用，不允许终端会话。</p></details>
+      <details><summary>没有回复或提示 Key / 模型不可用？</summary><p>在中转站确认 Key 有效、额度足够、所属分组支持所选 Claude 模型。重新运行配置脚本可更新 Key。Windows 请在系统 PowerShell 中配置本机用户目录；本指南针对本机 VS Code，不适用于 WSL、SSH 或容器里的扩展。</p></details>
+      <details><summary>macOS 配置后如何生效？</summary><p>脚本会写入 <code>~/.claude/settings.json</code>，并同步终端启动配置。完成后完全退出 VS Code，再重新打开；如果曾设置 <code>CLAUDE_CONFIG_DIR</code>，请确保脚本和扩展使用同一绝对路径。</p></details>
+    </div>
+    <div class="copy-fallback" id="copy-fallback" hidden><label for="copy-value">自动复制不可用，请选中并手动复制：</label><textarea id="copy-value" readonly></textarea></div>
+  </main>
+  <footer class="footer"><span>迅游中转站 · Claude Code for VS Code 接入指南</span><span>更新：2026-11-05 · <a href="https://code.claude.com/docs/en/vs-code" target="_blank" rel="noopener noreferrer">官方扩展说明</a></span></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const platforms = {
+    windows: {
+      label: 'Windows', file: 'setup-claude.ps1', terminal: 'PowerShell · 仅用于配置',
+      command: 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\setup-claude.ps1',
+      help: '打开脚本所在文件夹，在地址栏输入 powershell 并回车，再运行上方命令。',
+      path: '%USERPROFILE%\\.claude\\settings.json', extensions: 'Ctrl + Shift + X', palette: 'Ctrl + Shift + P'
+    },
+    macos: {
+      label: 'macOS', file: 'setup-claude.sh', terminal: 'Terminal · 仅用于配置',
+      command: 'bash ./setup-claude.sh',
+      help: '在 Finder 中找到脚本所在文件夹，打开该文件夹的终端，再运行上方命令。无需 sudo。',
+      path: '~/.claude/settings.json', extensions: 'Cmd + Shift + X', palette: 'Cmd + Shift + P'
+    }
+  };
+  let toastTimer;
+  function toast(message) {
+    clearTimeout(toastTimer);
+    $('toast').textContent = message;
+    toastTimer = setTimeout(() => { $('toast').textContent = ''; }, 3000);
+  }
+  function selectOS(os, automatic = false) {
+    const selected = platforms[os];
+    if (!selected) return;
+    document.querySelectorAll('[data-os]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.os === os)));
+    $('detected').textContent = (automatic ? '已识别 ' : '当前选择 ') + selected.label + ' · 可手动切换';
+    $('script-title').textContent = selected.label + ' 配置脚本';
+    $('script-download').href = selected.file;
+    $('script-download').download = selected.file;
+    $('script-download').querySelector('span').textContent = '下载 ' + selected.file;
+    $('terminal-name').textContent = selected.terminal;
+    $('run-command').textContent = selected.command;
+    $('terminal-help').textContent = selected.help;
+    $('config-path').textContent = selected.path;
+    $('extensions-shortcut').textContent = selected.extensions;
+    $('palette-shortcut').textContent = selected.palette;
+    $('shell-file').hidden = os !== 'macos';
+    $('target-files').classList.toggle('full-file', os !== 'macos');
+    $('copy-fallback').hidden = true;
+  }
+  document.querySelectorAll('[data-os]').forEach(button => button.addEventListener('click', () => selectOS(button.dataset.os)));
+  const platform = navigator.userAgentData?.platform || navigator.platform || '';
+  if (/Mac/i.test(platform) && navigator.maxTouchPoints < 2) selectOS('macos', true);
+  else if (/Win/i.test(platform)) selectOS('windows', true);
+  else {
+    $('platform-note').hidden = false;
+    $('platform-note').textContent = '本页提供 Windows / macOS 本机 VS Code 的配置脚本，请按目标电脑选择系统。';
+  }
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* HTTP / permission fallback below. */ }
+    }
+    const previous = document.activeElement;
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.setAttribute('readonly', '');
+    field.style.cssText = 'position:fixed;top:0;left:-9999px';
+    document.body.appendChild(field);
+    field.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (_) { /* Expose manual copying. */ }
+    field.remove();
+    if (previous && typeof previous.focus === 'function') previous.focus({ preventScroll: true });
+    return copied;
+  }
+  document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
+    const text = $(button.dataset.copy).textContent;
+    if (await copyText(text)) toast('已复制');
+    else {
+      $('copy-value').value = text;
+      $('copy-fallback').hidden = false;
+      $('copy-value').focus();
+      $('copy-value').select();
+      toast('请手动复制选中的内容');
+    }
+  }));
+})();
+</script>
+</body>
+</html>

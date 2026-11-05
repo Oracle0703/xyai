@@ -45,6 +45,7 @@
 | `openai-default-reasoning-effort-design-cn.md` | Chat Completions 缺省 reasoning_effort 注入 |
 | `prompt-metrics-feature-technical-notes-cn.md` | Prompt Metrics |
 | `image-gen-design-cn.md` | 图片生成页 |
+| `claude-client-setup-design-cn.md` | Claude Code for VS Code 接入页与 Windows / macOS 本地配置脚本 |
 | `user-concurrency-presets-design-cn.md` | 用户并发预设 |
 | `large-chat-tool-output-compaction-design-cn.md` | 大 Chat 请求历史 tool 输出压缩 |
 | `shared-compute-pool-design-cn.md` | 共享算力池普通用户保障（建议方案，未上线） |

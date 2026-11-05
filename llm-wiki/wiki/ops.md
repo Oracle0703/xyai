@@ -171,6 +171,15 @@
 - 前端 `pnpm.overrides` 强制 `postcss@<8.5.18` 升到安全版本, lockfile 当前解析为 `8.5.23`; 修改 override 必须用 pnpm 9 重建 lockfile 并复跑 frontend security audit。仓库本地已移除 `vite-plugin-checker` 及其 Vite 插件配置, 合并上游时依赖清单与 `vite.config.ts` 必须保持一致。
 - OpenAI Live 的服务端 attestation 仅在 Apple Silicon macOS 且已安装官方 ChatGPT App 时可用；其他平台正常构建但 capability 返回不可用。`gateway.live.max_session_duration_seconds` 默认 3600, 非正值在配置校验时回落该默认值。
 
+## Claude Code 客户端配置脚本
+
+- 静态接入页 `tools/claude-setup/claude.html` 已发布到 `http://118.25.112.30:52996/claude.html`；同目录分发两套脚本，线上目录 `/opt/xunyou/xunyou-codex-guide`。只引导本机 VS Code 官方扩展图形面板，关闭 `useTerminal`、开启 `disableLoginPrompt`；页面使用规范不等于网关强制鉴权，未添加服务端客户端限制。官方扩展说明与验证边界见唯一功能文档。
+- 独立分发入口 `tools/claude-setup/setup-claude.ps1`、`setup-claude.sh`；使用、配置字段、备份恢复和验证边界见 `docs/features/claude-client-setup-design-cn.md`。用户交互输入 Key 后写入 `env.ANTHROPIC_AUTH_TOKEN`，不发模型请求。
+- 两套脚本提示为中文，Key 输入可见（Windows `Read-Host` / macOS `read -r`）。`.ps1` 源文件必须保留 UTF-8 BOM 以兼容 PowerShell 5.1 中文；生成的 JSON 仍不带 BOM。
+- VS Code 的 `allowDangerouslySkipPermissions` 是独立扩展开关：接入页提示搜索 `bypass` 手动勾选，并提供用户截图示意；脚本不修改 VS Code 设置。发布页面时一并分发 `tools/claude-setup/assets/` 中被引用的带内容哈希图片。
+- Windows 按系统 UserProfile 定位 `.claude/settings.json`，macOS 使用系统 Foundation 写入该 JSON 及 Zsh/Bash 启动文件；尊重 `CLAUDE_CONFIG_DIR`、macOS `ZDOTDIR`，不写死用户名/盘符。JSON 递归合并保留无关配置，坏 JSON/字段结构/不完整 shell 标记拒绝覆盖，写入前备份；macOS 配置块可重复更新。
+- 固定网关 `http://118.25.112.30:52997`，包含用户指定的 `bypassPermissions` 等模板值。测试入口 `node tools/claude-setup/test-setup.cjs`，只写临时目录；macOS 文件桥接替身不等于实机验收。
+
 ## 本地启动
 
 Windows 本地脚本:
