@@ -49,6 +49,29 @@ type subscriptionHandlerService interface {
 	RestoreSubscription(ctx context.Context, subscriptionID int64) (*service.UserSubscription, error)
 	ListGroupSubscriptions(ctx context.Context, groupID int64, page, pageSize int) ([]service.UserSubscription, *pagination.PaginationResult, error)
 	ListUserSubscriptions(ctx context.Context, userID int64) ([]service.UserSubscription, error)
+	ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, bool, error)
+	PrecheckSubscriptionWrite(ctx context.Context, subscriptionID int64) error
+}
+
+// markManageable sets can_manage for scoped sub-admins from the same predicate
+// that authorizes subscription writes (design §4.8, K14).
+func (h *SubscriptionHandler) markManageable(c *gin.Context, items []dto.AdminUserSubscription) error {
+	if !isSubAdminRequest(c) || len(items) == 0 {
+		return nil
+	}
+	userIDs := make([]int64, 0, len(items))
+	for i := range items {
+		userIDs = append(userIDs, items[i].UserID)
+	}
+	manageable, scoped, err := h.subscriptionService.ManageableSubscriptionUsers(c.Request.Context(), userIDs)
+	if err != nil || !scoped {
+		return err
+	}
+	for i := range items {
+		value := manageable[items[i].UserID]
+		items[i].CanManage = &value
+	}
+	return nil
 }
 
 // NewSubscriptionHandler creates a new admin subscription handler
@@ -132,6 +155,10 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 	for i := range subscriptions {
 		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
 	}
+	if err = h.markManageable(c, out); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	if h.departments != nil && pagination != nil {
 		response.Success(c, gin.H{"items": adminSubscriptionResponse(c, out), "total": pagination.Total, "page": pagination.Page, "page_size": pagination.PageSize, "pages": pagination.Pages, "scope_version": scopeVersion})
 		return
@@ -157,8 +184,13 @@ func (h *SubscriptionHandler) GetByID(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	out := []dto.AdminUserSubscription{*dto.UserSubscriptionFromServiceAdmin(subscription)}
+	if err = h.markManageable(c, out); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 
-	response.Success(c, adminSubscriptionResponse(c, dto.UserSubscriptionFromServiceAdmin(subscription)))
+	response.Success(c, adminSubscriptionResponse(c, &out[0]))
 }
 
 // GetProgress handles getting subscription usage progress
@@ -269,6 +301,12 @@ func (h *SubscriptionHandler) Extend(c *gin.Context) {
 		return
 	}
 
+	// An idempotent replay returns the stored response without reaching the
+	// service, so scoped actors are authorized against current grants first (design G17).
+	if err := h.subscriptionService.PrecheckSubscriptionWrite(c.Request.Context(), subscriptionID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	idempotencyPayload := struct {
 		SubscriptionID int64                     `json:"subscription_id"`
 		Body           AdjustSubscriptionRequest `json:"body"`
@@ -455,6 +493,10 @@ func (h *SubscriptionHandler) ListByGroup(c *gin.Context) {
 	for i := range subscriptions {
 		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
 	}
+	if err = h.markManageable(c, out); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.PaginatedWithResult(c, adminSubscriptionResponse(c, out), toResponsePagination(pagination))
 }
 
@@ -480,6 +522,10 @@ func (h *SubscriptionHandler) ListByUser(c *gin.Context) {
 	out := make([]dto.AdminUserSubscription, 0, len(subscriptions))
 	for i := range subscriptions {
 		out = append(out, *dto.UserSubscriptionFromServiceAdmin(&subscriptions[i]))
+	}
+	if err = h.markManageable(c, out); err != nil {
+		response.ErrorFrom(c, err)
+		return
 	}
 	response.Success(c, adminSubscriptionResponse(c, out))
 }

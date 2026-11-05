@@ -29,7 +29,7 @@ type departmentMemberSetup struct {
 func setupDepartmentMembers(t *testing.T) *departmentMemberSetup {
 	t.Helper()
 	f := newDepartmentMemberFixture(t)
-	s := &departmentMemberSetup{f: f, svc: service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)}
+	s := &departmentMemberSetup{f: f, svc: service.NewDepartmentService(NewDepartmentRepository(integrationEntClient, integrationDB), nil)}
 	s.adminID = f.user("admin", "example.com", service.RoleAdmin, nil)
 	s.leaderID = f.user("leader", "xunyou.com", service.RoleSubAdmin, nil)
 	s.adminCtx = service.WithDepartmentActor(f.ctx, s.adminID)

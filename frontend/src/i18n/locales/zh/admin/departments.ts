@@ -83,7 +83,17 @@ export default {
       transfer: '调整部门',
       transferTitle: '调整成员部门',
       transferHint: '成员将直接转入目标部门；负责人备注将被清空。',
-      transferTarget: '目标部门'
+      transferTarget: '目标部门',
+      resetPassword: '重置密码',
+      resetPasswordTitle: '重置成员密码',
+      resetPasswordHint: '设置后该成员已登录的会话全部失效，需使用新密码登录。请通过安全渠道告知本人。',
+      newPassword: '新密码',
+      passwordTooShort: '密码至少 6 个字符。',
+      passwordReset: '密码已重置',
+      deleteUser: '删除用户',
+      deleteUserTitle: '确认删除用户',
+      deleteUserHint: '删除后该账号无法登录，其全部 API Key 同时删除，此操作不能由你撤销。',
+      userDeleted: '用户已删除'
     },
     accessChanged: '角色、权限或部门授权已变化，请重新确认后保存。',
     accessVersionRequired: '请刷新用户详情后再修改角色或权限。',

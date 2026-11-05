@@ -40,16 +40,32 @@ func departmentMemberScope(actor *service.User, args *[]any) string {
 	return departmentRowScope(actor, "d", args)
 }
 
-// departmentSubscriptionTargets keeps scoped subscription access away from the
-// actor, administrators and leaders the actor may not manage (design §4.5).
-func departmentSubscriptionTargets(actor *service.User, args *[]any) string {
+// subscriptionResetTargets limits a scoped actor's subscription reads and
+// resets (design §4.5, D9/D10). It replaces departmentMemberScope in those
+// queries because the actor's own subscriptions are included even when the
+// actor is not a member of the scope. Department leaders never reach admins;
+// organization leaders reach every account of their organizations.
+func subscriptionResetTargets(actor *service.User, args *[]any) string {
 	*args = append(*args, actor.ID)
 	self := len(*args)
-	if !departmentActorIsOrganizationLeader(actor) {
-		return fmt.Sprintf("u.id<>$%d AND u.role='user'", self)
+	members := departmentMemberScope(actor, args)
+	if departmentActorIsOrganizationLeader(actor) {
+		return fmt.Sprintf("(u.id=$%d OR %s)", self, members)
 	}
+	return fmt.Sprintf("(u.id=$%d OR (%s AND u.role IN ('user','sub_admin')))", self, members)
+}
+
+// subscriptionManageTargets limits an organization leader's subscription
+// writes (design §4.8, D11): the leader, active normal users of the leader's
+// organizations and active managed leaders. It is a subset of
+// subscriptionResetTargets; can_manage and assignment candidates use it too.
+func subscriptionManageTargets(actor *service.User, args *[]any) string {
+	*args = append(*args, actor.ID)
+	self := len(*args)
 	*args = append(*args, pq.Array(actor.OrganizationGrants))
-	return fmt.Sprintf("u.id<>$%d AND (u.role='user' OR (u.role='sub_admin' AND %s))", self, managedLeaderPredicate("u", len(*args)))
+	organizations := len(*args)
+	return fmt.Sprintf("u.deleted_at IS NULL AND u.status='active' AND (u.id=$%d OR (%s=ANY($%d::text[]) AND (u.role='user' OR (u.role='sub_admin' AND %s))))",
+		self, organizationUsageOrganizationExpression("u"), organizations, managedLeaderPredicate("u", organizations))
 }
 
 // managedLeaderPredicate matches sub_admins an organization leader may manage:

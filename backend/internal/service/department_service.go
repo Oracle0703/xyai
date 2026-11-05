@@ -223,6 +223,7 @@ type DepartmentScopeQuery struct {
 	Status          string
 	ExpectedVersion string // Query snapshot to validate after resolving the authorized selection.
 	Limit           int    // Compact search only; never used to construct a query snapshot.
+	AssignTargets   bool   // Compact search for subscription assignment: return write targets (design §4.8).
 }
 
 // HashDepartmentScope detects membership changes, not usage-log snapshots.

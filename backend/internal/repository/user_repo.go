@@ -544,6 +544,14 @@ func (r *userRepository) deleteUser(ctx context.Context, exec *dbent.Client, id 
 	if actor != nil && access.Role == service.RoleAdmin {
 		return service.ErrInsufficientPerms
 	}
+	return deleteUserRecords(ctx, exec, actor, access, id)
+}
+
+// deleteUserRecords removes a user's grants and identities and soft-deletes
+// the user without checking the actor. Callers authorize in the same
+// transaction first: deleteUser for full administrators, and the organization
+// user deletion for organization leaders (design §4.9).
+func deleteUserRecords(ctx context.Context, exec *dbent.Client, actor *service.User, access *service.DepartmentAccess, id int64) error {
 	if err := clearUserDepartmentGrants(ctx, exec, actor, access, "user_deleted"); err != nil {
 		return err
 	}

@@ -218,6 +218,56 @@ func (h *DepartmentHandler) UpdateManagedMember(c *gin.Context) {
 	departmentReply(c, v, err)
 }
 
+// ResetOrganizationUserPassword handles POST /admin/organization/users/:id/password (design §4.9).
+func (h *DepartmentHandler) ResetOrganizationUserPassword(c *gin.Context) {
+	id, ok := departmentPathID(c)
+	if !ok {
+		return
+	}
+	var input *struct {
+		Password string `json:"password"`
+	}
+	if !departmentJSON(c, &input) {
+		return
+	}
+	if input == nil {
+		departmentReply(c, nil, service.ErrDepartmentInvalid)
+		return
+	}
+	err := h.departments.ResetOrganizationUserPassword(c.Request.Context(), id, input.Password)
+	departmentReply(c, gin.H{"user_id": id}, err)
+}
+
+// DeleteOrganizationUser handles DELETE /admin/organization/users/:id (design §4.9).
+func (h *DepartmentHandler) DeleteOrganizationUser(c *gin.Context) {
+	id, ok := departmentPathID(c)
+	if !ok {
+		return
+	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		response.BadRequest(c, "invalid department request")
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	var input *service.OrganizationUserDeleteInput
+	if !departmentJSON(c, &input) {
+		return
+	}
+	if input == nil {
+		departmentReply(c, nil, service.ErrDepartmentInvalid)
+		return
+	}
+	// Same contract as member updates: null confirms an unassigned user,
+	// omitting the field is rejected.
+	var presence map[string]json.RawMessage
+	if json.Unmarshal(body, &presence) == nil && string(presence["expected_department_id"]) == "null" {
+		input.ExpectedUnassigned = true
+	}
+	err = h.departments.DeleteOrganizationUser(c.Request.Context(), id, *input)
+	departmentReply(c, gin.H{"user_id": id}, err)
+}
+
 func (h *DepartmentHandler) GetAccess(c *gin.Context) {
 	id, ok := departmentPathID(c)
 	if !ok {
@@ -255,7 +305,14 @@ func (h *DepartmentHandler) SubscriptionScope(c *gin.Context) {
 }
 
 func (h *DepartmentHandler) SubscriptionUsers(c *gin.Context) {
-	scope, err := h.departments.QueryScope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions, service.DepartmentScopeQuery{Organization: c.Query("organization"), DepartmentID: c.Query("department_id"), Q: c.Query("q"), Limit: 30})
+	// purpose=assign lists subscription write targets for the assignment
+	// dialog; without it the list holds read and reset targets (design §4.8, G18).
+	purpose := c.Query("purpose")
+	if purpose != "" && purpose != "assign" {
+		response.BadRequest(c, "Invalid purpose")
+		return
+	}
+	scope, err := h.departments.QueryScope(c.Request.Context(), service.AdminPermissionDepartmentSubscriptions, service.DepartmentScopeQuery{Organization: c.Query("organization"), DepartmentID: c.Query("department_id"), Q: c.Query("q"), Limit: 30, AssignTargets: purpose == "assign"})
 	if err != nil {
 		departmentReply(c, nil, err)
 		return

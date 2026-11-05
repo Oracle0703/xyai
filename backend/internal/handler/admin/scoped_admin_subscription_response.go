@@ -48,7 +48,7 @@ func adminSubscriptionResponse(c *gin.Context, data any) any {
 			view.keys = slices.Concat(view.keys, subscriptionUsageKeys, subscriptionAssignmentKeys)
 		}
 	case isSubAdminRequest(c):
-		view = subscriptionView{keys: slices.Concat([]string{"id"}, subscriptionUsageKeys), nested: subAdminSubscriptionNested}
+		view = subscriptionView{keys: slices.Concat([]string{"id", "can_manage"}, subscriptionUsageKeys), nested: subAdminSubscriptionNested}
 	default:
 		return data
 	}

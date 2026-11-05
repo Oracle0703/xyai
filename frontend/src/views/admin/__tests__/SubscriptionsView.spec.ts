@@ -538,6 +538,43 @@ describe('admin SubscriptionsView quota reset actions', () => {
     vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue(departmentScope)
   }
 
+  it('lets organization leaders assign and write only rows marked can_manage (D11)', async () => {
+    useDepartmentLeader()
+    authState.hasAdminPermission.mockImplementation((permission: string) =>
+      permission === 'admin.department_subscriptions' || permission === 'admin.organization_manage')
+    vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({ ...departmentScope, full_organizations: ['xunyou'], default_department_id: 'all' })
+    listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1',
+      items: [{ ...testSubscription, can_manage: true }, { ...testSubscription, id: 32, user_id: 12, can_manage: false }],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    const wrapper = await mountView()
+    const buttonTexts = wrapper.findAll('button').map((button) => button.text())
+    expect(buttonTexts).toContain('admin.subscriptions.assignSubscription')
+    expect(buttonTexts.filter((text) => text === 'admin.subscriptions.adjust')).toHaveLength(1)
+    expect(buttonTexts.filter((text) => text === 'admin.subscriptions.revoke')).toHaveLength(1)
+    expect(buttonTexts.filter((text) => text === 'admin.subscriptions.resetQuota')).toHaveLength(2)
+    expect(buttonTexts).not.toContain('userSubscriptions.selfReset.policyTitle')
+    expect(getAssignableGroups).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps department leaders read and reset only even when a row is marked manageable', async () => {
+    useDepartmentLeader()
+    listSubscriptions.mockResolvedValue({
+      scope_version: 'scope-v1', items: [{ ...testSubscription, can_manage: true }], total: 1, page: 1, page_size: 20, pages: 1
+    })
+    const wrapper = await mountView()
+    const buttonTexts = wrapper.findAll('button').map((button) => button.text())
+    expect(buttonTexts).not.toContain('admin.subscriptions.assignSubscription')
+    expect(buttonTexts).not.toContain('admin.subscriptions.adjust')
+    expect(buttonTexts).not.toContain('admin.subscriptions.revoke')
+    wrapper.unmount()
+  })
+
   it('uses the granted department by default and keeps that scope in the reset snapshot', async () => {
     useDepartmentLeader()
     const wrapper = await mountView()

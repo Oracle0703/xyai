@@ -592,7 +592,15 @@ func (r *userSubscriptionRepository) ResetUsageWindows(ctx context.Context, id i
 		if err != nil {
 			return err
 		}
-		if err = departmentAudit(ctx, client, actor, "department.reset_quota", map[string]any{"subscription_id": id, "daily": resetDaily, "weekly": resetWeekly, "monthly": resetMonthly}); err != nil {
+		details := map[string]any{"subscription_id": id, "daily": resetDaily, "weekly": resetWeekly, "monthly": resetMonthly}
+		var owner int64
+		if err = scanSingleRow(ctx, client, `SELECT user_id FROM user_subscriptions WHERE id=$1`, []any{id}, &owner); err != nil {
+			return err
+		}
+		if owner == actor.ID {
+			details["self"] = true // Leaders may reset their own quota (design G10).
+		}
+		if err = departmentAudit(ctx, client, actor, "department.reset_quota", details); err != nil {
 			return err
 		}
 	}
@@ -714,7 +722,14 @@ func (r *userSubscriptionRepository) ResetDailyFiltered(
 		if err != nil {
 			return nil, err
 		}
-		if err = departmentAudit(ctx, client, actor, "department.reset_daily_filtered", map[string]any{"filter": filter, "reset_count": len(keys)}); err != nil {
+		details := map[string]any{"filter": filter, "reset_count": len(keys)}
+		for _, key := range keys {
+			if key.UserID == actor.ID {
+				details["self"] = true // Leaders may reset their own quota (design G10).
+				break
+			}
+		}
+		if err = departmentAudit(ctx, client, actor, "department.reset_daily_filtered", details); err != nil {
 			return nil, err
 		}
 	}

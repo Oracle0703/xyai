@@ -60,7 +60,7 @@ func (r *userSubscriptionRepository) checkDepartmentSubscription(ctx context.Con
 	rows, err := client.QueryContext(ctx, `SELECT 1 FROM user_subscriptions s JOIN users u ON u.id=s.user_id
  LEFT JOIN departments d ON d.id=u.department_id AND d.organization_key=`+organizationUsageOrganizationExpression("u")+`
  WHERE s.id=$1 AND u.deleted_at IS NULL AND u.status='active'
- AND `+departmentMemberScope(actor, &args)+` AND `+departmentSubscriptionTargets(actor, &args), args...)
+ AND `+subscriptionResetTargets(actor, &args), args...)
 	if err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (r *userSubscriptionRepository) beginDepartmentSubscriptionWrite(ctx contex
 	} else if constrained {
 		p := dailyResetPredicates(filter, now, nil)
 		if !departmentSubscriptionUnrestricted(actor) {
-			p.clauses = append(p.clauses, "u.status='active'", departmentMemberScope(actor, &p.args), departmentSubscriptionTargets(actor, &p.args))
+			p.clauses = append(p.clauses, "u.status='active'", subscriptionResetTargets(actor, &p.args))
 		}
 		rows, err := client.QueryContext(ctx, `SELECT DISTINCT us.user_id FROM user_subscriptions us JOIN users u ON u.id=us.user_id JOIN groups g ON g.id=us.group_id
  LEFT JOIN departments d ON d.id=u.department_id AND d.organization_key=`+organizationUsageOrganizationExpression("u")+` WHERE `+p.where()+` ORDER BY us.user_id`, p.args...)

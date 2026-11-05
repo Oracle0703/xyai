@@ -405,15 +405,20 @@ func (r *apiKeyRepository) DeleteWithAudit(ctx context.Context, id int64) error 
 	return nil
 }
 
-func (r *apiKeyRepository) deleteWithTombstone(ctx context.Context, exec *dbent.Client, id int64, tombstoneKey string) error {
+// softDeleteAPIKey frees the key value for reuse and soft-deletes the row.
+func softDeleteAPIKey(ctx context.Context, exec sqlExecutor, id int64, tombstoneKey string) (int64, error) {
 	res, err := exec.ExecContext(ctx, `
 		UPDATE api_keys
 		SET key = $1, deleted_at = NOW(), updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL`, tombstoneKey, id)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	affected, err := res.RowsAffected()
+	return res.RowsAffected()
+}
+
+func (r *apiKeyRepository) deleteWithTombstone(ctx context.Context, exec *dbent.Client, id int64, tombstoneKey string) error {
+	affected, err := softDeleteAPIKey(ctx, exec, id, tombstoneKey)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"slices"
 	"sort"
 	"strconv"
@@ -15,10 +16,15 @@ import (
 	"github.com/lib/pq"
 )
 
-type departmentRepository struct{ db *sql.DB }
+type departmentRepository struct {
+	db *sql.DB
+	// client runs organization user deletion, which shares Ent-based steps
+	// with the administrator deletion path (design §4.9).
+	client *dbent.Client
+}
 
-func NewDepartmentRepository(db *sql.DB) service.DepartmentRepository {
-	return &departmentRepository{db: db}
+func NewDepartmentRepository(client *dbent.Client, db *sql.DB) service.DepartmentRepository {
+	return &departmentRepository{db: db, client: client}
 }
 
 func departmentPersistenceError(err error) error {
@@ -335,7 +341,7 @@ func (r *departmentRepository) Members(ctx context.Context, f service.Department
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*)`+departmentMemberFrom()+` WHERE `+p.where(), p.args...).Scan(&result.Total); err != nil {
 		return nil, err
 	}
-	members, err := querySelectedDepartmentMembers(ctx, tx, actor, false, false, f)
+	members, err := querySelectedDepartmentMembers(ctx, tx, actor, false, departmentMemberTargets, f)
 	if err != nil {
 		return nil, err
 	}
@@ -906,7 +912,7 @@ func (r *departmentRepository) SubscriptionGroups(ctx context.Context, search st
 	visible := "TRUE"
 	if !scope.Unrestricted {
 		visible = `EXISTS(SELECT 1 FROM user_subscriptions s JOIN users u ON u.id=s.user_id LEFT JOIN departments d ON d.id=u.department_id AND d.organization_key=` + organizationUsageOrganizationExpression("u") +
-			` WHERE s.group_id=g.id AND u.deleted_at IS NULL AND u.status='active' AND ` + departmentMemberScope(scope.Actor, &args) + ` AND ` + departmentSubscriptionTargets(scope.Actor, &args) + `)`
+			` WHERE s.group_id=g.id AND u.deleted_at IS NULL AND u.status='active' AND ` + subscriptionResetTargets(scope.Actor, &args) + `)`
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT g.id,g.name FROM groups g
 WHERE `+visible+`

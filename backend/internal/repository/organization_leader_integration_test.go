@@ -34,7 +34,7 @@ func setupOrganizationLeaders(t *testing.T) *organizationLeaderSetup {
 		_, err := integrationDB.ExecContext(f.ctx, `DELETE FROM organization_access_grants WHERE user_id=ANY($1) OR created_by=ANY($1)`, pq.Array(f.userIDs))
 		require.NoError(t, err)
 	})
-	s := &organizationLeaderSetup{f: f, svc: service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)}
+	s := &organizationLeaderSetup{f: f, svc: service.NewDepartmentService(NewDepartmentRepository(integrationEntClient, integrationDB), nil)}
 	s.adminID = f.user("admin", "example.com", service.RoleAdmin, nil)
 	s.adminCtx = service.WithDepartmentActor(f.ctx, s.adminID)
 	return s
@@ -442,10 +442,12 @@ func TestOrganizationLeaderIntegration_DisableSourcesAndSubscriptionTargets(t *t
 	requireCheckViolation(t, f.exec(`UPDATE users SET status='disabled',disabled_source='organization_manager' WHERE id=$1`, member))
 	f.mustExec(`UPDATE users SET status='active' WHERE id=$1`, member)
 
-	// D5: scoped subscription access never reaches the actor itself, administrators
-	// or leaders outside the actor's management.
+	// D9/D10 (replacing D5): department leaders reach themselves and every
+	// non-admin member of their departments; organization leaders reach every
+	// account of their organizations, administrators and themselves included.
 	admin := f.user("admin2", "xunyou.com", service.RoleAdmin, nil)
 	unassigned := f.user("unassigned", "xunyou.com", service.RoleUser, nil)
+	outsiderID, outsiderCtx := s.departmentLeader("outsider", "xunyou.com", []int64{dept}, false, true, false)
 	f.mustExec(`UPDATE users SET department_id=$1 WHERE id=$2`, dept, admin)
 	var group int64
 	require.NoError(t, integrationDB.QueryRowContext(f.ctx, `INSERT INTO groups(name,platform,subscription_type,daily_limit_usd) VALUES($1,'openai','subscription',20) RETURNING id`, f.prefix+"group").Scan(&group))
@@ -456,7 +458,7 @@ func TestOrganizationLeaderIntegration_DisableSourcesAndSubscriptionTargets(t *t
 		require.NoError(t, e)
 	})
 	subscriptions := map[int64]int64{}
-	for _, userID := range []int64{member, managerID, leaderID, admin, unassigned} {
+	for _, userID := range []int64{member, managerID, leaderID, admin, unassigned, outsiderID} {
 		var id int64
 		require.NoError(t, integrationDB.QueryRowContext(f.ctx, `INSERT INTO user_subscriptions(user_id,group_id,starts_at,expires_at,status,daily_usage_usd)
 VALUES($1,$2,NOW()-INTERVAL '1 day',NOW()+INTERVAL '30 days','active',3) RETURNING id`, userID, group).Scan(&id))
@@ -474,23 +476,26 @@ VALUES($1,$2,NOW()-INTERVAL '1 day',NOW()+INTERVAL '30 days','active',3) RETURNI
 		}
 		return ids
 	}
-	require.ElementsMatch(t, []int64{member}, reachable(managerCtx))
-	require.ElementsMatch(t, []int64{member, managerID, unassigned}, reachable(leaderCtx))
+	require.ElementsMatch(t, []int64{member, managerID, leaderID}, reachable(managerCtx))
+	require.ElementsMatch(t, []int64{outsiderID, member, managerID, leaderID}, reachable(outsiderCtx), "a department leader outside its departments still reaches itself")
+	require.ElementsMatch(t, []int64{member, managerID, leaderID, admin, unassigned, outsiderID}, reachable(leaderCtx))
 	for name, c := range map[string]struct {
 		ctx     context.Context
 		userID  int64
 		allowed bool
 	}{
-		"manager resets member":        {managerCtx, member, true},
-		"manager resets itself":        {managerCtx, managerID, false},
-		"manager resets admin":         {managerCtx, admin, false},
-		"manager resets its superior":  {managerCtx, leaderID, false},
-		"manager resets unassigned":    {managerCtx, unassigned, false},
-		"leader resets member":         {leaderCtx, member, true},
-		"leader resets unassigned":     {leaderCtx, unassigned, true},
-		"leader resets managed leader": {leaderCtx, managerID, true},
-		"leader resets itself":         {leaderCtx, leaderID, false},
-		"leader resets admin":          {leaderCtx, admin, false},
+		"manager resets member":         {managerCtx, member, true},
+		"manager resets itself":         {managerCtx, managerID, true},
+		"manager resets admin":          {managerCtx, admin, false},
+		"manager resets its superior":   {managerCtx, leaderID, true},
+		"manager resets unassigned":     {managerCtx, unassigned, false},
+		"outsider resets itself":        {outsiderCtx, outsiderID, true},
+		"leader resets member":          {leaderCtx, member, true},
+		"leader resets unassigned":      {leaderCtx, unassigned, true},
+		"leader resets managed leader":  {leaderCtx, managerID, true},
+		"leader resets itself":          {leaderCtx, leaderID, true},
+		"leader resets admin":           {leaderCtx, admin, true},
+		"leader resets another manager": {leaderCtx, outsiderID, true},
 	} {
 		_, err = subs.AdminResetQuota(c.ctx, subscriptions[c.userID], true, true, true)
 		if c.allowed {
@@ -499,6 +504,14 @@ VALUES($1,$2,NOW()-INTERVAL '1 day',NOW()+INTERVAL '30 days','active',3) RETURNI
 			require.ErrorIs(t, err, service.ErrDepartmentScopeDenied, name)
 		}
 	}
+	selfResets := func(actorID int64) int {
+		var count int
+		require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT COUNT(*) FROM audit_logs WHERE action='department.reset_quota' AND actor_user_id=$1 AND extra->>'self'='true'`, actorID).Scan(&count))
+		return count
+	}
+	require.Equal(t, 1, selfResets(leaderID), "G10: a leader's own reset is flagged for review")
+	require.Equal(t, 1, selfResets(managerID))
+	require.Equal(t, 1, selfResets(outsiderID))
 }
 
 func requireCheckViolation(t *testing.T, err error) {

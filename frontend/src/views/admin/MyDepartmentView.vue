@@ -37,6 +37,8 @@
               <button v-else-if="row.can_enable" class="text-primary-600 hover:underline" :data-testid="`enable-member-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'enable')">{{ t('admin.departments.memberManagement.enable') }}</button>
               <button v-if="organizationLeader" class="text-primary-600 hover:underline" :data-testid="`transfer-member-${row.id}`" :disabled="saving || loading" @click="openTransfer(row)">{{ t('admin.departments.memberManagement.transfer') }}</button>
               <button v-if="row.department_id !== null" class="text-red-600 hover:underline" :data-testid="`remove-member-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'remove')">{{ t('admin.departments.memberManagement.remove') }}</button>
+              <button v-if="organizationLeader" class="text-primary-600 hover:underline" :data-testid="`reset-password-${row.id}`" :disabled="saving || loading" @click="openPassword(row)">{{ t('admin.departments.memberManagement.resetPassword') }}</button>
+              <button v-if="organizationLeader" class="text-red-600 hover:underline" :data-testid="`delete-user-${row.id}`" :disabled="saving || loading" @click="openAction(row, 'delete')">{{ t('admin.departments.memberManagement.deleteUser') }}</button>
             </div>
             <span v-else class="text-gray-500">{{ t('admin.departments.memberManagement.readonly') }}</span>
           </template>
@@ -62,7 +64,18 @@
       <p class="break-all font-medium">{{ pendingAction?.member.email }}</p>
       <p class="mt-3 text-sm text-gray-600 dark:text-dark-300">{{ actionHint }}</p>
       <p v-if="error" role="alert" class="mt-2 text-sm text-red-600">{{ error }}</p>
-      <template #footer><button class="btn btn-secondary" :disabled="saving" @click="closeAction">{{ t('admin.departments.cancel') }}</button><button class="btn btn-primary" data-testid="confirm-managed-action" :disabled="saving" @click="confirmAction">{{ t('admin.departments.memberManagement.confirm') }}</button></template>
+      <template #footer><button class="btn btn-secondary" :disabled="saving" @click="closeAction">{{ t('admin.departments.cancel') }}</button><button :class="['btn', pendingAction?.kind === 'delete' ? 'btn-danger' : 'btn-primary']" data-testid="confirm-managed-action" :disabled="saving" @click="confirmAction">{{ t('admin.departments.memberManagement.confirm') }}</button></template>
+    </BaseDialog>
+
+    <BaseDialog :show="passwordTarget !== null" :title="t('admin.departments.memberManagement.resetPasswordTitle')" :show-close-button="!saving" :close-on-escape="!saving" @close="closePassword">
+      <form id="managed-member-password" class="space-y-4" @submit.prevent="confirmPassword">
+        <p class="break-all font-medium">{{ passwordTarget?.email }}</p>
+        <label class="block space-y-1"><span>{{ t('admin.departments.memberManagement.newPassword') }}</span><input v-model="password" type="password" autocomplete="new-password" data-testid="managed-password" class="input" :disabled="saving" /></label>
+        <p class="text-sm text-gray-600 dark:text-dark-300">{{ t('admin.departments.memberManagement.resetPasswordHint') }}</p>
+        <p v-if="password && password.length < 6" role="alert" class="text-sm text-red-600">{{ t('admin.departments.memberManagement.passwordTooShort') }}</p>
+        <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
+      </form>
+      <template #footer><button class="btn btn-secondary" :disabled="saving" @click="closePassword">{{ t('admin.departments.cancel') }}</button><button form="managed-member-password" type="submit" data-testid="confirm-managed-password" class="btn btn-primary" :disabled="saving || password.length < 6">{{ t('admin.departments.memberManagement.confirm') }}</button></template>
     </BaseDialog>
 
     <BaseDialog :show="candidateOpen" :title="`${t('admin.departments.addMembers')} · ${selectedDepartment ? departmentLabels.get(selectedDepartment.id) : ''}`" width="wide" :show-close-button="!saving" :close-on-escape="!saving" @close="closeCandidates">
@@ -136,7 +149,9 @@ const saving = ref(false)
 const error = ref('')
 const editing = ref<ManagedDepartmentMember | null>(null)
 const form = reactive({ username: '', department_note: '' })
-const pendingAction = ref<{ kind: 'disable' | 'enable' | 'remove'; member: ManagedDepartmentMember } | null>(null)
+const pendingAction = ref<{ kind: 'disable' | 'enable' | 'remove' | 'delete'; member: ManagedDepartmentMember } | null>(null)
+const passwordTarget = ref<ManagedDepartmentMember | null>(null)
+const password = ref('')
 const candidateOpen = ref(false)
 const candidateQuery = ref('')
 const candidates = ref<DepartmentMember[]>([])
@@ -206,8 +221,14 @@ const profileError = computed(() => {
 const profileChanged = computed(() => editing.value && (
   form.username.trim() !== editing.value.username || (noteEditable.value && form.department_note.trim() !== editing.value.department_note)
 ))
-const actionTitle = computed(() => t(`admin.departments.memberManagement.${pendingAction.value?.kind === 'remove' ? 'confirmRemove' : pendingAction.value?.kind === 'enable' ? 'confirmEnable' : 'confirmDisable'}`))
-const actionHint = computed(() => t(`admin.departments.memberManagement.${pendingAction.value?.kind === 'remove' ? 'removeHint' : pendingAction.value?.kind === 'enable' ? 'enableHint' : 'disableHint'}`))
+const actionKeys = {
+  disable: ['confirmDisable', 'disableHint'],
+  enable: ['confirmEnable', 'enableHint'],
+  remove: ['confirmRemove', 'removeHint'],
+  delete: ['deleteUserTitle', 'deleteUserHint']
+} as const
+const actionTitle = computed(() => t(`admin.departments.memberManagement.${actionKeys[pendingAction.value?.kind ?? 'disable'][0]}`))
+const actionHint = computed(() => t(`admin.departments.memberManagement.${actionKeys[pendingAction.value?.kind ?? 'disable'][1]}`))
 
 function isScopeDenied(cause: unknown) {
   const code = departmentErrorCode(cause)
@@ -382,8 +403,8 @@ async function saveProfile() {
   await updateMember(editing.value, fields)
 }
 
-function openAction(member: ManagedDepartmentMember, kind: 'disable' | 'enable' | 'remove') {
-  if (saving.value || !member.manageable || (kind === 'enable' && !member.can_enable)) return
+function openAction(member: ManagedDepartmentMember, kind: 'disable' | 'enable' | 'remove' | 'delete') {
+  if (saving.value || !member.manageable || (kind === 'enable' && !member.can_enable) || (kind === 'delete' && !organizationLeader.value)) return
   pendingAction.value = { kind, member: { ...member } }
   error.value = ''
 }
@@ -414,7 +435,53 @@ async function confirmAction() {
   if (!action || saving.value) return
   if (action.kind === 'remove') {
     await assignMembers(null, [{ user_id: action.member.id, expected_department_id: action.member.department_id, expected_department_version: action.member.department_version }])
-  } else await updateMember(action.member, { status: action.kind === 'enable' ? 'active' : 'disabled' })
+  } else if (action.kind === 'delete') await deleteUser(action.member)
+  else await updateMember(action.member, { status: action.kind === 'enable' ? 'active' : 'disabled' })
+}
+
+// Organization leaders only (organization leader design §4.9, D12).
+async function deleteUser(member: ManagedDepartmentMember) {
+  if (saving.value) return
+  saving.value = true
+  error.value = ''
+  const version = contextVersion
+  try {
+    await departmentsAPI.deleteOrganizationUser(member.id, { expected_department_id: member.department_id, expected_department_version: member.department_version })
+    if (version !== contextVersion) return
+    pendingAction.value = null
+    app.showSuccess(t('admin.departments.memberManagement.userDeleted'))
+    await loadMembers()
+  } catch (cause) {
+    if (version === contextVersion) await handleWriteError(cause)
+  } finally { if (version === contextVersion) saving.value = false }
+}
+
+function openPassword(member: ManagedDepartmentMember) {
+  if (saving.value || !member.manageable || !organizationLeader.value) return
+  passwordTarget.value = { ...member }
+  password.value = ''
+  error.value = ''
+}
+function closePassword() {
+  if (saving.value) return
+  passwordTarget.value = null
+  password.value = ''
+}
+async function confirmPassword() {
+  const member = passwordTarget.value
+  if (!member || saving.value || password.value.length < 6) return
+  saving.value = true
+  error.value = ''
+  const version = contextVersion
+  try {
+    await departmentsAPI.resetOrganizationUserPassword(member.id, password.value)
+    if (version !== contextVersion) return
+    passwordTarget.value = null
+    password.value = ''
+    app.showSuccess(t('admin.departments.memberManagement.passwordReset'))
+  } catch (cause) {
+    if (version === contextVersion) await handleWriteError(cause)
+  } finally { if (version === contextVersion) saving.value = false }
 }
 
 function openTransfer(member: ManagedDepartmentMember) {

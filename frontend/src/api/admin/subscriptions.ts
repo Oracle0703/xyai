@@ -122,10 +122,11 @@ export async function searchGroups(keyword = ''): Promise<SubscriptionGroupFilte
   return data
 }
 
+/** Users the actor may assign subscriptions to; organization leaders get only their write targets. */
 export async function searchAssignmentUsers(keyword: string): Promise<SubscriptionAssignmentUserOption[]> {
   const { data } = await apiClient.get<SubscriptionAssignmentUserOption[]>(
     '/admin/subscriptions/search-users',
-    { params: { q: keyword } }
+    { params: { q: keyword, purpose: 'assign' } }
   )
   return data
 }

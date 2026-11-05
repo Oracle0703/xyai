@@ -2189,6 +2189,8 @@ export interface UserSubscription {
   expires_at: string | null
   user?: User
   group?: Group
+  /** Present for scoped sub-admins: whether the actor may assign, extend, revoke or restore it. */
+  can_manage?: boolean
 }
 
 export interface SubscriptionProgress {

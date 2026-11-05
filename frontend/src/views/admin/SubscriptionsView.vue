@@ -449,7 +449,7 @@
           <template #cell-actions="{ row }">
             <div class="flex items-center gap-1">
               <button
-                v-if="canManageSubscriptions && (row.status === 'active' || row.status === 'expired')"
+                v-if="canWriteRow(row) && (row.status === 'active' || row.status === 'expired')"
                 @click="handleExtend(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
               >
@@ -475,7 +475,7 @@
                 <span class="text-xs">{{ t('admin.subscriptions.resetDailyQuota') }}</span>
               </button>
               <button
-                v-if="canManageSubscriptions && row.status === 'active'"
+                v-if="canWriteRow(row) && row.status === 'active'"
                 @click="handleRevoke(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
@@ -483,7 +483,7 @@
                 <span class="text-xs">{{ t('admin.subscriptions.revoke') }}</span>
               </button>
               <button
-                v-if="canManageSubscriptions && row.status === 'revoked'"
+                v-if="canWriteRow(row) && row.status === 'revoked'"
                 @click="handleRestore(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
               >
@@ -699,7 +699,7 @@
 
     <!-- Adjust Subscription Modal -->
     <BaseDialog
-      v-if="canManageSubscriptions"
+      v-if="canWriteSubscriptions"
       :show="showExtendModal"
       :title="t('admin.subscriptions.adjustSubscription')"
       width="narrow"
@@ -768,7 +768,7 @@
 
     <!-- Revoke Confirmation Dialog -->
     <ConfirmDialog
-      v-if="canManageSubscriptions"
+      v-if="canWriteSubscriptions"
       :show="showRevokeDialog"
       :title="t('admin.subscriptions.revokeSubscription')"
       :message="t('admin.subscriptions.revokeConfirm', { user: revokingSubscription?.user?.email })"
@@ -781,7 +781,7 @@
 
     <!-- Restore Confirmation Dialog -->
     <ConfirmDialog
-      v-if="canManageSubscriptions"
+      v-if="canWriteSubscriptions"
       :show="showRestoreDialog"
       :title="t('admin.subscriptions.restoreSubscription')"
       :message="t('admin.subscriptions.restoreConfirm', { user: restoringSubscription?.user?.email })"
@@ -948,7 +948,12 @@ const departmentScopeError = ref('')
 let departmentScopeInitialized = false
 
 const showSelfResetPolicy = ref(false)
-const canAssignSubscriptions = computed(() => authStore.hasAdminPermission('admin.subscriptions'))
+// Organization leaders assign, extend, revoke and restore subscriptions of
+// rows the server marks can_manage (organization leader design §4.8).
+const isOrganizationLeader = computed(() => authStore.isSubAdmin && authStore.hasAdminPermission('admin.organization_manage'))
+const canAssignSubscriptions = computed(() => authStore.hasAdminPermission('admin.subscriptions') || isOrganizationLeader.value)
+const canWriteSubscriptions = computed(() => canManageSubscriptions.value || isOrganizationLeader.value)
+const canWriteRow = (row: UserSubscription) => canManageSubscriptions.value || (isOrganizationLeader.value && row.can_manage === true)
 const canResetSubscriptionQuotas = computed(() =>
   authStore.hasAdminPermission('admin.subscriptions') || authStore.hasAdminPermission('admin.department_subscriptions')
 )

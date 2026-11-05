@@ -143,7 +143,7 @@ func TestDepartmentMemberAuthIntegration_WarmAPIKeyL1ReflectsMemberStatus(t *tes
 		},
 	}
 	apiKeys := service.NewAPIKeyService(countingRepo, NewUserRepository(integrationEntClient, integrationDB), nil, nil, nil, nil, cfg)
-	s.svc = service.NewDepartmentService(NewDepartmentRepository(integrationDB), apiKeys)
+	s.svc = service.NewDepartmentService(NewDepartmentRepository(integrationEntClient, integrationDB), apiKeys)
 	router := gin.New()
 	router.Use(gin.HandlerFunc(middleware.NewAPIKeyAuthMiddleware(apiKeys, nil, cfg)))
 	router.GET("/protected", func(c *gin.Context) { c.Status(http.StatusOK) })

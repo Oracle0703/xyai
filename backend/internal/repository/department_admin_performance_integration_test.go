@@ -62,7 +62,7 @@ func TestDepartmentAdminPerformanceIntegration(t *testing.T) {
 		require.NoError(t, err)
 	}
 	adminCtx := service.WithDepartmentActor(ctx, admin.ID)
-	departments := service.NewDepartmentService(NewDepartmentRepository(integrationDB), nil)
+	departments := service.NewDepartmentService(NewDepartmentRepository(integrationEntClient, integrationDB), nil)
 	subs := NewUserSubscriptionRepository(integrationEntClient)
 	measure := func(name string, action func() error) {
 		t.Helper()

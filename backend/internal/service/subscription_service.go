@@ -203,7 +203,16 @@ type AssignSubscriptionInput struct {
 
 // AssignSubscription 分配订阅给用户（不允许重复分配）
 func (s *SubscriptionService) AssignSubscription(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, error) {
-	sub, _, err := s.assignSubscriptionWithReuse(ctx, input)
+	scope, err := s.subscriptionWriteScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var sub *UserSubscription
+	if scope != nil {
+		sub, _, err = s.assignScopedSubscription(ctx, scope, input)
+	} else {
+		sub, _, err = s.assignSubscriptionWithReuse(ctx, input)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -471,6 +480,21 @@ type BulkAssignResult struct {
 
 // BulkAssignSubscription 批量分配订阅
 func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input *BulkAssignSubscriptionInput) (*BulkAssignResult, error) {
+	scope, err := s.subscriptionWriteScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if scope != nil {
+		return s.bulkAssignScopedSubscription(ctx, scope, input)
+	}
+	return s.bulkAssign(input, func(assign *AssignSubscriptionInput) (*UserSubscription, bool, error) {
+		return s.assignSubscriptionWithReuse(ctx, assign)
+	}, nil)
+}
+
+// bulkAssign records one result per target. An error for which abort reports
+// true stops the batch and is returned instead of being counted as a failure.
+func (s *SubscriptionService) bulkAssign(input *BulkAssignSubscriptionInput, assign func(*AssignSubscriptionInput) (*UserSubscription, bool, error), abort func(error) bool) (*BulkAssignResult, error) {
 	result := &BulkAssignResult{
 		Subscriptions: make([]UserSubscription, 0),
 		Errors:        make([]string, 0),
@@ -478,13 +502,16 @@ func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input 
 	}
 
 	for _, userID := range input.UserIDs {
-		sub, reused, err := s.assignSubscriptionWithReuse(ctx, &AssignSubscriptionInput{
+		sub, reused, err := assign(&AssignSubscriptionInput{
 			UserID:       userID,
 			GroupID:      input.GroupID,
 			ValidityDays: input.ValidityDays,
 			AssignedBy:   input.AssignedBy,
 			Notes:        input.Notes,
 		})
+		if err != nil && abort != nil && abort(err) {
+			return nil, err
+		}
 		if err != nil {
 			result.FailedCount++
 			result.Errors = append(result.Errors, fmt.Sprintf("user %d: %v", userID, err))
@@ -606,25 +633,48 @@ func normalizeAssignValidityDays(days int) int {
 
 // RevokeSubscription 撤销订阅
 func (s *SubscriptionService) RevokeSubscription(ctx context.Context, subscriptionID int64) error {
-	// 先获取订阅信息用于失效缓存
-	sub, err := s.userSubRepo.GetByID(ctx, subscriptionID)
+	scope, err := s.subscriptionWriteScope(ctx)
 	if err != nil {
 		return err
 	}
+	if scope != nil {
+		return s.revokeScopedSubscription(ctx, scope, subscriptionID)
+	}
+	_, err = s.revokeSubscription(ctx, subscriptionID)
+	return err
+}
+
+func (s *SubscriptionService) revokeSubscription(ctx context.Context, subscriptionID int64) (*UserSubscription, error) {
+	// 先获取订阅信息用于失效缓存
+	sub, err := s.userSubRepo.GetByID(ctx, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := s.userSubRepo.Delete(ctx, subscriptionID); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := s.invalidateSubscriptionCaches(sub.UserID, sub.GroupID); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return sub, nil
 }
 
 // RestoreSubscription 恢复已撤销订阅
 func (s *SubscriptionService) RestoreSubscription(ctx context.Context, subscriptionID int64) (*UserSubscription, error) {
+	scope, err := s.subscriptionWriteScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if scope != nil {
+		return s.restoreScopedSubscription(ctx, scope, subscriptionID)
+	}
+	return s.restoreSubscription(ctx, subscriptionID)
+}
+
+func (s *SubscriptionService) restoreSubscription(ctx context.Context, subscriptionID int64) (*UserSubscription, error) {
 	sub, err := s.userSubRepo.GetByIDIncludeDeleted(ctx, subscriptionID)
 	if err != nil {
 		return nil, err
@@ -660,6 +710,17 @@ func (s *SubscriptionService) RestoreSubscription(ctx context.Context, subscript
 
 // ExtendSubscription 调整订阅时长（正数延长，负数缩短）
 func (s *SubscriptionService) ExtendSubscription(ctx context.Context, subscriptionID int64, days int) (*UserSubscription, error) {
+	scope, err := s.subscriptionWriteScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if scope != nil {
+		return s.extendScopedSubscription(ctx, scope, subscriptionID, days)
+	}
+	return s.extendSubscription(ctx, subscriptionID, days)
+}
+
+func (s *SubscriptionService) extendSubscription(ctx context.Context, subscriptionID int64, days int) (*UserSubscription, error) {
 	err := s.withSubscriptionUpdateTx(ctx, func(txCtx context.Context) error {
 		// Lock the row before reading its expiry. Without this lock, concurrent
 		// adjustments can both calculate from the same stale expiry and lose one

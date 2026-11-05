@@ -259,7 +259,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	idempotencyRepository := repository.NewIdempotencyRepository(client, db)
 	systemOperationLockService := service.ProvideSystemOperationLockService(idempotencyRepository, configConfig)
 	systemHandler := handler.ProvideSystemHandler(updateService, systemOperationLockService)
-	departmentRepository := repository.NewDepartmentRepository(db)
+	departmentRepository := repository.NewDepartmentRepository(client, db)
 	departmentService := service.NewDepartmentService(departmentRepository, apiKeyAuthCacheInvalidator)
 	adminSubscriptionHandler := admin.NewSubscriptionHandler(subscriptionService, departmentService)
 	usageCleanupRepository := repository.NewUsageCleanupRepository(client, db)

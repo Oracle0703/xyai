@@ -5,7 +5,7 @@ import MyDepartmentView from '../MyDepartmentView.vue'
 import type { Department, DepartmentMember, DepartmentPage, DepartmentScope, ManagedDepartmentMember } from '@/api/admin/departments'
 
 const { api, auth, showSuccess } = vi.hoisted(() => ({
-  api: { managedScope: vi.fn(), managedMembers: vi.fn(), managedCandidates: vi.fn(), managedAssign: vi.fn(), updateManagedMember: vi.fn(), assign: vi.fn() },
+  api: { managedScope: vi.fn(), managedMembers: vi.fn(), managedCandidates: vi.fn(), managedAssign: vi.fn(), updateManagedMember: vi.fn(), assign: vi.fn(), resetOrganizationUserPassword: vi.fn(), deleteOrganizationUser: vi.fn() },
   auth: { isAdmin: false },
   showSuccess: vi.fn()
 }))
@@ -460,5 +460,47 @@ describe('MyDepartmentView for organization leaders', () => {
     const options = wrapper.get('[data-testid="managed-department"]').findAll('option').map(option => option.element.value)
     expect(options).not.toContain('unassigned:xunyou')
     expect(wrapper.find('[data-testid="transfer-member-10"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="reset-password-10"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="delete-user-10"]').exists()).toBe(false)
+  })
+
+  it('resets a member password only after the minimum length (D12)', async () => {
+    api.managedScope.mockResolvedValue(leaderScope())
+    api.resetOrganizationUserPassword.mockResolvedValue({ user_id: 10 })
+    const wrapper = await openPage()
+    await wrapper.get('[data-testid="reset-password-10"]').trigger('click')
+    await wrapper.get('[data-testid="managed-password"]').setValue('12345')
+    expect(wrapper.get('[data-testid="confirm-managed-password"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('#managed-member-password').trigger('submit')
+    expect(api.resetOrganizationUserPassword).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="managed-password"]').setValue('new-password')
+    await wrapper.get('#managed-member-password').trigger('submit')
+    await flushPromises()
+    expect(api.resetOrganizationUserPassword).toHaveBeenCalledWith(10, 'new-password')
+    expect(showSuccess).toHaveBeenCalledWith('admin.departments.memberManagement.passwordReset')
+    expect(wrapper.find('[data-testid="managed-password"]').exists()).toBe(false)
+  })
+
+  it('deletes a user after confirmation with the membership snapshot (D12)', async () => {
+    api.managedScope.mockResolvedValue(leaderScope())
+    api.managedMembers.mockResolvedValue(asPage([unassigned]))
+    api.deleteOrganizationUser.mockResolvedValue({ user_id: 30 })
+    const wrapper = await openPage()
+    await wrapper.get('[data-testid="delete-user-30"]').trigger('click')
+    expect(api.deleteOrganizationUser).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('admin.departments.memberManagement.deleteUserHint')
+    await wrapper.get('[data-testid="confirm-managed-action"]').trigger('click')
+    await flushPromises()
+    expect(api.deleteOrganizationUser).toHaveBeenCalledWith(30, { expected_department_id: null, expected_department_version: 4 })
+    expect(showSuccess).toHaveBeenCalledWith('admin.departments.memberManagement.userDeleted')
+    expect(api.managedMembers).toHaveBeenCalledTimes(2)
+  })
+
+  it('hides user management on readonly rows', async () => {
+    api.managedScope.mockResolvedValue(leaderScope())
+    api.managedMembers.mockResolvedValue(asPage([{ ...member, manageable: false }]))
+    const wrapper = await openPage()
+    expect(wrapper.find('[data-testid="reset-password-10"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="delete-user-10"]').exists()).toBe(false)
   })
 })

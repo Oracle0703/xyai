@@ -68,7 +68,7 @@
 
 ## 部门管理与负责人入口
 
-- 组织负责人复用 `DepartmentsView.vue`（组织选项来自 `/admin/organization/scope` 的 `full_organizations`），负责人任命用 `OrganizationLeaderDialog.vue`，编辑前必须取详情接口的完整授权；管理员在用户编辑中经 `OrganizationScopeDialog.vue` 配置，`admin.organization_manage` 及其捆绑能力在通用权限勾选中锁定、新建用户不提供。`MyDepartmentView.vue` 的未分配选项值为 `unassigned:<组织>`，更新未分配成员必须发送 `expected_department_id: null`。`DepartmentMembersDialog.vue` 只勾选 `manageable` 行（组织负责人的本人、admin、同级、不可托管负责人只读），“选择本页”也跳过，避免整批被后端 403；写入仍按最新权限重新鉴权，列表标记不代表授权。规则见设计 §14 K9–K10。
+- 组织负责人复用 `DepartmentsView.vue`（组织选项来自 `/admin/organization/scope` 的 `full_organizations`），负责人任命用 `OrganizationLeaderDialog.vue`，编辑前必须取详情接口的完整授权；管理员在用户编辑中经 `OrganizationScopeDialog.vue` 配置，`admin.organization_manage` 及其捆绑能力在通用权限勾选中锁定、新建用户不提供。`MyDepartmentView.vue` 的未分配选项值为 `unassigned:<组织>`，更新未分配成员必须发送 `expected_department_id: null`。`DepartmentMembersDialog.vue` 只勾选 `manageable` 行（组织负责人的本人、admin、同级、不可托管负责人只读），“选择本页”也跳过，避免整批被后端 403；写入仍按最新权限重新鉴权，列表标记不代表授权。规则见设计 §14 K9–K10。扩展后组织负责人在 `SubscriptionsView.vue` 显示分配按钮，行内延期/撤销/恢复只看服务端 `can_manage`（`canWriteRow`），分配搜索 `searchAssignmentUsers` 固定带 `purpose=assign`；`MyDepartmentView.vue` 可管理行对组织负责人提供重置密码（至少 6 位）和删除用户（`deleteOrganizationUser` 发送成员 CAS，未分配为 null）。
 
 完整管理员部门合同见 `docs/features/organization-department-usage-design-cn.md`；负责人受限成员管理见 `docs/features/department-member-management-design-cn.md`，执行与验证要求见对应 implementation-plan 及 [[ops]]。
 
@@ -418,8 +418,8 @@ API 模块分布:
 - 账号页受限模式统一用 `composables/useAccountOperatorAccess.ts` 的 `canManageAccounts`（= 完整管理员）判断：`AccountsView.vue` 隐藏编辑/删除、勾选列与批量栏、数据/工具菜单、回退代理，调度开关只读，优先级纯展示，管理员专用弹窗不挂载，分组/代理改走 `accounts.getFormOptions()`，不读取计费探测设置；行菜单只剩测试连接、统计、重新授权；配额重置/推荐邀请/用量刷新/Claude 兑换/计费探测/代理测试/临时不可调度恢复按钮在组件内隐藏；`CreateAccountModal.vue` 跳过 Web Search 与额度通知设置、TLS 指纹、创建后的模型同步与计费探测。任何越权请求都会经 `admin-permission-denied` 把用户重定向走，新增账号页调用前必须确认已在白名单。
 - `ReAuthAccountModal.vue` 所有平台（含 Gemini/Antigravity）都用 `applyOAuthCredentials` 落库，不再调用 `PUT /accounts/:id` + `clear-error`。挂载账号页组件的单测需 mock `useAccountOperatorAccess`（返回 `ref(true)` 走管理员路径）。
 - Gemini 重新授权已知接口边界（用户决定暂缓）：直接调用 ApplyOAuthCredentials 把 Code Assist 改为 AI Studio 且省略 project_id 时，全 key 合并会保留旧项目，兼容转发仍按非空项目走 Code Assist。当前 `ReAuthAccountModal.vue` 的 Gemini 类型是只读展示、取自原账号，不能描述成用户可在该弹窗直接切换类型。将来开放类型切换时需区分身份字段清理与 model_mapping 等配置保留。证据与首轮表述更正见 `docs/features/sub-admin-accounts-operator-design-cn.md` §9–§10（审核已并入）。
-- `SubscriptionsView.vue` 对持有 `admin.subscriptions` 的子管理员显示分配订阅（单人/批量）及配额重置；分配按钮、空态入口和弹窗共用 `canAssignSubscriptions`。`admin.department_subscriptions` 负责人只显示范围内全量/仅日限重置。延期、撤销、恢复及选中行批量管理仍仅完整管理员可见。
-- 子管理员分配弹窗通过 `/admin/subscriptions/search-users` 查询 active 未删除用户（后端按部门范围收口，全站订阅权限即全站），通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。列表历史用户筛选仍使用 usage search（可含已删除用户）。
+- `SubscriptionsView.vue` 的 `canAssignSubscriptions` 允许完整管理员、`admin.subscriptions` 子管理员与组织负责人分配（单人/批量）。组织负责人的延期、撤销、恢复按 `canWriteRow` 与服务端 `can_manage` 显示；普通部门负责人只可范围内全量/仅日限重置。选中行批量管理仍仅完整管理员可见。
+- 子管理员分配弹窗通过 `/admin/subscriptions/search-users?purpose=assign` 查询 active 未删除的可写对象，通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。订阅筛选搜索不带 `purpose`，范围负责人仍按可重置对象查询，全站历史筛选使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。
 - `TokenAnalysisView.vue` 对子管理员隐藏“立即索引”, 保留只读统计、项目、请求输入和索引状态。
 - API client 收到 `ADMIN_PERMISSION_DENIED` 会触发用户信息刷新，再由 `resolveAdminPermissionDeniedRecovery` 和 `getAdminLandingPath` 选择仍可访问的默认页；仅部门权限账号可保留在对应管理页。backend 模式无剩余权限时先 logout 再回 `/login`。

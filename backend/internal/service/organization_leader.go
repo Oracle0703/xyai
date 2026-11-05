@@ -90,6 +90,57 @@ type OrganizationLeaderRepository interface {
 	OrganizationLeader(context.Context, int64) (*OrganizationLeader, error)
 	OrganizationLeaderCandidates(context.Context, string, string) ([]OrganizationLeaderCandidate, error)
 	UpdateOrganizationLeader(context.Context, int64, OrganizationLeaderInput) (*DepartmentAccess, bool, error)
+	ResetOrganizationUserPassword(context.Context, int64, string) error
+	DeleteOrganizationUser(context.Context, int64, OrganizationUserDeleteInput) ([]string, error)
+}
+
+// OrganizationUserDeleteInput carries the member CAS for deleting an
+// organization user; ExpectedUnassigned is a JSON null department (design §4.9).
+type OrganizationUserDeleteInput struct {
+	ExpectedDepartmentID      *int64 `json:"expected_department_id"`
+	ExpectedUnassigned        bool   `json:"-"`
+	ExpectedDepartmentVersion *int64 `json:"expected_department_version"`
+}
+
+// OrganizationUserPasswordMinLength matches the administrator password rule.
+const OrganizationUserPasswordMinLength = 6
+
+// ResetOrganizationUserPassword lets an organization leader set the password
+// of a normal user of the leader's organizations (design §4.9, D12).
+func (s *DepartmentService) ResetOrganizationUserPassword(ctx context.Context, userID int64, password string) error {
+	if s == nil || s.repo == nil {
+		return ErrDepartmentScopeDenied
+	}
+	if userID <= 0 || len(password) < OrganizationUserPasswordMinLength {
+		return ErrDepartmentInvalid
+	}
+	user := &User{}
+	if err := user.SetPassword(password); err != nil {
+		return ErrDepartmentInvalid
+	}
+	return s.repo.ResetOrganizationUserPassword(ctx, userID, user.PasswordHash)
+}
+
+// DeleteOrganizationUser soft-deletes a normal user of the leader's
+// organizations together with the user's API keys (design §4.9, D12).
+func (s *DepartmentService) DeleteOrganizationUser(ctx context.Context, userID int64, in OrganizationUserDeleteInput) error {
+	if s == nil || s.repo == nil {
+		return ErrDepartmentScopeDenied
+	}
+	if userID <= 0 || (in.ExpectedDepartmentID == nil && !in.ExpectedUnassigned) || in.ExpectedDepartmentVersion == nil {
+		return ErrDepartmentInvalid
+	}
+	keys, err := s.repo.DeleteOrganizationUser(ctx, userID, in)
+	if err != nil {
+		return err
+	}
+	if s.authCacheInvalidator != nil {
+		for _, key := range keys {
+			s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, key)
+		}
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	return nil
 }
 
 func (s *DepartmentService) OrganizationScope(ctx context.Context) (*DepartmentScope, error) {

@@ -23,6 +23,8 @@ func registerDepartmentRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	organization.GET("/leaders/:id", h.Admin.Department.OrganizationLeader)
 	organization.GET("/leader-candidates", h.Admin.Department.OrganizationLeaderCandidates)
 	organization.PUT("/leaders/:id", h.Admin.Department.UpdateOrganizationLeader)
+	organization.POST("/users/:id/password", h.Admin.Department.ResetOrganizationUserPassword)
+	organization.DELETE("/users/:id", h.Admin.Department.DeleteOrganizationUser)
 	admin.GET("/usage/organization-report/scope", h.Admin.Department.ReportScope)
 	admin.GET("/subscriptions/scope", h.Admin.Department.SubscriptionScope)
 	members := admin.Group("/department-members")

@@ -796,6 +796,10 @@ type AdminUserSubscription struct {
 	Notes      string    `json:"notes"`
 
 	AssignedByUser *User `json:"assigned_by_user,omitempty"`
+
+	// CanManage is set only for scoped sub-admins: whether the actor may
+	// assign, extend, revoke or restore this subscription (design §4.8).
+	CanManage *bool `json:"can_manage,omitempty"`
 }
 
 type BulkAssignResult struct {

@@ -83,7 +83,17 @@ export default {
       transfer: 'Change department',
       transferTitle: 'Change member department',
       transferHint: 'The member moves directly to the target department; the manager note is cleared.',
-      transferTarget: 'Target department'
+      transferTarget: 'Target department',
+      resetPassword: 'Reset password',
+      resetPasswordTitle: 'Reset member password',
+      resetPasswordHint: 'All signed-in sessions of this member end and they must sign in with the new password. Share it through a secure channel.',
+      newPassword: 'New password',
+      passwordTooShort: 'The password must be at least 6 characters.',
+      passwordReset: 'Password reset',
+      deleteUser: 'Delete user',
+      deleteUserTitle: 'Delete user',
+      deleteUserHint: 'The account can no longer sign in and all of its API keys are deleted. You cannot undo this.',
+      userDeleted: 'User deleted'
     },
     accessChanged: 'Role, permissions or department access changed. Review the latest details before saving.',
     accessVersionRequired: 'Refresh user details before changing role or permissions.',

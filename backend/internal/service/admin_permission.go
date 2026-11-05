@@ -53,6 +53,18 @@ var adminPermissionRouteRules = map[string][]adminRouteRule{
 		{"GET", "/api/v1/admin/organization/leaders/:id"},
 		{"GET", "/api/v1/admin/organization/leader-candidates"},
 		{"PUT", "/api/v1/admin/organization/leaders/:id"},
+		// Organization subscription writes (design §4.8, D11) are scoped in the
+		// service; bulk-action stays with full-site subscription permission.
+		{"GET", "/api/v1/admin/subscriptions/assignable-groups"},
+		{"POST", "/api/v1/admin/subscriptions/assign"},
+		{"POST", "/api/v1/admin/subscriptions/bulk-assign"},
+		{"POST", "/api/v1/admin/subscriptions/:id/extend"},
+		{"POST", "/api/v1/admin/subscriptions/:id/revoke"},
+		{"DELETE", "/api/v1/admin/subscriptions/:id"},
+		{"POST", "/api/v1/admin/subscriptions/:id/restore"},
+		// Organization user management (design §4.9, D12); /admin/users* is never opened.
+		{"POST", "/api/v1/admin/organization/users/:id/password"},
+		{"DELETE", "/api/v1/admin/organization/users/:id"},
 	},
 	AdminPermissionDepartmentMembers: {
 		{"GET", "/api/v1/admin/department-members/scope"},

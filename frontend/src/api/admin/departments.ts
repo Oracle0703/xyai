@@ -222,6 +222,14 @@ export const departmentsAPI = {
   async updateOrganizationLeader(userID: number, input: OrganizationLeaderInput) {
     return (await apiClient.put<DepartmentAccess>(`/admin/organization/leaders/${userID}`, input)).data
   },
+  /** Organization leaders only: normal users of their organizations (design §4.9). */
+  async resetOrganizationUserPassword(userID: number, password: string) {
+    return (await apiClient.post<{ user_id: number }>(`/admin/organization/users/${userID}/password`, { password })).data
+  },
+  /** Organization leaders only; expected_department_id null confirms an unassigned user. */
+  async deleteOrganizationUser(userID: number, expected: Pick<DepartmentMemberChange, 'expected_department_id' | 'expected_department_version'>) {
+    return (await apiClient.delete<{ user_id: number }>(`/admin/organization/users/${userID}`, { data: expected })).data
+  },
   async reportScope(signal?: AbortSignal) {
     return (await apiClient.get<DepartmentScope>('/admin/usage/organization-report/scope', { signal })).data
   },

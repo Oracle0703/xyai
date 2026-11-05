@@ -26,12 +26,18 @@ func (p *departmentPredicates) add(expression string, value any) {
 func (p *departmentPredicates) where() string { return strings.Join(p.clauses, " AND ") }
 
 func departmentMemberPredicates(actor *service.User, activeOnly bool, f service.DepartmentListFilter) departmentPredicates {
+	p := departmentFilterPredicates(activeOnly, f)
+	if actor.Role != service.RoleAdmin {
+		p.clauses = append(p.clauses, departmentMemberScope(actor, &p.args))
+	}
+	return p
+}
+
+// departmentFilterPredicates applies the request filters without any actor scope.
+func departmentFilterPredicates(activeOnly bool, f service.DepartmentListFilter) departmentPredicates {
 	p := departmentPredicates{clauses: []string{"u.deleted_at IS NULL"}}
 	if activeOnly {
 		p.clauses = append(p.clauses, "u.status='active'")
-	}
-	if actor.Role != service.RoleAdmin {
-		p.clauses = append(p.clauses, departmentMemberScope(actor, &p.args))
 	}
 	if f.Organization != "" && f.Organization != "all" {
 		p.add(organizationUsageOrganizationExpression("u")+"=$%d", f.Organization)
@@ -209,12 +215,26 @@ AND `+departmentRowScope(actor, "d", &args), args...).Scan(&organization, &statu
 	return result, tx.Commit()
 }
 
-// subscriptionTargets narrows a scoped actor's members to those whose
-// subscriptions the actor may read and reset (design §4.5).
-func querySelectedDepartmentMembers(ctx context.Context, q sqlExecutor, actor *service.User, activeOnly, subscriptionTargets bool, f service.DepartmentListFilter) ([]service.DepartmentMember, error) {
-	p := departmentMemberPredicates(actor, activeOnly, f)
-	if subscriptionTargets {
-		p.clauses = append(p.clauses, departmentSubscriptionTargets(actor, &p.args))
+// departmentTargets selects which accounts of a scoped actor a member query returns.
+type departmentTargets int
+
+const (
+	departmentMemberTargets     departmentTargets = iota // members of the actor's scope
+	subscriptionResetTargetSet                           // subscription read and reset targets (design §4.5)
+	subscriptionManageTargetSet                          // subscription write targets (design §4.8)
+)
+
+func querySelectedDepartmentMembers(ctx context.Context, q sqlExecutor, actor *service.User, activeOnly bool, targets departmentTargets, f service.DepartmentListFilter) ([]service.DepartmentMember, error) {
+	var p departmentPredicates
+	switch targets {
+	case subscriptionResetTargetSet:
+		p = departmentFilterPredicates(activeOnly, f)
+		p.clauses = append(p.clauses, subscriptionResetTargets(actor, &p.args))
+	case subscriptionManageTargetSet:
+		p = departmentFilterPredicates(activeOnly, f)
+		p.clauses = append(p.clauses, subscriptionManageTargets(actor, &p.args))
+	default:
+		p = departmentMemberPredicates(actor, activeOnly, f)
 	}
 	statement := `SELECT ` + departmentMemberColumns + organizationUsageOrganizationExpression("u") + `,d.id,COALESCE(d.name,''),u.department_version` + departmentMemberFrom() + ` WHERE ` + p.where() + ` ORDER BY u.id`
 	if f.PageSize > 0 {
@@ -280,8 +300,18 @@ func departmentQueryScopeForActor(ctx context.Context, q sqlExecutor, actor *ser
 	if selection.UserID != nil {
 		f.UserIDs = []int64{*selection.UserID}
 	}
-	subscriptionTargets := permission == service.AdminPermissionDepartmentSubscriptions && !unrestricted
-	scope.Members, err = querySelectedDepartmentMembers(ctx, q, &queryActor, true, subscriptionTargets, f)
+	targets := departmentMemberTargets
+	if permission == service.AdminPermissionDepartmentSubscriptions && !unrestricted {
+		targets = subscriptionResetTargetSet
+		if selection.AssignTargets {
+			// Only organization leaders write subscriptions within a scope (design §4.8).
+			if !departmentActorIsOrganizationLeader(actor) {
+				return nil, service.ErrDepartmentScopeDenied
+			}
+			targets = subscriptionManageTargetSet
+		}
+	}
+	scope.Members, err = querySelectedDepartmentMembers(ctx, q, &queryActor, true, targets, f)
 	if err != nil {
 		return nil, err
 	}

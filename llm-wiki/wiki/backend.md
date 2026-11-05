@@ -69,7 +69,13 @@
 
 ## 部门管理与用量范围
 
-- 组织负责人（设计 `docs/features/organization-leader-design-cn.md`）：`admin.organization_manage` + `organization_access_grants`（migration 262，仅 xunyou/wsdashi）。所有部门类范围 SQL 必须经 `repository/department_scope_sql.go` 生成，按操作者类型二选一（组织授权或部门授权），不取并集；`loadDepartmentActor` 对“有组织授权但缺组织管理码”或“组织授权与部门授权并存”直接拒绝。组织授权与组织管理码只能由 `organization-scope` 写入，通用编辑、新建用户、`department-scope` 均拒绝；角色离开 sub_admin 和软删除经 `clearUserDepartmentGrants` 一并清除。订阅对象谓词排除本人、admin 和不可托管的 sub_admin（对部门负责人同样生效）。`/admin/departments/members` 每行的 `manageable` 与 `Assign` 校验共用 `organizationTransferTargets`，新增转岗限制时只改这一处，不要在列表侧另写判断。
+- 当前待修复边界 K21：组织负责人请求进入后若被改授 `admin.subscriptions`，`SubscriptionWriteScoped` 会转为全站路径，但该权限没有延期/撤销/恢复能力；独立 PG 已复现当前路由权限为 false 而跨组织订阅仍延期。写入与重放预检必须同时按当前身份重验动作权限和目标范围，不能组合旧动作权限与新范围。K19/K20 的原问题已独立复核通过。
+
+- D9–D12 的两个已复现边界已修复（设计 K19/K20）：`SubscriptionWriteScoped` 对子管理员请求重读操作者，降为 `user`、删除或停用一律 403，不能当成无限制主体；`bulkAssignScopedSubscription` 在一个事务内先锁操作者与全部目标再逐人写入，逐人业务失败用 SAVEPOINT（`RunSubscriptionWriteStep`）隔离，范围类错误整批回滚。改动这两处时保留 `DemotedActorIsNeverUnrestricted`、`BulkAssignLocksWholeBatch` 两个 PG 用例。
+
+- 组织负责人扩展（D9–D12，设计 §4.5、§4.8、§4.9）：订阅读取/重置用 `subscriptionResetTargets`，写入用更窄的 `subscriptionManageTargets`（本人 + active 普通用户 + active 可托管负责人），两者都在 `repository/department_scope_sql.go`，`can_manage`、`search-users?purpose=assign` 与写入鉴权共用后者。写入口在 `SubscriptionService` 的 Assign/BulkAssign/Extend/Revoke/Restore：只有 JWT 子管理员（`HasSubAdminAccountRestrictions`）且不持 `admin.subscriptions` 时走 `subscription_organization_write.go` 的范围写入（单独事务，`organization_subscription_write.go` 锁 users 行后鉴权、写审计，提交后再失效缓存）；管理员、管理密钥、全站订阅子管理员和兑换/支付路径不变。`Extend` 的幂等重放不进入 service，必须在 handler 先 `PrecheckSubscriptionWrite`。组织删除/改密在 `organization_user_repo.go` 用 Ent 事务（`departmentRepository` 持有 client），与管理员删除共用 `deleteUserRecords`，管理员路径的 `prepareUserAdminAccessWrite`（只放行 admin）不得放宽。
+
+- 组织负责人（设计 `docs/features/organization-leader-design-cn.md`）：`admin.organization_manage` + `organization_access_grants`（migration 262，仅 xunyou/wsdashi）。所有部门类范围 SQL 必须经 `repository/department_scope_sql.go` 生成，按操作者类型二选一（组织授权或部门授权），不取并集；`loadDepartmentActor` 对“有组织授权但缺组织管理码”或“组织授权与部门授权并存”直接拒绝。组织授权与组织管理码只能由 `organization-scope` 写入，通用编辑、新建用户、`department-scope` 均拒绝；角色离开 sub_admin 和软删除经 `clearUserDepartmentGrants` 一并清除。订阅可见/可重置与可写是两个谓词（见上一条），不要在单个入口另写过滤。`/admin/departments/members` 每行的 `manageable` 与 `Assign` 校验共用 `organizationTransferTargets`，新增转岗限制时只改这一处，不要在列表侧另写判断。
 
 - 成员管理扩展：`admin.department_members` 独立于报表/订阅权限，仍使用同一 grants。`department.go` 的 `/admin/department-members` 提供 scope、列表、candidates、POST assign、PUT `/:id` 五个接口；完整管理员接口不加入子管理员白名单。`ManagedScope` 无 grants 返回 403，不能复用旧空目录作为全站回退。
 - `department_query_scope.go` 的成员列表和候选查询在只读 repeatable-read 事务内检查权限并分页：成员保留 disabled 和只读特权角色；候选先鉴权 active 目标部门，再查同组织未分配普通用户，邮箱/用户名转义模糊匹配且 SQL LIMIT 20。只读行的 `department_note` 为空，始终不输出管理员 notes。
@@ -90,7 +96,7 @@
 - 报表在同一 repeatable-read 快照内解析实际范围并查询 Summary/Periods/Trend；物化 selected_users/period_aggregates/peak CTE，复用个人峰值提取 champion。零用量成员保留；SQL 内摘要备选未启用。
 - `department_subscription_read.go` 保证授权、分页与嵌套用户同快照；重置仅锁 actor 和实际候选成员，锁内重新鉴权，UPDATE 限定已锁集合，新候选触发范围变化。保留幂等 AtomicSuccess、重放鉴权和提交后缓存失效。
 - Admin API Key 保留独立标记的完整管理员语义。负责人 compact 选项走专用受限接口；无 grant 可读空目录，数据/重置拒绝，不能回退全站。
-- 订阅页 compact 选项合并口径（2026-09-28 合入 10209 分支）：`/admin/subscriptions/search-users`、`search-groups` 固定走 `DepartmentHandler.SubscriptionUsers/SubscriptionGroups`，完整管理员与 `admin.subscriptions` 为全站、`admin.department_subscriptions` 限授权部门；`/admin/subscriptions/assignable-groups` 走 `GroupHandler.SubscriptionAssignmentGroups`，仅全站订阅权限可用。`UserHandler.SearchSubscriptionAssignmentUsers` 未挂路由，不能替换 search-users，否则部门负责人可枚举全站用户。
+- 订阅页 compact 选项：`/admin/subscriptions/search-users`、`search-groups` 固定走 `DepartmentHandler.SubscriptionUsers/SubscriptionGroups`；完整管理员与 `admin.subscriptions` 为全站，范围负责人按 `subscriptionResetTargets`，`purpose=assign` 改用 `subscriptionManageTargets`（部门负责人拒绝）。`/admin/subscriptions/assignable-groups` 走 `GroupHandler.SubscriptionAssignmentGroups`，完整管理员、全站订阅子管理员与组织负责人可用。`UserHandler.SearchSubscriptionAssignmentUsers` 未挂路由，不能替换 search-users，否则部门负责人可枚举全站用户。
 
 ## 0.2.8 合并增量
 
