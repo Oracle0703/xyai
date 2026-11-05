@@ -20,42 +20,46 @@ var _ service.SubscriptionWriteScopeRepository = (*userSubscriptionRepository)(n
 
 type organizationSubscriptionWriteActorKey struct{}
 
-// SubscriptionWriteScoped is called for requests the admin middleware admitted
-// as a sub-admin and re-reads the actor. It reports whether writes are limited
-// to organization targets: true for sub-admins without the full-site
-// subscription permission, which must then pass AuthorizeSubscriptionWriteUsers
-// (only organization leaders do). An actor demoted to user, deleted or
+// CurrentSubscriptionWriter is called for requests the admin middleware
+// admitted as a sub-admin and re-reads the actor. Sub-admins without the
+// full-site subscription permission are scoped and must then pass
+// AuthorizeSubscriptionWriteUsers (only organization leaders do); those with it
+// are reported as full-site so that the service checks the action against the
+// current permissions (design K21). An actor demoted to user, deleted or
 // disabled since the middleware check is rejected, never treated as
 // unrestricted (design K19).
-func (r *userSubscriptionRepository) SubscriptionWriteScoped(ctx context.Context) (bool, error) {
+func (r *userSubscriptionRepository) CurrentSubscriptionWriter(ctx context.Context) (service.SubscriptionWriterKind, error) {
 	actorID := service.DepartmentActorID(ctx)
 	if actorID <= 0 || service.DepartmentActorIsAdminAPIKey(ctx) {
-		return false, nil
+		return service.SubscriptionWriterAdministrator, nil
 	}
 	var role, status string
 	var raw []byte
 	err := scanSingleRow(ctx, clientFromContext(ctx, r.client), `SELECT role,status,admin_permissions FROM users WHERE id=$1 AND deleted_at IS NULL`, []any{actorID}, &role, &status, &raw)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, service.ErrDepartmentScopeDenied
+		return service.SubscriptionWriterScoped, service.ErrDepartmentScopeDenied
 	}
 	if err != nil {
-		return false, err
+		return service.SubscriptionWriterScoped, err
 	}
 	if status != service.StatusActive {
-		return false, service.ErrDepartmentScopeDenied
+		return service.SubscriptionWriterScoped, service.ErrDepartmentScopeDenied
 	}
 	switch role {
 	case service.RoleAdmin:
-		return false, nil
+		return service.SubscriptionWriterAdministrator, nil
 	case service.RoleSubAdmin:
 	default:
-		return false, service.ErrDepartmentScopeDenied
+		return service.SubscriptionWriterScoped, service.ErrDepartmentScopeDenied
 	}
 	var permissions []string
 	if err = json.Unmarshal(raw, &permissions); err != nil {
-		return false, err
+		return service.SubscriptionWriterScoped, err
 	}
-	return !slices.Contains(permissions, service.AdminPermissionSubscriptions), nil
+	if slices.Contains(permissions, service.AdminPermissionSubscriptions) {
+		return service.SubscriptionWriterFullSite, nil
+	}
+	return service.SubscriptionWriterScoped, nil
 }
 
 // ManageableSubscriptionUsers returns which of userIDs the actor may write

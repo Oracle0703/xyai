@@ -352,6 +352,57 @@ func TestOrganizationLeaderIntegration_DemotedActorIsNeverUnrestricted(t *testin
 	require.Zero(t, s.subscriptionCount(t, outsider, group))
 }
 
+// K21: a request admitted for an organization leader whose grants are swapped
+// for admin.subscriptions acts with the current permissions only. Assignment
+// becomes site-wide; extend, revoke, restore and the replay precheck, which
+// admin.subscriptions does not grant, are rejected with no write.
+func TestOrganizationLeaderIntegration_GrantSwapKeepsActionChecks(t *testing.T) {
+	s := setupOrganizationLeaders(t)
+	f := s.f
+	leaderID, leaderCtx := s.organizationLeader("org", service.OrganizationXunyou)
+	requestCtx := subAdminRequest(leaderCtx)
+	outsider := f.user("outsider", "wsdashi.com", service.RoleUser, nil)
+	revoked := f.user("revoked", "wsdashi.com", service.RoleUser, nil)
+	fresh := f.user("fresh", "wsdashi.com", service.RoleUser, nil)
+	group := s.subscriptionGroup(t)
+	subs := s.subscriptionService(t)
+	outsiderSub := s.seedSubscription(t, outsider, group)
+	revokedSub := s.seedSubscription(t, revoked, group)
+	f.mustExec(`UPDATE user_subscriptions SET deleted_at=NOW() WHERE id=$1`, revokedSub)
+	expiresAt := func() time.Time {
+		var at time.Time
+		require.NoError(t, integrationDB.QueryRowContext(f.ctx, `SELECT expires_at FROM user_subscriptions WHERE id=$1`, outsiderSub).Scan(&at))
+		return at
+	}
+	before := expiresAt()
+
+	empty := []string{}
+	_, err := s.svc.SetOrganizationAccess(s.adminCtx, leaderID, service.OrganizationAccessInput{Organizations: &empty, ExpectedVersion: s.access(leaderID).Version})
+	require.NoError(t, err)
+	f.mustExec(`UPDATE users SET admin_permissions=$1 WHERE id=$2`, `["`+service.AdminPermissionSubscriptions+`"]`, leaderID)
+
+	require.ErrorIs(t, subs.PrecheckSubscriptionWrite(requestCtx, outsiderSub), service.ErrDepartmentScopeDenied, "the replay precheck follows the current permissions")
+	_, err = subs.ExtendSubscription(requestCtx, outsiderSub, 1)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+	require.True(t, expiresAt().Equal(before), "a denied extension leaves the expiry unchanged")
+	require.ErrorIs(t, subs.RevokeSubscription(requestCtx, outsiderSub), service.ErrDepartmentScopeDenied)
+	require.Equal(t, outsiderSub, s.subscriptionOf(t, outsider, group, false), "a denied revocation leaves the subscription active")
+	_, err = subs.RestoreSubscription(requestCtx, revokedSub)
+	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
+	require.Zero(t, s.subscriptionOf(t, revoked, group, false), "a denied restore leaves the subscription revoked")
+	for _, action := range []string{"organization.subscription_extend", "organization.subscription_revoke", "organization.subscription_restore"} {
+		require.Zero(t, s.audits(action, leaderID), action)
+	}
+
+	// Assignment is what admin.subscriptions grants, site-wide and unflagged.
+	_, scoped, err := subs.ManageableSubscriptionUsers(requestCtx, []int64{outsider})
+	require.NoError(t, err)
+	require.False(t, scoped)
+	_, err = subs.AssignSubscription(requestCtx, &service.AssignSubscriptionInput{UserID: fresh, GroupID: group, ValidityDays: 30, AssignedBy: leaderID})
+	require.NoError(t, err)
+	require.Equal(t, 1, s.subscriptionCount(t, fresh, group))
+}
+
 // lockObservingRepository runs a callback right after the batch has locked and
 // authorized its targets, while the batch transaction is still open.
 type lockObservingRepository struct {

@@ -13,7 +13,7 @@ import (
 // subscription repository so that authorization, the write and its audit share
 // one transaction.
 type SubscriptionWriteScopeRepository interface {
-	SubscriptionWriteScoped(ctx context.Context) (bool, error)
+	CurrentSubscriptionWriter(ctx context.Context) (SubscriptionWriterKind, error)
 	ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, error)
 	AuthorizeSubscriptionWriteUsers(ctx context.Context, userIDs []int64, lock bool) (context.Context, error)
 	AuthorizeSubscriptionWriteByID(ctx context.Context, subscriptionID int64, includeDeleted, lock bool) (context.Context, int64, error)
@@ -35,10 +35,38 @@ func abortsScopedBatch(err error) bool {
 	return errors.As(err, &abort) || errors.Is(err, ErrDepartmentScopeDenied) || errors.Is(err, ErrDepartmentScopeChanged)
 }
 
+// SubscriptionWriterKind is what a sub-admin request's actor currently is. The
+// service re-reads it because grants may change after the admin middleware
+// admitted the request (design K19, K21).
+type SubscriptionWriterKind int
+
+const (
+	// SubscriptionWriterScoped is any other sub-admin; only organization
+	// leaders then pass the target authorization. It is the zero value, so an
+	// unset kind is the most restricted one.
+	SubscriptionWriterScoped SubscriptionWriterKind = iota
+	// SubscriptionWriterFullSite is a sub-admin holding admin.subscriptions:
+	// site-wide assignment, but never extend, revoke or restore.
+	SubscriptionWriterFullSite
+	// SubscriptionWriterAdministrator writes without restriction.
+	SubscriptionWriterAdministrator
+)
+
+// subscriptionWriteAction is the kind of write being authorized. The full-site
+// subscription permission grants assignment only (adminPermissionRouteRules).
+type subscriptionWriteAction int
+
+const (
+	subscriptionWriteAssign subscriptionWriteAction = iota // assign, bulk-assign
+	subscriptionWriteManage                                // extend, revoke, restore
+)
+
 // subscriptionWriteScope returns nil for actors whose writes are not scoped:
-// system and user contexts, full administrators and full-site subscription
-// sub-admins. Their paths stay unchanged.
-func (s *SubscriptionService) subscriptionWriteScope(ctx context.Context) (SubscriptionWriteScopeRepository, error) {
+// system and user contexts, full administrators, and full-site subscription
+// sub-admins assigning. Their paths stay unchanged. Actions are checked against
+// the current identity, never combining an action the request was admitted for
+// with a site-wide scope gained since (design K21).
+func (s *SubscriptionService) subscriptionWriteScope(ctx context.Context, action subscriptionWriteAction) (SubscriptionWriteScopeRepository, error) {
 	if DepartmentActorID(ctx) <= 0 || !HasSubAdminAccountRestrictions(ctx) {
 		return nil, nil
 	}
@@ -46,11 +74,21 @@ func (s *SubscriptionService) subscriptionWriteScope(ctx context.Context) (Subsc
 	if !ok {
 		return nil, ErrDepartmentScopeDenied
 	}
-	scoped, err := scope.SubscriptionWriteScoped(ctx)
-	if err != nil || !scoped {
+	writer, err := scope.CurrentSubscriptionWriter(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return scope, nil
+	switch writer {
+	case SubscriptionWriterAdministrator:
+		return nil, nil
+	case SubscriptionWriterFullSite:
+		if action == subscriptionWriteAssign {
+			return nil, nil
+		}
+		return nil, ErrDepartmentScopeDenied
+	default:
+		return scope, nil
+	}
 }
 
 // scopedSubscriptionWrite runs fn in its own transaction; fn authorizes with
@@ -84,9 +122,10 @@ func subscriptionWriteDetails(ctx context.Context, userID int64, details map[str
 
 // ManageableSubscriptionUsers reports, for scoped sub-admins, which users the
 // actor may write subscriptions for. scoped is false for actors whose writes
-// are not limited; their responses carry no can_manage flag.
+// are not limited; their responses carry no can_manage flag. Full-site
+// subscription sub-admins are among them: the page offers them assignment only.
 func (s *SubscriptionService) ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, bool, error) {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteAssign)
 	if err != nil || scope == nil {
 		return nil, false, err
 	}
@@ -95,9 +134,10 @@ func (s *SubscriptionService) ManageableSubscriptionUsers(ctx context.Context, u
 }
 
 // PrecheckSubscriptionWrite authorizes a scoped write against the current
-// grants before an idempotent replay, which never reaches the service (design G17).
+// grants before an idempotent replay, which never reaches the service (design
+// G17). Only extend replays, so the check is that of a manage action (K21).
 func (s *SubscriptionService) PrecheckSubscriptionWrite(ctx context.Context, subscriptionID int64) error {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteManage)
 	if err != nil || scope == nil {
 		return err
 	}

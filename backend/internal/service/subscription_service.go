@@ -203,7 +203,7 @@ type AssignSubscriptionInput struct {
 
 // AssignSubscription 分配订阅给用户（不允许重复分配）
 func (s *SubscriptionService) AssignSubscription(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, error) {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteAssign)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +480,7 @@ type BulkAssignResult struct {
 
 // BulkAssignSubscription 批量分配订阅
 func (s *SubscriptionService) BulkAssignSubscription(ctx context.Context, input *BulkAssignSubscriptionInput) (*BulkAssignResult, error) {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteAssign)
 	if err != nil {
 		return nil, err
 	}
@@ -633,7 +633,7 @@ func normalizeAssignValidityDays(days int) int {
 
 // RevokeSubscription 撤销订阅
 func (s *SubscriptionService) RevokeSubscription(ctx context.Context, subscriptionID int64) error {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteManage)
 	if err != nil {
 		return err
 	}
@@ -664,7 +664,7 @@ func (s *SubscriptionService) revokeSubscription(ctx context.Context, subscripti
 
 // RestoreSubscription 恢复已撤销订阅
 func (s *SubscriptionService) RestoreSubscription(ctx context.Context, subscriptionID int64) (*UserSubscription, error) {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteManage)
 	if err != nil {
 		return nil, err
 	}
@@ -710,7 +710,7 @@ func (s *SubscriptionService) restoreSubscription(ctx context.Context, subscript
 
 // ExtendSubscription 调整订阅时长（正数延长，负数缩短）
 func (s *SubscriptionService) ExtendSubscription(ctx context.Context, subscriptionID int64, days int) (*UserSubscription, error) {
-	scope, err := s.subscriptionWriteScope(ctx)
+	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteManage)
 	if err != nil {
 		return nil, err
 	}
