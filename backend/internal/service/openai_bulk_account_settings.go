@@ -10,6 +10,7 @@ import (
 
 type bulkOpenAISettings struct {
 	longContextBilling      bool
+	requestTimezone         bool
 	endpointCapabilities    bool
 	responsesMode           bool
 	capabilitiesIncludeChat bool
@@ -17,7 +18,7 @@ type bulkOpenAISettings struct {
 }
 
 func (s bulkOpenAISettings) any() bool {
-	return s.longContextBilling || s.endpointCapabilities || s.responsesMode
+	return s.longContextBilling || s.requestTimezone || s.endpointCapabilities || s.responsesMode
 }
 
 func normalizeBulkOpenAISettings(input *BulkUpdateAccountsInput) (bulkOpenAISettings, error) {
@@ -29,6 +30,15 @@ func normalizeBulkOpenAISettings(input *BulkUpdateAccountsInput) (bulkOpenAISett
 	if _, exists := input.Extra[openAILongContextBillingEnabledKey]; exists {
 		settings.longContextBilling = true
 		if err := ValidateOpenAILongContextBillingExtra(PlatformOpenAI, input.Extra); err != nil {
+			return settings, err
+		}
+	}
+
+	_, hasTimezone := input.Extra[openAIRequestTimezoneExtraKey]
+	_, hasTimezoneRewrite := input.Extra[openAIRequestTimezoneRewriteEnabledExtraKey]
+	if hasTimezone || hasTimezoneRewrite {
+		settings.requestTimezone = true
+		if err := ValidateOpenAIRequestTimezoneExtra(PlatformOpenAI, false, input.Extra); err != nil {
 			return settings, err
 		}
 	}
@@ -169,6 +179,15 @@ func validateBulkOpenAISettingsTargets(
 			}
 			if account.IsShadow() {
 				inheritedCount++
+			}
+		}
+
+		if settings.requestTimezone {
+			if account.Platform != PlatformOpenAI {
+				return 0, invalidBulkOpenAITarget(accountID, "request timezone settings require an OpenAI account")
+			}
+			if account.IsShadow() && ValidateOpenAIRequestTimezoneExtra(PlatformOpenAI, true, input.Extra) != nil {
+				return 0, invalidBulkOpenAITarget(accountID, "request timezone settings are managed by the parent account")
 			}
 		}
 

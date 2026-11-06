@@ -31,6 +31,10 @@
 
 - 2026-11-02 `feature/hy/10227_image_gen_upgrade` 已实现 `/image-gen` 动态模型、手动模型、模型偏好与显式记住 Key；未改后端。唯一文档 `docs/features/image-gen-design-cn.md`（已并入首版整页工具、状态持久化/多图输入设计与交叉复核结论）：交互规则见 §7、§9，易错点（R1 错误回显 Key、R2 删除失败可重试、U1 自动填充风险等）见 §14，验证与未完成的浏览器/真实 Key/Grok/Gemini 兼容验证见 §16–§17。运行合同入口仍见 frontend/security/ops。
 
+## OpenAI 请求时区改写入口
+
+- `feature/hy/10212_sub4api_request_locale`（2026-09-30 提测）于 2026-11-06 合入 main：全局 `enable_openai_request_timezone_rewrite` 与账号 `extra.openai_request_timezone_rewrite_enabled` 同时开启才改写 OpenAI Responses/WS 请求中的时区，默认全关。合同见 backend「OpenAI 请求时区与语言」，界面见 frontend「OpenAI 请求时区」，上线/回退见 ops。开启灰度前须先修 `getGatewayForwardingSettingsCached` CAS 重试耗尽后仍返回读取结果的降级分支；真实上游未验收。
+
 更新时间: 2026-11-04（docs 全量整理：每个功能只保留一份文档，见 `docs/README.md`）
 
 本知识库面向后续 AI 开发前快速读取。进入任务后先读本页, 再按任务类型读取相关页面。若 wiki 与源码冲突, 以源码为准并修正 wiki。

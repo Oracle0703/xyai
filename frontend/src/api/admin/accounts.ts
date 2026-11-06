@@ -1138,6 +1138,11 @@ export async function getOpenCodeGoUsage(id: number): Promise<OpenCodeGoUsageSta
   return data
 }
 
+export async function getOpenAIRequestTimezones(): Promise<{ default: string; timezones: string[] }> {
+  const { data } = await apiClient.get<{ default: string; timezones: string[] }>('/admin/accounts/openai-request-timezones')
+  return data
+}
+
 export async function setOpenCodeGoUsageAutoRefresh(id: number, enabled: boolean): Promise<OpenCodeGoUsageState> {
   const { data } = await apiClient.put<OpenCodeGoUsageState>(`/admin/accounts/${id}/opencode-go-usage/auto-refresh`, {
     enabled
@@ -1218,6 +1223,7 @@ export const accountsAPI = {
   getOpenCodeGoUsageSettings,
   updateOpenCodeGoUsageSettings,
   getOpenCodeGoUsage,
+  getOpenAIRequestTimezones,
   setOpenCodeGoUsageAutoRefresh,
   refreshOpenCodeGoUsage
 }
