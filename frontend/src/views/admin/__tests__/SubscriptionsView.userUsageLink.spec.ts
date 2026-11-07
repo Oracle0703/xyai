@@ -297,3 +297,77 @@ describe.each(['admin', 'sub_admin'])('%s subscription users', (role) => {
     expect(link.props('to')).toEqual({ path: '/admin/usage', query: { user_id: 42 } })
   })
 })
+
+describe('organization leader assignable groups', () => {
+  const assignButton = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.findAll('button').find((button) => button.text() === 'admin.subscriptions.assignSubscription')!
+
+  const mountLeaderView = () => mount(SubscriptionsView, {
+    global: {
+      stubs: {
+        AppLayout: { template: '<div><slot /></div>' },
+        TablePageLayout: { template: '<div><slot name="filters" /><slot name="table" /></div>' },
+        DataTable: DataTableStub,
+        RouterLink: RouterLinkStub,
+        Pagination: true,
+        BaseDialog: {
+          props: ['show'],
+          template: '<div v-if="show"><slot /><slot name="footer" /></div>'
+        },
+        ConfirmDialog: true,
+        EmptyState: true,
+        Select: { name: 'Select', props: ['options', 'modelValue'], template: '<div />' },
+        GroupBadge: true,
+        GroupOptionItem: true,
+        Icon: true,
+        Teleport: true
+      }
+    }
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    authState.isAdmin = false
+    authState.isSubAdmin = true
+    authState.hasAdminPermission.mockImplementation((permission: string) =>
+      permission === 'admin.department_subscriptions' || permission === 'admin.organization_manage')
+    vi.mocked(departmentsAPI.subscriptionScope).mockResolvedValue({
+      unrestricted: false, organizations: ['xunyou'], full_organizations: ['xunyou'], departments: [],
+      catalog_version: 'scope-v1', default_organization: 'xunyou', default_department_id: 'all'
+    })
+    listSubscriptions.mockResolvedValue({ scope_version: 'scope-v1', items: [], total: 0, page: 1, page_size: 20, pages: 0 })
+  })
+
+  it('asks for an administrator only after an empty answer, and keeps filter groups when the request fails', async () => {
+    // Leaders load groups on mount and again once the scope arrives; hold every request.
+    const pending: Array<(reason: unknown) => void> = []
+    getAssignableGroups.mockImplementation(() => new Promise((_, reject) => { pending.push(reject) }))
+    const wrapper = mountLeaderView()
+    try {
+      await flushPromises()
+      await assignButton(wrapper).trigger('click')
+
+      expect(wrapper.find('[data-testid="assign-groups-loading"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="assign-no-groups"]').exists()).toBe(false)
+
+      expect(pending.length).toBeGreaterThan(0)
+      pending.forEach((reject) => reject(new Error('boom')))
+      await flushPromises()
+      expect(wrapper.find('[data-testid="assign-groups-error"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="assign-no-groups"]').exists()).toBe(false)
+      // The filter groups from search-groups survive the assignable-groups failure.
+      const filterOptions = wrapper.findAllComponents({ name: 'Select' })
+        .flatMap((select) => (select.props('options') as Array<{ value: unknown }> | undefined) ?? [])
+      expect(filterOptions.some((option) => option.value === '3')).toBe(true)
+
+      getAssignableGroups.mockReset().mockResolvedValue([])
+      await wrapper.get('[data-testid="assign-groups-retry"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="assign-groups-error"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="assign-no-groups"]').exists()).toBe(true)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+})

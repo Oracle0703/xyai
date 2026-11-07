@@ -623,6 +623,7 @@
             :disabled="submitting"
             :options="subscriptionGroupOptions"
             :placeholder="t('admin.subscriptions.selectGroup')"
+            data-testid="assign-group-select"
           >
             <template #selected="{ option }">
               <GroupBadge
@@ -645,6 +646,22 @@
               />
             </template>
           </Select>
+          <p v-if="assignableGroupsStatus === 'loading'" class="input-hint" data-testid="assign-groups-loading">
+            {{ t('common.loading') }}
+          </p>
+          <p v-else-if="assignableGroupsStatus === 'error'" class="input-hint text-red-600 dark:text-red-400" data-testid="assign-groups-error">
+            {{ t('admin.departments.assignableGroupsLoadFailed') }}
+            <button type="button" class="ml-1 font-medium underline" data-testid="assign-groups-retry" @click="loadGroups">
+              {{ t('admin.departments.retryLoad') }}
+            </button>
+          </p>
+          <p
+            v-else-if="isOrganizationLeader && assignableGroupsStatus === 'ready' && subscriptionGroupOptions.length === 0"
+            class="input-hint"
+            data-testid="assign-no-groups"
+          >
+            {{ t('admin.departments.noAssignableGroups') }}
+          </p>
           <p class="input-hint">{{ t('admin.subscriptions.groupHint') }}</p>
         </div>
         <div>
@@ -902,7 +919,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { departmentsAPI, type DepartmentScope, type OrganizationKey } from '@/api/admin/departments'
 import { formatOrganizationUsageOrganization } from '@/utils/organizations'
-import { departmentErrorKey, departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
+import { departmentErrorCode, departmentErrorKey, departmentErrorStatus, isDepartmentScopeChanged } from '@/utils/departmentErrors'
 import { adminAPI } from '@/api/admin'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
@@ -1097,6 +1114,10 @@ type SubscriptionGroupOptionSource = SubscriptionGroupFilterOption & Partial<Gro
 
 const groups = ref<SubscriptionGroupOptionSource[]>([])
 const assignableGroups = ref<SubscriptionAssignmentGroupOption[]>([])
+// Only non-admins load assignable groups; 'idle' means the list is not used.
+// The "ask an administrator" hint needs a successful empty answer, not a
+// pending or failed request.
+const assignableGroupsStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
 const loading = ref(false)
 let abortController: AbortController | null = null
 
@@ -1380,21 +1401,32 @@ const loadSubscriptions = async () => {
 }
 
 let groupRequestSequence = 0
+// Filter groups and assignable groups load independently: a failure of one
+// leaves the other intact.
 const loadGroups = async () => {
   const request = ++groupRequestSequence
-  try {
-    const result = authStore.isAdmin
-      ? await adminAPI.groups.getAll()
-      : await adminAPI.subscriptions.searchGroups()
-    if (request === groupRequestSequence) groups.value = result
-    if (!authStore.isAdmin && canAssignSubscriptions.value) {
-      const assignable = await adminAPI.subscriptions.getAssignableGroups()
-      if (request === groupRequestSequence) assignableGroups.value = assignable
-    }
-  } catch (error) {
-    if (request !== groupRequestSequence) return
+  const loadAssignable = !authStore.isAdmin && canAssignSubscriptions.value
+  if (loadAssignable) assignableGroupsStatus.value = 'loading'
+  const [filterResult, assignableResult] = await Promise.allSettled([
+    authStore.isAdmin ? adminAPI.groups.getAll() : adminAPI.subscriptions.searchGroups(),
+    loadAssignable ? adminAPI.subscriptions.getAssignableGroups() : Promise.resolve([])
+  ])
+  if (request !== groupRequestSequence) return
+  if (filterResult.status === 'fulfilled') {
+    groups.value = filterResult.value
+  } else {
     groups.value = []
-    console.error('Error loading groups:', error)
+    console.error('Error loading groups:', filterResult.reason)
+  }
+  if (!loadAssignable) return
+  if (assignableResult.status === 'fulfilled') {
+    assignableGroups.value = assignableResult.value
+    assignableGroupsStatus.value = 'ready'
+  } else {
+    // Stale options may include groups that just left the leader's organizations.
+    assignableGroups.value = []
+    assignableGroupsStatus.value = 'error'
+    console.error('Error loading assignable groups:', assignableResult.reason)
   }
 }
 
@@ -1605,6 +1637,13 @@ const handleAssignSubscription = async () => {
     closeAssignModal()
     loadSubscriptions()
   } catch (error: any) {
+    if (departmentErrorCode(error) === 'SUBSCRIPTION_GROUP_SCOPE_DENIED') {
+      // The group left the leader's organizations after the picker loaded (D13).
+      appStore.showError(t(departmentErrorKey(error)))
+      assignForm.group_id = null
+      void loadGroups()
+      return
+    }
     appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToAssign'))
     console.error('Error assigning subscription:', error)
   } finally {
@@ -1687,7 +1726,11 @@ const confirmRestore = async () => {
     restoringSubscription.value = null
     loadSubscriptions()
   } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToRestore'))
+    // Scoped writers get department codes, e.g. SUBSCRIPTION_GROUP_DELETED (D13).
+    const departmentKey = departmentErrorKey(error)
+    appStore.showError(departmentKey !== 'admin.departments.failed'
+      ? t(departmentKey)
+      : error.response?.data?.detail || t('admin.subscriptions.failedToRestore'))
     console.error('Error restoring subscription:', error)
   }
 }

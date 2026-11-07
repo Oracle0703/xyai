@@ -49,26 +49,32 @@ type subscriptionHandlerService interface {
 	RestoreSubscription(ctx context.Context, subscriptionID int64) (*service.UserSubscription, error)
 	ListGroupSubscriptions(ctx context.Context, groupID int64, page, pageSize int) ([]service.UserSubscription, *pagination.PaginationResult, error)
 	ListUserSubscriptions(ctx context.Context, userID int64) ([]service.UserSubscription, error)
-	ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, bool, error)
+	ManageableSubscriptions(ctx context.Context, userIDs, groupIDs []int64) (*service.SubscriptionWriteAccess, error)
 	PrecheckSubscriptionWrite(ctx context.Context, subscriptionID int64) error
+	AssignableSubscriptionGroups(ctx context.Context) ([]service.Group, error)
+	ListGroupOrganizationScopes(ctx context.Context) ([]service.GroupOrganizationScope, error)
+	SetGroupOrganizationScopes(ctx context.Context, input service.GroupOrganizationScopeInput) (int, error)
 }
 
-// markManageable sets can_manage for scoped sub-admins from the same predicate
-// that authorizes subscription writes (design §4.8, K14).
+// markManageable sets can_manage for scoped sub-admins from the same
+// predicates that authorize subscription writes: owner and group (design §4.8,
+// K14, D13).
 func (h *SubscriptionHandler) markManageable(c *gin.Context, items []dto.AdminUserSubscription) error {
 	if !isSubAdminRequest(c) || len(items) == 0 {
 		return nil
 	}
 	userIDs := make([]int64, 0, len(items))
+	groupIDs := make([]int64, 0, len(items))
 	for i := range items {
 		userIDs = append(userIDs, items[i].UserID)
+		groupIDs = append(groupIDs, items[i].GroupID)
 	}
-	manageable, scoped, err := h.subscriptionService.ManageableSubscriptionUsers(c.Request.Context(), userIDs)
-	if err != nil || !scoped {
+	access, err := h.subscriptionService.ManageableSubscriptions(c.Request.Context(), userIDs, groupIDs)
+	if err != nil || access == nil {
 		return err
 	}
 	for i := range items {
-		value := manageable[items[i].UserID]
+		value := access.Allows(items[i].UserID, items[i].GroupID)
 		items[i].CanManage = &value
 	}
 	return nil

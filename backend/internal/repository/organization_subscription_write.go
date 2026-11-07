@@ -13,7 +13,7 @@ import (
 )
 
 // Organization leaders write subscriptions only for subscriptionManageTargets
-// (design §4.8, D11). Full administrators and full-site subscription
+// (design §4.8, D11) and only in groups scoped to their organizations (D13). Full administrators and full-site subscription
 // sub-admins keep their existing unrestricted writes.
 
 var _ service.SubscriptionWriteScopeRepository = (*userSubscriptionRepository)(nil)
@@ -62,19 +62,41 @@ func (r *userSubscriptionRepository) CurrentSubscriptionWriter(ctx context.Conte
 	return service.SubscriptionWriterScoped, nil
 }
 
-// ManageableSubscriptionUsers returns which of userIDs the actor may write
-// subscriptions for. Department leaders never write, so they get none.
-func (r *userSubscriptionRepository) ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, error) {
+// SubscriptionWriteAccess returns which of userIDs are write targets and
+// which of groupIDs are scoped to the actor's organizations, from one actor
+// read. Department leaders never write, so they get none.
+func (r *userSubscriptionRepository) SubscriptionWriteAccess(ctx context.Context, userIDs, groupIDs []int64) (*service.SubscriptionWriteAccess, error) {
 	client := clientFromContext(ctx, r.client)
 	actor, err := loadDepartmentActor(ctx, client, service.AdminPermissionDepartmentSubscriptions)
 	if err != nil {
 		return nil, err
 	}
-	result := map[int64]bool{}
-	if !departmentActorIsOrganizationLeader(actor) || len(userIDs) == 0 {
-		return result, nil
+	access := &service.SubscriptionWriteAccess{Users: map[int64]bool{}, Groups: map[int64]bool{}}
+	if !departmentActorIsOrganizationLeader(actor) {
+		return access, nil
 	}
-	return result, queryManageableSubscriptionUsers(ctx, client, actor, userIDs, result)
+	if len(userIDs) > 0 {
+		if err = queryManageableSubscriptionUsers(ctx, client, actor, userIDs, access.Users); err != nil {
+			return nil, err
+		}
+	}
+	if len(groupIDs) == 0 {
+		return access, nil
+	}
+	args := []any{pq.Array(groupIDs)}
+	rows, err := client.QueryContext(ctx, `SELECT g.id FROM groups g WHERE g.id=ANY($1::bigint[]) AND g.deleted_at IS NULL AND `+subscriptionWriteGroupScope(actor, "g", &args), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		access.Groups[id] = true
+	}
+	return access, rows.Err()
 }
 
 func queryManageableSubscriptionUsers(ctx context.Context, q sqlExecutor, actor *service.User, userIDs []int64, result map[int64]bool) error {
@@ -137,17 +159,86 @@ func (r *userSubscriptionRepository) AuthorizeSubscriptionWriteUsers(ctx context
 	return context.WithValue(ctx, organizationSubscriptionWriteActorKey{}, actor), nil
 }
 
-// AuthorizeSubscriptionWriteByID authorizes the owner of a subscription. A
-// missing subscription is reported as 403 so that leaders cannot probe IDs of
-// other organizations (design K16).
+// ScopedAssignableSubscriptionGroups returns the active, live subscription
+// groups scoped to the current organization leader's organizations in
+// ListActive order, filled with the fields the assignment picker shows. Other
+// actors get none.
+func (r *userSubscriptionRepository) ScopedAssignableSubscriptionGroups(ctx context.Context) ([]service.Group, error) {
+	client := clientFromContext(ctx, r.client)
+	actor, err := loadDepartmentActor(ctx, client, service.AdminPermissionDepartmentSubscriptions, service.AdminPermissionOrganizationManage)
+	if err != nil {
+		return nil, err
+	}
+	result := []service.Group{}
+	if !departmentActorIsOrganizationLeader(actor) {
+		return result, nil
+	}
+	args := []any{service.StatusActive, service.SubscriptionTypeSubscription}
+	rows, err := client.QueryContext(ctx, `SELECT g.id,g.name,COALESCE(g.description,''),g.platform,g.rate_multiplier,g.subscription_type,g.status
+FROM groups g
+WHERE g.deleted_at IS NULL AND g.status=$1 AND g.subscription_type=$2 AND `+subscriptionWriteGroupScope(actor, "g", &args)+`
+ORDER BY g.sort_order ASC, g.id ASC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var group service.Group
+		if err = rows.Scan(&group.ID, &group.Name, &group.Description, &group.Platform, &group.RateMultiplier, &group.SubscriptionType, &group.Status); err != nil {
+			return nil, err
+		}
+		result = append(result, group)
+	}
+	return result, rows.Err()
+}
+
+// AuthorizeSubscriptionWriteGroup checks that the group is scoped to the
+// organizations of the actor that AuthorizeSubscriptionWriteUsers authorized.
+// With lock the group row is share-locked after the users and before any
+// subscription; scope replacement and group deletion take FOR UPDATE, so the
+// scope cannot change until commit. The scope is read by a separate statement
+// after the lock so that it sees what a concurrent replacement committed.
+// Missing, deleted and unscoped groups are all rejected with 403.
+func (r *userSubscriptionRepository) AuthorizeSubscriptionWriteGroup(ctx context.Context, groupID int64, lock bool) error {
+	actor, ok := ctx.Value(organizationSubscriptionWriteActorKey{}).(*service.User)
+	if !ok || !departmentActorIsOrganizationLeader(actor) {
+		return service.ErrDepartmentScopeDenied
+	}
+	if groupID <= 0 {
+		return service.ErrSubscriptionGroupScopeDenied
+	}
+	client := clientFromContext(ctx, r.client)
+	var found int64
+	if lock {
+		err := scanSingleRow(ctx, client, `SELECT id FROM groups WHERE id=$1 AND deleted_at IS NULL FOR SHARE`, []any{groupID}, &found)
+		if errors.Is(err, sql.ErrNoRows) {
+			return service.ErrSubscriptionGroupScopeDenied
+		}
+		if err != nil {
+			return err
+		}
+	}
+	args := []any{groupID}
+	err := scanSingleRow(ctx, client, `SELECT g.id FROM groups g WHERE g.id=$1 AND g.deleted_at IS NULL AND `+subscriptionWriteGroupScope(actor, "g", &args), args, &found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return service.ErrSubscriptionGroupScopeDenied
+	}
+	return err
+}
+
+// AuthorizeSubscriptionWriteByID authorizes the owner and the group of a
+// subscription. A missing subscription is reported as 403 so that leaders
+// cannot probe IDs of other organizations (design K16). The group is checked
+// only after the owner, so its distinct error never discloses a subscription
+// outside the leader's write targets.
 func (r *userSubscriptionRepository) AuthorizeSubscriptionWriteByID(ctx context.Context, subscriptionID int64, includeDeleted, lock bool) (context.Context, int64, error) {
 	client := clientFromContext(ctx, r.client)
-	query := `SELECT user_id FROM user_subscriptions WHERE id=$1`
+	query := `SELECT user_id,group_id FROM user_subscriptions WHERE id=$1`
 	if !includeDeleted {
 		query += ` AND deleted_at IS NULL`
 	}
-	var owner int64
-	err := scanSingleRow(ctx, client, query, []any{subscriptionID}, &owner)
+	var owner, group int64
+	err := scanSingleRow(ctx, client, query, []any{subscriptionID}, &owner, &group)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ctx, 0, service.ErrDepartmentScopeDenied
 	}
@@ -155,22 +246,43 @@ func (r *userSubscriptionRepository) AuthorizeSubscriptionWriteByID(ctx context.
 		return ctx, 0, err
 	}
 	ctx, err = r.AuthorizeSubscriptionWriteUsers(ctx, []int64{owner}, lock)
-	if err != nil || !lock {
+	if err != nil {
 		return ctx, owner, err
 	}
-	// Lock order is users before subscriptions, as in department resets.
-	var locked int64
-	err = scanSingleRow(ctx, client, query+` FOR UPDATE`, []any{subscriptionID}, &locked)
+	if err = r.AuthorizeSubscriptionWriteGroup(ctx, group, lock); err != nil || !lock {
+		if errors.Is(err, service.ErrSubscriptionGroupScopeDenied) {
+			err = subscriptionGroupDeletedOr(ctx, client, group, err)
+		}
+		return ctx, owner, err
+	}
+	// Lock order is users, groups, then subscriptions, as in department resets.
+	var lockedOwner, lockedGroup int64
+	err = scanSingleRow(ctx, client, query+` FOR UPDATE`, []any{subscriptionID}, &lockedOwner, &lockedGroup)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ctx, 0, service.ErrDepartmentScopeDenied
 	}
 	if err != nil {
 		return ctx, 0, err
 	}
-	if locked != owner {
+	if lockedOwner != owner || lockedGroup != group {
 		return ctx, 0, service.ErrDepartmentScopeChanged
 	}
 	return ctx, owner, nil
+}
+
+// subscriptionGroupDeletedOr reports a soft-deleted group of an authorized
+// subscription as ErrSubscriptionGroupDeleted rather than as a scope denial,
+// which would send the leader looking for a scope problem that does not exist.
+func subscriptionGroupDeletedOr(ctx context.Context, q sqlExecutor, groupID int64, denied error) error {
+	var deleted bool
+	err := scanSingleRow(ctx, q, `SELECT deleted_at IS NOT NULL FROM groups WHERE id=$1`, []any{groupID}, &deleted)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if deleted {
+		return service.ErrSubscriptionGroupDeleted
+	}
+	return denied
 }
 
 // RunSubscriptionWriteStep runs one write of a batch inside a savepoint of the

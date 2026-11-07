@@ -111,8 +111,8 @@ type scopedSubscriptionWriteStub struct {
 	precheckErr error
 	prechecks   int
 	extends     int
-	manageable  map[int64]bool
-	scoped      bool
+	access      *service.SubscriptionWriteAccess
+	groupIDs    []int64
 }
 
 func (s *scopedSubscriptionWriteStub) PrecheckSubscriptionWrite(context.Context, int64) error {
@@ -126,11 +126,12 @@ func (s *scopedSubscriptionWriteStub) ExtendSubscription(_ context.Context, id i
 }
 
 func (s *scopedSubscriptionWriteStub) ListAdmin(context.Context, int, int, service.SubscriptionAdminFilter) ([]service.UserSubscription, *pagination.PaginationResult, error) {
-	return []service.UserSubscription{{ID: 1, UserID: 9}, {ID: 2, UserID: 10}}, &pagination.PaginationResult{Page: 1, PageSize: 20, Pages: 1, Total: 2}, nil
+	return []service.UserSubscription{{ID: 1, UserID: 9, GroupID: 3}, {ID: 2, UserID: 10, GroupID: 3}, {ID: 3, UserID: 9, GroupID: 4}}, &pagination.PaginationResult{Page: 1, PageSize: 20, Pages: 1, Total: 3}, nil
 }
 
-func (s *scopedSubscriptionWriteStub) ManageableSubscriptionUsers(context.Context, []int64) (map[int64]bool, bool, error) {
-	return s.manageable, s.scoped, nil
+func (s *scopedSubscriptionWriteStub) ManageableSubscriptions(_ context.Context, _ []int64, groupIDs []int64) (*service.SubscriptionWriteAccess, error) {
+	s.groupIDs = groupIDs
+	return s.access, nil
 }
 
 func scopedSubscriptionRouter(t *testing.T, svc subscriptionHandlerService, role string) *gin.Engine {
@@ -186,12 +187,16 @@ func TestSubscriptionListMarksManageableRows(t *testing.T) {
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 		return body.Data.Items
 	}
-	items := list(&scopedSubscriptionWriteStub{scoped: true, manageable: map[int64]bool{9: true}}, service.RoleSubAdmin)
-	require.Len(t, items, 2)
+	access := &service.SubscriptionWriteAccess{Users: map[int64]bool{9: true}, Groups: map[int64]bool{3: true}}
+	stub := &scopedSubscriptionWriteStub{access: access}
+	items := list(stub, service.RoleSubAdmin)
+	require.Len(t, items, 3)
+	require.Equal(t, []int64{3, 3, 4}, stub.groupIDs, "only the groups on the page are checked")
 	require.Equal(t, true, items[0]["can_manage"])
-	require.Equal(t, false, items[1]["can_manage"])
+	require.Equal(t, false, items[1]["can_manage"], "owner outside the write targets")
+	require.Equal(t, false, items[2]["can_manage"], "group outside the leader's organizations (D13)")
 	items = list(&scopedSubscriptionWriteStub{}, service.RoleSubAdmin)
 	require.NotContains(t, items[0], "can_manage", "unscoped sub-admins keep the previous response")
-	items = list(&scopedSubscriptionWriteStub{scoped: true}, service.RoleAdmin)
+	items = list(&scopedSubscriptionWriteStub{access: access}, service.RoleAdmin)
 	require.NotContains(t, items[0], "can_manage")
 }

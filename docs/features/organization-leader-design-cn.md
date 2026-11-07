@@ -1,6 +1,6 @@
 # 组织负责人权限设计
 
-更新：2026-11-05。状态：**首版（D1–D8）已合入 main（`26f6363af`）。2026-11-04 用户提出权限扩展（§1.1，决策 D9–D12），2026-11-05 按设计审核补齐 5 处缺口后，用户确认 D11 写入范围，扩展已在分支 `feature/hy/10229_organization_leader_powers` 实现（未提交、未部署）。线上尚未配置任何组织或部门负责人。D9/D10 取代原 D5。**
+更新：2026-11-08。状态：**首版（D1–D8）与 2026-11-04 扩展（D9–D12，§1.1）均已合入 main（2026-11-06 核对 `feature/hy/10229_organization_leader_powers` 已是 main 的祖先），部署状态未核验。2026-11-06 新增 D13 分组归属组织（§1.2），在 `feature/hy/10230_group_organization_scope` 实现，未合入 main。线上尚未配置任何组织或部门负责人。D9/D10 取代原 D5，D13 修订 D11 的可分配分组。**
 
 本文是组织负责人功能的唯一文档，包含需求、规则、接口、代码位置、易错点和验证方式。审核原文不保留在仓库中，凡是对后续修改有约束的结论都已写入正文。前置功能：[组织、部门与多平台用量报表设计](organization-department-usage-design-cn.md)、[部门负责人管理本部门成员设计](department-member-management-design-cn.md)。
 
@@ -50,7 +50,7 @@
 | --- | --- | --- | --- |
 | G10 | 后台重置不限次数、不计自助次数；负责人可以重置自己 | 负责人的日额度上限对自己失效（原 G7 的风险） | 用户接受该风险（D9/D10）。重置本人在审计里单独标记 `extra.self=true`，便于管理员复查；不新增次数限制（§4.5） |
 | G11 | "重置对象"与"可管理对象"不再相同：组织负责人能重置 `admin`，但不应能撤销 `admin` 的订阅或删除 `admin` | 若沿用"一个谓词管所有订阅入口"，要么 `admin` 的订阅也能被撤销，要么看得到却重置失败 | 订阅入口拆成两个谓词：可见/可重置对象 `subscriptionResetTargets`，可写订阅对象 `subscriptionManageTargets`；列表逐行返回 `can_manage`，界面按它隐藏写操作（§4.5、§4.8） |
-| G12 | 分配订阅等于把付费资源给出去；`admin.subscriptions`（全站分配）与 `admin.department_subscriptions` 互斥 | 组织负责人要么拿不到分配能力，要么拿到全站分配能力 | 不复用全站权限码；组织级订阅写入随 `admin.organization_manage` 捆绑（D7 的固定捆绑扩大），目标在事务内按组织校验；可分配分组与全站订阅子管理员相同（`SubscriptionAssignmentGroups`）（§4.8） |
+| G12 | 分配订阅等于把付费资源给出去；`admin.subscriptions`（全站分配）与 `admin.department_subscriptions` 互斥 | 组织负责人要么拿不到分配能力，要么拿到全站分配能力 | 不复用全站权限码；组织级订阅写入随 `admin.organization_manage` 捆绑（D7 的固定捆绑扩大），目标在事务内按组织校验；可分配分组原与全站订阅子管理员相同，2026-11-06 起按分组归属限定（D13，§1.2）（§4.8） |
 | G13 | 批量分配的部分用户越权 | 部分写入、部分拒绝，结果难以核对 | 整批先鉴权，任一目标越权整批 403、不写入（与 §4.3 一致） |
 | G14 | 删除用户会软删账号并删除其全部 API Key，不可由组织负责人撤销 | 误删或越权删除负责人、管理员 | 只能删除本组织 `role=user`、非本人；负责人须先撤销身份再删除；带成员 CAS；前端二次确认（§4.9） |
 | G15 | 重置密码后组织负责人可以用该账号登录，查看其 API Key、余额等（冒用） | 权限从"管理"扩大到"以他人身份操作" | 用户接受（D12）。只对本组织 `role=user`；密码变化使该用户已有会话失效；审计记录操作者与目标，不记录密码（§4.9） |
@@ -58,6 +58,16 @@
 | G17 | 延期接口带幂等：同一幂等键重放时直接返回首次的存档响应，不再进入 service | 授权缩减（撤销组织授权、目标被提为管理员）后，旧键重放仍返回该订阅数据，事务内的鉴权被绕过 | 带幂等的订阅写入口在重放前按当前授权鉴权，事务内再鉴权一次（与 `prepareDepartmentReset` 相同的两处校验）（§4.8） |
 | G18 | 分配弹窗对非管理员调用 `search-users` 选人，而 `search-users` 按可重置对象返回，含 `admin` | 组织负责人能选中 `admin` 等不可写对象，提交后整批 403（K9 的同类问题） | `search-users` 增加 `purpose=assign`，按可写对象 `subscriptionManageTargets` 返回；分配弹窗只用这个模式（§4.8） |
 | G19 | 订阅读取只看 active 账号，写入若按"未删除"判定 | 停用用户的订阅能被分配、撤销，却在列表里看不到，也拿不到 `can_manage` | 可写对象同样只含 active 账号，且必须是可重置对象的子集；要操作停用用户的订阅，先在「我的部门」启用（§4.8） |
+
+### 1.2 2026-11-06 分组归属组织（D13）
+
+用户需求（2026-11-06）：订阅分组原先没有组织概念，组织负责人分配订阅时能选到其他组织的分组；希望分组归属某个组织。
+
+| # | 缺口 | 不补会怎样 | 规则 |
+| --- | --- | --- | --- |
+| G20 | D11 让组织负责人的可分配分组与全站订阅子管理员相同，写入只校验目标用户，`group_id` 不参与鉴权 | 组织负责人能把其他组织的套餐分给本组织的人；只过滤下拉框也挡不住，篡改请求参数即可写入 | 分组归属一个或多个组织（迅游、速宝）；组织负责人的分配候选、`can_manage`、分配/批量分配/延期/撤销/恢复都要求分组归属其授权组织之一，在写事务内锁分组行后校验（§4.8） |
+| G21 | 存量分组没有归属 | 若默认"所有组织可见"，上线即放开；若由代码猜归属，猜错同样放开 | 迁移只建表、不回填：未设归属的分组只有完整管理员和全站订阅子管理员可分配（fail closed）。管理员上线后在分组页逐个或批量设置 |
+| G22 | 归属可随时修改 | 修改与在途写入交错，可能按旧归属写入 | 归属替换对分组行 `FOR UPDATE`，组织负责人写入对分组行 `FOR SHARE` 并在加锁后另起一条语句读归属（K22） |
 
 ## 2. 角色体系
 
@@ -275,9 +285,10 @@
 | 动作 | 单个分配 `assign`、批量分配 `bulk-assign`、延期 `:id/extend`、撤销 `:id/revoke`（`DELETE :id` 同义，即"删除订阅"）、恢复 `:id/restore`。`bulk-action`（批量延期/撤销）不开放 |
 | 可写对象 `subscriptionManageTargets` | 本人 + 本组织（邮箱组织 ∈ 组织授权）active 的 `role=user` + active 的可托管负责人（§3.3，`managedLeaderPredicate`）。**不含 `admin`、其他组织负责人、不可托管的子管理员**：这些账号的订阅只读、可重置（§4.5）。写入沿用首版"下级"层级，只放开本人。可写对象必须是可重置对象（§4.5）的子集：停用用户的订阅既不可见也不可写，要操作先在「我的部门」启用（受 §4.4 停用来源层级约束，管理员停用的账号由管理员处理）（G19） |
 | 分配候选 | `GET /admin/subscriptions/search-users?purpose=assign`：按 `subscriptionManageTargets` 返回，与写入校验同一谓词；分配、批量分配弹窗只用这个模式。不带 `purpose` 时仍按 §4.5 的可重置对象返回（筛选用）。部门负责人带 `purpose=assign` 返回 403；完整管理员、全站订阅子管理员行为不变；`purpose` 为其他值返回 400（G18） |
-| 可分配分组 | 与全站订阅子管理员相同：`SubscriptionAssignmentGroups` 返回的启用中订阅型分组；有效期上下限、分组状态（停用分组不能新建订阅，`GROUP_NOT_ACTIVE`）沿用管理员规则 |
+| 可分配分组（D13） | `SubscriptionAssignmentGroups` 返回启用中的订阅型分组；组织负责人只返回归属其授权组织之一的分组（`subscriptionWriteGroupScope`，与写入校验同一谓词）。完整管理员、全站订阅子管理员不受归属限制。有效期上下限、分组状态（停用分组不能新建订阅，`GROUP_NOT_ACTIVE`）沿用管理员规则 |
+| 分组归属（D13） | 分配、批量分配校验请求的 `group_id`，延期、撤销、恢复校验订阅所属分组：分组必须未删除且归属操作者授权组织之一，否则 403 `SUBSCRIPTION_GROUP_SCOPE_DENIED`（分组不存在同样 403）。先校验所属用户、后校验分组，所以分组错误码不会披露可写对象以外的订阅。管理员分给本组织成员的其他组织分组订阅：可见、可重置（§4.5 不变），`can_manage=false`。多组织负责人可把任一授权组织的分组分给任一可写对象，不要求分组与目标用户的邮箱组织一致。归属只对订阅型分组生效：分组改为标准型时迁移 264 的触发器清空其归属，改回订阅型不恢复；归属替换对标准型分组只允许清空（`[]`），设置组织返回 400 `GROUP_ORGANIZATION_SCOPE_INVALID`（K27）。恢复已撤销订阅时若其分组已软删除，在所属用户校验通过后返回 409 `SUBSCRIPTION_GROUP_DELETED`，不再报 `SUBSCRIPTION_GROUP_SCOPE_DENIED`（K28） |
 | 与全站订阅子管理员的差别 | 全站订阅子管理员（`admin.subscriptions`）的路由白名单只有分配、批量分配和额度重置，没有延期、撤销、恢复；组织负责人按用户选择（D11）多出这三项，但只限本组织的可写对象。全站订阅子管理员的行为不变 |
-| 鉴权位置 | handler 不信任请求里的用户 ID；service/仓储在写事务内锁目标 `users` 行后重读范围，越权返回 403 `DEPARTMENT_SCOPE_DENIED`。延期/撤销/恢复先按订阅 ID 取所属用户再判定，订阅不存在与越权同样返回 403，不披露存在性 |
+| 鉴权位置 | handler 不信任请求里的用户 ID、分组 ID；service/仓储在写事务内锁目标 `users` 行后重读范围，越权返回 403 `DEPARTMENT_SCOPE_DENIED`；再锁分组行（`FOR SHARE`）并读归属（D13）。延期/撤销/恢复先按订阅 ID 取所属用户和分组再判定，订阅不存在与越权同样返回 403，不披露存在性 |
 | 幂等重放 | 延期（`admin.subscriptions.extend`）带幂等，重放不经过 service。组织负责人请求在进入幂等执行**之前**先按当前授权做一次只读鉴权（同上，403 不披露存在性），事务内再鉴权一次；授权缩减后用旧键重放返回 403，不返回存档响应（G17）。分配、撤销、恢复目前不带幂等，今后若加，同样遵守 |
 | 批量分配 | 一个事务：先按 ID 升序锁操作者和全部目标并重读范围，任一目标越权整批 403、无写入（G13）；锁保持到提交，期间提权、撤权都要等待。鉴权通过后逐人写入，每人一个 SAVEPOINT：该人的业务失败（如已有订阅冲突、审计写入失败）只回滚该人并计入逐人结果；范围类错误（`DEPARTMENT_SCOPE_DENIED`、`REPORT_SCOPE_CHANGED`）或 SAVEPOINT 本身失败则整批回滚返回错误，不混入逐人结果（K20） |
 | 幂等与复用 | 沿用 `assignSubscriptionWithReuse` 的复用/续期语义 |
@@ -320,6 +331,8 @@
 | 方法与路径 | 内容 |
 | --- | --- |
 | `GET /admin/users/:id/organization-scope` | 复用 `department-scope` 的读取处理：返回 `organizations`、`permissions`、目标现有的 `department_ids`（用于转换确认）、`version` |
+| `GET /admin/groups/organization-scopes` | D13：返回已设归属的分组 `[{group_id, organization_keys}]`；未设归属的分组不出现 |
+| `PUT /admin/groups/organization-scopes` | D13：JSON `{group_ids, organization_keys}`，把每个分组的归属替换为 `organization_keys`；`organization_keys` 必须显式为数组（省略或 null 返回 400），`[]` 清空；只接受 `xunyou`、`wsdashi`；`group_ids` 1–500 个正整数，重复计一次；任一分组不存在或已删除返回 404 `GROUP_NOT_FOUND` 且不写入。返回 `{updated}`。不在任何子管理员白名单内，服务层另拒绝子管理员上下文；写入由管理端通用审计中间件记录 |
 | `PUT /admin/users/:id/organization-scope` | 严格 JSON `{organizations, expected_version, replace_global_subscriptions, replace_department_grants}`；目标必须已是 `sub_admin`。`organizations` 必须显式为数组：省略或 null 返回 400，只有 `[]` 表示撤销。`expected_version` 必须是非空字符串。两个确认开关可以省略，省略视为 false，只有 JSON `true` 表示确认 |
 
 - `organizations` 非空：写入组织授权，补齐四项捆绑权限。目标仍有部门授权时，`replace_department_grants` 必须为 true，否则返回 400 `ORGANIZATION_DEPARTMENT_GRANTS_CONFIRMATION_REQUIRED` 且不做任何写入；为 true 时在同一事务内删除这些部门授权并写审计（D8，不静默删除）。
@@ -340,7 +353,7 @@
 | `GET /admin/organization/leaders/:id` | 编辑前读取。可托管负责人：返回全部部门授权（按组织分组）、三项能力和同一事务内的 `version`；不可托管：返回 403 `ORGANIZATION_LEADER_PROTECTED`，不披露组织外的授权和其他权限码 |
 | `GET /admin/organization/leader-candidates` | 参数 `organization`、`q`（去空格后至少 2 个字符），最多 20 条：本组织 active 的普通用户 `id, email, username, department, version` |
 | `PUT /admin/organization/leaders/:id` | 按 §4.1 处理任命、调整、撤销 |
-| `GET /admin/subscriptions/assignable-groups` | 复用（D11）；可分配分组，与全站订阅子管理员相同 |
+| `GET /admin/subscriptions/assignable-groups` | 复用（D11）；只返回归属授权组织的分组（D13）。处理函数已从 `GroupHandler` 移到 `SubscriptionHandler.SubscriptionAssignmentGroups` |
 | `POST /admin/subscriptions/assign`、`POST /admin/subscriptions/bulk-assign` | 复用（D11）；目标按 §4.8 在事务内校验，批量整批鉴权 |
 | `POST /admin/subscriptions/:id/extend`、`POST /admin/subscriptions/:id/revoke`、`DELETE /admin/subscriptions/:id`、`POST /admin/subscriptions/:id/restore` | 复用（D11）；先取订阅所属用户，再按 §4.8 校验；延期在幂等重放前也校验（G17） |
 | `GET /admin/subscriptions/search-users?purpose=assign` | 复用并新增参数（D11）；分配候选按可写对象返回（G18）。路由本身已在 `admin.department_subscriptions` 白名单内 |
@@ -362,6 +375,9 @@
 | `ORGANIZATION_LEADER_PROTECTED` | 403 | 提示"该账号由管理员维护"，刷新列表 |
 | `ORGANIZATION_SCOPE_ENDPOINT_REQUIRED` | 400 | 提示到"组织负责人"配置中修改 |
 | `ORGANIZATION_DEPARTMENT_GRANTS_CONFIRMATION_REQUIRED` | 400 | 列出将被清除的部门授权，要求管理员确认 |
+| `SUBSCRIPTION_GROUP_SCOPE_DENIED` | 403 | D13：分组不属于操作者的组织；分配弹窗提示后清空所选分组并重载可分配分组 |
+| `GROUP_ORGANIZATION_SCOPE_INVALID` | 400 | D13：归属替换请求格式错误，或给标准型分组设置组织（K27） |
+| `SUBSCRIPTION_GROUP_DELETED` | 409 | D13：组织负责人恢复（或写入）的订阅所属分组已删除；只在所属用户可写后返回（K28） |
 
 `DEPARTMENT_SCOPE_DENIED`、`DEPARTMENT_CONFLICT`、`DEPARTMENT_INVALID`、`ADMIN_ACCESS_CHANGED`、`DEPARTMENT_INACTIVE`、`DEPARTMENT_MEMBER_ENABLE_DENIED`、`REPORT_SCOPE_CHANGED` 沿用原有含义。映射在 `frontend/src/utils/departmentErrors.ts`（`DEPARTMENT_INVALID` 对应 `invalidRequest` 文案）。
 
@@ -373,7 +389,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 查看、导出报表 | 组织用量报表 | `organization_usage` | 授权组织全部成员，含未分配；零部门组织有效 | 授权部门成员 | 只读，不限角色 | `scope_version` |
 | 查询订阅、重置额度 | 订阅入口（§4.5） | `department_subscriptions` | 本人 + 组织全部账号（含 `admin`），含未分配 | 本人 + 授权部门全部非 `admin` 成员 | active | 批量重置沿用幂等键与 `scope_version` |
-| 分配、延期、撤销、恢复订阅 | 订阅写入口（§4.8） | `organization_manage` | 本人 + 组织 `role=user` + 可托管负责人 | — | active；不含 `admin`、其他组织负责人、不可托管子管理员 | 锁目标用户行；批量整批鉴权；延期在幂等重放前鉴权 |
+| 分配、延期、撤销、恢复订阅 | 订阅写入口（§4.8） | `organization_manage` | 本人 + 组织 `role=user` + 可托管负责人；分组须归属授权组织（D13） | — | active；不含 `admin`、其他组织负责人、不可托管子管理员 | 锁目标用户行、再锁分组行；批量整批鉴权；延期在幂等重放前鉴权 |
 | 重置密码 | `POST /admin/organization/users/:id/password` | `organization_manage` | 组织 `role=user`，含未分配 | — | 不含本人；不限启停用 | 锁目标用户行，鉴权与写入同事务 |
 | 删除用户 | `DELETE /admin/organization/users/:id` | `organization_manage` | 组织 `role=user`，含未分配 | — | 不含本人；不限启停用 | `expected_department_id`（可为 null）+ `expected_department_version`；鉴权、CAS、删除、审计同事务 |
 | 成员列表 | `GET /admin/department-members` | `department_members` | 组织内部门 + 未分配 | 授权部门 | 全部显示；`role=user` 可操作；特权账号只读，不返回负责人备注 | — |
@@ -405,11 +421,15 @@
 
 I1–I3 跨表，不用数据库触发器强制，由 §3.1 的写入口在事务内维护；`loadDepartmentActor` 读取时对违例拒绝（fail closed）。
 
-没有 Ent schema。Ent 的复合主键只支持连接两个实体的边表（`department_access_grant.go` 是 User 与 Department 之间的 Through 表），组织键不是实体，`ent generate` 会失败。该表只通过原生 SQL 访问。
+`backend/migrations/263_group_organization_scopes.sql`（D13）：新建 `group_organization_scopes(group_id, organization_key, created_at)`，主键 `(group_id, organization_key)`，`group_id` 外键 `ON DELETE CASCADE`，`organization_key` CHECK 只放行 `xunyou`、`wsdashi`，反向索引 `(organization_key, group_id)`。不回填，存量分组全部未设归属（G21）。分组软删除后归属行保留但不生效（查询都要求 `groups.deleted_at IS NULL`）；复制分组不复制归属。
+
+`backend/migrations/264_group_organization_scope_subscription_only.sql`（K27）：先删除非订阅型分组上的归属行，再建 `groups` 的 `AFTER UPDATE OF subscription_type` 行触发器 `groups_clear_organization_scopes_on_type_change`：`subscription` 改为其他类型时删除该分组全部归属。UPDATE 本身持有分组行锁，写入方对分组行 `FOR SHARE` 后再读归属（K22），不会读到半途状态。用触发器而不是改上游 `UpdateGroup`，避免同步上游冲突，并覆盖直接 SQL 等全部改类型路径。
+
+两张表都没有 Ent schema。`groups` 是上游 Ent schema，归属不加列，避免每次同步上游冲突。Ent 的复合主键只支持连接两个实体的边表（`department_access_grant.go` 是 User 与 Department 之间的 Through 表），组织键不是实体，`ent generate` 会失败。该表只通过原生 SQL 访问。
 
 ## 7. 事务与并发
 
-所有写操作沿用部门写入锁协议，锁顺序为 `users → departments → 授权表`：
+所有写操作沿用部门写入锁协议，锁顺序为 `users → departments → 授权表`；订阅写入为 `users → groups → user_subscriptions`（D13）：
 
 ```mermaid
 flowchart TD
@@ -442,6 +462,8 @@ flowchart TD
 | 两个组织负责人同时编辑或停用同一部门 | 后到者在行锁上等待；前者提交后，后者的条件 UPDATE 命中 0 行，返回 409；不得出现 40P01 或 500 |
 | 停用部门，同时向该部门转岗或新增授权 | 转岗/授权先拿到 `FOR SHARE`：停用等待其提交，已有成员和授权保留；停用先提交：转岗/授权读到 inactive，返回 400 `DEPARTMENT_INACTIVE` |
 | 组织负责人删除用户，同时管理员把该用户提为 `sub_admin` 或组织负责人把他任命为部门负责人 | 双方都锁该用户行：提权先提交，删除锁内重读到 `role=sub_admin`，返回 403；删除先提交，提权读到用户已删除而失败 |
+| 管理员替换分组归属，同时组织负责人在该分组分配或延期（D13） | 替换对分组行 `FOR UPDATE`，写入对分组行 `FOR SHARE`：写入先拿锁，替换等待其提交；替换先拿锁，写入等待，之后另起语句读到新归属，被移出时返回 403 `SUBSCRIPTION_GROUP_SCOPE_DENIED`、零写入 |
+| 删除分组，同时组织负责人在该分组写入 | 删除沿用 `FOR UPDATE` 守卫；写入等待后重读到 `deleted_at`，返回 403 |
 
 ## 8. 审计
 
@@ -465,20 +487,21 @@ flowchart TD
 | 我的部门 `MyDepartmentView.vue` | 组织负责人：部门选项包含 `unassigned:<组织>`；未分配行的部门列为空，备注不可编辑；可管理行有"调整部门"入口（走 `departmentsAPI.assign`），"移出"只对已分配成员提供；停用来源显示"组织负责人停用" |
 | 订阅、报表 | `SubscriptionsView.vue`、`OrganizationUsageView.vue`、`OrganizationUsageFilters.vue`：`full_organizations` 中的组织可以选择"未分配"；不可重置的对象不出现在列表中。组织负责人在订阅页显示分配/批量分配按钮，分配弹窗的用户搜索带 `purpose=assign`（`searchAssignmentUsers`），行内延期、撤销、恢复只对 `can_manage=true` 的行显示（D11）；部门负责人不显示写操作 |
 | 用户管理（D12） | 「我的部门」可管理行增加"重置密码""删除用户"（仅组织负责人），删除二次确认并提示会删除 API Key；不调用 `/admin/users*` |
+| 分组归属（D13，仅完整管理员） | `GroupsView.vue`：订阅型分组的创建/编辑弹窗增加"所属组织"多选（`GroupOrganizationScopeField.vue`），分组保存成功后再调用归属接口。归属读取统一由 `composables/useGroupOrganizationScopes.ts` 负责：只接收最新请求，状态分为加载中/已就绪/失败（K24）。编辑弹窗打开时不用列表缓存，而是等一次在打开之后发起并成功的读取（`mark()` 与 `generation`）再填入快照；在此之前或读取失败时该项禁用并显示"加载中"或"加载失败 + 重试"，保存分组不改归属。两步保存只在都成功后提示成功（K25）：编辑时归属失败保留弹窗与本次选择，提示"分组已保存，原所属组织仍然生效"并附原因，再次保存会重提分组与归属；新建时归属失败关闭弹窗（避免重复创建），提示分组已建、归属未设置。计费类型列显示归属标签（`GroupOrganizationScopeBadges.vue`：已就绪且无归属才显示"未设置所属组织"，首次加载中显示"加载中"，失败显示"所属组织未知"）。工具栏"所属组织"打开批量弹窗（`GroupOrganizationScopeBatchModal.vue`：打开时刷新归属，标签同样区分未知；列出全部订阅型分组含停用，搜索、全选当前列表，替换为所选组织；超过 500 个禁用保存并提示，不自动拆批（K26）；未选组织时提示将只允许管理员分配）。API 在 `api/admin/groupOrganizationScopes.ts`（`GROUP_ORGANIZATION_SCOPE_BATCH_LIMIT`），文案在 `departments.ts` 的 `groupOrganizationScope`。订阅页分配弹窗：组织负责人无可分配分组时提示联系管理员；收到 `SUBSCRIPTION_GROUP_SCOPE_DENIED` 时清空分组并重载。归属列表只在页面加载、刷新按钮、编辑/批量弹窗打开与归属保存后读取，翻页、筛选、排序不重复读取（`refreshGroups`）。分配弹窗的可分配分组有独立状态：加载中显示加载提示，失败显示错误与重试并清空旧选项，只有成功返回空列表时才提示组织负责人联系管理员；可分配分组与筛选用分组各自失败互不影响（K29）。恢复失败时部门错误码按 `departmentErrorKey` 显示（含 `SUBSCRIPTION_GROUP_DELETED`） |
 | 导航与落地 | `AppSidebar.vue`、`router/index.ts`（`/admin/departments` 的 `adminPermission`）、`utils/adminPermissions.ts`（持有组织管理码时首先落地到部门管理页）、中英文文案（`i18n/locales/*/admin/departments.ts`、`overview.ts`） |
 
 ## 10. 代码地图
 
 | 范围 | 位置 |
 | --- | --- |
-| 迁移 | `backend/migrations/262_organization_leader.sql` |
+| 迁移 | `backend/migrations/262_organization_leader.sql`、`263_group_organization_scopes.sql`（D13）、`264_group_organization_scope_subscription_only.sql`（K27） |
 | 权限码与白名单 | `service/admin_permission.go`：`AdminPermissionOrganizationManage`、目录项、路由白名单、`OrganizationLeaderDepartmentPermissions`、`NormalizeAdminPermissions` 的 I2 校验 |
-| 统一范围 SQL | `repository/department_scope_sql.go`：`departmentActorIsOrganizationLeader`、`departmentRowScope`、`departmentMemberScope`、`departmentSubscriptionTargets`、`managedLeaderPredicate` |
+| 统一范围 SQL | `repository/department_scope_sql.go`：`departmentActorIsOrganizationLeader`、`departmentRowScope`、`departmentMemberScope`、`subscriptionResetTargets`、`subscriptionManageTargets`、`subscriptionWriteGroupScope`（D13）、`managedLeaderPredicate` |
 | 操作者与版本 | `repository/department_repo.go`：`loadDepartmentActor`（读组织授权，I1/I3 违例拒绝）、`loadAdminAccess`、`departmentCatalogForActor`；`department_query_scope.go`：`scope_version`、`scanManagedDepartmentMember`、`enableableDisabledSources` |
 | 双模式部门接口 | `department_repo.go`：`List`、`Save`、`Members`、`Assign`；成员行标记 `departmentMemberRows` |
 | 组织负责人接口 | `repository/organization_leader_repo.go`：`SetOrganizationAccess`、`OrganizationLeaders`、`OrganizationLeader`、`OrganizationLeaderCandidates`、`UpdateOrganizationLeader`、`organizationTransferTargets`、`authorizeOrganizationTransfer`、`authorizeOrganizationFilter`、`authorizeDepartmentOrganization`、`withActorScope`；`service/organization_leader.go`；`handler/admin/department_handler.go`；`server/routes/department.go` |
 | 未分配成员 | `service/department_service.go`（`ManagedDepartmentMember`、`ManagedMemberUpdateInput.ExpectedUnassigned`、`ValidateSelection`、`ManagedScope`）；`department_repo.go` `UpdateManagedMember`；handler 识别 `expected_department_id` 为 null |
-| 订阅 | 对象谓词在 `repository/department_scope_sql.go`：`subscriptionResetTargets`（读取与重置，替换原 `departmentSubscriptionTargets`）、`subscriptionManageTargets`（写入）。读取与重置入口：`department_subscription_scope.go`（`checkDepartmentSubscription`、批量候选）、`department_repo.go` `SubscriptionGroups`、`department_query_scope.go`（`querySelectedDepartmentMembers` 的 `departmentTargets` 模式、`DepartmentScopeQuery.AssignTargets`）。写入鉴权：`repository/organization_subscription_write.go`（`CurrentSubscriptionWriter` 重读身份类别、`AuthorizeSubscriptionWriteUsers`、`AuthorizeSubscriptionWriteByID`、`ManageableSubscriptionUsers`、`RecordSubscriptionWrite`）；`service/subscription_organization_write.go`（`subscriptionWriteScope` 按动作 assign/manage 判定全站订阅子管理员）。handler：`subscription_handler.go` 的 `markManageable`（`can_manage`）、`Extend` 的 `PrecheckSubscriptionWrite`；`department_handler.go` `SubscriptionUsers` 的 `purpose=assign`。重置审计的 `extra.self` 在 `user_subscription_repo.go` |
+| 订阅 | 对象谓词在 `repository/department_scope_sql.go`：`subscriptionResetTargets`（读取与重置，替换原 `departmentSubscriptionTargets`）、`subscriptionManageTargets`（写入）。读取与重置入口：`department_subscription_scope.go`（`checkDepartmentSubscription`、批量候选）、`department_repo.go` `SubscriptionGroups`、`department_query_scope.go`（`querySelectedDepartmentMembers` 的 `departmentTargets` 模式、`DepartmentScopeQuery.AssignTargets`）。写入鉴权：`repository/organization_subscription_write.go`（`CurrentSubscriptionWriter` 重读身份类别、`AuthorizeSubscriptionWriteUsers`、`AuthorizeSubscriptionWriteByID`、`RecordSubscriptionWrite`）；`service/subscription_organization_write.go`（`subscriptionWriteScope` 按动作 assign/manage 判定全站订阅子管理员）。分组归属（D13）：谓词 `subscriptionWriteGroupScope`（`department_scope_sql.go`）；`organization_subscription_write.go` 的 `SubscriptionWriteAccess`（一次读取操作者，返回本页用户与分组的可写集合）、`ScopedAssignableSubscriptionGroups`（一条 SQL 取可分配分组）、`AuthorizeSubscriptionWriteGroup`，`AuthorizeSubscriptionWriteByID` 同时校验所属分组（分组已删除时经 `subscriptionGroupDeletedOr` 返回 K28 错误）；归属维护 `repository/group_organization_scope_repo.go`（`groupRepository` 的 `ListGroupOrganizationScopes`、`ReplaceGroupOrganizationScopes`）；`service/subscription_group_scope.go`（`AssignableSubscriptionGroups`、`ManageableSubscriptions` 与 `SubscriptionWriteAccess.Allows`、`SetGroupOrganizationScopes`）；handler `subscription_assignment_options.go`。handler：`subscription_handler.go` 的 `markManageable`（`can_manage`）、`Extend` 的 `PrecheckSubscriptionWrite`；`department_handler.go` `SubscriptionUsers` 的 `purpose=assign`。重置审计的 `extra.self` 在 `user_subscription_repo.go` |
 | 组织用户管理 | `repository/organization_user_repo.go`（`organizationUserWrite`、`ResetOrganizationUserPassword`、`DeleteOrganizationUser`），`departmentRepository` 为此持有 Ent client（`NewDepartmentRepository(client, db)`）；共用步骤 `user_repo.go` `deleteUserRecords`、`api_key_repo.go` `softDeleteAPIKey`；管理员路径 `deleteUser` 保留 `prepareUserAdminAccessWrite`。service：`organization_leader.go`（`OrganizationUserDeleteInput`、密码至少 6 个字符）；handler：`department_handler.go`；路由：`server/routes/department.go` |
 | 报表 | `repository/organization_usage_department_repo.go`（`breakdowns` 中的未分配与组织汇总） |
 | 写入口守卫 | `service/admin_user.go` `CreateUser`；`repository/user_repo.go` `Update`；`repository/user_admin_access.go` `clearUserDepartmentGrants`；`department_repo.go` `SetAccess` |
@@ -501,6 +524,7 @@ flowchart TD
 | 层级 | 部门负责人不能启用组织负责人停用的成员；来源只升不降；组织负责人若是某部门成员，在该部门负责人的成员列表中只读显示，在订阅入口中可见、可重置（D10），没有写操作 |
 | 额度（D9/D10） | 部门负责人能重置本人（不是部门成员时也能）和授权部门内的 `user`、`sub_admin` 成员，不能重置部门内 `admin`、其他部门成员；组织负责人能重置本人和本组织全部账号（含 `admin`、其他组织负责人），不能重置其他组织账号；重置本人审计含 `extra.self=true`；§4.5 的每个订阅读取/重置入口使用同一对象范围 |
 | 订阅写入（D11） | 组织负责人可以给本人、本组织普通用户、可托管负责人分配/延期/撤销/恢复；对 `admin`、其他组织负责人、不可托管子管理员、其他组织用户返回 403；批量分配含一个越权目标整批 403 且无写入；`can_manage` 与写入结果一致；`search-users?purpose=assign` 只返回可写对象（不含 `admin`、其他组织负责人），部门负责人带该参数返回 403，不带参数时结果不变；停用用户的订阅不可见、写入返回 403，启用后可写；延期成功后撤销组织授权（或把目标提为 `admin`），用同一幂等键重放返回 403 而不是存档响应；部门负责人调用写路由返回 403；全站订阅子管理员与管理员行为不变；停用分组新建返回 `GROUP_NOT_ACTIVE` |
+| 分组归属（D13） | 组织负责人的可分配分组只含归属其组织的分组；对其他组织、未设归属、不存在的分组分配与批量分配返回 403 `SUBSCRIPTION_GROUP_SCOPE_DENIED` 且零写入；越权目标仍先返回 `DEPARTMENT_SCOPE_DENIED`；其他组织分组的现有订阅延期、撤销、恢复、重放预检返回 403 且无审计，`can_manage=false`；归属改为本组织后可写，清空后不可写；归属替换持锁期间发起的分配等待后按新归属拒绝；归属替换的请求校验（省略/null/`other`/空 ID/不存在分组整体失败）；子管理员不能读写归属；完整管理员与全站订阅子管理员不受归属限制 |
 | 用户管理（D12） | 组织负责人能重置本组织 `role=user` 的密码（旧 access/refresh token 失效）、删除（API Key 同时删除）；停用用户同样可操作；对本人、负责人、`admin`、其他组织用户、不存在的用户返回 403；删除的 CAS 冲突返回 409；在删除的最后一步（写审计）注入失败时整体回滚，Key、用户、审计都没有变化；与提权并发时按 §7 一次成功一次 403；管理员删除路径行为不变（非 `admin` 操作者调用管理员删除仍被拒绝）；`/admin/users*` 仍返回 403；受限管理密钥调用新路由被拒绝 |
 | 并发（真实 PostgreSQL） | §7 表中的场景，使用两个不同操作者和并发屏障；同时编辑或停用同一部门，断言一次成功、另一次 409，不以 40P01 或 500 为预期；停用部门与转岗、新增授权竞争 |
 | 版本兼容 | 无组织授权的账号：`admin_access_version`、`catalog_version` 上线前后不变；`scope_version` 随 D9/D10 的对象集合变化（线上尚无负责人，不需要兼容旧快照） |
@@ -511,7 +535,7 @@ flowchart TD
 
 ## 12. 已确认决策
 
-D1–D8 由用户于 2026-11-03 确认：D1–D7 采纳设计方建议；D8 由用户在第一轮设计审核后选定。D9–D12 由用户于 2026-11-04 提出并确认，D9/D10 取代 D5。
+D1–D8 由用户于 2026-11-03 确认：D1–D7 采纳设计方建议；D8 由用户在第一轮设计审核后选定。D9–D12 由用户于 2026-11-04 提出并确认，D9/D10 取代 D5。D13 由用户于 2026-11-06 提出并确认，修订 D11 的可分配分组。
 
 | 编号 | 问题 | 确认结果 |
 | --- | --- | --- |
@@ -525,8 +549,9 @@ D1–D8 由用户于 2026-11-03 确认：D1–D7 采纳设计方建议；D8 由�
 | D8 | 组织负责人能否同时持有部门授权（包括其他组织的部门） | 不允许。把现有部门负责人升为组织负责人时，管理员须显式确认清除原部门授权，否则拒绝，不静默删除；需要管理两个组织就授予两个组织 |
 | D9 | 组织负责人重置额度的对象 | 本组织所有人，包括 `admin` 和本人 |
 | D10 | 部门负责人重置额度的对象 | 本人 + 授权部门内全部成员（非 `admin`，含其他子管理员） |
-| D11 | 组织负责人的订阅管理 | 开放分配、批量分配、延期、撤销（删除）、恢复；可分配分组与全站订阅子管理员相同。写入对象为本人 + active 普通用户 + active 可托管负责人，不含 `admin`、其他组织负责人（用户于 2026-11-05 确认） |
+| D11 | 组织负责人的订阅管理 | 开放分配、批量分配、延期、撤销（删除）、恢复。写入对象为本人 + active 普通用户 + active 可托管负责人，不含 `admin`、其他组织负责人（用户于 2026-11-05 确认）。可分配分组原为"与全站订阅子管理员相同"，已被 D13 修订 |
 | D12 | 组织负责人的用户管理 | 在已有启停用、改用户名、负责人备注之外，开放重置密码和删除本组织普通用户；不含创建、余额、并发/限额、分组、平台额度、角色权限 |
+| D13 | 订阅分组是否归属组织 | 归属。一个分组可属于迅游、速宝中的一个或多个（关联表，非 `groups` 列）；未设归属的分组组织负责人不可见、不可分配；创建、编辑时可设，随时可改，分组页支持批量设置；不做存量辅助统计、不回填；组织负责人的分配、延期、撤销、恢复都要求分组归属本组织；完整管理员跨组织分配不受限制。已否决：归属替换加版本/CAS 冲突检测，原因是只有一个完整管理员维护归属，后提交覆盖先提交可以接受（用户 2026-11-06 确认）；若以后多人维护，需要重新评估 |
 
 ## 13. 上线与回退
 
@@ -534,6 +559,7 @@ D1–D8 由用户于 2026-11-03 确认：D1–D7 采纳设计方建议；D8 由�
 
 - 混合版本期间不配置组织负责人：旧实例不认识 `admin.organization_manage`（`NormalizeAdminPermissions` 会按未知权限拒绝），也不执行 I1–I3、D9–D12 和未分配成员合同。
 - 线上尚未配置任何部门或组织负责人，D9/D10 取代 D5 不需要提前告知。
+- D13：迁移 263、264 → 发布新版本 → 管理员在分组页设置订阅分组的所属组织。迁移后到设置完成前，组织负责人没有可分配分组（fail closed），完整管理员不受影响。混合版本期间旧实例不校验分组归属，所以在全部实例升级前不要让组织负责人分配订阅。回退：旧代码忽略 `group_organization_scopes`，组织负责人恢复为可分配全部分组（D11 原状）；需要回退时先撤销组织负责人或接受该范围。
 
 回退：
 
@@ -564,6 +590,14 @@ D1–D8 由用户于 2026-11-03 确认：D1–D7 采纳设计方建议；D8 由�
 | K19 | 已标记为子管理员的请求在服务层重读到 `role=user`、删除或停用时必须拒绝，不能解释为无限制写入；延期重放预检、`can_manage` 计算也遵守。重读到 `admin` 视为管理员，持 `admin.subscriptions` 的子管理员只走其已获授权的全站动作，不能放行延期/撤销/恢复（K21） | 2026-11-05 独立 PG 复现：管理员降级后，`SubscriptionWriteScoped` 返回 false，分配先提交跨组织订阅，随后读取才返回 403；重放预检返回 nil | 原降级问题已独立复核通过：分配 403、零写入，延期重放预检 403；正式回归 `TestOrganizationLeaderIntegration_DemotedActorIsNeverUnrestricted` 通过。权限替换的另一边界见 K21 |
 | K20 | G13 的整批鉴权须与写入共用同一事务里锁定的操作者及全部目标；权限失败不得降为逐人业务失败 | 2026-11-05 独立 PG 复现：无锁初检后把第二目标提升为 admin，首人订阅仍提交，批量返回 1 成功 / 1 失败 | 已修复：`bulkAssignScopedSubscription` 单事务加锁、逐人 SAVEPOINT（`RunSubscriptionWriteStep`）、`abortsScopedBatch`；`TestOrganizationLeaderIntegration_BulkAssignLocksWholeBatch`（事先提权整批 403 零写入；加锁后发起的提权等到批量提交；单人审计失败只回滚该人）。原复现的钩子挂在已删除的无锁初检上，修复后不再触发 |
 | K21 | 请求中途身份/权限替换后，必须同时按当前身份校验动作权限与目标范围；不能组合旧组织身份的延期/撤销/恢复能力与新 `admin.subscriptions` 的全站范围。重放预检同样遵守 | 2026-11-05 独立 PG 复现：组织负责人请求进入后撤销组织授权并改授 `admin.subscriptions`；当前 `CanAccessAdminRoute(...extend)` 为 false，但预检返回 nil，其他组织订阅实际延长 24 小时，违反 §4.8 全站订阅子管理员不具备延期权限的合同 | 已修复：仓储 `CurrentSubscriptionWriter` 返回管理员/全站订阅子管理员/范围子管理员三类，服务层 `subscriptionWriteScope` 对全站订阅子管理员只放行分配（assign、bulk-assign），延期、撤销、恢复与重放预检一律 403；未知类别按最受限处理。回归 `TestOrganizationLeaderIntegration_GrantSwapKeepsActionChecks`（撤组织授权并改授 `admin.subscriptions` 后：预检、延期、撤销、恢复 403，到期时间、状态、审计均不变；分配按全站执行、不带 `can_manage`），去掉修复时该用例在预检处失败 |
+| K22 | 分组归属校验先对分组行 `FOR SHARE`，再另起一条语句读 `group_organization_scopes`；不能把锁和 EXISTS 子查询写进同一条 `SELECT ... FOR SHARE` | READ COMMITTED 下等锁后只按新行版本重检被锁的 `groups` 行，子查询仍用语句开始时的快照；归属替换不改 `groups` 行时甚至不触发重检。2026-11-06 变异验证：合成单语句后，归属已被移除的分配仍提交成功 | `AuthorizeSubscriptionWriteGroup`；`TestOrganizationLeaderIntegration_GroupOrganizationScopes` 末段（持 `FOR UPDATE` 删除归属，分配等待后 403、零写入） |
+| K23 | 可分配分组、`can_manage`（`SubscriptionWriteAccess.Allows` = 可写对象 ∧ 可写分组）与写入校验共用 `subscriptionWriteGroupScope`；只过滤下拉框不算完成 | D11 时写入不校验 `group_id`，前端过滤可被篡改请求绕过（G20） | `department_scope_sql.go`；`GroupOrganizationScopes`、`TestSubscriptionListMarksManageableRows` |
+| K24 | 归属读取必须区分加载中、失败与真实空归属，并只接收最新请求；编辑快照必须来自弹窗打开后发起并成功的读取，不能把列表缓存或刷新失败后的旧数据当作可编辑快照 | 2026-11-06 独立复现（P2）：较早 GET 晚返回覆盖较新双组织归属，编辑只取消迅游却提交 `[]`，连未展示的速宝一并清除（反过来也能把刚撤销的组织重新加回）；成功加载后再刷新失败仍可编辑；首次读取 500 时列表和批量弹窗把实际有归属的分组标成"未设置所属组织" | 已修复：`useGroupOrganizationScopes`（请求序号、`status`、`generation`/`mark`），`GroupsView.vue` 的 `handleEdit` 与 `generation` 监听，`GroupOrganizationScopeField`/`Badges`/`BatchModal` 的状态显示。回归 `GroupsView.organizationScope.spec.ts`（乱序、刷新失败后禁用与重试、未知不显示为未设置）、`useGroupOrganizationScopes.spec.ts`（新响应先到时旧响应与旧错误被忽略、失败不越过 mark）；分别去掉序号保护、改回用缓存快照时这些用例失败 |
+| K25 | 分组与归属分两次保存时，归属失败必须明确呈现部分成功，并保留本次归属选择供重试；完整成功提示只在两步完成后给出；新建场景的重试不得再次创建分组 | 2026-11-06 独立复现（P2）：取消全部组织，分组 PUT 成功而归属 PUT 返回 500，仍显示"分组更新成功"并关闭弹窗；通用错误 `message` 覆盖了部分成功说明，原授权仍有效 | 已修复：`saveGroupOrganizationScope` 返回错误，`showGroupOrganizationScopeFailure` 用固定文案 `editScopeFailed`/`createScopeFailed` 并把原因作为参数；编辑失败不关闭弹窗、再次保存重提两步；新建失败关闭弹窗。回归 `GroupsView.organizationScope.spec.ts`（编辑部分失败后重试成功、新建只调用一次 create）；把失败分支改回成功提示时用例失败 |
+| K26 | 批量设置的前端选择上限须与接口 500 个 ID 保持一致，超限时禁止提交而不是自动拆批 | P3：`selectVisible` 可勾选全部分组，保存按钮只判断非空；超过 500 时服务层返回 `GROUP_ORGANIZATION_SCOPE_INVALID`，全批无变化 | 已修复：`GROUP_ORGANIZATION_SCOPE_BATCH_LIMIT` 与后端 `MaxGroupOrganizationScopeBatch` 一致，`GroupOrganizationScopeBatchModal.vue` 超限提示并禁用保存；回归 `GroupOrganizationScope.spec.ts`（上限在测试中替换为 2）。未做 501 行浏览器操作 |
+| K27 | 归属只对订阅型分组生效：分组离开订阅型时清空归属（迁移 264 触发器），归属替换不给标准型分组设置组织 | 2026-11-08 代码审核：分组页隐藏非订阅型分组的归属，改为标准型后归属行仍在且不可见，改回订阅型即重新放开组织负责人分配；标准型分组上的订阅延期/撤销仍通过分组校验。编辑弹窗的类型选择是只读的，只有接口能改类型，所以在库内收口 | 迁移 264；`ReplaceGroupOrganizationScopes`；`TestOrganizationLeaderIntegration_GroupOrganizationScopeLifecycle`（改标准型清空、改回不恢复、标准型只能清空且整批不写入） |
+| K28 | 已撤销订阅的分组被软删除时，恢复返回 `SUBSCRIPTION_GROUP_DELETED`，而不是分组不属于本组织 | 审核发现：恢复走 `includeDeleted` 后分组校验因 `deleted_at` 失败，提示"分组不属于你负责的组织"，误导负责人去查归属 | `AuthorizeSubscriptionWriteByID` 在所属用户鉴权之后经 `subscriptionGroupDeletedOr` 区分；同一 Lifecycle 用例末段 |
+| K29 | 分配弹窗的"联系管理员设置所属组织"只在可分配分组成功返回空列表时显示；可分配分组失败不清空筛选用分组；`can_manage` 只查询本页分组且一次读取操作者；可分配分组用一条 SQL 而不是 `ListActive` 全量加账号计数 | 审核发现：加载中或接口失败时也提示联系管理员；一次失败把筛选下拉清空；列表每页三次读取操作者并扫描全部已设归属分组；分组页每次翻页都重新读取归属 | `SubscriptionsView.vue` 的 `assignableGroupsStatus` 与 `loadGroups`（`Promise.allSettled`）；`SubscriptionWriteAccess`、`ScopedAssignableSubscriptionGroups`；`GroupsView.vue` 的 `refreshGroups`。回归 `SubscriptionsView.userUsageLink.spec.ts`（组织负责人可分配分组）、`GroupsView.organizationScope.spec.ts`（翻页不读取、保存后只读一次）、`organization_leader_extension_handler_test.go`（只传本页分组） |
 | K8 | `organizations` 省略或 null 返回 400，只有 `[]` 撤销；确认开关只认 JSON `true` | 格式错误的请求不能被当成撤销 | handler `SetOrganizationAccess`；`TestOrganizationScopeRequiresExplicitOrganizations` |
 | K9 | 列表上的"可操作"标记与写入校验必须是同一个查询（`organizationTransferTargets`）；新增转岗限制只改这一处 | 部门管理页曾复用管理员弹窗，本人、admin 等也能被勾选，"选择本页"后整批 403，普通成员也没移动 | `departmentMemberRows`、`authorizeOrganizationTransfer`、`DepartmentMembersDialog.vue` 的 `selectable`；`MemberRowsMatchTransferRules`、`DepartmentManagement.spec.ts` |
 | K10 | `manageable` 只是当前快照的选择提示，不替代服务端授权；写入仍在锁内重读并整批拒绝 | 读取后可能撤权、角色变化或部门停用 | `Assign` |
@@ -600,7 +634,13 @@ pnpm exec vitest run src/components/admin src/views/admin/__tests__ src/utils sr
 | --- | --- |
 | `repository/organization_leader_integration_test.go` | 6 个真实 PG 用例：`GrantLifecycle`、`UnassignedMembersAndDepartments`、`AppointUpdateRevoke`、`DisableSourcesAndSubscriptionTargets`（2026-11-05 按 D9/D10 改写，见下）、`ConcurrentDepartmentWrites`、`MemberRowsMatchTransferRules` |
 | `repository/organization_leader_extension_integration_test.go` | 扩展的真实 PG 用例：`DemotedActorIsNeverUnrestricted`（K19）、`BulkAssignLocksWholeBatch`（K20）、`GrantSwapKeepsActionChecks`（K21）、`SubscriptionWrites`（D11 写入对象、整批鉴权、`can_manage`、`purpose=assign`、延期/撤销/恢复与不存在的订阅、重放预检随提权与撤权失效）、`UserManagement`（D12 改密与删除的对象、CAS、审计注入失败整体回滚、API Key 墓碑、与提权的先后） |
-| `handler/admin/organization_leader_extension_handler_test.go` | 删除请求 null/省略、改密请求体、`purpose` 参数、延期重放前预检、`can_manage` 只对范围子管理员返回 |
+| `repository/group_organization_scope_integration_test.go` | D13 真实 PG 用例 `GroupOrganizationScopes`：归属替换校验与子管理员拒绝、可分配分组、分配/批量分配/延期/撤销/恢复/预检的分组拒绝与零写入、`can_manage`、归属变更即时生效、持锁替换与分配的先后（K22） |
+| `handler/admin/organization_leader_extension_handler_test.go` | 删除请求 null/省略、改密请求体、`purpose` 参数、延期重放前预检、`can_manage` 只对范围子管理员返回且同时要求分组可写（D13） |
+| `handler/admin/subscription_assignment_options_test.go` | 可分配分组只投影选择器字段；归属接口透传 `organization_keys` 的省略与 `[]` |
+| `service/subscription_group_scope_test.go`（unit 标签） | 归属请求规整（去重、排序、拒绝 `other`/未知/空/超 500）、`Allows`、子管理员拒绝 |
+| `components/admin/group/__tests__/GroupOrganizationScope.spec.ts` | 所属组织多选、加载/失败/重试显示、标签（含未知与加载中）、批量弹窗（只列订阅型分组、提交替换、`[]` 提示、失败不关闭、重开后忽略旧请求、超过上限禁止提交、未知归属标签） |
+| `views/admin/__tests__/GroupsView.organizationScope.spec.ts` | K24/K25：编辑快照只取弹窗打开后的读取并忽略晚到旧响应、刷新失败后禁用且保存分组不改归属、重试；编辑部分失败保留弹窗与选择并可重试；新建部分失败不重复创建；首次加载与失败不显示为未设置 |
+| `composables/__tests__/useGroupOrganizationScopes.spec.ts` | 只接收最新请求（旧响应、旧错误）、失败不越过 mark、禁用时不请求 |
 | `handler/admin/organization_leader_handler_test.go` | 严格请求体：`organizations` 的省略/null/`[]`、任命字段组合、成员更新的 null 与省略 |
 | `service/admin_permission_test.go`（unit 标签） | I2 捆绑、`TestOrganizationManageRouteWhitelist`、目录项数、写白名单 |
 | `components/admin/department/__tests__/OrganizationLeader.spec.ts` | 组织授权弹窗、负责人弹窗 |
@@ -609,6 +649,8 @@ pnpm exec vitest run src/components/admin src/views/admin/__tests__ src/utils sr
 | `views/admin/__tests__/SubscriptionsView.spec.ts` | 组织负责人显示分配，行内写操作只对 `can_manage` 行；部门负责人即使行带 `can_manage` 也只能重置 |
 | `views/admin/__tests__/UsersView.spec.ts` | "组织负责人停用"标签 |
 | `utils/__tests__/adminPermissions.spec.ts` | 组织负责人落地页 |
+
+D13 后 `subscriptionGroup` 测试夹具默认把分组归属迅游（测试中的组织负责人都属迅游），既有订阅写入用例不改断言；`ManageableSubscriptionUsers(...) (map, scoped)` 改为 `ManageableSubscriptions(ctx, userIDs, groupIDs) *SubscriptionWriteAccess`（nil 表示不受限；2026-11-08 起只查询传入的分组，K29）。
 
 `DisableSourcesAndSubscriptionTargets` 的改写（D5 → D9/D10）：部门负责人可见/可重置本人、部门内组织负责人；新增不在部门内的部门负责人只能见本人；组织负责人可重置本人、`admin`、其他部门负责人；断言重置本人审计带 `extra.self`。部门负责人仍不能重置部门内 `admin` 和未分配成员。`TestSubAdminWriteWhitelistStaysNarrow`、`TestOrganizationManageRouteWhitelist` 补入 D11/D12 路由。
 
@@ -632,14 +674,21 @@ pnpm exec vitest run src/components/admin src/views/admin/__tests__ src/utils sr
 | 2026-11-05 | K21 修复后：`go build ./...`、`go vet`（含 unit/integration 标签）；`go test -tags=unit` service、handler、server、repository；嵌入式 PG 18.3 空库，15.1 的筛选；去掉修复后单跑新用例 | unit 9 个包通过；PG 80 个顶层用例通过（新增 K21），0 失败，5 个专项按开关跳过；去掉修复时 `GrantSwapKeepsActionChecks` 在重放预检处失败，恢复后通过 |
 | 2026-11-05 | K21 独立复核，固定提交 `2a26e3730`：unit 权限/订阅/接口专项、PG 18.1 空库、原样复用上次三个独立边界测试 | unit 196 通过；PG 80 个现有用例与 3 个独立用例全部通过，5 个性能/环境专项按配置跳过。权限替换后预检与延期均 403，到期时间变化 0 秒；降级零写入、全批持锁与权限失败整批回滚仍通过。K19–K21 均已独立复核闭合，未发现新的 P1/P2；原始证据在仓库外，未改业务代码 |
 
-未覆盖：浏览器端到端、真实 Redis 与多实例、混合版本发布、可信 golangci-lint。前端全量测试和构建已有上表实施记录，本次独立审核仅复跑专项与 typecheck。
+| 2026-11-06 | D13：`go build ./...`；`go vet`（unit、integration 标签）；`go test -tags=unit -count=1 ./...`；嵌入式 PG 18.3 空库，15.1 的筛选；K22 变异 | unit 61 个包通过，0 失败；PG 81 个顶层用例通过（新增 `GroupOrganizationScopes`），0 失败，5 个专项按开关跳过；合成单语句锁后新用例在持锁替换段失败，恢复后通过 |
+| 2026-11-06 | D13 前端：typecheck、改动文件 eslint、全量 Vitest | 426 个文件 / 3492 个用例通过；未跑 build；既有 GroupsView 用例会打印归属接口的网络错误日志（未 mock，已捕获，不影响结果） |
+| 2026-11-06 | D13 独立审核（Codex），当前未提交工作区：设计/代码、隔离 PG、前端专项与浏览器故障注入 | Go unit 权限/组织/订阅专项通过（4 个有用例包，另 2 包无匹配用例），`go build ./...` 与专项 `go vet` 通过；PG 18.1 空库 81 个顶层用例通过、5 个环境/性能专项跳过；额外反向持锁、多组织授权/撤销、归属替换数据库失败回滚 3 个独立 PG 用例通过。前端 5 文件 / 47 用例通过，build（含类型与 i18n 检查）及改动文件 ESLint 通过；独立前端 3 个预期安全断言失败，确认 K24/K25。右侧浏览器使用当前构建产物和完全隔离的合成 API，验证批量归属与加载/保存失败；未连接真实后端。发现 2 个 P2、1 个 P3（K24–K26），尚未闭环；业务代码未修改 |
+| 2026-11-06 | K24–K26 修复：typecheck、改动文件 eslint、新增 3 个 spec、三处变异（去掉请求序号、编辑改回用缓存快照、部分失败改回成功提示）、全量 Vitest、build | 新增 spec 18 个用例通过；每处变异都有用例失败（分别 1、2、1 个），恢复后通过；全量 Vitest 428 个文件 / 3504 个用例通过；build 通过（仅既有大 chunk 警告） |
+| 2026-11-08 | 代码审核 7 项（K27–K29）修复：`go build ./...`；`go vet -tags=unit ./...`、`go vet -tags=integration ./internal/...`；`go test -tags=unit` handler/admin、service、repository；嵌入式 PG 16 新建空库跑 `TestOrganizationLeaderIntegration`、`TestDepartment`、`TestOrganizationUsage` 与迁移用例；前端 typecheck、改动文件 eslint、全量 Vitest | unit 3 个包通过；PG 组织负责人 13 个顶层用例通过（新增 `GroupOrganizationScopeLifecycle`）；前端 429 个文件 / 3521 个用例通过；未跑 build 与 Go 全量 unit，修复未独立复核 |
+
+未覆盖：真实前后端联调的浏览器端到端、真实 Redis 与多实例、混合版本发布、可信 golangci-lint；本轮浏览器仅为当前构建的隔离 mock 验证。前端全量测试与 Go 全量 unit 沿用实施记录，本次独立审核跑专项、构建和上述独立边界复现。
 
 ## 16. 状态与待办
 
 | 项 | 状态 |
 | --- | --- |
 | 首版代码 | 已合入 main（`26f6363af`），未部署，线上未配置负责人 |
-| 2026-11-04 扩展（D9–D12） | 设计五处缺口已补齐，D11 范围用户已确认；K19、K20、K21 均已在固定提交 `2a26e3730` 独立复核通过，代码审核未发现新的 P1/P2。浏览器、真实 Redis/多实例等发布前验收仍未完成。扩展在 `feature/hy/10229_organization_leader_powers`，未合入 main、未部署 |
-| 浏览器验收 | 未进行。至少走一遍：管理员配置组织负责人（含替换部门授权的确认）→ 组织负责人登录后落地部门管理页 → 新建部门 → 任命、调整、撤销负责人 → 部门成员弹窗勾选（受保护行只读）→「我的部门」未分配成员与调整部门 → 报表与订阅的"未分配" → 停用来源标签 |
-| 发布前 | 按 §13 的顺序发布；浏览器验收补走组织负责人的分配/延期/撤销/恢复订阅、「我的部门」重置密码与删除用户 |
+| 2026-11-04 扩展（D9–D12） | 设计五处缺口已补齐，D11 范围用户已确认；K19、K20、K21 均已在固定提交 `2a26e3730` 独立复核通过，代码审核未发现新的 P1/P2。浏览器、真实 Redis/多实例等发布前验收仍未完成。已合入 main（2026-11-06 核对），部署未核验 |
+| 2026-11-06 分组归属（D13） | 已在 `feature/hy/10230_group_organization_scope` 实现；独立审核确认后端主要范围校验、锁与回滚通过，提出的 K24/K25（P2）与 K26（P3）已修复并补正式回归，修复本身未再独立复核。未合入 main、未部署。上线后管理员需立即设置分组归属。2026-11-08 代码审核另提 7 项（K27–K29：改标准型残留归属、已删分组恢复报错误导、分配弹窗提示与失败处理、重复查询），均已修复并补回归，新增迁移 264 |
+| 浏览器验收 | 真实前后端端到端未进行；D13 已做当前构建的隔离 mock 浏览器验证（见 §15），不能替代完整联调。至少走一遍：管理员配置组织负责人（含替换部门授权的确认）→ 组织负责人登录后落地部门管理页 → 新建部门 → 任命、调整、撤销负责人 → 部门成员弹窗勾选（受保护行只读）→「我的部门」未分配成员与调整部门 → 报表与订阅的"未分配" → 停用来源标签 |
+| 发布前 | 按 §13 的顺序发布；浏览器验收补走组织负责人的分配/延期/撤销/恢复订阅、「我的部门」重置密码与删除用户；D13 补走分组创建/编辑设归属、批量设置、组织负责人只看到本组织分组 |
 | 工具 | 本机 golangci-lint 不可用，提交前依赖 CI 的 lint 结果 |

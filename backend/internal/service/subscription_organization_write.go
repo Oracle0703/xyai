@@ -14,8 +14,22 @@ import (
 // one transaction.
 type SubscriptionWriteScopeRepository interface {
 	CurrentSubscriptionWriter(ctx context.Context) (SubscriptionWriterKind, error)
-	ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, error)
+	// SubscriptionWriteAccess reads the actor once and reports which of userIDs
+	// are write targets and which of groupIDs are scoped to the actor's
+	// organizations (K14, D13); both are empty for actors that are not
+	// organization leaders.
+	SubscriptionWriteAccess(ctx context.Context, userIDs, groupIDs []int64) (*SubscriptionWriteAccess, error)
+	// ScopedAssignableSubscriptionGroups returns the active subscription groups
+	// scoped to the actor's organizations (D13), ordered like ListActive and
+	// with picker fields only; empty for actors that are not organization leaders.
+	ScopedAssignableSubscriptionGroups(ctx context.Context) ([]Group, error)
 	AuthorizeSubscriptionWriteUsers(ctx context.Context, userIDs []int64, lock bool) (context.Context, error)
+	// AuthorizeSubscriptionWriteGroup checks the group against the actor
+	// authorized by AuthorizeSubscriptionWriteUsers in the same context; with
+	// lock it holds the group row until commit (D13).
+	AuthorizeSubscriptionWriteGroup(ctx context.Context, groupID int64, lock bool) error
+	// AuthorizeSubscriptionWriteByID authorizes both the owner and the group of
+	// the subscription.
 	AuthorizeSubscriptionWriteByID(ctx context.Context, subscriptionID int64, includeDeleted, lock bool) (context.Context, int64, error)
 	RunSubscriptionWriteStep(ctx context.Context, step func(context.Context) error) (stepErr error, err error)
 	RecordSubscriptionWrite(ctx context.Context, action string, details map[string]any) error
@@ -32,7 +46,7 @@ func (e *subscriptionWriteAbort) Unwrap() error { return e.err }
 // authorization failures (design G13, K20) and broken savepoints.
 func abortsScopedBatch(err error) bool {
 	var abort *subscriptionWriteAbort
-	return errors.As(err, &abort) || errors.Is(err, ErrDepartmentScopeDenied) || errors.Is(err, ErrDepartmentScopeChanged)
+	return errors.As(err, &abort) || errors.Is(err, ErrDepartmentScopeDenied) || errors.Is(err, ErrDepartmentScopeChanged) || errors.Is(err, ErrSubscriptionGroupScopeDenied)
 }
 
 // SubscriptionWriterKind is what a sub-admin request's actor currently is. The
@@ -120,19 +134,6 @@ func subscriptionWriteDetails(ctx context.Context, userID int64, details map[str
 	return details
 }
 
-// ManageableSubscriptionUsers reports, for scoped sub-admins, which users the
-// actor may write subscriptions for. scoped is false for actors whose writes
-// are not limited; their responses carry no can_manage flag. Full-site
-// subscription sub-admins are among them: the page offers them assignment only.
-func (s *SubscriptionService) ManageableSubscriptionUsers(ctx context.Context, userIDs []int64) (map[int64]bool, bool, error) {
-	scope, err := s.subscriptionWriteScope(ctx, subscriptionWriteAssign)
-	if err != nil || scope == nil {
-		return nil, false, err
-	}
-	manageable, err := scope.ManageableSubscriptionUsers(ctx, userIDs)
-	return manageable, true, err
-}
-
 // PrecheckSubscriptionWrite authorizes a scoped write against the current
 // grants before an idempotent replay, which never reaches the service (design
 // G17). Only extend replays, so the check is that of a manage action (K21).
@@ -151,6 +152,9 @@ func (s *SubscriptionService) assignScopedSubscription(ctx context.Context, scop
 	err := s.scopedSubscriptionWrite(ctx, func(txCtx context.Context) error {
 		txCtx, err := scope.AuthorizeSubscriptionWriteUsers(txCtx, []int64{input.UserID}, true)
 		if err != nil {
+			return err
+		}
+		if err = scope.AuthorizeSubscriptionWriteGroup(txCtx, input.GroupID, true); err != nil {
 			return err
 		}
 		sub, reused, err = s.assignAuthorizedSubscription(txCtx, scope, input)
@@ -183,6 +187,9 @@ func (s *SubscriptionService) bulkAssignScopedSubscription(ctx context.Context, 
 		// mid-batch; one target out of scope rejects the batch (design G13, K20).
 		txCtx, err := scope.AuthorizeSubscriptionWriteUsers(txCtx, input.UserIDs, true)
 		if err != nil {
+			return err
+		}
+		if err = scope.AuthorizeSubscriptionWriteGroup(txCtx, input.GroupID, true); err != nil {
 			return err
 		}
 		result, err = s.bulkAssign(input, func(assign *AssignSubscriptionInput) (*UserSubscription, bool, error) {

@@ -23,10 +23,20 @@ func (s *organizationLeaderSetup) subscriptionService(t *testing.T) *service.Sub
 	return subs
 }
 
+// subscriptionGroup is a subscription group scoped to xunyou, the organization
+// of the leaders in these tests (D13).
 func (s *organizationLeaderSetup) subscriptionGroup(t *testing.T) int64 {
 	t.Helper()
+	return s.scopedSubscriptionGroup(t, "group", service.OrganizationXunyou)
+}
+
+func (s *organizationLeaderSetup) scopedSubscriptionGroup(t *testing.T, name string, organizations ...string) int64 {
+	t.Helper()
 	var group int64
-	require.NoError(t, integrationDB.QueryRowContext(s.f.ctx, `INSERT INTO groups(name,platform,subscription_type,daily_limit_usd) VALUES($1,'openai','subscription',20) RETURNING id`, s.f.prefix+"group").Scan(&group))
+	require.NoError(t, integrationDB.QueryRowContext(s.f.ctx, `INSERT INTO groups(name,platform,subscription_type,daily_limit_usd) VALUES($1,'openai','subscription',20) RETURNING id`, s.f.prefix+name).Scan(&group))
+	for _, organization := range organizations {
+		s.f.mustExec(`INSERT INTO group_organization_scopes(group_id,organization_key) VALUES($1,$2)`, group, organization)
+	}
 	t.Cleanup(func() {
 		_, err := integrationDB.ExecContext(s.f.ctx, `DELETE FROM user_subscriptions WHERE group_id=$1 OR user_id=ANY($2)`, group, pq.Array(s.f.userIDs))
 		require.NoError(t, err)
@@ -118,17 +128,19 @@ func TestOrganizationLeaderIntegration_SubscriptionWrites(t *testing.T) {
 	require.Equal(t, "reused", result.Statuses[member])
 
 	// can_manage and assignment candidates use the same predicate (K14, G18).
-	manageable, scoped, err := subs.ManageableSubscriptionUsers(writeCtx, []int64{member, leaderID, managerID, admin, otherLeaderID, disabledUser, outsider})
+	access, err := subs.ManageableSubscriptions(writeCtx, []int64{member, leaderID, managerID, admin, otherLeaderID, disabledUser, outsider}, []int64{group})
 	require.NoError(t, err)
-	require.True(t, scoped)
-	require.Equal(t, map[int64]bool{member: true, leaderID: true, managerID: true}, manageable)
-	manageable, scoped, err = subs.ManageableSubscriptionUsers(subAdminRequest(managerCtx), []int64{member})
+	require.NotNil(t, access)
+	require.Equal(t, map[int64]bool{member: true, leaderID: true, managerID: true}, access.Users)
+	require.True(t, access.Groups[group])
+	access, err = subs.ManageableSubscriptions(subAdminRequest(managerCtx), []int64{member}, []int64{group})
 	require.NoError(t, err)
-	require.True(t, scoped)
-	require.Empty(t, manageable)
-	_, scoped, err = subs.ManageableSubscriptionUsers(s.adminCtx, []int64{member})
+	require.NotNil(t, access)
+	require.Empty(t, access.Users)
+	require.Empty(t, access.Groups)
+	access, err = subs.ManageableSubscriptions(s.adminCtx, []int64{member}, []int64{group})
 	require.NoError(t, err)
-	require.False(t, scoped, "administrators keep unrestricted writes")
+	require.Nil(t, access, "administrators keep unrestricted writes")
 	candidates, err := s.svc.QueryScope(leaderCtx, service.AdminPermissionDepartmentSubscriptions, service.DepartmentScopeQuery{Q: f.prefix, Limit: 30, AssignTargets: true})
 	require.NoError(t, err)
 	candidateIDs := []int64{}
@@ -342,7 +354,7 @@ func TestOrganizationLeaderIntegration_DemotedActorIsNeverUnrestricted(t *testin
 	require.Zero(t, s.subscriptionCount(t, outsider, group))
 	require.ErrorIs(t, subs.PrecheckSubscriptionWrite(requestCtx, memberSub), service.ErrDepartmentScopeDenied, "the replay precheck follows the demotion")
 	require.ErrorIs(t, subs.RevokeSubscription(requestCtx, memberSub), service.ErrDepartmentScopeDenied)
-	_, _, err = subs.ManageableSubscriptionUsers(requestCtx, []int64{member})
+	_, err = subs.ManageableSubscriptions(requestCtx, []int64{member}, []int64{group})
 	require.ErrorIs(t, err, service.ErrDepartmentScopeDenied)
 
 	disabledID, disabledCtx := s.organizationLeader("disabled", service.OrganizationXunyou)
@@ -395,9 +407,9 @@ func TestOrganizationLeaderIntegration_GrantSwapKeepsActionChecks(t *testing.T) 
 	}
 
 	// Assignment is what admin.subscriptions grants, site-wide and unflagged.
-	_, scoped, err := subs.ManageableSubscriptionUsers(requestCtx, []int64{outsider})
+	access, err := subs.ManageableSubscriptions(requestCtx, []int64{outsider}, []int64{group})
 	require.NoError(t, err)
-	require.False(t, scoped)
+	require.Nil(t, access)
 	_, err = subs.AssignSubscription(requestCtx, &service.AssignSubscriptionInput{UserID: fresh, GroupID: group, ValidityDays: 30, AssignedBy: leaderID})
 	require.NoError(t, err)
 	require.Equal(t, 1, s.subscriptionCount(t, fresh, group))

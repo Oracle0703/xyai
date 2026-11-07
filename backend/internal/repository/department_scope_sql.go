@@ -68,6 +68,14 @@ func subscriptionManageTargets(actor *service.User, args *[]any) string {
 		self, organizationUsageOrganizationExpression("u"), organizations, managedLeaderPredicate("u", organizations))
 }
 
+// subscriptionWriteGroupScope limits an organization leader's subscription
+// writes to groups scoped to one of the leader's organizations (design D13).
+// The picker, can_manage and every write check use it.
+func subscriptionWriteGroupScope(actor *service.User, group string, args *[]any) string {
+	*args = append(*args, pq.Array(actor.OrganizationGrants))
+	return fmt.Sprintf("EXISTS(SELECT 1 FROM group_organization_scopes gos WHERE gos.group_id=%s.id AND gos.organization_key=ANY($%d::text[]))", group, len(*args))
+}
+
 // managedLeaderPredicate matches sub_admins an organization leader may manage:
 // own organization, department capabilities only, no organization grant and no
 // department grant outside the leader's organizations (design §3.3).

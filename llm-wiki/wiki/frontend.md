@@ -8,6 +8,7 @@
 - 选择: 目录失败不清除当前选择, 仅标"未确认"且仍可生成; 目录成功但缺少当前列表模型时清除并提示, 本次不自动改选; 无选择时取目录中的偏好或唯一候选; 手动模型不受目录影响; `restoreHistory` 不改模型。迟到响应按序号+Key 快照丢弃, 包括"成功目录后写入 Key"(写入前还读最新勾选状态, 跨标签页清除后不写回)。
 - 存储: 模型偏好 `image-gen-model-v1` 始终保存(不含 Key); Key 仅在勾选"记住"且当前 Key 最近一次获得结构合法的成功目录响应(其后无失败、未改 Key)时写入 `image-gen-key-v1`(端点不同源停用发现时改为勾选/回车写入)。编辑 Key 不删旧值, 新 Key 显式加载成功后才覆盖; 覆盖写入失败则删除旧值并退出记住。删除失败用响应式 `keyRemovalFailed` 保留残留警告、"重试清除"与清除入口, 直至删除/覆盖成功或其他标签页删除/覆盖该记录; 跨标签页只监听 Key 存储并退出记住状态; 退出时若存储里仍是本页写入的值(迟到写入先于对方事件)一并删除。
 - 错误脱敏: 目录与生图错误在进入页面/toast 前用请求发起时的 Key 快照替换为 `***`(`redactCredential`), 兼容 `message` 与 `error.message`。
+- 自定义尺寸: 宽高 64~4096 整数(`frontend/src/utils/imageGenSizes.ts#parseImageSize`), 网关不校验尺寸、能否出图由上游决定。非预设尺寸存 localStorage `image-gen-custom-sizes-v1`(最新在前, 最多 20, 不含 Key), 只记列表不记选中项; 当前尺寸不在列表中(历史恢复/已删除)时下拉框单独列出; 跨标签页经 storage 事件同步。详见 `docs/features/image-gen-design-cn.md` §5。
 
 ## 0.2.19 管理密钥与模型界面
 
@@ -352,7 +353,7 @@ API 模块分布:
 - 完整设计见 `docs/features/organization-usage-report-design-cn.md`；趋势图见 `docs/features/organization-usage-report-design-cn.md` §4.4、§5.4、§8.5（趋势图设计已并入）。
 - 独立页面是 `frontend/src/views/admin/OrganizationUsageView.vue`, 路由 `/admin/organization-usage`; 月报、自然周报和最长 366 天自定义范围统一使用北京时间, 支持授权组织/部门/平台/邮箱筛选、服务端排序分页、范围内组织/部门/平台汇总、用量趋势折线和个人/团队日周月峰值。
 - 前端合同在 `frontend/src/api/admin/organizationUsage.ts`（含 `getTrend`）; 页面先读取 scope 目录，再用同一候选 `as_of` 并行发起首个 Summary 与 Trend（首个 Trend 不带 `scope_version`）; Summary 确定查询 `scope_version` 与 canonical `as_of`, Trend 只在两者一致时保留, 否则单次用 Summary 快照重拉; 目录 `catalog_version` 不作为查询版本; 人员翻页/排序只打 Summary 且不打断趋势。正式导出会先固定候选 `as_of`, 再使用 Summary 首响应回显的 canonical `as_of` 继续后续 Summary 与日/周/月分页; `fetchAll` 不调用 trend。该值只固定用量查询上界, 不是密码学签名。
-- 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 默认系列为输入/输出/总 Token 与请求数。`total_tokens` 包含缓存创建和缓存读取两类 Token，不能视为输入与输出两条可见曲线之和。
+- 趋势粒度由 `inferOrganizationUsageTrendGranularity`（`organizationUsageReport.ts`）按含首尾自然日自动推断; 组件 `OrganizationUsageTrendChart.vue` 使用 Chart.js 双轴（左 Token、右 requests）, 系列为总 Token、各组织总 Token（来自 `points[].organizations`，颜色按组织固定；“其他”仅有用量时画；可见组织不足两个时不画）与请求数，2026-11-08 起不再画输入/输出 Token。`total_tokens` 包含缓存创建和缓存读取两类 Token。
 - 人数只改前端展示名：`active_users` 显示为“成员人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
 - Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 生成“报表概览、人员汇总、组织汇总、部门汇总、平台汇总、月度明细、周度明细、日度明细”八个 Sheet。人员汇总为筛选范围内全部人员（含零用量成员、组织/部门、费用和日周月峰值），设置列宽与自动筛选，不受页面分页限制。所有数据 Sheet（含新增汇总）合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
 - 人员表“每页”前的截图按钮通过 `utils/tableScreenshot.ts` 按需加载 `html2canvas`，下载当前页所有实际人员行及完整宽表列的 PNG，文件名包含日期范围和页码；截图不请求其它分页。空数据/加载中禁用，重复点击防重，分页、查询数据变化或卸载时作废在途截图。
@@ -374,6 +375,7 @@ API 模块分布:
 用户侧用量页:
 
 - `frontend/src/views/user/UsageView.vue` 使用 `frontend/src/api/usage.ts#getDashboardSnapshotV2` 拉取 trend/group 图表, `getDashboardModels({ model_source: "requested" })` 拉取请求模型分布, 过滤项与后端共享 `api_key_id`、`group_id`、`model`、`request_type`、`billing_type`、`billing_mode` 和日期范围。
+- 本地定制（2026-11-08）：`views/admin/DashboardView.vue`、`views/admin/UsageView.vue`、`views/user/UsageView.vue` 的默认及重置日期范围为浏览器本地“今天”（`getTodayRangeDates`），上游为近 24 小时（昨天..今天）；`DateRangePicker` 仍保留“近24小时”预设。上游合并时保留本地默认值。
 - 用户用量页的列显隐持久化 key 为 `user-usage-hidden-columns`; `created_at` 始终可见, `reasoning_effort` 和 `user_agent` 默认隐藏。CSV 导出沿用当前过滤条件, 并按 `billing_mode`/图片请求修正展示计费模式。
 - `GroupDistributionChart.vue` / `ModelDistributionChart.vue` 可通过 `enableBreakdown=false` 和 `showAccountCost=false` 在用户侧复用, 避免暴露管理端 account cost 或用户拆分下钻。
 
@@ -424,6 +426,8 @@ API 模块分布:
 - 账号页受限模式统一用 `composables/useAccountOperatorAccess.ts` 的 `canManageAccounts`（= 完整管理员）判断：`AccountsView.vue` 隐藏编辑/删除、勾选列与批量栏、数据/工具菜单、回退代理，调度开关只读，优先级纯展示，管理员专用弹窗不挂载，分组/代理改走 `accounts.getFormOptions()`，不读取计费探测设置；行菜单只剩测试连接、统计、重新授权；配额重置/推荐邀请/用量刷新/Claude 兑换/计费探测/代理测试/临时不可调度恢复按钮在组件内隐藏；`CreateAccountModal.vue` 跳过 Web Search 与额度通知设置、TLS 指纹、创建后的模型同步与计费探测。任何越权请求都会经 `admin-permission-denied` 把用户重定向走，新增账号页调用前必须确认已在白名单。
 - `ReAuthAccountModal.vue` 所有平台（含 Gemini/Antigravity）都用 `applyOAuthCredentials` 落库，不再调用 `PUT /accounts/:id` + `clear-error`。挂载账号页组件的单测需 mock `useAccountOperatorAccess`（返回 `ref(true)` 走管理员路径）。
 - Gemini 重新授权已知接口边界（用户决定暂缓）：直接调用 ApplyOAuthCredentials 把 Code Assist 改为 AI Studio 且省略 project_id 时，全 key 合并会保留旧项目，兼容转发仍按非空项目走 Code Assist。当前 `ReAuthAccountModal.vue` 的 Gemini 类型是只读展示、取自原账号，不能描述成用户可在该弹窗直接切换类型。将来开放类型切换时需区分身份字段清理与 model_mapping 等配置保留。证据与首轮表述更正见 `docs/features/sub-admin-accounts-operator-design-cn.md` §9–§10（审核已并入）。
+- 分组归属（D13，仅完整管理员）：`GroupsView.vue` 订阅分组创建/编辑弹窗的“所属组织”（`components/admin/group/GroupOrganizationScopeField.vue`）在分组保存成功后另调 `api/admin/groupOrganizationScopes.ts`。归属读取只经 `composables/useGroupOrganizationScopes.ts`：只接收最新请求，`status` 区分加载中/就绪/失败，未知归属不得显示为“未设置所属组织”。编辑快照必须来自弹窗打开后发起并成功的读取（`mark()` < `generation`），之前或失败时禁用该项并提供重试，不能用列表缓存。两步保存只在都成功后提示成功：编辑时归属失败保留弹窗与选择，再次保存重提两步；新建时归属失败关闭弹窗、不重复创建。批量弹窗超过 `GROUP_ORGANIZATION_SCOPE_BATCH_LIMIT`（500，与后端一致）禁止提交，不自动拆批。文案在 `i18n/locales/*/admin/departments.ts` 的 `groupOrganizationScope`。分配弹窗对组织负责人无可分配分组时提示联系管理员，`SUBSCRIPTION_GROUP_SCOPE_DENIED` 映射在 `utils/departmentErrors.ts`。规则见设计 K24–K26，回归在 `GroupsView.organizationScope.spec.ts`。
+- 归属列表只在页面加载、刷新按钮（`refreshGroups`）、编辑/批量弹窗打开与归属保存后读取，翻页/筛选/排序不读取。订阅页 `loadGroups` 用 `Promise.allSettled` 让筛选分组与可分配分组各自失败；`assignableGroupsStatus` 为 loading/error 时显示加载/错误与重试，仅 ready 且为空才提示联系管理员（K29）。恢复失败按 `departmentErrorKey` 显示，`SUBSCRIPTION_GROUP_DELETED` → `groupDeleted`。
 - `SubscriptionsView.vue` 的 `canAssignSubscriptions` 允许完整管理员、`admin.subscriptions` 子管理员与组织负责人分配（单人/批量）。组织负责人的延期、撤销、恢复按 `canWriteRow` 与服务端 `can_manage` 显示；普通部门负责人只可范围内全量/仅日限重置。选中行批量管理仍仅完整管理员可见。
 - 子管理员分配弹窗通过 `/admin/subscriptions/search-users?purpose=assign` 查询 active 未删除的可写对象，通过 `/admin/subscriptions/assignable-groups` 加载启用的订阅分组；只使用 compact DTO，不调用完整用户/分组管理接口。订阅筛选搜索不带 `purpose`，范围负责人仍按可重置对象查询，全站历史筛选使用 usage search（可含已删除用户）。
 - `UsageView.vue` 对子管理员隐藏清理和用户余额详情入口, 保留查询、统计、排行、错误详情和导出; `UsageFilters.vue` 只调用 usage compact 账号/分组筛选接口。

@@ -1,5 +1,10 @@
 export default {
   departments: {
+    groupScopeDenied: '该分组不属于你负责的组织，请刷新后重新选择分组。',
+    noAssignableGroups: '暂无可分配的分组，请联系管理员为分组设置所属组织。',
+    assignableGroupsLoadFailed: '可分配分组加载失败。',
+    retryLoad: '重试',
+    groupDeleted: '该订阅所属的分组已被删除，无法恢复。',
     myDepartmentTitle: '我的部门',
     myDepartmentDescription: '管理获授权部门的成员、账号状态与负责人备注',
     manageMembersPermission: '管理部门成员',
@@ -136,5 +141,30 @@ export default {
     selectedDepartment: '当前部门：{department}', selectCurrentPage: '选择本页', protectedMember: '受保护账号，不能在此调整部门',
     confirmMembers: '确认调整', cancel: '取消', save: '保存', search: '搜索', refresh: '刷新',
     email: '邮箱', actions: '操作'
+  },
+  groupOrganizationScope: {
+    field: '所属组织',
+    fieldHint: '组织负责人只能分配所属组织的分组。不选则仅管理员可分配。',
+    unscoped: '未设置所属组织',
+    batchButton: '所属组织',
+    batchTitle: '批量设置分组所属组织',
+    batchDescription: '勾选订阅分组和组织，保存后这些分组的所属组织替换为所选组织。只影响组织负责人后续的分配、延期、撤销和恢复，已有订阅不变。',
+    searchGroups: '按名称或 ID 搜索',
+    selectVisible: '全选当前列表',
+    clearVisible: '取消当前列表',
+    selectedCount: '已选 {count} 个分组',
+    noGroups: '没有订阅分组',
+    inactive: '已停用',
+    clearWarning: '未选择组织：保存后所选分组只有管理员可以分配。',
+    saved: '已更新 {count} 个分组的所属组织',
+    saveFailed: '保存所属组织失败',
+    loadFailed: '加载分组失败',
+    editScopeFailed: '分组已保存，但所属组织未保存，原所属组织仍然生效。可直接再次保存重试。原因：{reason}',
+    createScopeFailed: '分组已创建，但所属组织未保存，该分组暂时只有管理员可分配。请编辑该分组重新设置。原因：{reason}',
+    loading: '所属组织加载中…',
+    loadScopesFailed: '所属组织加载失败，暂不能修改。',
+    unknown: '所属组织未知（加载失败）',
+    retry: '重试',
+    tooMany: '一次最多设置 {max} 个分组，请减少选择。'
   }
 }

@@ -58,7 +58,9 @@
 
 ## 组织下的独立部门
 
-- migration `262_organization_leader.sql` 新增原生 SQL 管理的 `organization_access_grants(user_id, organization_key, created_by, created_at)`，复合主键 `(user_id, organization_key)`，组织仅 xunyou/wsdashi；组织与部门 grants 互斥由事务写入口及操作者重读守卫维护。262 覆盖 261 的停用来源 CHECK/函数，当前等级为 department_manager < organization_manager < other，禁止 disabled 状态下来源降级。实现已提交在 `feature/hy/10228_organization_leader`，未推送、未部署，设计见 `docs/features/organization-leader-design-cn.md`。
+- migration `262_organization_leader.sql` 新增原生 SQL 管理的 `organization_access_grants(user_id, organization_key, created_by, created_at)`，复合主键 `(user_id, organization_key)`，组织仅 xunyou/wsdashi；组织与部门 grants 互斥由事务写入口及操作者重读守卫维护。262 覆盖 261 的停用来源 CHECK/函数，当前等级为 department_manager < organization_manager < other，禁止 disabled 状态下来源降级。已合入 main（2026-11-06 核对），设计见 `docs/features/organization-leader-design-cn.md`。
+- migration `263_group_organization_scopes.sql`（D13）新增原生 SQL 表 `group_organization_scopes(group_id FK groups ON DELETE CASCADE, organization_key CHECK xunyou/wsdashi, created_at)`，主键 `(group_id, organization_key)`，反向索引 `(organization_key, group_id)`。不在上游 Ent `groups` schema 上加列；不回填，未设归属的分组只允许完整管理员与全站订阅子管理员分配；分组软删除后归属不生效，复制分组不复制归属。
+- migration `264_group_organization_scope_subscription_only.sql`（K27）：`groups` 的 `AFTER UPDATE OF subscription_type` 触发器在分组离开 `subscription` 时删除其全部归属（改回不恢复），迁移时先清掉非订阅型分组的残留行；`ReplaceGroupOrganizationScopes` 对标准型分组只允许清空。归属只对订阅型分组生效。
 
 - migration `261_department_member_management.sql` 新增 `users.disabled_source`（disabled 时只能为非 NULL 的 department_manager/other，其余状态为 NULL）和 `department_note TEXT NOT NULL DEFAULT ''`（`char_length<=1000`）。存量 disabled 回填 other；来源 trigger 拒绝 other 降为 department_manager，启用清来源。触发器无法识别省略来源的重复封禁意图，通用仓储/所有系统封禁必须显式写 other；普通资料/余额更新不改来源。
 - `users_department_note_guard` 在 239 的 `users_department_guard` 之后执行，最终 department_id 变化即清空备注；旧备注非空时同事务记录 `department.note_cleared`、前后部门及旧值，审计失败回滚。涵盖负责人移出、管理员转岗和邮箱跨组织清归属；角色变化不清空，但只读行不披露备注。

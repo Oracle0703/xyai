@@ -50,7 +50,7 @@
             class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto"
           >
             <button
-              @click="loadGroups"
+              @click="refreshGroups"
               :disabled="loading"
               class="btn btn-secondary"
               :title="t('common.refresh')"
@@ -93,6 +93,16 @@
                 </button>
               </div>
             </div>
+            <button
+              v-if="!authStore.isSimpleMode"
+              @click="openOrganizationScopeModal"
+              class="btn btn-secondary"
+              :title="t('admin.groupOrganizationScope.batchTitle')"
+              data-testid="group-organization-batch-open"
+            >
+              <Icon name="users" size="md" class="mr-2" />
+              {{ t("admin.groupOrganizationScope.batchButton") }}
+            </button>
             <button
               v-if="!authStore.isSimpleMode"
               @click="openSortModal"
@@ -183,6 +193,11 @@
                     : t("admin.groups.subscription.standard")
                 }}
               </span>
+              <GroupOrganizationScopeBadges
+                v-if="row.subscription_type === 'subscription' && !authStore.isSimpleMode"
+                :keys="groupOrganizationScopes.get(row.id) ?? []"
+                :status="groupOrganizationBadgeStatus"
+              />
               <!-- Subscription Limits - compact single line -->
               <div
                 v-if="row.subscription_type === 'subscription'"
@@ -726,6 +741,11 @@
             v-if="createForm.subscription_type === 'subscription'"
             class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
           >
+            <GroupOrganizationScopeField
+              v-if="!authStore.isSimpleMode"
+              v-model="createOrganizationKeys"
+              :disabled="submitting"
+            />
             <div>
               <label class="input-label">{{
                 t("admin.groups.subscription.dailyLimit")
@@ -2380,6 +2400,13 @@
             v-if="editForm.subscription_type === 'subscription'"
             class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
           >
+            <GroupOrganizationScopeField
+              v-if="!authStore.isSimpleMode"
+              v-model="editOrganizationKeys"
+              :disabled="submitting || editOrganizationKeysOriginal === null"
+              :status="editOrganizationScopeStatus"
+              @retry="loadGroupOrganizationScopes"
+            />
             <div>
               <label class="input-label">{{
                 t("admin.groups.subscription.dailyLimit")
@@ -4289,6 +4316,14 @@
       @close="showRPMOverridesModal = false"
       @success="loadGroups"
     />
+    <GroupOrganizationScopeBatchModal
+      v-if="!authStore.isSimpleMode"
+      :show="showOrganizationScopeModal"
+      :scopes="groupOrganizationScopes"
+      :scopes-status="groupOrganizationBadgeStatus"
+      @close="showOrganizationScopeModal = false"
+      @saved="loadGroupOrganizationScopes"
+    />
   </AppLayout>
 </template>
 
@@ -4328,6 +4363,15 @@ import Select from "@/components/common/Select.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import { platformLabel } from "@/utils/platformColors";
 import Icon from "@/components/icons/Icon.vue";
+import GroupOrganizationScopeField from "@/components/admin/group/GroupOrganizationScopeField.vue";
+import GroupOrganizationScopeBadges from "@/components/admin/group/GroupOrganizationScopeBadges.vue";
+import GroupOrganizationScopeBatchModal from "@/components/admin/group/GroupOrganizationScopeBatchModal.vue";
+import {
+  sameOrganizationKeys,
+  setGroupOrganizationScopes,
+  type GroupOrganizationKey,
+} from "@/api/admin/groupOrganizationScopes";
+import { useGroupOrganizationScopes } from "@/composables/useGroupOrganizationScopes";
 import GroupI18nField from "@/components/admin/group/GroupI18nField.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
@@ -4854,6 +4898,81 @@ let abortController: AbortController | null = null;
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
+// Group organization scopes (organization-leader design D13, K24-K25) live
+// outside the group payload and are saved after the group itself.
+const groupOrganizationScopeLoader = useGroupOrganizationScopes(
+  () => !authStore.isSimpleMode,
+);
+const groupOrganizationScopes = groupOrganizationScopeLoader.scopes;
+const loadGroupOrganizationScopes = groupOrganizationScopeLoader.load;
+// Unknown scopes are never shown as "no organization": a failed load, or the
+// first load still running, is displayed as such.
+const groupOrganizationBadgeStatus = computed(() => {
+  if (groupOrganizationScopeLoader.status.value === "error") return "error";
+  return groupOrganizationScopeLoader.generation.value === 0
+    ? "loading"
+    : "ready";
+});
+const showOrganizationScopeModal = ref(false);
+const openOrganizationScopeModal = () => {
+  showOrganizationScopeModal.value = true;
+  void loadGroupOrganizationScopes();
+};
+const createOrganizationKeys = ref<GroupOrganizationKey[]>([]);
+const editOrganizationKeys = ref<GroupOrganizationKey[]>([]);
+// Scope of the edited group from a load that started after its dialog opened;
+// null until then, so that saving never replaces a scope the administrator has
+// not seen. The field stays disabled while it is null.
+const editOrganizationKeysOriginal = ref<GroupOrganizationKey[] | null>(null);
+let editOrganizationScopeMark: number | null = null;
+const editOrganizationScopeStatus = computed(() => {
+  if (editOrganizationKeysOriginal.value !== null) return "ready";
+  return groupOrganizationScopeLoader.status.value === "error"
+    ? "error"
+    : "loading";
+});
+watch(groupOrganizationScopeLoader.generation, (generation) => {
+  const group = editingGroup.value;
+  if (
+    !group ||
+    editOrganizationScopeMark === null ||
+    editOrganizationKeysOriginal.value !== null ||
+    generation <= editOrganizationScopeMark
+  ) {
+    return;
+  }
+  editOrganizationKeysOriginal.value = [
+    ...(groupOrganizationScopes.value.get(group.id) ?? []),
+  ];
+  editOrganizationKeys.value = [...editOrganizationKeysOriginal.value];
+});
+// Returns the error of a failed scope save, or null. The group itself is
+// already saved; callers report the partial success.
+const saveGroupOrganizationScope = async (
+  groupId: number,
+  keys: GroupOrganizationKey[],
+): Promise<unknown> => {
+  try {
+    await setGroupOrganizationScopes([groupId], keys);
+  } catch (error) {
+    console.error("Error saving group organization scope:", error);
+    return error ?? new Error("scope save failed");
+  }
+  void loadGroupOrganizationScopes();
+  return null;
+};
+// Scopes are global, not per page: they load on mount, on refresh, when a
+// dialog that edits them opens and after they are saved, not on every page,
+// filter or sort change of the list.
+const refreshGroups = () => {
+  loadGroups();
+  void loadGroupOrganizationScopes();
+};
+const showGroupOrganizationScopeFailure = (key: string, error: unknown) => {
+  appStore.showError(
+    t(key, { reason: extractApiErrorMessage(error, t("common.error")) }),
+  );
+};
 const showDeleteDialog = ref(false);
 const pendingLiveForm = ref<"create" | "edit" | null>(null);
 const showUnsupportedLiveConfirm = computed(
@@ -5803,6 +5922,7 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 };
 
 const openCreateModal = () => {
+  createOrganizationKeys.value = [];
   showCreateModal.value = true;
   loadModelAllowlistCandidates("create", 0, createForm.platform);
 };
@@ -6076,8 +6196,25 @@ const handleCreateGroup = async () => {
           platform: createForm.platform,
         }
       : requestData;
-    await adminAPI.groups.create(payload);
-    appStore.showSuccess(t("admin.groups.groupCreated"));
+    const scopeKeys =
+      !authStore.isSimpleMode && createForm.subscription_type === "subscription"
+        ? [...createOrganizationKeys.value]
+        : [];
+    const created = await adminAPI.groups.create(payload);
+    // The group exists now: a retry from this dialog would create another one,
+    // so a failed scope save closes it and asks for the edit dialog instead.
+    const scopeError =
+      scopeKeys.length > 0 && created?.id
+        ? await saveGroupOrganizationScope(created.id, scopeKeys)
+        : null;
+    if (scopeError) {
+      showGroupOrganizationScopeFailure(
+        "admin.groupOrganizationScope.createScopeFailed",
+        scopeError,
+      );
+    } else {
+      appStore.showSuccess(t("admin.groups.groupCreated"));
+    }
     closeCreateModal();
     loadGroups();
     // Only advance tour if active, on submit step, and creation succeeded
@@ -6110,6 +6247,15 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
+  // The list cache may be stale or from a failed refresh; the dialog waits
+  // for a load that started after it opened (K24).
+  editOrganizationKeysOriginal.value = null;
+  editOrganizationKeys.value = [];
+  editOrganizationScopeMark = null;
+  if (!authStore.isSimpleMode) {
+    editOrganizationScopeMark = groupOrganizationScopeLoader.mark();
+    void loadGroupOrganizationScopes();
+  }
   editForm.daily_limit_usd = group.daily_limit_usd;
   editForm.weekly_limit_usd = group.weekly_limit_usd;
   editForm.monthly_limit_usd = group.monthly_limit_usd;
@@ -6434,7 +6580,28 @@ const handleUpdateGroup = async () => {
           i18n: editForm.i18n,
         }
       : payload;
-    await adminAPI.groups.update(editingGroup.value.id, requestData);
+    const groupId = editingGroup.value.id;
+    const scopeKeys = [...editOrganizationKeys.value];
+    const scopeOriginal = editOrganizationKeysOriginal.value;
+    const scopeChanged =
+      !authStore.isSimpleMode &&
+      editForm.subscription_type === "subscription" &&
+      scopeOriginal !== null &&
+      !sameOrganizationKeys(scopeOriginal, scopeKeys);
+    await adminAPI.groups.update(groupId, requestData);
+    const scopeError = scopeChanged
+      ? await saveGroupOrganizationScope(groupId, scopeKeys)
+      : null;
+    if (scopeError) {
+      // K25: the previous scope still applies. Keep the dialog and the
+      // selection; saving again resubmits the same group and the scope.
+      showGroupOrganizationScopeFailure(
+        "admin.groupOrganizationScope.editScopeFailed",
+        scopeError,
+      );
+      loadGroups();
+      return;
+    }
     appStore.showSuccess(t("admin.groups.groupUpdated"));
     closeEditModal();
     loadGroups();
@@ -6926,7 +7093,7 @@ const saveSortOrder = async () => {
 };
 
 onMounted(() => {
-  loadGroups();
+  refreshGroups();
   if (!authStore.isSimpleMode) {
     void loadLiveCapability();
     loadModelAllowlistCandidates("create", 0, createForm.platform);

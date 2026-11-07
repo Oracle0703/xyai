@@ -32,9 +32,11 @@ func (h *UserHandler) SearchSubscriptionAssignmentUsers(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// SubscriptionAssignmentGroups returns active subscription groups with only picker fields.
-func (h *GroupHandler) SubscriptionAssignmentGroups(c *gin.Context) {
-	groups, err := h.adminService.GetAllGroups(c.Request.Context())
+// SubscriptionAssignmentGroups returns the active subscription groups the
+// actor may assign, with only picker fields. Organization leaders get the
+// groups scoped to their organizations (design D13).
+func (h *SubscriptionHandler) SubscriptionAssignmentGroups(c *gin.Context) {
+	groups, err := h.subscriptionService.AssignableSubscriptionGroups(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -50,9 +52,6 @@ func (h *GroupHandler) SubscriptionAssignmentGroups(c *gin.Context) {
 	}
 	result := make([]groupOption, 0, len(groups))
 	for _, group := range groups {
-		if !group.IsSubscriptionType() {
-			continue
-		}
 		result = append(result, groupOption{
 			ID: group.ID, Name: group.Name, Description: group.Description,
 			Platform: group.Platform, RateMultiplier: group.RateMultiplier,
@@ -60,4 +59,31 @@ func (h *GroupHandler) SubscriptionAssignmentGroups(c *gin.Context) {
 		})
 	}
 	response.Success(c, result)
+}
+
+// ListGroupOrganizationScopes returns the organizations of every scoped group
+// (design D13). Full administrators only.
+func (h *SubscriptionHandler) ListGroupOrganizationScopes(c *gin.Context) {
+	scopes, err := h.subscriptionService.ListGroupOrganizationScopes(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, scopes)
+}
+
+// SetGroupOrganizationScopes replaces the organizations of the listed groups;
+// organization_keys [] clears them (design D13). Full administrators only.
+func (h *SubscriptionHandler) SetGroupOrganizationScopes(c *gin.Context) {
+	var req service.GroupOrganizationScopeInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	updated, err := h.subscriptionService.SetGroupOrganizationScopes(c.Request.Context(), req)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"updated": updated})
 }

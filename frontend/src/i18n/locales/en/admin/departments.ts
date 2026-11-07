@@ -1,5 +1,10 @@
 export default {
   departments: {
+    groupScopeDenied: 'This group does not belong to your organization; refresh and choose another group.',
+    noAssignableGroups: 'No assignable groups; ask an administrator to set the organizations of the groups.',
+    assignableGroupsLoadFailed: 'Failed to load assignable groups.',
+    retryLoad: 'Retry',
+    groupDeleted: 'The group of this subscription has been deleted, so it cannot be restored.',
     myDepartmentTitle: 'My departments',
     myDepartmentDescription: 'Manage members, account status and manager notes in authorized departments',
     manageMembersPermission: 'Manage department members',
@@ -136,5 +141,30 @@ export default {
     selectedDepartment: 'Department: {department}', selectCurrentPage: 'Select this page', protectedMember: 'Protected account; its department cannot be changed here',
     confirmMembers: 'Confirm changes', cancel: 'Cancel', save: 'Save', search: 'Search', refresh: 'Refresh',
     email: 'Email', actions: 'Actions'
+  },
+  groupOrganizationScope: {
+    field: 'Organizations',
+    fieldHint: 'Organization leaders can only assign groups of their organizations. Leave empty to allow administrators only.',
+    unscoped: 'No organization',
+    batchButton: 'Organizations',
+    batchTitle: 'Set group organizations',
+    batchDescription: 'Select subscription groups and organizations; saving replaces the organizations of these groups. Only later assignments, extensions, revocations and restores by organization leaders are affected; existing subscriptions stay.',
+    searchGroups: 'Search by name or ID',
+    selectVisible: 'Select listed',
+    clearVisible: 'Clear listed',
+    selectedCount: '{count} groups selected',
+    noGroups: 'No subscription groups',
+    inactive: 'Disabled',
+    clearWarning: 'No organization selected: after saving, only administrators can assign these groups.',
+    saved: 'Updated organizations of {count} groups',
+    saveFailed: 'Failed to save organizations',
+    loadFailed: 'Failed to load groups',
+    editScopeFailed: 'The group was saved but its organizations were not; the previous organizations still apply. Save again to retry. Reason: {reason}',
+    createScopeFailed: 'The group was created but its organizations were not saved, so only administrators can assign it for now. Edit the group to set them. Reason: {reason}',
+    loading: 'Loading organizations…',
+    loadScopesFailed: 'Failed to load organizations; they cannot be changed now.',
+    unknown: 'Organizations unknown (load failed)',
+    retry: 'Retry',
+    tooMany: 'At most {max} groups per change; select fewer.'
   }
 }

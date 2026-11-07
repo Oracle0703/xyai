@@ -381,6 +381,10 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		groups.GET("/capacity-summary", h.Admin.Group.GetCapacitySummary)
 		groups.GET("/live-capability", h.Admin.Group.GetLiveCapability)
 		groups.PUT("/sort-order", h.Admin.Group.UpdateSortOrder)
+		// Group organization scopes (organization-leader design D13); full
+		// administrators only, never in a sub-admin route whitelist.
+		groups.GET("/organization-scopes", h.Admin.Subscription.ListGroupOrganizationScopes)
+		groups.PUT("/organization-scopes", h.Admin.Subscription.SetGroupOrganizationScopes)
 		groups.GET("/:id/model-allowlist-candidates", h.Admin.Group.GetGroupModelAllowlistCandidates)
 		groups.GET("/:id/composite-routes", h.Admin.Group.ListCompositeRoutes)
 		groups.POST("/:id/composite-routes", h.Admin.Group.CreateCompositeRoute)
@@ -739,7 +743,7 @@ func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		subscriptions.GET("/self-reset-events", h.SubscriptionSelfReset.ListEvents)
 		subscriptions.GET("", h.Admin.Subscription.List)
 		subscriptions.GET("/search-groups", h.Admin.Department.SubscriptionGroups)
-		subscriptions.GET("/assignable-groups", h.Admin.Group.SubscriptionAssignmentGroups)
+		subscriptions.GET("/assignable-groups", h.Admin.Subscription.SubscriptionAssignmentGroups)
 		subscriptions.GET("/search-users", h.Admin.Department.SubscriptionUsers)
 		subscriptions.POST("/reset-daily-filtered", h.Admin.Subscription.ResetDailyFiltered)
 		subscriptions.GET("/:id", h.Admin.Subscription.GetByID)
