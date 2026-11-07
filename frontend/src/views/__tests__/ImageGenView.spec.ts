@@ -982,6 +982,160 @@ describe('ImageGenView', () => {
     })
   })
 
+  describe('custom sizes', () => {
+    const CUSTOM_SIZES_KEY = 'image-gen-custom-sizes-v1'
+
+    function sizeOptionValues(wrapper: ReturnType<typeof mountView>): string[] {
+      return wrapper.findAll('[data-test="size-select"] option').map((option) => option.attributes('value') ?? '')
+    }
+
+    function selectedSize(wrapper: ReturnType<typeof mountView>): string {
+      return (wrapper.get('[data-test="size-select"]').element as HTMLSelectElement).value
+    }
+
+    function storedSizes(): string[] | null {
+      const raw = localStorage.getItem(CUSTOM_SIZES_KEY)
+      return raw === null ? null : JSON.parse(raw).sizes
+    }
+
+    async function addSize(wrapper: ReturnType<typeof mountView>, width: string, height: string) {
+      if (!wrapper.find('[data-test="size-custom-panel"]').exists()) {
+        await wrapper.get('[data-test="size-custom-toggle"]').trigger('click')
+      }
+      await wrapper.get('[data-test="size-custom-width"]').setValue(width)
+      await wrapper.get('[data-test="size-custom-height"]').setValue(height)
+      await wrapper.get('[data-test="size-custom-add"]').trigger('click')
+      await flushPromises()
+    }
+
+    it('adds a custom size, generates with it and remembers it after reload', async () => {
+      const first = mountView()
+      expect(first.find('[data-test="size-custom-panel"]').exists()).toBe(false)
+
+      await addSize(first, '1280', '720')
+
+      expect(selectedSize(first)).toBe('1280x720')
+      expect(storedSizes()).toEqual(['1280x720'])
+      expect(first.findAll('[data-test="size-custom-item"]').map((item) => item.text())).toEqual(['1280 x 720'])
+
+      await first.get('[data-test="api-key-input"]').setValue('sk-valid-key')
+      await first.get('[data-test="prompt-input"]').setValue('横版海报')
+      await first.get('[data-test="generate-button"]').trigger('click')
+      await flushPromises()
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body)).size).toBe('1280x720')
+      first.unmount()
+
+      reloadPage()
+      const second = mountView()
+      expect(sizeOptionValues(second)).toEqual(['1024x1024', '1536x1024', '1024x1536', '1792x1024', '1024x1792', '1280x720'])
+      // 记住的是自定义尺寸列表，刷新后选中项回到默认尺寸。
+      expect(selectedSize(second)).toBe('1024x1024')
+      second.unmount()
+    })
+
+    it('adds on Enter without submitting the generation form', async () => {
+      const wrapper = mountView()
+      await wrapper.get('[data-test="size-custom-toggle"]').trigger('click')
+      await wrapper.get('[data-test="size-custom-width"]').setValue('720')
+      await wrapper.get('[data-test="size-custom-height"]').setValue('1280')
+
+      const event = await pressEnter(wrapper, '[data-test="size-custom-height"]')
+
+      expect(event.defaultPrevented).toBe(true)
+      expect(fetch).not.toHaveBeenCalled()
+      expect(selectedSize(wrapper)).toBe('720x1280')
+      expect(storedSizes()).toEqual(['720x1280'])
+      wrapper.unmount()
+    })
+
+    it('rejects invalid input, keeps presets out of storage and puts the newest size first', async () => {
+      const wrapper = mountView()
+
+      await addSize(wrapper, '', '720')
+      expect(wrapper.get('[data-test="size-custom-error"]').text()).toBe('请填写宽和高')
+      await addSize(wrapper, '5000', '720')
+      expect(wrapper.get('[data-test="size-custom-error"]').text()).toContain('64~4096')
+      expect(storedSizes()).toBeNull()
+      expect(selectedSize(wrapper)).toBe('1024x1024')
+
+      await addSize(wrapper, '1536', '1024')
+      expect(wrapper.find('[data-test="size-custom-error"]').exists()).toBe(false)
+      expect(selectedSize(wrapper)).toBe('1536x1024')
+      expect(storedSizes()).toBeNull()
+
+      await addSize(wrapper, '1280', '720')
+      await addSize(wrapper, '2048', '2048')
+      await addSize(wrapper, '1280', '720')
+      expect(storedSizes()).toEqual(['1280x720', '2048x2048'])
+      wrapper.unmount()
+    })
+
+    it('removes a saved size but keeps it selected until the user picks another', async () => {
+      localStorage.setItem(CUSTOM_SIZES_KEY, JSON.stringify({ version: 1, sizes: ['1280x720', '2048x2048'] }))
+      const wrapper = mountView()
+      await wrapper.get('[data-test="size-select"]').setValue('1280x720')
+      await wrapper.get('[data-test="size-custom-toggle"]').trigger('click')
+
+      await wrapper.findAll('[data-test="size-custom-remove"]')[0].trigger('click')
+
+      expect(storedSizes()).toEqual(['2048x2048'])
+      expect(wrapper.findAll('[data-test="size-custom-item"]').map((item) => item.text())).toEqual(['2048 x 2048'])
+      expect(selectedSize(wrapper)).toBe('1280x720')
+      expect(sizeOptionValues(wrapper).filter((value) => value === '1280x720')).toHaveLength(1)
+
+      await wrapper.findAll('[data-test="size-custom-remove"]')[0].trigger('click')
+      expect(localStorage.getItem(CUSTOM_SIZES_KEY)).toBeNull()
+      wrapper.unmount()
+    })
+
+    it('shows a notice when the browser refuses to save', async () => {
+      const originalSetItem = Storage.prototype.setItem
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
+        if (key === CUSTOM_SIZES_KEY) {
+          throw new DOMException('quota exceeded', 'QuotaExceededError')
+        }
+        return originalSetItem.call(this, key, value)
+      })
+      const wrapper = mountView()
+
+      await addSize(wrapper, '1280', '720')
+
+      expect(selectedSize(wrapper)).toBe('1280x720')
+      expect(wrapper.get('[data-test="size-custom-notice"]').text()).toContain('未能保存到浏览器')
+      vi.mocked(Storage.prototype.setItem).mockRestore()
+      wrapper.unmount()
+    })
+
+    it('syncs sizes saved in another tab', async () => {
+      const wrapper = mountView()
+      localStorage.setItem(CUSTOM_SIZES_KEY, JSON.stringify({ version: 1, sizes: ['1600x900'] }))
+      window.dispatchEvent(new StorageEvent('storage', { key: CUSTOM_SIZES_KEY }))
+      await nextTick()
+
+      expect(sizeOptionValues(wrapper)).toContain('1600x900')
+      wrapper.unmount()
+    })
+
+    it('lists a restored history size that is no longer saved', async () => {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify([{
+        id: 'h1',
+        createdAt: '2026-11-02T00:00:00.000Z',
+        prompt: '旧记录',
+        model: 'gpt-image-2',
+        size: '1600x900',
+        images: ['data:image/png;base64,aGVsbG8='],
+        mode: 'generate',
+      }]))
+      const wrapper = mountView()
+
+      await wrapper.get('[data-test="history-item"] button').trigger('click')
+
+      expect(selectedSize(wrapper)).toBe('1600x900')
+      expect(storedSizes()).toBeNull()
+      wrapper.unmount()
+    })
+  })
+
   describe('remembered API key', () => {
     it('saves the key only after the catalog succeeds and restores it on reload', async () => {
       let resolveCatalog: ((value: unknown) => void) | null = null

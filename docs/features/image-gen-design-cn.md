@@ -69,6 +69,10 @@
 - 网关侧无需改动：multipart 解析收集 `image` / `image[` 前缀全部字段，模型重写时逐 part 原样转发。
 - FormData `append('image[]', file)` **不传 filename 参数**：File 自带 name，显式传参会按 WHATWG 规范重新包一层 File（浏览器与 jsdom 一致），破坏测试同一性断言且无意义。
 - 尺寸选项保留了既有的 1792x1024/1024x1792（官方 gpt-image 仅支持 1024x1024/1536x1024/1024x1536/auto），未收敛；是否收敛由上游通道实际支持情况决定。
+- 自定义尺寸（2026-11-08）：尺寸标签旁“自定义尺寸”展开宽/高输入，“添加并使用”或在输入框回车（`preventDefault`，不提交生图表单）即选中。宽、高须为 64~4096 的整数（`parseImageSize`），只做格式与范围校验：网关不校验尺寸，只按最长边分 1K/2K/4K 计费档（`image_billing_size.go`），能否出图由上游模型决定，不支持时由生成接口报错。
+  - 记住：非预设尺寸写入 localStorage `image-gen-custom-sizes-v1`（`{version:1,sizes}`，最新在前、去重、最多 20 个，不含 Key）；输入预设尺寸只选中不保存。下拉框分“常用尺寸 / 我的自定义尺寸”两组；面板内可点选或删除已保存尺寸。只记住尺寸列表，选中项刷新后回到默认 1024x1024。
+  - 当前尺寸不在两组中（恢复的历史条目、刚删除的已选尺寸）时单独列一项，不清空选择；删除已保存尺寸不改变当前选择。
+  - 写入失败时仍选中并在本次会话保留，面板提示刷新后需重新添加；跨标签页通过 storage 事件（含 `key === null`）重新读取列表。
 
 ## 6. 预览 CSP
 
@@ -213,7 +217,7 @@ Accept: application/json
 | `gateway.max_body_size` | 后端配置 | 默认 256MB，约束前端总量上限 |
 | CSP `img-src` | `DefaultCSPPolicy` / `requiredCSPDirectiveValues` | 须含 `blob:`（§6） |
 
-localStorage 键：`image-gen-history-v1`（历史）、`image-gen-model-v1`（模型偏好）、`image-gen-key-v1`（显式记住的 Key）。
+localStorage 键：`image-gen-history-v1`（历史）、`image-gen-model-v1`（模型偏好）、`image-gen-key-v1`（显式记住的 Key）、`image-gen-custom-sizes-v1`（自定义尺寸，§5）。
 
 ## 13. 代码地图
 
@@ -222,11 +226,12 @@ localStorage 键：`image-gen-history-v1`（历史）、`image-gen-model-v1`（�
 | `frontend/src/views/ImageGenView.vue` | 模板壳；`embedded`、`wrapperComponent`、`StandaloneShell`；`handleApiKeyEnter`（拦截 repeat/isComposing）、`handleRememberChange`、`confirmManualModel`、`handleSourceImageChange`、paste 监听 |
 | `frontend/src/stores/imageGen.ts` | `useImageGenStore`；生成 `generate`/`createImages`/`editImages`；Key 记忆 `updateApiKey`/`setRememberKey`/`persistApiKey`/`removeSavedKey`/`retrySavedKeyRemoval`/`clearSavedConfig`/`handleStorageEvent`；模型 `selectModel`/`setManualModel`/`saveModelPreference`/`restorePreferences`；发现 `triggerModelDiscovery`/`loadModels`/`cancelDiscovery`/`resetDiscoveryForKeyChange`/`applyCatalog`/`applyDiscoveryFailure`/`applyDiscoveryHttpError`；原图 `addSourceImages`/`removeSourceImage`/`clearSourceImages`；历史 `loadHistory`/`saveHistory`/`deleteHistoryItem`/`clearHistory`/`restoreHistory`；`extractErrorMessage`/`extractErrorCode`/`normalizeCount`；常量 `MAX_SOURCE_IMAGES` 等 |
 | `frontend/src/utils/imageGenModels.ts` | 纯函数：`isImageModelCandidate`、`isValidModelId`、`compareModelIds`、`parseImageModelCatalog`、`endpointsShareOrigin`、`redactCredential`、`read/write/removeModelPreference`、`read/write/removeSavedApiKey`；键常量 `MODEL_PREFERENCE_STORAGE_KEY`、`SAVED_API_KEY_STORAGE_KEY` |
+| `frontend/src/utils/imageGenSizes.ts` | 尺寸纯函数：`PRESET_IMAGE_SIZES`、`parseImageSize`、`isCustomImageSize`、`normalizeCustomSizes`、`read/writeCustomSizes`；键常量 `CUSTOM_SIZES_STORAGE_KEY`；store 的 `customSizes`/`addCustomSize`/`removeCustomSize` 使用 |
 | `frontend/src/router/index.ts` | `/image-gen` 路由与 `BACKEND_MODE_ALLOWED_PATHS` |
 | `backend/internal/service/openai_images.go` | `validateCompatibleImagesModel`（前端候选判定的来源）、`parseOpenAIImagesMultipartRequest`、`openAIImageMaxUploadPartSize` |
 | `backend/internal/server/middleware/security_headers.go`、`backend/internal/config/config.go` | `requiredCSPDirectiveValues`、`DefaultCSPPolicy` |
 | `backend/internal/handler/gateway_handler.go`、`backend/internal/server/routes/gateway.go` | `/v1/models` 目录与 `/v1/images/*` 分发 |
-| 测试 | `frontend/src/views/__tests__/ImageGenView.spec.ts`、`frontend/src/utils/__tests__/imageGenModels.spec.ts`、`frontend/src/stores/__tests__/imageGen.discovery.spec.ts`、`backend/internal/server/middleware/security_headers_test.go` |
+| 测试 | `frontend/src/views/__tests__/ImageGenView.spec.ts`、`frontend/src/utils/__tests__/imageGenModels.spec.ts`、`frontend/src/utils/__tests__/imageGenSizes.spec.ts`、`frontend/src/stores/__tests__/imageGen.discovery.spec.ts`、`backend/internal/server/middleware/security_headers_test.go` |
 
 ## 14. 关键约束与易错点
 

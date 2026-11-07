@@ -29,6 +29,15 @@ import {
   type ModelPreference,
   type ModelSource,
 } from '@/utils/imageGenModels'
+import {
+  CUSTOM_SIZES_STORAGE_KEY,
+  DEFAULT_IMAGE_SIZE,
+  MAX_CUSTOM_SIZES,
+  isPresetImageSize,
+  parseImageSize,
+  readCustomSizes,
+  writeCustomSizes,
+} from '@/utils/imageGenSizes'
 
 const HISTORY_STORAGE_KEY = 'image-gen-history-v1'
 const MAX_HISTORY_ITEMS = 20
@@ -91,7 +100,9 @@ export const useImageGenStore = defineStore('imageGen', () => {
   // 不得写入历史或其他存储。用户编辑走 updateApiKey，恢复/清除等程序赋值直接改 ref。
   const apiKey = ref('')
   const prompt = ref('')
-  const size = ref('1024x1024')
+  const size = ref(DEFAULT_IMAGE_SIZE)
+  // 用户自定义尺寸（最新在前），保存在浏览器 localStorage，跨标签页同步。
+  const customSizes = ref<string[]>(readCustomSizes())
   const count = ref(1)
   const generationMode = ref<GenerationMode>('generate')
   const isGenerating = ref(false)
@@ -355,7 +366,11 @@ export const useImageGenStore = defineStore('imageGen', () => {
   }
 
   // 其他标签页改动已保存的 Key 时，本页退出记住状态且不自动导入，防止把已清除的 Key 写回。
+  // 自定义尺寸无敏感信息，直接同步其他标签页的改动。
   function handleStorageEvent(event: StorageEvent): void {
+    if (event.key === CUSTOM_SIZES_STORAGE_KEY || event.key === null) {
+      customSizes.value = readCustomSizes()
+    }
     if (event.key !== SAVED_API_KEY_STORAGE_KEY && event.key !== null) {
       return
     }
@@ -672,6 +687,30 @@ export const useImageGenStore = defineStore('imageGen', () => {
     sourceImages.value = []
   }
 
+  // ==================== Custom sizes ====================
+
+  // 校验并选中自定义尺寸；非预设尺寸写入浏览器。stored=false 表示写入失败，仅本次会话可用。
+  function addCustomSize(width: unknown, height: unknown): { ok: true; size: string; stored: boolean } | { ok: false; error: string } {
+    const parsed = parseImageSize(width, height)
+    if (!parsed.ok) {
+      return parsed
+    }
+    size.value = parsed.size
+    if (isPresetImageSize(parsed.size)) {
+      return { ok: true, size: parsed.size, stored: true }
+    }
+    // customSizes 经 storage 事件与其他标签页保持同步，直接以内存列表为基础。
+    const next = [parsed.size, ...customSizes.value.filter((item) => item !== parsed.size)].slice(0, MAX_CUSTOM_SIZES)
+    customSizes.value = next
+    return { ok: true, size: parsed.size, stored: writeCustomSizes(next) }
+  }
+
+  // 删除已保存的自定义尺寸；当前选中的尺寸不变（下拉框仍显示该值）。
+  function removeCustomSize(value: string): boolean {
+    customSizes.value = customSizes.value.filter((item) => item !== value)
+    return writeCustomSizes(customSizes.value)
+  }
+
   // ==================== History ====================
 
   function loadHistory(): void {
@@ -749,6 +788,7 @@ export const useImageGenStore = defineStore('imageGen', () => {
     apiKey,
     prompt,
     size,
+    customSizes,
     count,
     generationMode,
     isGenerating,
@@ -788,6 +828,8 @@ export const useImageGenStore = defineStore('imageGen', () => {
     deleteHistoryItem,
     clearHistory,
     restoreHistory,
+    addCustomSize,
+    removeCustomSize,
   }
 })
 

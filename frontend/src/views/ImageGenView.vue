@@ -258,11 +258,31 @@
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label class="input-label" for="image-gen-size">尺寸</label>
+                <div class="flex items-center justify-between gap-2">
+                  <label class="input-label" for="image-gen-size">尺寸</label>
+                  <button
+                    type="button"
+                    data-test="size-custom-toggle"
+                    class="mb-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    :aria-expanded="customSizeOpen"
+                    aria-controls="image-gen-custom-size-panel"
+                    @click="toggleCustomSizePanel"
+                  >
+                    {{ customSizeOpen ? '收起自定义' : '自定义尺寸' }}
+                  </button>
+                </div>
                 <select id="image-gen-size" v-model="size" data-test="size-select" class="input">
-                  <option v-for="option in sizeOptions" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </option>
+                  <optgroup label="常用尺寸">
+                    <option v-for="value in PRESET_IMAGE_SIZES" :key="value" :value="value">
+                      {{ formatImageSizeLabel(value) }}
+                    </option>
+                  </optgroup>
+                  <optgroup v-if="customSizes.length > 0" label="我的自定义尺寸">
+                    <option v-for="value in customSizes" :key="value" :value="value">
+                      {{ formatImageSizeLabel(value) }}
+                    </option>
+                  </optgroup>
+                  <option v-if="unlistedSize" :value="unlistedSize">{{ formatImageSizeLabel(unlistedSize) }}</option>
                 </select>
               </div>
               <div>
@@ -276,6 +296,82 @@
                   min="1"
                   max="10"
                 />
+              </div>
+            </div>
+
+            <div
+              v-if="customSizeOpen"
+              id="image-gen-custom-size-panel"
+              data-test="size-custom-panel"
+              class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-800 dark:bg-dark-950"
+            >
+              <div class="flex items-end gap-2">
+                <div class="min-w-0 flex-1">
+                  <label class="input-label" for="image-gen-custom-width">宽</label>
+                  <input
+                    id="image-gen-custom-width"
+                    v-model.number="customWidth"
+                    data-test="size-custom-width"
+                    class="input"
+                    type="number"
+                    inputmode="numeric"
+                    :min="MIN_IMAGE_EDGE"
+                    :max="MAX_IMAGE_EDGE"
+                    step="1"
+                    placeholder="如 1280"
+                    @keydown.enter.prevent="submitCustomSize"
+                  />
+                </div>
+                <span class="pb-2.5 text-sm text-gray-400 dark:text-dark-500">x</span>
+                <div class="min-w-0 flex-1">
+                  <label class="input-label" for="image-gen-custom-height">高</label>
+                  <input
+                    id="image-gen-custom-height"
+                    v-model.number="customHeight"
+                    data-test="size-custom-height"
+                    class="input"
+                    type="number"
+                    inputmode="numeric"
+                    :min="MIN_IMAGE_EDGE"
+                    :max="MAX_IMAGE_EDGE"
+                    step="1"
+                    placeholder="如 720"
+                    @keydown.enter.prevent="submitCustomSize"
+                  />
+                </div>
+                <button type="button" data-test="size-custom-add" class="btn btn-secondary shrink-0" @click="submitCustomSize">
+                  添加并使用
+                </button>
+              </div>
+              <p v-if="customSizeError" data-test="size-custom-error" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ customSizeError }}</p>
+              <p v-if="customSizeNotice" data-test="size-custom-notice" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ customSizeNotice }}</p>
+              <p class="input-hint">
+                宽、高为 {{ MIN_IMAGE_EDGE }}~{{ MAX_IMAGE_EDGE }} 的整数，最多保存 {{ MAX_CUSTOM_SIZES }} 个，只保存在当前浏览器。能否出图取决于所选模型支持的尺寸，不支持时会返回错误。
+              </p>
+              <div v-if="customSizes.length > 0" class="mt-2 flex flex-wrap gap-2">
+                <span
+                  v-for="value in customSizes"
+                  :key="value"
+                  data-test="size-custom-item"
+                  class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
+                  :class="size === value
+                    ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-600/70 dark:bg-blue-950/30 dark:text-blue-300'
+                    : 'border-gray-200 bg-white text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200'"
+                >
+                  <button type="button" data-test="size-custom-use" class="hover:underline" @click="size = value">
+                    {{ formatImageSizeLabel(value) }}
+                  </button>
+                  <button
+                    type="button"
+                    data-test="size-custom-remove"
+                    class="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                    :title="`删除 ${formatImageSizeLabel(value)}`"
+                    :aria-label="`删除 ${formatImageSizeLabel(value)}`"
+                    @click="handleRemoveCustomSize(value)"
+                  >
+                    <Icon name="x" size="xs" />
+                  </button>
+                </span>
               </div>
             </div>
 
@@ -422,6 +518,14 @@ import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useImageGenStore, MAX_SOURCE_IMAGES, type GenerationMode } from '@/stores/imageGen'
+import {
+  MAX_CUSTOM_SIZES,
+  MAX_IMAGE_EDGE,
+  MIN_IMAGE_EDGE,
+  PRESET_IMAGE_SIZES,
+  formatImageSizeLabel,
+  isPresetImageSize,
+} from '@/utils/imageGenSizes'
 import Icon from '@/components/icons/Icon.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 
@@ -448,6 +552,7 @@ const {
   apiKey,
   prompt,
   size,
+  customSizes,
   count,
   generationMode,
   isGenerating,
@@ -487,6 +592,8 @@ const {
   selectModel,
   setManualModel,
   triggerModelDiscovery,
+  addCustomSize,
+  removeCustomSize,
 } = imageGenStore
 
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
@@ -507,13 +614,38 @@ const mainGridClass = computed(() =>
     : 'mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)] lg:px-6'
 )
 
-const sizeOptions = [
-  { value: '1024x1024', label: '1024 x 1024' },
-  { value: '1536x1024', label: '1536 x 1024' },
-  { value: '1024x1536', label: '1024 x 1536' },
-  { value: '1792x1024', label: '1792 x 1024' },
-  { value: '1024x1792', label: '1024 x 1792' },
-]
+// 自定义尺寸保存在浏览器（store.customSizes）；当前尺寸不在列表中时（历史恢复、已删除）单独列出。
+const customSizeOpen = ref(false)
+const customWidth = ref<number | ''>('')
+const customHeight = ref<number | ''>('')
+const customSizeError = ref('')
+const customSizeNotice = ref('')
+const unlistedSize = computed(() =>
+  size.value && !isPresetImageSize(size.value) && !customSizes.value.includes(size.value) ? size.value : ''
+)
+
+function toggleCustomSizePanel() {
+  customSizeOpen.value = !customSizeOpen.value
+  customSizeError.value = ''
+  customSizeNotice.value = ''
+}
+
+function submitCustomSize() {
+  const result = addCustomSize(customWidth.value, customHeight.value)
+  if (!result.ok) {
+    customSizeError.value = result.error
+    customSizeNotice.value = ''
+    return
+  }
+  customSizeError.value = ''
+  customSizeNotice.value = result.stored ? '' : '已选用该尺寸，但未能保存到浏览器，刷新后需要重新添加'
+  customWidth.value = ''
+  customHeight.value = ''
+}
+
+function handleRemoveCustomSize(value: string) {
+  customSizeNotice.value = removeCustomSize(value) ? '' : '未能从浏览器中删除该尺寸，刷新后可能仍会出现'
+}
 
 const showKey = ref(false)
 const sourceImageInput = ref<HTMLInputElement | null>(null)
