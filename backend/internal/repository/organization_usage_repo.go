@@ -143,24 +143,66 @@ func (r *organizationUsageRepository) Trend(ctx context.Context, params service.
 	}
 	defer rows.Close()
 
+	// One row per bucket × organization with usage; buckets without usage come back once with a NULL organization.
+	organizations := r.trendOrganizations(params.Organization)
 	points := make([]service.OrganizationUsageTrendPoint, 0)
 	for rows.Next() {
-		var point service.OrganizationUsageTrendPoint
+		var row service.OrganizationUsageTrendPoint
 		var periodStart, periodEnd sql.NullTime
+		var organization sql.NullString
+		var metrics service.OrganizationUsageMetrics
 		if err := rows.Scan(
-			&periodStart, &periodEnd, &point.Partial,
-			&point.Requests, &point.InputTokens, &point.OutputTokens, &point.CacheCreationTokens, &point.CacheReadTokens, &point.TotalTokens, &point.ActualCost,
+			&periodStart, &periodEnd, &row.Partial, &organization,
+			&metrics.Requests, &metrics.InputTokens, &metrics.OutputTokens, &metrics.CacheCreationTokens, &metrics.CacheReadTokens, &metrics.TotalTokens, &metrics.ActualCost,
 		); err != nil {
 			return nil, fmt.Errorf("scan organization usage trend: %w", err)
 		}
-		point.PeriodStart = formatSQLDate(periodStart)
-		point.PeriodEnd = formatSQLDate(periodEnd)
-		points = append(points, point)
+		row.PeriodStart = formatSQLDate(periodStart)
+		row.PeriodEnd = formatSQLDate(periodEnd)
+		if len(points) == 0 || points[len(points)-1].PeriodStart != row.PeriodStart {
+			row.Organizations = make([]service.OrganizationUsageTrendOrganization, len(organizations))
+			for i, org := range organizations {
+				row.Organizations[i].Organization = org
+			}
+			points = append(points, row)
+		}
+		if !organization.Valid {
+			continue
+		}
+		point := &points[len(points)-1]
+		point.Add(metrics)
+		found := false
+		for i := range point.Organizations {
+			if point.Organizations[i].Organization == organization.String {
+				point.Organizations[i].Add(metrics)
+				found = true
+				break
+			}
+		}
+		if !found {
+			point.Organizations = append(point.Organizations, service.OrganizationUsageTrendOrganization{Organization: organization.String, OrganizationUsageMetrics: metrics})
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate organization usage trend: %w", err)
 	}
 	return &service.OrganizationUsageTrendRepositoryResult{Points: points}, nil
+}
+
+// trendOrganizations lists the organizations each trend bucket is zero-filled with:
+// the caller's visible organizations (canonical order), narrowed by the organization filter.
+func (r *organizationUsageRepository) trendOrganizations(selected string) []string {
+	candidates := []string{service.OrganizationXunyou, service.OrganizationWsdashi, service.OrganizationOther}
+	if r.scope != nil && !r.scope.Unrestricted {
+		candidates = r.scope.Organizations
+	}
+	result := make([]string, 0, len(candidates))
+	for _, org := range candidates {
+		if selected == "" || selected == service.OrganizationAll || selected == org {
+			result = append(result, org)
+		}
+	}
+	return result
 }
 
 func (r *organizationUsageRepository) queryOrganizations(ctx context.Context, params service.OrganizationUsageSummaryRepositoryParams) ([]service.OrganizationUsageOrganization, error) {
@@ -660,7 +702,7 @@ func organizationUsageTrendBucketSeriesSQL(granularity string) (string, error) {
 	}
 }
 
-// organizationUsageTrendAggregationSQL aggregates usage by period bucket without user_id dimension.
+// organizationUsageTrendAggregationSQL aggregates usage by period bucket and organization without user_id dimension.
 func organizationUsageTrendAggregationSQL(granularity string) (string, error) {
 	start, end, err := organizationUsagePeriodBucketSQL(granularity)
 	if err != nil {
@@ -669,6 +711,7 @@ func organizationUsageTrendAggregationSQL(granularity string) (string, error) {
 	return fmt.Sprintf(`SELECT
         %s AS bucket_start,
         %s AS bucket_end,
+        organization,
         COALESCE(SUM(requests), 0)::bigint AS requests,
         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
         COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
@@ -677,7 +720,7 @@ func organizationUsageTrendAggregationSQL(granularity string) (string, error) {
         COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens,
         COALESCE(SUM(actual_cost), 0) AS actual_cost
     FROM filtered_usage
-    GROUP BY bucket_start, bucket_end`, start, end), nil
+    GROUP BY bucket_start, bucket_end, organization`, start, end), nil
 }
 
 func organizationUsageTrendQuery(granularity string) (string, error) {
@@ -697,7 +740,7 @@ selected_users AS MATERIALIZED (
 ),
 %s,
 filtered_usage AS (
-    SELECT ur.*
+    SELECT ur.*, su.organization
     FROM usage_rows ur
     JOIN selected_users su ON su.user_id = ur.user_id
 ),
@@ -711,6 +754,7 @@ SELECT
     GREATEST(b.bucket_start, $5::date) AS period_start,
     LEAST(b.bucket_end, $6::date, $7::date) AS period_end,
     (b.bucket_start < $5::date OR b.bucket_end > $6::date OR b.bucket_end > $7::date) AS partial,
+    pa.organization,
     COALESCE(pa.requests, 0)::bigint AS requests,
     COALESCE(pa.input_tokens, 0)::bigint AS input_tokens,
     COALESCE(pa.output_tokens, 0)::bigint AS output_tokens,
@@ -720,7 +764,7 @@ SELECT
     COALESCE(pa.actual_cost, 0)::double precision AS actual_cost
 FROM buckets b
 LEFT JOIN period_aggregates pa ON pa.bucket_start = b.bucket_start
-ORDER BY period_start ASC`, organizationUsageActiveUsersCTE(), organizationUsageRowsCTE, aggregation, buckets), nil
+ORDER BY period_start ASC, pa.organization ASC`, organizationUsageActiveUsersCTE(), organizationUsageRowsCTE, aggregation, buckets), nil
 }
 
 func organizationUsageOrderBy(sortBy, sortOrder string) (string, error) {

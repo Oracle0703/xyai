@@ -106,10 +106,16 @@ export interface OrganizationUsagePeriodsResponse {
   pagination: OrganizationUsagePagination
 }
 
+export interface OrganizationUsageTrendOrganization extends OrganizationUsageMetrics {
+  organization: string
+}
+
 export interface OrganizationUsageTrendPoint extends OrganizationUsageMetrics {
   period_start: string
   period_end: string
   partial: boolean
+  /** Per-organization split of this bucket (visible organizations, zero-filled). */
+  organizations?: OrganizationUsageTrendOrganization[]
 }
 
 export interface OrganizationUsageTrendResponse {

@@ -211,6 +211,20 @@ func TestOrganizationUsageRepositoryIntegration_TrendZeroFillAndDataThrough(t *t
 	require.Equal(t, "2026-02-01", month.Points[1].PeriodStart)
 	require.Equal(t, "2026-02-03", month.Points[1].PeriodEnd)
 	require.True(t, month.Points[1].Partial)
+	// Organization split per bucket: canonical order, zero-filled, sums to the bucket total.
+	require.Equal(t, int64(27), month.Points[1].TotalTokens)
+	require.Len(t, month.Points[1].Organizations, 3)
+	require.Equal(t, service.OrganizationXunyou, month.Points[1].Organizations[0].Organization)
+	require.Equal(t, int64(20), month.Points[1].Organizations[0].TotalTokens)
+	require.Equal(t, service.OrganizationWsdashi, month.Points[1].Organizations[1].Organization)
+	require.Equal(t, int64(7), month.Points[1].Organizations[1].TotalTokens)
+	require.Equal(t, service.OrganizationOther, month.Points[1].Organizations[2].Organization)
+	require.Equal(t, int64(0), month.Points[1].Organizations[2].TotalTokens)
+	require.Equal(t, int64(15), month.Points[0].Organizations[0].TotalTokens)
+	require.Equal(t, int64(0), month.Points[0].Organizations[1].TotalTokens)
+	// Organization filter narrows the split to the selected organization.
+	require.Len(t, day.Points[2].Organizations, 1)
+	require.Equal(t, int64(20), day.Points[2].Organizations[0].TotalTokens)
 }
 
 func TestOrganizationUsageRepositoryIntegration_TrendWeekBucketUpperBound54(t *testing.T) {

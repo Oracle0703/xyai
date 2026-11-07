@@ -127,9 +127,9 @@ func TestOrganizationUsageRepositoryTrend_ScansZeroFilledPoint(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta(rawOnlyOrganizationUsageQuery(query))).
 		WithArgs(append([]driver.Value{start, end, "%dev%", service.OrganizationAll, "2026-01-01", "2026-01-10", "2026-01-05"}, rollupPlanArgs()...)...).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"period_start", "period_end", "partial",
+			"period_start", "period_end", "partial", "organization",
 			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost",
-		}).AddRow(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), false,
+		}).AddRow(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), false, nil,
 			0, 0, 0, 0, 0, 0, 0.0))
 
 	repo := &organizationUsageRepository{db: db, rollupDisabled: true}
@@ -138,7 +138,72 @@ func TestOrganizationUsageRepositoryTrend_ScansZeroFilledPoint(t *testing.T) {
 	require.Len(t, got.Points, 1)
 	require.Equal(t, "2026-01-01", got.Points[0].PeriodStart)
 	require.Equal(t, int64(0), got.Points[0].TotalTokens)
+	require.Equal(t, []service.OrganizationUsageTrendOrganization{
+		{Organization: service.OrganizationXunyou},
+		{Organization: service.OrganizationWsdashi},
+		{Organization: service.OrganizationOther},
+	}, got.Points[0].Organizations)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOrganizationUsageRepositoryTrend_MergesOrganizationRowsPerBucket(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start := time.Date(2025, 12, 31, 16, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 2, 16, 0, 0, 0, time.UTC)
+	params := service.OrganizationUsageTrendRepositoryParams{
+		StartTime: start, EndTime: end,
+		StartDate:    time.Date(2026, 1, 1, 0, 0, 0, 0, loc),
+		EndDate:      time.Date(2026, 1, 2, 0, 0, 0, 0, loc),
+		DataThrough:  time.Date(2026, 1, 2, 0, 0, 0, 0, loc),
+		Organization: service.OrganizationAll,
+		Granularity:  service.OrganizationUsageGranularityDay,
+	}
+	day1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	day2 := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	query, err := organizationUsageTrendQuery(service.OrganizationUsageGranularityDay)
+	require.NoError(t, err)
+	mock.ExpectQuery(regexp.QuoteMeta(rawOnlyOrganizationUsageQuery(query))).
+		WithArgs(append([]driver.Value{start, end, "", service.OrganizationAll, "2026-01-01", "2026-01-02", "2026-01-02"}, rollupPlanArgs()...)...).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"period_start", "period_end", "partial", "organization",
+			"requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost",
+		}).
+			AddRow(day1, day1, false, service.OrganizationWsdashi, 1, 10, 5, 0, 0, 15, 0.25).
+			AddRow(day1, day1, false, service.OrganizationXunyou, 2, 20, 10, 1, 2, 33, 0.5).
+			AddRow(day2, day2, false, nil, 0, 0, 0, 0, 0, 0, 0.0))
+
+	repo := &organizationUsageRepository{db: db, rollupDisabled: true}
+	got, err := repo.Trend(context.Background(), params)
+	require.NoError(t, err)
+	require.Len(t, got.Points, 2)
+	require.Equal(t, int64(48), got.Points[0].TotalTokens)
+	require.Equal(t, int64(3), got.Points[0].Requests)
+	require.InDelta(t, 0.75, got.Points[0].ActualCost, 1e-9)
+	require.Equal(t, []string{service.OrganizationXunyou, service.OrganizationWsdashi, service.OrganizationOther},
+		[]string{got.Points[0].Organizations[0].Organization, got.Points[0].Organizations[1].Organization, got.Points[0].Organizations[2].Organization})
+	require.Equal(t, int64(33), got.Points[0].Organizations[0].TotalTokens)
+	require.Equal(t, int64(15), got.Points[0].Organizations[1].TotalTokens)
+	require.Equal(t, int64(0), got.Points[0].Organizations[2].TotalTokens)
+	require.Equal(t, int64(0), got.Points[1].TotalTokens)
+	require.Len(t, got.Points[1].Organizations, 3)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOrganizationUsageRepositoryTrendOrganizations_FollowsScopeAndFilter(t *testing.T) {
+	full := &organizationUsageRepository{}
+	require.Equal(t, []string{service.OrganizationXunyou, service.OrganizationWsdashi, service.OrganizationOther}, full.trendOrganizations(service.OrganizationAll))
+	require.Equal(t, []string{service.OrganizationWsdashi}, full.trendOrganizations(service.OrganizationWsdashi))
+
+	leader := &organizationUsageRepository{scope: &service.DepartmentScope{Organizations: []string{service.OrganizationXunyou}}}
+	require.Equal(t, []string{service.OrganizationXunyou}, leader.trendOrganizations(service.OrganizationAll))
+	require.Empty(t, leader.trendOrganizations(service.OrganizationWsdashi))
+
+	admin := &organizationUsageRepository{scope: &service.DepartmentScope{Unrestricted: true}}
+	require.Len(t, admin.trendOrganizations(service.OrganizationAll), 3)
 }
 
 func TestOrganizationUsageRepositoryPeriods_ScansPartialWeekAndPagination(t *testing.T) {

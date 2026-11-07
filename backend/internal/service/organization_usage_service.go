@@ -125,10 +125,19 @@ type OrganizationUsagePeriodsResponse struct {
 }
 
 // OrganizationUsageTrendPoint is one zero-filled calendar bucket for the trend chart.
+// Organizations splits the bucket by visible organization (xunyou, wsdashi, other order,
+// zero-filled); their metrics sum to the bucket totals.
 type OrganizationUsageTrendPoint struct {
 	PeriodStart string `json:"period_start"`
 	PeriodEnd   string `json:"period_end"`
 	Partial     bool   `json:"partial"`
+	OrganizationUsageMetrics
+	Organizations []OrganizationUsageTrendOrganization `json:"organizations"`
+}
+
+// OrganizationUsageTrendOrganization is one organization's share of a trend bucket.
+type OrganizationUsageTrendOrganization struct {
+	Organization string `json:"organization"`
 	OrganizationUsageMetrics
 }
 

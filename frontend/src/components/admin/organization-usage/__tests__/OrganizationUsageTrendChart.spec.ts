@@ -71,7 +71,7 @@ describe('OrganizationUsageTrendChart', () => {
     expect(ready.emitted('update:granularity')?.[0]).toEqual(['week'])
   })
 
-  it('exposes four default series on the correct axes with monotone interpolation', () => {
+  it('exposes total tokens and requests on the correct axes with monotone interpolation', () => {
     const wrapper = mountChart()
     const exposed = wrapper.vm as unknown as {
       chartData: {
@@ -85,21 +85,68 @@ describe('OrganizationUsageTrendChart', () => {
       lineOptions: { scales: Record<string, { beginAtZero?: boolean; ticks?: { maxTicksLimit?: number } }> }
     }
     const datasets = exposed.chartData.datasets
-    expect(datasets).toHaveLength(4)
+    expect(datasets).toHaveLength(2)
     expect(datasets.map((dataset) => dataset.label)).toEqual([
-      'admin.organizationUsage.metrics.inputTokens',
-      'admin.organizationUsage.metrics.outputTokens',
       'admin.organizationUsage.metrics.totalTokens',
       'admin.organizationUsage.metrics.requests'
     ])
-    expect(datasets.map((dataset) => dataset.data)).toEqual([[10], [20], [36], [3]])
+    expect(datasets.map((dataset) => dataset.data)).toEqual([[36], [3]])
+    expect(datasets.some((dataset) => dataset.label === 'admin.organizationUsage.metrics.inputTokens')).toBe(false)
+    expect(datasets.some((dataset) => dataset.label === 'admin.organizationUsage.metrics.outputTokens')).toBe(false)
     expect(datasets.some((dataset) => dataset.label === 'admin.organizationUsage.metrics.cacheTokens')).toBe(false)
-    expect(datasets.map((dataset) => dataset.yAxisID)).toEqual(['y', 'y', 'y', 'yRequests'])
+    expect(datasets.map((dataset) => dataset.yAxisID)).toEqual(['y', 'yRequests'])
     expect(datasets.every((dataset) => dataset.cubicInterpolationMode === 'monotone')).toBe(true)
     expect(exposed.lineOptions.scales.y.beginAtZero).toBe(true)
     expect(exposed.lineOptions.scales.yRequests.beginAtZero).toBe(true)
     expect(exposed.lineOptions.scales.x.ticks?.maxTicksLimit).toBe(14)
     expect(wrapper.find('[data-testid="trend-chart"]').exists()).toBe(true)
+  })
+
+  it('adds one total-token line per organization between total and requests', () => {
+    const split = (xunyou: number, wsdashi: number, other: number) => [
+      { organization: 'xunyou', ...metrics, total_tokens: xunyou },
+      { organization: 'wsdashi', ...metrics, total_tokens: wsdashi },
+      { organization: 'other', ...metrics, total_tokens: other }
+    ]
+    const wrapper = mountChart({
+      points: [
+        point({ total_tokens: 30, organizations: split(20, 10, 0) }),
+        point({ period_start: '2026-07-02', period_end: '2026-07-02', total_tokens: 5, organizations: split(0, 5, 0) })
+      ]
+    })
+    const datasets = (wrapper.vm as unknown as {
+      chartData: { datasets: Array<{ label: string; data: number[]; yAxisID: string; borderColor: string }> }
+    }).chartData.datasets
+    // "other" has no usage in range, so it is not drawn.
+    expect(datasets.map((dataset) => dataset.label)).toEqual([
+      'admin.organizationUsage.metrics.totalTokens',
+      '迅游 admin.organizationUsage.metrics.totalTokens',
+      '速宝 admin.organizationUsage.metrics.totalTokens',
+      'admin.organizationUsage.metrics.requests'
+    ])
+    expect(datasets.map((dataset) => dataset.data)).toEqual([[30, 5], [20, 0], [10, 5], [3, 3]])
+    expect(datasets.map((dataset) => dataset.yAxisID)).toEqual(['y', 'y', 'y', 'yRequests'])
+    expect(new Set(datasets.map((dataset) => dataset.borderColor)).size).toBe(4)
+
+    const withOther = mountChart({ points: [point({ organizations: split(20, 10, 6) })] })
+    const otherDatasets = (withOther.vm as unknown as {
+      chartData: { datasets: Array<{ label: string; borderDash?: number[] }> }
+    }).chartData.datasets
+    expect(otherDatasets).toHaveLength(5)
+    expect(otherDatasets[3].label).toBe('admin.organizationUsage.organizations.other admin.organizationUsage.metrics.totalTokens')
+    expect(otherDatasets[3].borderDash).toEqual([6, 4])
+  })
+
+  it('skips organization lines when only one organization is visible', () => {
+    const wrapper = mountChart({
+      points: [point({ organizations: [{ organization: 'xunyou', ...metrics }] })]
+    })
+    const exposed = wrapper.vm as unknown as {
+      organizationSeries: unknown[]
+      chartData: { datasets: unknown[] }
+    }
+    expect(exposed.organizationSeries).toEqual([])
+    expect(exposed.chartData.datasets).toHaveLength(2)
   })
 
   it('uses zero point radius for dense series and still charts all-zero data', () => {

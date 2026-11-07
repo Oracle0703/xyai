@@ -62,6 +62,7 @@ import type {
 import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { formatDateTime } from '@/utils/format'
+import { formatOrganizationUsageOrganization } from '@/utils/organizations'
 import OrganizationUsageSegmented from './OrganizationUsageSegmented.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
@@ -103,49 +104,66 @@ const granularityOptions = computed(() => [
   { value: 'month' as const, label: t('admin.organizationUsage.trend.month') }
 ])
 
+// Organization colors are fixed per organization (never by rank) and validated for CVD
+// separation against the total/requests lines in both themes; "other" is a dashed neutral.
 const chartColors = computed(() => ({
   text: isDarkMode.value ? '#e5e7eb' : '#374151',
   grid: isDarkMode.value ? '#374151' : '#e5e7eb',
-  input: '#3b82f6',
-  output: '#10b981',
   total: '#06b6d4',
-  requests: '#8b5cf6'
+  requests: '#8b5cf6',
+  organizations: {
+    xunyou: isDarkMode.value ? '#d95926' : '#eb6834',
+    wsdashi: isDarkMode.value ? '#256abf' : '#1c5cab',
+    other: isDarkMode.value ? '#94a3b8' : '#64748b'
+  } as Record<string, string>
 }))
 
 const densePoints = computed(() => props.points.length > 60)
 const pointRadius = computed(() => (densePoints.value ? 0 : 2))
 
+// One total-Token line per organization. "other" only shows when it has usage, and a
+// single remaining organization is skipped because its line would duplicate the total.
+const organizationSeries = computed(() => {
+  const organizations: string[] = []
+  for (const point of props.points) {
+    for (const item of point.organizations ?? []) {
+      if (!organizations.includes(item.organization)) organizations.push(item.organization)
+    }
+  }
+  const series = organizations
+    .map((organization) => ({
+      organization,
+      data: props.points.map(
+        (point) => point.organizations?.find((item) => item.organization === organization)?.total_tokens ?? 0
+      )
+    }))
+    .filter((item) => item.organization !== 'other' || item.data.some((value) => value > 0))
+  return series.length > 1 ? series : []
+})
+
 const chartData = computed(() => {
   if (!props.points.length) return null
   const colors = chartColors.value
   const radius = pointRadius.value
+  const organizationDatasets = organizationSeries.value.map(({ organization, data }) => {
+    const color = colors.organizations[organization] ?? colors.organizations.other
+    return {
+      label: `${formatOrganizationUsageOrganization(organization, t('admin.organizationUsage.organizations.other'))} ${t('admin.organizationUsage.metrics.totalTokens')}`,
+      data,
+      borderColor: color,
+      backgroundColor: `${color}20`,
+      borderDash: organization === 'other' ? [6, 4] : undefined,
+      fill: false,
+      yAxisID: 'y',
+      cubicInterpolationMode: 'monotone' as const,
+      pointRadius: radius,
+      pointHoverRadius: 4,
+      tension: 0.3
+    }
+  })
   return {
     labels: props.points.map((p) => p.period_start),
     datasets: [
-      {
-        label: t('admin.organizationUsage.metrics.inputTokens'),
-        data: props.points.map((p) => p.input_tokens),
-        borderColor: colors.input,
-        backgroundColor: `${colors.input}20`,
-        fill: false,
-        yAxisID: 'y',
-        cubicInterpolationMode: 'monotone' as const,
-        pointRadius: radius,
-        pointHoverRadius: 4,
-        tension: 0.3
-      },
-      {
-        label: t('admin.organizationUsage.metrics.outputTokens'),
-        data: props.points.map((p) => p.output_tokens),
-        borderColor: colors.output,
-        backgroundColor: `${colors.output}20`,
-        fill: false,
-        yAxisID: 'y',
-        cubicInterpolationMode: 'monotone' as const,
-        pointRadius: radius,
-        pointHoverRadius: 4,
-        tension: 0.3
-      },
       {
         label: t('admin.organizationUsage.metrics.totalTokens'),
         data: props.points.map((p) => p.total_tokens),
@@ -158,6 +176,7 @@ const chartData = computed(() => {
         pointHoverRadius: 4,
         tension: 0.3
       },
+      ...organizationDatasets,
       {
         label: t('admin.organizationUsage.metrics.requests'),
         data: props.points.map((p) => p.requests),
@@ -262,5 +281,5 @@ const lineOptions = computed(() => {
 })
 
 // Expose chart config for contract tests (F4 minimal behavior assertions).
-defineExpose({ chartData, lineOptions, pointRadius, densePoints })
+defineExpose({ chartData, lineOptions, pointRadius, densePoints, organizationSeries })
 </script>

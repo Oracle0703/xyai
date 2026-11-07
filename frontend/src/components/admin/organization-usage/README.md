@@ -6,7 +6,7 @@
 | --- | --- |
 | `OrganizationUsageFilters.vue` | 北京时间周期、授权组织/部门、平台及邮箱筛选；组织变化清部门，未应用草稿时禁用导出。平台选项与后端白名单一致，不取平台注册表 |
 | `OrganizationUsageOverview.vue` | 6 张统计卡片（成员人数、活跃人数/率、请求、Token、费用）和团队用量冠军卡片；冠军卡片头展示报表区间、数据截至与归属口径。`active_users` 为成员人数，`used_users` 为有记录人数 |
-| `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；总 Token 包含缓存创建/读取；数据截至只在最后一个桶的 tooltip 中显示 |
+| `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；系列为总 Token、各组织总 Token（按 `points[].organizations`，颜色按组织固定；“其他”有用量才画；可见组织不足两个时不画）和请求数，不画输入/输出 Token；总 Token 包含缓存创建/读取；数据截至只在最后一个桶的 tooltip 中显示 |
 | `OrganizationUsageSummary.vue` | 仅渲染服务端返回的组织，不补范围外组织行；按钮提交原内部键 |
 | `OrganizationUsageBreakdowns.vue` | 同范围部门/平台汇总，平台活跃人数不能相加作为总人数 |
 | `OrganizationUsagePeopleTable.vue` | 人员表：排名、邮箱固定在左侧，其后组织、部门与指标；跨分页连续排名，服务端排序分页，数值列表头右对齐，宽表横向滚动；卡片头可下载当前页 PNG，每页条数用 `Pagination` 自带选择器 |

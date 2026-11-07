@@ -37,7 +37,7 @@
 
 非目标：
 - 不回溯用户历史状态或历史邮箱；用户 active 状态、邮箱、组织和部门归属都以查询时的当前值为准（部门口径见部门文档 §7.3）。
-- 不做用户级趋势下钻、模型/账号维度拆分、多组织分色折线、成本趋势、时间对比、预算或预警。
+- 不做用户级趋势下钻、模型/账号维度拆分、成本趋势、时间对比、预算或预警。按组织分色折线自 2026-11-08 起提供（§4.4、§8.5），只画各组织总 Token。
 - 不替代使用记录、Token 分析或用户排行页面。
 - 不提供财务对账级精度或封账快照（§3.2、§6.7）。
 
@@ -182,7 +182,12 @@ Periods 明细和 Excel 只返回有用量的周期，不生成全零行；只�
   "points": [
     { "period_start": "2026-07-01", "period_end": "2026-07-01", "partial": false,
       "requests": 10, "input_tokens": 1000, "output_tokens": 200, "cache_creation_tokens": 0,
-      "cache_read_tokens": 50, "total_tokens": 1250, "actual_cost": 0.12 },
+      "cache_read_tokens": 50, "total_tokens": 1250, "actual_cost": 0.12,
+      "organizations": [
+        { "organization": "xunyou", "requests": 8, "total_tokens": 1000, "...": "其余指标同上" },
+        { "organization": "wsdashi", "requests": 2, "total_tokens": 250, "...": "" },
+        { "organization": "other", "requests": 0, "total_tokens": 0, "...": "" }
+      ] },
     { "period_start": "2026-07-02", "period_end": "2026-07-02", "partial": false,
       "requests": 0, "input_tokens": 0, "output_tokens": 0, "cache_creation_tokens": 0,
       "cache_read_tokens": 0, "total_tokens": 0, "actual_cost": 0 }
@@ -197,6 +202,7 @@ Periods 明细和 Excel 只返回有用量的周期，不生成全零行；只�
 - **`data_through < start_date`**（整个范围都在快照之后）：返回 `points: []` 且省略 `data_through`。无部门 actor 时 Service 直接短路不访问仓储；有 actor 时（所有真实请求）仍走 `scopedTrend` 完成鉴权与 `scope_version` 计算后返回空点。
 - **补零**：`data_through` 之前无数据的周期返回全 0 点，保证 X 轴连续；整个可达范围都无用量时也返回连续 0 点。
 - **`partial`**：用未裁剪的桶边界计算，`bucket_start < start_date OR bucket_end > end_date OR bucket_end > data_through`；响应 `period_start = GREATEST(bucket_start, start_date)`，`period_end = LEAST(bucket_end, end_date, data_through)`。所以当前未结束的周/月也标 partial；day 桶只表达日历裁剪，不表达日内进度，精确时刻看 `range.as_of`。
+- **`organizations`**：每个点按组织拆分同一桶的全部指标，顺序固定 `xunyou, wsdashi, other`，按调用方可见组织补零（完整管理员三个；负责人取 `scope.Organizations`；组织筛选非 `all` 时只剩所选组织）。各组织指标之和等于该点合计；合计由 Go 逐组织累加，`actual_cost` 是三个 double 之和，可能与 SQL 一次性 numeric 求和差末位。
 - **点数上限**：day 最多 366；366 个闭区间自然日最多跨 54 个周桶（例 `2024-01-07..2025-01-06`）；month 最多 13。
 - **点数合同**（`data_through >= start_date` 时）：day = `start_date..data_through` 含首尾天数；week/month = 该区间跨越的不同周/月桶数（含首尾 partial 桶）。
 
@@ -260,7 +266,7 @@ sum(points.*.requests)     == overview.requests
 | `$7` | `page_size` | `data_through` 日历串（只接收 Service 派生值） |
 | `$8` | offset | 不使用 |
 
-形状：`active_users` → `selected_users` → `usage_rows` → `filtered_usage`（JOIN `selected_users`）→ `period_aggregates AS MATERIALIZED`（`organizationUsageTrendAggregationSQL`，**只** `GROUP BY bucket_start, bucket_end`，没有 `user_id`）→ `buckets`（`organizationUsageTrendBucketSeriesSQL`）→ `buckets LEFT JOIN period_aggregates ON bucket_start` 补 0 → `ORDER BY period_start ASC`。
+形状：`active_users` → `selected_users` → `usage_rows` → `filtered_usage`（JOIN `selected_users`）（附 `su.organization`）→ `period_aggregates AS MATERIALIZED`（`organizationUsageTrendAggregationSQL`，`GROUP BY bucket_start, bucket_end, organization`，没有 `user_id`）→ `buckets`（`organizationUsageTrendBucketSeriesSQL`）→ `buckets LEFT JOIN period_aggregates ON bucket_start` → `ORDER BY period_start ASC, pa.organization ASC`。每桶返回“有用量的组织数”行，无用量的桶返回一行 `organization IS NULL` 的零行；仓储 `Trend` 按 `period_start` 合并成一个点并用 `trendOrganizations` 补零。
 
 `buckets` 生成规则：day 为 `generate_series($5::date, $7::date, '1 day')`；week 从 `date_trunc('week', $5)` 到 `date_trunc('week', $7)` 步长 7 天（起点是包含 `start_date` 的周一，不是 `start_date` 本身）；month 先 `date_trunc('month', ...)` 再按 1 个月步进（从月中日期直接 `+1 month` 会错位）。
 
@@ -519,7 +525,8 @@ go test -tags=integration -p 1 -count=1 ./internal/repository -run '^TestOrganiz
 正常时两者并行、无额外往返；只有客户端时钟超前导致两次服务端裁剪结果不同，或范围版本变化时，才多一次 Trend 请求。部门功能曾改为“Summary 返回后才请求 Trend”，2026-10-23 起恢复并行（部门文档 §7.4）。
 
 **图表配置**（vue-chartjs Line，模式对齐 `frontend/src/components/charts/TokenUsageTrend.vue`，但不复用该组件，因为它绑定 `TrendDataPoint` 和缓存命中率）：
-- 默认四个数据集，顺序固定：输入 Token、输出 Token、总 Token（左轴 `y`）、请求数（右轴 `yRequests`，`drawOnChartArea: false`）；图例文案复用 `metrics.*`；不画缓存创建、缓存读取和实际消费；
+- 数据集顺序固定：总 Token（左轴 `y`）→ 各组织总 Token（左轴 `y`，图例为“组织名 + 总 Token”）→ 请求数（右轴 `yRequests`，`drawOnChartArea: false`）；2026-11-08 起不再画输入/输出 Token，也不画缓存创建、缓存读取和实际消费；
+- 组织折线：颜色按组织固定、不随排名变化（亮色 迅游 `#eb6834`、速宝 `#1c5cab`，暗色 `#d95926`、`#256abf`，已用 dataviz 校验器验证与总 Token/请求数线的色觉区分度）；“其他”为灰色虚线，且仅在范围内有用量时显示；可见组织不足两个（如筛选单一组织、负责人只管一个组织）时不画组织线，因为它与总 Token 重合；
 - 两轴 `beginAtZero: true`；请求数轴 `ticks.precision: 0`；Token 轴用紧凑数字格式；
 - `cubicInterpolationMode: 'monotone'`（默认三次平滑会过冲），`interaction.mode: 'index'`，图例点击可隐藏；
 - X 轴为 `period_start`，`maxTicksLimit` 在 12–16；点数 > 60 时 `pointRadius: 0`，否则 2，`pointHoverRadius` 始终 4；
