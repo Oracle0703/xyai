@@ -147,8 +147,9 @@
 | TD-044 | P2 | open | 关机清理未覆盖 3 个后台服务；额度异步落库无在途等待 | 可靠 |
 | TD-045 | P2 | open | WebSocket passthrough 关闭帧时序用例偶发失败 | 测试 |
 | TD-046 | P3 | open | 未合并分支与遗留工作区清理（待授权） | 仓库卫生 |
+| TD-047 | P2 | open | 上游零分配断言用例在全包运行中偶发失败（等上游） | 测试 |
 
-**条目数：43**（TD-001–046，编号保留历史 ID，中间有意不连续以便稳定引用）
+**条目数：44**（TD-001–047，编号保留历史 ID，中间有意不连续以便稳定引用）
 
 ---
 
@@ -494,6 +495,10 @@ E2E/Redis/Postgres/TLS/外部 Key 大量 Skip — **不是缺陷**，但让「�
 
 判定方法（以后复审同类问题时沿用）：用 `git log main..<ref>` 看分支独有补丁，不用 `git diff main <ref>`；用 `git merge-tree --write-tree --name-only main <ref>` 预演；符号搜不到不等于行为不存在；工作区 diff 相对其 `HEAD` 而非当前 main；不合并 `upstream` 分支，不把内网 `origin/main` 合并进 GitHub `main`。
 
+### TD-047 · 上游零分配断言用例在全包运行中偶发失败（等上游）
+
+`TestOpenAIResponsesOrphanPrecheckLargeEscapedContent`（`internal/service/openai_responses_orphan_precheck_test.go`，上游 0.2.20 `6c140b897` 新增，本地 blob 与上游一致）用 `testing.AllocsPerRun` 断言 0 次分配。2026-11-08 PR #50 的 pull_request 事件 CI 在 integration 全包运行中失败一次（实际 22 次分配），同一提交的 push 事件 CI 通过；本地单独运行 default/integration 各 `-count=30` 全部通过。AllocsPerRun 统计的是进程级 malloc，全包运行时前面用例留下的后台 goroutine 可能被算进去。上游代码，按规则不在本地改；处置：CI 偶发红时重跑失败 job 并记录次数，等上游修或下次同步时复核。
+
 ---
 
 ## 推荐还债顺序
@@ -548,3 +553,4 @@ Sprint F — 功能洞与杂项
 | 2026-08-12 | 补全后台扫描：nolint/interface{}/recover/类型断言/gjson 热文件/本地能力文件足迹 |
 | 2026-11-04 | 并入 `golangci-lint-debt-cleanup-plan-cn.md`（TD-004 现状与修法）与 2026-11-03 未合并分支复审、PR #45–#47 验证中的遗留项（新增 TD-044–046）；原文件已移出仓库 |
 | 2026-11-08 | TD-004、TD-021 关闭：全量 lint 实际 95 项清零，同批修复 CI integration 唯一失败用例（分组名超长），目标 main CI 全绿 |
+| 2026-11-08 | 新增 TD-047：上游 0.2.20 零分配断言用例在 CI 全包运行中偶发失败，等上游 |
