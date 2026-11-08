@@ -711,7 +711,7 @@ func loadArchiveRecords(t *testing.T, dir string) []map[string]any {
 
 	f, err := os.Open(files[0])
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var records []map[string]any
 	scanner := bufio.NewScanner(f)

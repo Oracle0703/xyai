@@ -2653,17 +2653,6 @@ func sanitizeOpenAIChatCompletionsOfficialRequestBody(body []byte) ([]byte, erro
 	return deleteOpenAITopLevelUnsupportedFields(body, "thinking")
 }
 
-func sanitizeOpenAIResponsesOfficialRequestBodyMap(reqBody map[string]any) bool {
-	if reqBody == nil {
-		return false
-	}
-	if _, ok := reqBody["thinking"]; ok {
-		delete(reqBody, "thinking")
-		return true
-	}
-	return false
-}
-
 func deleteOpenAITopLevelUnsupportedFields(body []byte, fields ...string) ([]byte, error) {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return body, nil

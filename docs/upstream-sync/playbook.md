@@ -94,7 +94,7 @@
 | 健康检查 | `/health` 返回 200。 |
 | 日志检查 | 不应出现 Redis 3 Lua 错误、误分类 429、大量空 200 响应。 |
 | 后端三种 tag 全量 | `cd backend && go test -p 1 -count=1 ./...`、`-tags=unit`、`-tags=integration` 各跑一次；CI 单测门禁是 `-tags=unit`，默认 tag 跑不到 unit 专属用例（0.1.170 起三者分列记录） |
-| 增量 lint | `golangci-lint run --new-from-rev=<第一父> ./...` 必须 0 issues；全量 lint 的既有债务只登记（`docs/features/technical-debt-board-cn.md` TD-004），不在合并中清理（0.1.153 起）。golangci-lint 必须用不低于仓库 Go 版本构建的二进制，旧版会报不兼容或 `no go files to analyze`，此时不能记为 0 issues（0.1.170、0.2.4） |
+| 增量 lint | `golangci-lint run --new-from-rev=<第一父> ./...` 必须 0 issues。2026-11-08 起全量 lint 为 0（TD-004 关闭），合并后还要跑一次全量（加 `--max-same-issues=0 --max-issues-per-linter=0`）；上游代码带入的新问题记入 review.md，合并后另开 chore 修，不在合并分支改上游代码（0.1.153 起）。golangci-lint 必须用不低于仓库 Go 版本构建的二进制，旧版会报不兼容或 `no go files to analyze`，此时不能记为 0 issues（0.1.170、0.2.4） |
 | 生成一致性 | `go generate ./ent` 与 `go generate ./cmd/server` 各跑两次，第二次无漂移（比对 `wire_gen.go` 哈希）；Wire 工具临时写入 `go.sum` 的 checksum（如 `github.com/google/subcommands`）要还原（0.1.135、0.1.156、0.2.6、0.2.15、0.2.17） |
 | 嵌入式构建 | 前端 `pnpm run build` 成功之后再 `go build -tags embed -trimpath ./cmd/server`，确保嵌入的是本轮 dist（0.1.153、0.1.156） |
 | 依赖元数据 | `go mod tidy -diff` 只记录结果，不为合并顺手整理 `go.sum`（0.1.156、0.1.159、0.2.4） |

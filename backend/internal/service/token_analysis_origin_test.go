@@ -79,7 +79,9 @@ func TestTokenAnalysisRequestOriginUsesLatestEffectiveInput(t *testing.T) {
 			require.NoError(t, err)
 			origin := summary.SummaryJSON["request_origin"]
 			require.Equal(t, tokenAnalysisOrigin(tt.reason), origin)
-			require.Equal(t, tt.kind, origin.(tokenAnalysisRequestOrigin).Kind)
+			typed, ok := origin.(tokenAnalysisRequestOrigin)
+			require.True(t, ok)
+			require.Equal(t, tt.kind, typed.Kind)
 		})
 	}
 }

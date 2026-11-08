@@ -284,8 +284,8 @@ func anthropicAttributionSystemText(root map[string]any) string {
 		for _, item := range sys {
 			if block, ok := item.(map[string]any); ok {
 				if text, ok := block["text"].(string); ok {
-					sb.WriteString(text)
-					sb.WriteString("\n")
+					_, _ = sb.WriteString(text)
+					_, _ = sb.WriteString("\n")
 				}
 			}
 		}

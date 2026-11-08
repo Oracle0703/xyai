@@ -17,7 +17,7 @@ import (
 func TestTokenAnalysisRepositoryUpsertRequestSummary(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	usageID := int64(11)
@@ -105,7 +105,7 @@ var tokenAnalysisUsageMatchRow = []string{"id", "input_tokens", "output_tokens",
 func TestTokenAnalysisRepositoryFindUsageLinkByRequestID(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	apiKeyID := int64(33)
 
@@ -129,7 +129,7 @@ func TestTokenAnalysisRepositoryFindUsageLinkByRequestID(t *testing.T) {
 func TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	apiKeyID := int64(33)
 
@@ -149,7 +149,7 @@ func TestTokenAnalysisRepositoryFindUsageLinkExactOnlyMiss(t *testing.T) {
 func TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	userID, apiKeyID, output := int64(22), int64(33), int64(547)
 	start := time.Date(2026, 10, 24, 6, 11, 12, 654557512, time.UTC)
@@ -181,7 +181,7 @@ func TestTokenAnalysisRepositoryFindUsageLinkTimingWithCompletion(t *testing.T) 
 func TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	start := time.Date(2026, 10, 24, 6, 11, 12, 0, time.UTC)
 
@@ -202,7 +202,7 @@ func TestTokenAnalysisRepositoryFindUsageLinkLegacyTiming(t *testing.T) {
 func TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	done := time.Date(2026, 10, 24, 6, 11, 31, 0, time.UTC)
 	output := int64(547)
@@ -247,7 +247,7 @@ func TestTokenAnalysisRepositoryRecordResponseStashesUntilRequestArrives(t *test
 func TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	ctx := context.Background()
 	exact := &service.TokenAnalysisUsageMatch{UsageLogID: 99, MatchConfidence: 3, Method: service.TokenAnalysisUsageMatchRequestID}
@@ -317,7 +317,7 @@ func TestTokenAnalysisRepositorySetUsageLinkClaimsAtomically(t *testing.T) {
 func TestTokenAnalysisRepositoryListUsageLinkCandidates(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 	start := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 0, 1)
@@ -363,7 +363,7 @@ func TestTokenAnalysisRepositoryListUsageLinkCandidates(t *testing.T) {
 func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
@@ -399,7 +399,7 @@ func TestTokenAnalysisRepositoryListUserUsageAggregatesByUserOnly(t *testing.T) 
 func TestTokenAnalysisRepositoryListUserUsageSortableByActualCost(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 
@@ -422,7 +422,7 @@ func TestTokenAnalysisRepositoryListUserUsageSortableByActualCost(t *testing.T) 
 func TestTokenAnalysisRepositoryListProjectUsageSortable(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
@@ -451,7 +451,7 @@ func TestTokenAnalysisRepositoryListProjectUsageSortable(t *testing.T) {
 func TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 
@@ -475,7 +475,7 @@ func TestTokenAnalysisRepositoryListProjectUsageRejectsUnknownSort(t *testing.T)
 func TestTokenAnalysisRepositoryGetIndexState(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	now := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
@@ -501,7 +501,7 @@ func TestTokenAnalysisRepositoryGetIndexState(t *testing.T) {
 func TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 
@@ -522,7 +522,7 @@ func TestTokenAnalysisRepositoryUpdateIndexStateKeepsLastError(t *testing.T) {
 func TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	now := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
@@ -546,7 +546,7 @@ func TestTokenAnalysisRepositoryGetIndexStatusIgnoresStaleUnfinishedRows(t *test
 func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	start := time.Date(2026, 5, 21, 0, 0, 0, 0, time.UTC)
@@ -577,7 +577,7 @@ func TestTokenAnalysisRepositoryGetSummaryIncludesUnmatchedAndRiskReasons(t *tes
 func TestTokenAnalysisRepositoryCountBilledRequests(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	start := time.Date(2026, 6, 9, 0, 0, 0, 0, time.UTC)
@@ -603,7 +603,7 @@ func TestTokenAnalysisRepositoryCountBilledRequests(t *testing.T) {
 func TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	userID := int64(7)
@@ -626,7 +626,7 @@ func TestTokenAnalysisRepositoryUpsertUserInputPreservesQuality(t *testing.T) {
 func TestTokenAnalysisRepositoryGetUserInput(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	now := time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC)
@@ -665,7 +665,7 @@ func TestTokenAnalysisRepositoryGetUserInput(t *testing.T) {
 func TestTokenAnalysisRepositoryDeleteUserInput(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := NewTokenAnalysisRepository(db)
 	mock.ExpectExec(`DELETE FROM token_analysis_user_inputs WHERE archive_id = \$1`).
@@ -691,7 +691,7 @@ func expectTokenAnalysisClassificationDirty(mock sqlmock.Sqlmock, ids string) {
 func TestTokenAnalysisRepositoryRetriesDeadlockedTransaction(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewTokenAnalysisRepository(db)
 
 	const clear = `SET usage_link_checked_version = \$2\s+WHERE archive_id = \$1 AND usage_link_version = \$2 AND usage_link_checked_version <> \$2`

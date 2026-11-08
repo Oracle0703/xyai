@@ -371,7 +371,7 @@ LIMIT $4`, start, end, afterID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list token analysis usage link candidates: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	candidates := make([]service.TokenAnalysisUsageLinkCandidate, 0)
 	for rows.Next() {
@@ -901,7 +901,7 @@ ORDER BY ` + orderBy
 	if err != nil {
 		return nil, nil, fmt.Errorf("list token analysis user usage: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.TokenAnalysisUserUsage, 0)
 	for rows.Next() {
@@ -1010,7 +1010,7 @@ ORDER BY ` + orderBy
 	if err != nil {
 		return nil, nil, fmt.Errorf("list token analysis project usage: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.TokenAnalysisProjectUsage, 0)
 	for rows.Next() {
@@ -1088,7 +1088,7 @@ LIMIT $` + fmt.Sprint(len(queryArgs)-1) + ` OFFSET $` + fmt.Sprint(len(queryArgs
 	if err != nil {
 		return nil, nil, fmt.Errorf("list token analysis requests: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.TokenAnalysisRequestItem, 0)
 	for rows.Next() {
@@ -1113,7 +1113,7 @@ LIMIT 50`)
 	if err != nil {
 		return nil, fmt.Errorf("get token analysis index status: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	status := &service.TokenAnalysisIndexStatus{Files: []service.TokenAnalysisIndexState{}}
 	for rows.Next() {
@@ -1212,7 +1212,7 @@ func (r *tokenAnalysisRepository) LoadProjectRoots(ctx context.Context) (map[str
 	if err != nil {
 		return nil, fmt.Errorf("load token analysis project roots: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	roots := make(map[string]string)
 	for rows.Next() {
 		var root, project string
@@ -1580,8 +1580,8 @@ type tokenAnalysisHumanInputKey struct{ expr, alias string }
 func tokenAnalysisHumanInputSQL(where []string, withUsers bool, keys ...tokenAnalysisHumanInputKey) string {
 	var inner, outer strings.Builder
 	for _, key := range keys {
-		inner.WriteString(key.expr + " AS " + key.alias + ", ")
-		outer.WriteString("h." + key.alias + ", ")
+		_, _ = inner.WriteString(key.expr + " AS " + key.alias + ", ")
+		_, _ = outer.WriteString("h." + key.alias + ", ")
 	}
 	join := ""
 	if withUsers {

@@ -120,13 +120,13 @@ func buildPromptRiskJudgeUserMessage(text string, reasons []PromptRiskReason) st
 		for _, r := range reasons {
 			parts = append(parts, fmt.Sprintf("%s(%s,%s)", r.Keyword, r.Level, r.Source))
 		}
-		b.WriteString("被关键词规则命中的词：")
-		b.WriteString(strings.Join(parts, "、"))
-		b.WriteString("\n")
+		_, _ = b.WriteString("被关键词规则命中的词：")
+		_, _ = b.WriteString(strings.Join(parts, "、"))
+		_, _ = b.WriteString("\n")
 	}
-	b.WriteString("用户原文：\n<<<\n")
-	b.WriteString(text)
-	b.WriteString("\n>>>\n请复核并只输出 JSON。")
+	_, _ = b.WriteString("用户原文：\n<<<\n")
+	_, _ = b.WriteString(text)
+	_, _ = b.WriteString("\n>>>\n请复核并只输出 JSON。")
 	return b.String()
 }
 

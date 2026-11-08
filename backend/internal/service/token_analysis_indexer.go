@@ -147,7 +147,7 @@ func (s *TokenAnalysisService) indexArchiveFile(ctx context.Context, file string
 		}
 		return nil, fmt.Errorf("open request archive %s: %w", file, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	result.Files = 1
 
 	state, err := s.repo.GetIndexState(ctx, file)

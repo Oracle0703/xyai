@@ -170,14 +170,14 @@ type accountActivityBodyRecorder struct {
 
 func (w *accountActivityBodyRecorder) Write(data []byte) (int, error) {
 	if w.body.Len()+len(data) <= accountActivityMaxCapturedBody {
-		w.body.Write(data)
+		_, _ = w.body.Write(data)
 	}
 	return w.ResponseWriter.Write(data)
 }
 
 func (w *accountActivityBodyRecorder) WriteString(data string) (int, error) {
 	if w.body.Len()+len(data) <= accountActivityMaxCapturedBody {
-		w.body.WriteString(data)
+		_, _ = w.body.WriteString(data)
 	}
 	return w.ResponseWriter.WriteString(data)
 }
