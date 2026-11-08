@@ -19,7 +19,6 @@ type userConcurrencyPresetRepoStub struct {
 	markedRuns  []time.Time
 	createErr   error
 	updateErr   error
-	applyErr    error
 }
 
 func newUserConcurrencyPresetRepoStub() *userConcurrencyPresetRepoStub {

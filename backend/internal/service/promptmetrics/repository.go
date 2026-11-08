@@ -135,7 +135,7 @@ ORDER BY date_trunc('%s', e.created_at) ASC`, bucketGranularity(bucket), dateExp
 	if err != nil {
 		return nil, fmt.Errorf("query prompt metrics trend: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	points := make([]TrendPoint, 0)
 	for rows.Next() {
 		var point TrendPoint
@@ -182,7 +182,7 @@ LIMIT $%d`, expr, labelExpr, where, expr, labelExpr, len(args))
 	if err != nil {
 		return nil, fmt.Errorf("query prompt metrics rank: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := make([]RankItem, 0)
 	for rows.Next() {
 		var item RankItem
@@ -211,7 +211,7 @@ func (r *Repository) ListEvents(ctx context.Context, filters Filters, page, page
 	if err != nil {
 		return nil, Pagination{}, fmt.Errorf("list prompt metrics events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	events, err := scanEvents(rows)
 	if err != nil {
 		return nil, Pagination{}, err
@@ -225,7 +225,7 @@ func (r *Repository) EventByID(ctx context.Context, id int64) (*Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query prompt metrics event: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	events, err := scanEvents(rows)
 	if err != nil {
 		return nil, err

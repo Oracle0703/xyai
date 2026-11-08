@@ -296,7 +296,9 @@ func TestTokenAnalysisSummarizeStripsLeadingClientContext(t *testing.T) {
 			got, err := SummarizeTokenAnalysisRequest("/v1/responses", []byte(body), 300)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got.LastUserText)
-			require.Equal(t, "user_input", got.SummaryJSON["request_origin"].(tokenAnalysisRequestOrigin).Reason)
+			origin, ok := got.SummaryJSON["request_origin"].(tokenAnalysisRequestOrigin)
+			require.True(t, ok)
+			require.Equal(t, "user_input", origin.Reason)
 		})
 	}
 

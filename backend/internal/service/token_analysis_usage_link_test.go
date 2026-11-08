@@ -63,7 +63,9 @@ func TestTokenAnalysisLinkUsageRescoresRisk(t *testing.T) {
 		return out
 	}
 	require.Contains(t, codes("new"), TokenAnalysisRiskHugeInputTinyOutput)
-	require.Equal(t, 3, codes("new")[TokenAnalysisRiskRepeatUncachedBody].(map[string]any)["same_body_recent_count"])
+	repeatDetail, ok := codes("new")[TokenAnalysisRiskRepeatUncachedBody].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, 3, repeatDetail["same_body_recent_count"])
 	// 桩 CountSameBodyRecent 返回 1(仅本行), 扣掉自身后为 0, 不触发重复原因。
 	require.Contains(t, codes("legacy"), TokenAnalysisRiskHugeInputTinyOutput)
 	require.NotContains(t, codes("legacy"), TokenAnalysisRiskRepeatUncachedBody)

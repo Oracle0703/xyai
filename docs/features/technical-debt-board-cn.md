@@ -104,7 +104,7 @@
 | TD-001 | P0 | open | 异步图 URL 下载无 SSRF 防护（`image_storage.download`） | 安全 |
 | TD-002 | P0 | open | 异步图 processing 重启不恢复 | 可靠 |
 | TD-003 | P0 | open | 用户批量限额 cache/参数上限风险 | 配额边界 |
-| TD-004 | P0 | open | 全量 golangci-lint 基线红（2026-11-03：34） | CI |
+| TD-004 | P0 | done | 全量 golangci-lint 基线红（2026-11-08 清零：实际 95 项） | CI |
 | TD-005 | P0 | open | `/auth/me` × `admin_permissions` contract mismatch | 测试基线 |
 | TD-006 | P0 | open | Frontend Vitest 已知基线失败族 | 测试基线 |
 | TD-027 | P0 | open | OpenAI Live 会话计费恒 0（可白嫖时长） | 计费 |
@@ -138,7 +138,7 @@
 | TD-040 | P2 | open | 网关 root 别名 / 多入口重复挂载 | 路由复杂度 |
 | TD-041 | P2 | open | `service` 单包 479 文件巨石 package | 包结构 |
 | TD-042 | P2 | open | 前端巨型 SFC（Settings 530KB 等） | 前端 |
-| TD-021 | P3 | open | lint errcheck 假阳性（Builder/Close） | Lint |
+| TD-021 | P3 | done | lint errcheck 假阳性（Builder/Close） | Lint |
 | TD-022 | P3 | open | 支付 legacy AES ciphertext fallback | 遗留 |
 | TD-023 | P3 | open | gateway TOCTOU soft-limit（有意权衡） | 设计 |
 | TD-024 | P3 | open | Prompt Audit 生产 blocking 运营证据未齐 | 运营 |
@@ -190,7 +190,7 @@
 
 | | |
 | --- | --- |
-| 状态 | open |
+| 状态 | done（2026-11-08，见下方关闭记录） |
 | 证据 | 2026-11-03 `main@0157f2c79` 全量 **34** 项（errcheck 20、gofmt 1、staticcheck 4、unused 9），分布在 19 个文件；`--new-from-rev=7d0f760fc` 增量 0。历史：2026-06-08 main 40 / `ace14582` 44；merge-log 各轮 ~28–29。CI job **全量**扫描，无 only-new |
 | 影响 | lint job 对任意 PR 可红，**失去存量拦截**；团队只靠 `--new-from-rev` 心理安慰 |
 | 建议 | chore 清零 **或** CI 正式 only-new + 本看板定期还债；二者必须选一并写进 ops |
@@ -198,6 +198,19 @@
 | 关联 | TD-021 |
 
 存量性质：2026-06-08 对当时 44 项逐条判定，全部是风格级问题，没有运行时 bug。2026-11-03 的 34 项只有分类计数（errcheck 20、gofmt 1、staticcheck 4、unused 9），未逐条复判；unused 从 2 项增至 9 项，清理时需逐条确认是否真为死代码。
+
+### 关闭记录 · TD-004
+
+- 日期 / 分支 / commit：2026-11-08 / `feature/hy/10232_ci_green`（基于 `main@cd0ba906e`，即 0.2.20 合入后）/ 提交待审核。
+- 摘要：CI 显示的 34 项被 golangci-lint 默认 `max-same-issues=3` 截断，实际 **95 项**（errcheck 81、gofmt 1、staticcheck 4、unused 9），清理后又暴露 3 项 QF1012，一并修掉。修法：
+  - errcheck：按仓库现有写法改成 `_, _ = b.WriteString(...)`、`defer func() { _ = rows.Close() }()`；测试里的类型断言改为 `v, ok := ...; require.True(t, ok)`。
+  - unused（逐条确认无任何 tag 下的引用后删除）：整份本地文件 `internal/pkg/apicompat/responses_to_chatcompletions_request.go`（6 个函数只互相调用，无外部调用方）；`repository/redis.go#redisVersionFromInfo`；`service/openai_gateway_request_body.go#sanitizeOpenAIResponsesOfficialRequestBodyMap`（唯一调用在 2026-06 的 1.134 合并时已去掉，`thinking` 剔除由字节版 `sanitizeOpenAIResponsesOfficialRequestBody` 承担）；测试桩未用字段 `applyErr`。
+  - staticcheck：两处 De Morgan 改写；`QF1012` 改 `fmt.Fprint(&b, ...)`（prompt cache seed 字节不变）；`ST1005` 的 `Redis 7+ is required...` 不改文案，加带理由的 `//nolint:staticcheck`，因为运维手册按原文排查该启动错误。
+  - gofmt：`user_concurrency_preset_handler.go`。
+- 同批修 CI `test` 的唯一失败 `TestIdempotencyCoordinator_AtomicSuccessRollsBackFilteredDailyResetWhenMarkSucceededFails`：测试用 `"idem-subscription-atomic-" + t.Name()`（114 字符）当分组名，超过 Ent `Group.name` MaxLen(100)；改为短前缀 + 测试名哈希前 16 位，只改测试数据。
+- 验证命令与结果：`golangci-lint run --timeout=30m --max-same-issues=0 --max-issues-per-linter=0 ./...` 在 Windows 与 `GOOS=linux` 下均 0 issues；测试结果见本轮验证（`-tags=unit` 全量、受影响包 default、隔离 PG 跑修复的 integration 用例）。
+- wiki/本看板是否更新：是（ops CI 节、playbook 增量/全量 lint 规则）。
+- 残留风险：CI lint 仍是全量扫描。上游合并若带入新 lint 问题，按 playbook 记录后另开 chore 修，不在合并分支里改上游代码。本地核对全量 lint 必须加 `--max-same-issues=0 --max-issues-per-linter=0`，否则数量会被截断。
 
 | 类别 | 实质 | 修法 |
 | --- | --- | --- |
@@ -423,6 +436,8 @@ wiki：inactive 仍用；代理变更无 hook，≤1min TTL。建议 save/update
 
 与 TD-004 一并 bulk fix 或调整 exclusion。
 
+2026-11-08 随 TD-004 关闭：没有改 errcheck exclusion，Builder/Buffer 写入与 Close 统一按仓库写法显式丢弃返回值。
+
 ### TD-022 · 支付 legacy AES
 
 `payment/load_balancer.go`、`payment_config_providers.go` deprecated-legacy-ciphertext。确认无密文后删。
@@ -532,3 +547,4 @@ Sprint F — 功能洞与杂项
 | 2026-08-12 | **深度扫描修订**：体量快照；migration 42 组双前缀；TODO 全表；读码确认 SSRF/Live 零计费/组织用量未物化；新增 TD-025–043；条目共 40；Sprint 重排 |
 | 2026-08-12 | 补全后台扫描：nolint/interface{}/recover/类型断言/gjson 热文件/本地能力文件足迹 |
 | 2026-11-04 | 并入 `golangci-lint-debt-cleanup-plan-cn.md`（TD-004 现状与修法）与 2026-11-03 未合并分支复审、PR #45–#47 验证中的遗留项（新增 TD-044–046）；原文件已移出仓库 |
+| 2026-11-08 | TD-004、TD-021 关闭：全量 lint 实际 95 项清零，同批修复 CI integration 唯一失败用例（分组名超长），目标 main CI 全绿 |

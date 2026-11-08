@@ -76,7 +76,7 @@ func validateRedisServerVersion(ctx context.Context, rdb *redis.Client, versionO
 		return fmt.Errorf("check Redis server version: missing redis_version in INFO server")
 	}
 	if redisMajorVersion(version) < 7 {
-		return fmt.Errorf("Redis 7+ is required, current Redis version is %s", version)
+		return fmt.Errorf("Redis 7+ is required, current Redis version is %s", version) //nolint:staticcheck // ST1005: 运维手册按原文排查该启动错误
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func validateRedisServerInfo(_ context.Context, _ *redis.Client, info string) er
 	version := redisInfoValue(info, "redis_version")
 	if version != "" {
 		if redisMajorVersion(version) < 7 {
-			return fmt.Errorf("Redis 7+ is required, current Redis version is %s", version)
+			return fmt.Errorf("Redis 7+ is required, current Redis version is %s", version) //nolint:staticcheck // ST1005: 运维手册按原文排查该启动错误
 		}
 		return nil
 	}
@@ -94,10 +94,6 @@ func validateRedisServerInfo(_ context.Context, _ *redis.Client, info string) er
 		return nil
 	}
 	return fmt.Errorf("check Redis server version: missing redis_version in INFO server")
-}
-
-func redisVersionFromInfo(info string) string {
-	return redisInfoValue(info, "redis_version")
 }
 
 func redisInfoValue(info, name string) string {

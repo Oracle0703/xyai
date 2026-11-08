@@ -61,7 +61,7 @@ func TestIdempotencyCoordinator_AtomicSuccessRollsBackFilteredDailyResetWhenMark
 		Save(ctx)
 	require.NoError(t, err)
 	groupRow, err := client.Group.Create().
-		SetName(suffix).
+		SetName("idem-sub-atomic-" + hashedTestValue(t, "idem-subscription-atomic")[:16]).
 		SetStatus(service.StatusActive).
 		SetPlatform(service.PlatformOpenAI).
 		SetDailyLimitUsd(10).

@@ -234,24 +234,24 @@ func normalizeLargeRequestMode(mode string) string {
 
 func largeRequestPromptCacheSeed(req apicompat.ChatCompletionsRequest, identity LargeRequestIdentity) string {
 	var b strings.Builder
-	b.WriteString(req.Model)
-	b.WriteString("|u=")
-	b.WriteString(fmt.Sprint(identity.UserID))
-	b.WriteString("|k=")
-	b.WriteString(fmt.Sprint(identity.APIKeyID))
-	b.WriteString("|g=")
-	b.WriteString(fmt.Sprint(identity.GroupID))
+	_, _ = b.WriteString(req.Model)
+	_, _ = b.WriteString("|u=")
+	_, _ = fmt.Fprint(&b, identity.UserID)
+	_, _ = b.WriteString("|k=")
+	_, _ = fmt.Fprint(&b, identity.APIKeyID)
+	_, _ = b.WriteString("|g=")
+	_, _ = fmt.Fprint(&b, identity.GroupID)
 	for _, msg := range req.Messages {
 		switch msg.Role {
 		case "system", "developer":
-			b.WriteString("|msg=")
-			b.Write(msg.Content)
+			_, _ = b.WriteString("|msg=")
+			_, _ = b.Write(msg.Content)
 		}
 	}
 	if len(req.Tools) > 0 {
 		body, _ := json.Marshal(req.Tools)
-		b.WriteString("|tools=")
-		b.Write(body)
+		_, _ = b.WriteString("|tools=")
+		_, _ = b.Write(body)
 	}
 	return b.String()
 }
@@ -336,7 +336,7 @@ func looksLikeBase64ToolContent(content string) bool {
 		return false
 	}
 	for _, r := range compact {
-		if !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') && r != '+' && r != '/' && r != '=' {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '+' && r != '/' && r != '=' {
 			return false
 		}
 	}

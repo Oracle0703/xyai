@@ -20,7 +20,7 @@ type userConcurrencyPresetRequest struct {
 	Name              string  `json:"name"`
 	Description       string  `json:"description"`
 	TargetConcurrency int     `json:"target_concurrency"`
-	UserIDs           []int64  `json:"user_ids"`
+	UserIDs           []int64 `json:"user_ids"`
 	ScheduleEnabled   bool    `json:"schedule_enabled"`
 	ScheduleTime      string  `json:"schedule_time"`
 }

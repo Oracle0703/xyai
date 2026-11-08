@@ -304,7 +304,7 @@ func NormalizeRequestInterceptText(text string, normalization RequestInterceptNo
 			if unicode.IsPunct(r) || unicode.IsSymbol(r) {
 				continue
 			}
-			b.WriteRune(r)
+			_, _ = b.WriteRune(r)
 		}
 		text = b.String()
 	}

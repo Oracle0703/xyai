@@ -398,7 +398,7 @@ func (r *tokenAnalysisRepoStub) ListUsageLinkCandidates(ctx context.Context, sta
 	}
 	out := make([]TokenAnalysisUsageLinkCandidate, 0, len(all))
 	for _, c := range all {
-		if link, ok := r.links[c.ArchiveID]; c.ID > afterID && !(ok && link != nil && link.Method != "") {
+		if link, ok := r.links[c.ArchiveID]; c.ID > afterID && (!ok || link == nil || link.Method == "") {
 			if ok {
 				c.UsageLogID, c.Method, c.LinkPending = nil, "", false
 				if link != nil {

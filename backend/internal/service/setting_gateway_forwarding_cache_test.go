@@ -170,7 +170,8 @@ func TestGatewayForwardingSnapshotExpiryAnchoredAtReadStart(t *testing.T) {
 	close(release)
 	require.True(t, <-seen)
 
-	cached := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings)
+	cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings)
+	require.True(t, ok)
 	repo.mu.Lock()
 	takenAt := repo.takenAt
 	repo.mu.Unlock()

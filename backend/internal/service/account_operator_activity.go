@@ -240,7 +240,7 @@ func (s *AccountOperatorActivityService) RecordCreated(actor AccountOperatorActo
 			if ref.Action == "updated" {
 				title = "导入更新已有账号 "
 			}
-			sections.WriteString(accountActivitySectionHTML(title+name, snapshot, nil))
+			_, _ = sections.WriteString(accountActivitySectionHTML(title+name, snapshot, nil))
 		}
 		subject := "新增账号：" + names[0]
 		if len(names) > 1 {
@@ -569,28 +569,28 @@ func isOfficialAccountBaseURL(raw string) bool {
 func accountActivitySectionHTML(title string, snapshot *AccountActivitySnapshot, changes []accountActivityChange) string {
 	const cell = `padding:8px 10px;border-bottom:1px solid #eef0f4;vertical-align:top;`
 	var b strings.Builder
-	b.WriteString(`<h2 style="margin:28px 0 12px;font-size:18px;">` + html.EscapeString(title) + `</h2>`)
+	_, _ = b.WriteString(`<h2 style="margin:28px 0 12px;font-size:18px;">` + html.EscapeString(title) + `</h2>`)
 	if len(changes) > 0 {
-		b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px;background:#fff7ed;">`)
-		b.WriteString(`<tr><th style="` + cell + `text-align:left;color:#9a3412;">变更项</th><th style="` + cell + `text-align:left;color:#9a3412;">操作前</th><th style="` + cell + `text-align:left;color:#9a3412;">操作后</th></tr>`)
+		_, _ = b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px;background:#fff7ed;">`)
+		_, _ = b.WriteString(`<tr><th style="` + cell + `text-align:left;color:#9a3412;">变更项</th><th style="` + cell + `text-align:left;color:#9a3412;">操作前</th><th style="` + cell + `text-align:left;color:#9a3412;">操作后</th></tr>`)
 		for _, change := range changes {
-			b.WriteString(`<tr><td style="` + cell + `color:#666;">` + html.EscapeString(change.Label) + `</td><td style="` + cell + `">` + html.EscapeString(change.Before) + `</td><td style="` + cell + `font-weight:600;color:#c2410c;">` + html.EscapeString(change.After) + `</td></tr>`)
+			_, _ = b.WriteString(`<tr><td style="` + cell + `color:#666;">` + html.EscapeString(change.Label) + `</td><td style="` + cell + `">` + html.EscapeString(change.Before) + `</td><td style="` + cell + `font-weight:600;color:#c2410c;">` + html.EscapeString(change.After) + `</td></tr>`)
 		}
-		b.WriteString(`</table>`)
+		_, _ = b.WriteString(`</table>`)
 	}
 	if snapshot == nil {
-		b.WriteString(`<p style="color:#b91c1c;">未能读取账号当前状态，请到后台核对。</p>`)
+		_, _ = b.WriteString(`<p style="color:#b91c1c;">未能读取账号当前状态，请到后台核对。</p>`)
 		return b.String()
 	}
-	b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:14px;">`)
+	_, _ = b.WriteString(`<table style="width:100%;border-collapse:collapse;font-size:14px;">`)
 	for _, field := range accountActivityFields(snapshot) {
 		value := html.EscapeString(field[1])
 		if field[0] == "上游地址" && !isOfficialAccountBaseURL(field[1]) {
 			value = `<span style="color:#dc2626;font-weight:700;">` + value + `（非官方地址，用户请求会转发到这里）</span>`
 		}
-		b.WriteString(`<tr><td style="` + cell + `width:120px;color:#666;">` + html.EscapeString(field[0]) + `</td><td style="` + cell + `">` + value + `</td></tr>`)
+		_, _ = b.WriteString(`<tr><td style="` + cell + `width:120px;color:#666;">` + html.EscapeString(field[0]) + `</td><td style="` + cell + `">` + value + `</td></tr>`)
 	}
-	b.WriteString(`</table>`)
+	_, _ = b.WriteString(`</table>`)
 	return b.String()
 }
 

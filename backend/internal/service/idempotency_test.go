@@ -887,7 +887,8 @@ func TestIdempotencyCoordinator_AtomicSuccessRollsBackExecutionWhenMarkSucceeded
 		Payload:        map[string]any{"a": 1},
 		AtomicSuccess:  true,
 	}, func(ctx context.Context) (any, error) {
-		require.True(t, ctx.Value(idempotencyTxTestContextKey{}).(bool))
+		inTx, ok := ctx.Value(idempotencyTxTestContextKey{}).(bool)
+		require.True(t, ok && inTx)
 		repo.value++
 		return map[string]any{"count": 1}, nil
 	})

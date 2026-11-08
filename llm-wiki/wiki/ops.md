@@ -512,7 +512,7 @@ Windows 没有 make 时, 直接运行 Makefile 内对应原始命令。
 - 后端单元测试: `make test-unit`
 - 后端集成测试: `make test-integration`
 - 前端: pnpm 9, Node 20, `pnpm install --frozen-lockfile`, `make test-frontend`
-- golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.14.0`, working-directory `backend`
+- golangci-lint: `golangci/golangci-lint-action@v9`, version `v2.14.0`, working-directory `backend`，**全量扫描**（没有 only-new）。2026-11-08 起全量为 0（TD-004 关闭），新增任何 lint 问题都会让 CI 变红。本地核对：`golangci-lint run --timeout=30m --max-same-issues=0 --max-issues-per-linter=0 ./...`，再加 `GOOS=linux` 跑一遍（CI 在 Linux）；不加两个 max 参数时数量会被默认上限截断（曾经显示 34，实际 95）。
 - Go 版本校验: `go1.27.3`
 
 `.github/workflows/security-scan.yml`:

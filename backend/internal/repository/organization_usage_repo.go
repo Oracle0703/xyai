@@ -99,7 +99,7 @@ func (r *organizationUsageRepository) Periods(ctx context.Context, params servic
 	if err != nil {
 		return nil, fmt.Errorf("query organization usage periods: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.OrganizationUsagePeriod, 0)
 	for rows.Next() {
@@ -141,7 +141,7 @@ func (r *organizationUsageRepository) Trend(ctx context.Context, params service.
 	if err != nil {
 		return nil, fmt.Errorf("query organization usage trend: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// One row per bucket × organization with usage; buckets without usage come back once with a NULL organization.
 	organizations := r.trendOrganizations(params.Organization)
@@ -210,7 +210,7 @@ func (r *organizationUsageRepository) queryOrganizations(ctx context.Context, pa
 	if err != nil {
 		return nil, fmt.Errorf("query organization usage organizations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make([]service.OrganizationUsageOrganization, 0, 3)
 	for rows.Next() {
@@ -246,7 +246,7 @@ func (r *organizationUsageRepository) querySummaryItems(ctx context.Context, par
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("query organization usage summary items: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.OrganizationUsageSummaryItem, 0)
 	for rows.Next() {
@@ -292,7 +292,7 @@ func (r *organizationUsageRepository) queryChampions(ctx context.Context, params
 	if err != nil {
 		return service.OrganizationUsageChampions{}, fmt.Errorf("query organization usage champions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result service.OrganizationUsageChampions
 	for rows.Next() {
