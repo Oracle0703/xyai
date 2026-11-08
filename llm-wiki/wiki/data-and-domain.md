@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.2.20 MCP OAuth 与注册黑名单
+
+- 新增 `249_mcp_oauth.sql`：`mcp_oauth_grants`（用户批准时才建行，记录 scope user/admin、read_only、token_version、到期/撤销）、`mcp_oauth_codes`、`mcp_oauth_credentials`（只存摘要，refresh 复用会吊销整组）。SQL repository（`repository/mcp_oauth.go`），无 Ent entity。与本地 `249_token_analysis_client_identity.sql` 按完整文件名共存，已上线库会补跑新文件；旧迁移不改、不重命名。
+- 注册邮箱精确黑名单保存在设置里（按收件箱身份匹配，Gmail 折叠点号与 `+` 后缀），只拦截注册（含邮箱 OAuth 自动注册），不影响已有账号登录；批量禁用跳过管理员和已禁用用户，同事务吊销 MCP 授权并清理鉴权缓存。本地 `disabled_source` 由触发器补成 `other`。
+- 账号 extra 新增 `openai_image_size_tiers`（缺省/空/三档齐全 = 不限）；生图测试连接按最低允许档位选尺寸。本地组织/部门、Token Analysis、订阅自助重置、GPT 额度数据结构不变。
+
 ## 0.2.19 数据与图片计费
 
 - 新增 `247_scoped_admin_api_keys.sql`：独立密钥表只存摘要与前缀、策略/IP/有效期、创建者和最后使用信息；撤销和从列表移除分别为 `revoked_at` / `deleted_at`，不删除历史审计。此表使用 SQL repository，不新增 Ent entity。

@@ -124,6 +124,7 @@
 | `ProvidePluginManager` 本地分叉 | 上游在生成代码里手写 `pluginManager.SetAccountDirectory(...)`，本地已移到 `backend/internal/service/wire.go#ProvidePluginManager`。冲突以本地重新生成结果为准；上游改了 `NewPluginManager` 参数或接线时同步改 `ProvidePluginManager`，重新生成后确认仍有 `SetAccountDirectory`；上游自己并入源图后删除本地 provider（0.2.7 W1、2026-09-23 台账） |
 | 兼容 helper 只补缺 | 本地兼容解析（如 compatible cache usage）叠在上游统一解析器之后时，只在解析出正值时写回，不能用 0 覆盖上游已解析字段（0.1.150 cache write 被清零） |
 | 上游接口变更导致本地代码不编译 | 只做最小转接（如 0.2.7 `moderationTextCollector` 薄转接、0.1.159 测试桩补 `BatchUpdateLimits`），保持第一父行为，不改上游路径 |
+| 上游测试改角色 | 本地 `userRepository.Update` 改 Role/AdminPermissions 必须带 `ExpectedAdminAccessVersion`（否则 `ADMIN_ACCESS_VERSION_REQUIRED`）；上游测试直接改角色时用 `GetByIDWithAdminAccess` 取版本再传入，断言不改。这类用例多在 integration tag，需隔离 PG 才能跑到（0.2.19、0.2.20） |
 | i18n 拆分类合并 | `vue-tsc` 与现有守卫测试对缺键无感；需对本地组件引用的 key 做存在性检索，并确认 `git status` 中 `frontend/src/i18n` 没有 `??` 新模块（0.1.146） |
 | 上游自带的格式问题 | 上游 blob 自带 trailing whitespace（如 source-freeze patch、Channel Monitor 文档）时原样保留，diff check 排除该文件并在审核中说明（0.1.160、0.1.173） |
 | migration | 只新增不改已应用文件；上游重复数字前缀（如双 `194_`）按完整文件名排序执行，不重命名；上游 migration 的数据风险登记到部署前检查（0.1.173 migration 206/220） |
@@ -136,6 +137,7 @@
 | 新网关入口 | 上游新增的路由（含根级别名）必须经过 `RequestArchive -> RequestIntercept`；Responses path guard 必须位于 `RequestIntercept` 之前（`guardResponsesSubpath(requestIntercept)`），否则 Gemini wildcard 等路由会短路 guard（0.1.170、0.1.171、0.1.173、0.1.176 根级 `/x_search`、0.2.7 Seedance）。当前根级路由统一走 `rootRoute` helper |
 | 新管理路由 | 上游新增 `/api/v1/admin/**` 路由时，对照 `backend/internal/service/admin_permission.go` 做显式授权决策；保持子管理员默认拒绝也是有效结论，扩权需独立产品/安全决策（0.1.161 Ops ingress/auth-cache 路由） |
 | 防递归签名头 | 上游重构审核/安全链路时，确认 `X-Sub2API-Prompt-Risk-Judge` 仍传给本地 legacy moderation（0.1.160） |
+| 新认证链复用管理路由 | 上游新增能进入 `/api/v1/admin/**` 的认证方式（受限密钥 0.2.19、管理 MCP 内部分发 0.2.20）必须注入 `service.WithDepartmentActor(已认证用户)`，否则本地订阅接口 fail-closed 返回部门范围拒绝；上游测试多用 nil departments，测不出来，要看生产 Wire 接线。受限判断用 `adminaccess.RestrictedFromContext`，不要用 `FromContext`（0.2.20 起全权密钥也带 Principal） |
 
 ### 范围与失败归属
 

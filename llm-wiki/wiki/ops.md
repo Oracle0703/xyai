@@ -7,6 +7,13 @@
 - 默认全量曾出现一次 `TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover` 关闭帧超时；unit/integration 全量及当前/基线各 3 次精确复跑通过，根因未闭环。全量 lint 34 项分布在本轮未改文件，增量 lint 0；integration 命令退出 0 但无 Docker 的 repository 整包跳过，另有 18 显式 skip，不能称完整集成通过。
 - 分区清理 SQL mock 与 Command Code 目录缓存键碰撞已由 PR #48（`c1858e06c`）修复；WebSocket 关闭帧时序与全量 lint 34 项见 `docs/features/technical-debt-board-cn.md` TD-045、TD-004。原验证报告已移出仓库（最后存在于 `26f6363af`），未做真实账号浏览器或生产端到端验收。
 
+## 0.2.20 配置与验证入口
+
+- 新配置（默认值）：`mcp.public_url`（`MCP_PUBLIC_URL`，空=关闭 MCP/OAuth；非回环必须 HTTPS，路径固定 `/api/v1/mcp`）；`gateway.disable_openai_transport_error_cooldown`（false）；`gateway.request_body_memory_budget_bytes`（1 GiB，0 禁用）；`gateway.request_body_read_timeout_seconds` / `downstream_write_timeout_seconds`（120，单次读/写 idle，0 禁用）；`gateway.sse_queue_max_bytes`（8 MiB）、`sse_event_max_bytes`（0=继承 max_line_size）、`sse_event_max_lines`（4096）。部署说明见 `deploy/EDGE_SECURITY.md`、`docs/mcp.md`。
+- 前端依赖升级 vue-i18n 11.4.16：本机默认 npm registry `192.168.5.16:4879` 缺 `@intlify/*@11.4.16`（404），frozen install 需临时加 `--registry=https://registry.npmmirror.com/`（锁文件 integrity 仍校验，不改全局配置）。部署机构建同样要能拉到该版本。
+- 后端依赖：MCP go-sdk v1.4.1、brotli v1.2.7、klauspost/compress v1.20.2、x/oauth2（indirect）；Go 仍 1.27.3。Wire 有新 provider（MCP OAuth），需 `go generate ./cmd/server` 后还原 go.sum 里的 subcommands checksum；Ent schema 无变化。
+- 验证顺序同 0.2.19（default → unit → integration 依次跑、每套独立 GOTMPDIR）；结果和失败归属见 `docs/upstream-sync/2026-11-08-v0.2.20/review.md`。
+
 ## 0.2.19 合并验证入口
 
 - 固定目标 `a9240d5016c226b341242a8c54a01a8605cbbc72`，Go 1.27.3；升级 x/net 等依赖，前端 package/lockfile 无上游变化。新增 `gateway.max_same_account_retries_gemini`：默认 4，不含首次请求；0 禁用同号重试，允许范围 0–10。

@@ -159,7 +159,10 @@ docs/*
 !docs/upstream-sync/
 !docs/presentations/
 !docs/安装与操作手册.md
+!docs/agent-resource-safety.md
+!docs/moego-json-batching.md
 !docs/admin-api-keys.md
+!docs/mcp.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md

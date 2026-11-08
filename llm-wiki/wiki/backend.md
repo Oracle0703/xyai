@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 0.2.20 管理 MCP、全权密钥与网关资源边界
+
+- `internal/managementmcp` + `routes/mcp.go`：`/api/v1/mcp`（POST/GET/DELETE）在私有 gin 路由里复用 `RegisterUserRoutes`/`RegisterAdminRoutes`，只开放 `managementmcp/catalog.go` 固定工具（`DispatchAuth` 要求 method+FullPath 与工具一致）。OAuth 发现/注册/令牌在 `RegisterMCPOAuthRoutes`，用户授权管理在 `/api/v1/user/mcp/*`，Wire 新增 `MCPOAuthRepository/Service/Handler`。
+- 本地适配：`DispatchAuth(true)` 调用 `service.WithDepartmentActor(principal.UserID)`。本地订阅 handler/仓储缺 DepartmentActor 会 fail-closed，不注入时 MCP 的 5 个 `admin_*subscription*` 工具在生产接线下全部拒绝；admin scope 只发给 RoleAdmin，仓储仍按库内角色复核。回归：`managementmcp/department_actor_test.go`。上游改 MCP 认证链时要保留此注入。上游测试直接 `users.Update(Role: true)` 会撞本地角色 CAS，需按 `GetByIDWithAdminAccess` + `ExpectedAdminAccessVersion` 适配（本轮 `mcp_oauth_integration_test.go`、`user_repo_email_blacklist_integration_test.go`）。
+- 管理密钥新增全权兼容模式 `Policy.FullAccess`：`adminaccess.RestrictedFromContext` 只返回需要裁剪的受限密钥，全权密钥仍带 Principal 供审计/限流/幂等。本地 `adminSubscriptionResponse` 的受限分支已改用 `RestrictedFromContext`，JWT 子管理员投影不变。全权密钥可访问全部 `/api/v1/admin/*`（不含 `settings/admin-api-key`），含本地部门/Token Analysis 等路由，和旧版全权密钥一致。
+- 网关请求体：`RequestBodyLimit(max, budget)` 接入实例级 `BodyMemoryBudget`（超出返回 503 + Retry-After），`pkghttputil.WithBodyReadTimeout`/`WithWriteTimeout` 包在 HTTP server 外层。本地 RequestArchive/RequestIntercept 仍在 bodyLimit 后用 `io.ReadAll` 读取，受读超时约束但不计入内存预算。
+- 其余采用上游：OpenAI 生图账号按 1K/2K/4K 档位分流（`openai_image_size_routing.go`，账号 extra `openai_image_size_tiers`）、GPT Image 2.6 原生链路、`disable_openai_transport_error_cooldown`、cyber transcript 按屏蔽前缀长度匹配、SSE 行/事件/队列上限、Antigravity 配额窗口、注册邮箱精确黑名单与批量禁用（`admin_user_email_blacklist.go`）。`validateGPT61SolCompatRequest` 已更名为 `validateGPT61CompatRequest`。
+
 ## 0.2.19 管理密钥、模型目录与计费
 
 - `pkg/adminaccess`、`service/custom_admin_keys.go`、`repository/custom_admin_keys.go` 提供独立受限管理员 API 密钥。Wire 注入 `ScopedAdminKeyRepository`；`AdminAuth` 验证创建者仍为启用管理员，按 HTTP 方法 + 完整路由校验，再由账户/分组专用处理器限制资源及字段。JWT 子管理员权限和 `AccountOperator.ActivityTracker` 继续独立生效。

@@ -1,5 +1,13 @@
 # 安全与可靠性基线
 
+## 0.2.20 MCP、全权密钥与新增管理路由边界
+
+- 管理 MCP 只接受资源绑定的 OAuth access token（S256 PKCE 公共客户端，令牌/授权码只存摘要），`mcp.public_url` 为空时 MCP 与 OAuth 接口关闭。admin scope 授权和每次鉴权都要求 `user.IsAdmin()`（仅 `RoleAdmin`），本地 `sub_admin` 只能拿 user scope，不能通过 MCP 进入任何 `/admin` 工具；MCP 内部分发不经过本地 `CanAccessAdminRoute`，靠 admin scope 只给 RoleAdmin 守住。
+- MCP admin 分发注入的 `DepartmentActor` 只是已认证管理员身份（与 JWT/受限密钥一致），不扩大工具集；工具集仍由 catalog 固定，本地部门/组织/Token Analysis 路由不在 catalog 内，MCP 不可达。
+- 新增 `/admin/users/batch-disable`、`/admin/users/blacklist-matches`、`/admin/settings/registration-email-blacklist`：未加入 `admin_permission.go` 白名单，子管理员默认拒绝（扩权要单独做产品/安全决策）。批量禁用不写 `disabled_source`，由 migration 261/262 触发器补成 `other`，部门/组织负责人不能解除。
+- 全权兼容管理密钥（`full_access`，创建需确认）等同旧版全权密钥，可访问全部 `/api/v1/admin/*`（不含密钥管理）；受限裁剪/响应投影统一判断 `RestrictedFromContext`，本地代码新增受限判断也必须用它，不能用 `FromContext`。
+- 请求体：实例内存预算超出返回 503 + Retry-After（不是 429/413）；上传单次读取、下游单次写入/flush 超时默认各 120s（idle deadline，不限制长流总时长）。本地归档/拦截的整体读取不计入内存预算，是已知边界，未修补。
+
 ## 0.2.19 管理密钥权限边界
 
 - `adm_sc_` 密钥每次查库，检查启用/撤销/有效期/IP 和创建者当前管理员状态；未登记路由默认拒绝。操作权限与账户/分组资源范围分别校验，全站权限需显式授予；不能凭创建者是管理员绕过 `adminaccess`。

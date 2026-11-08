@@ -12,7 +12,7 @@
 
 | 位置 | 内容 | 维护方式 |
 | --- | --- | --- |
-| `PAYMENT.md`、`PAYMENT_CN.md`、`ADMIN_PAYMENT_INTEGRATION_API.md`、`ASYNC_IMAGE_TASKS.md`、`BATCH_IMAGE_MVP.md`、`COMPOSITE_GROUPS.md`、`PLUGIN_DEVELOPMENT.md`、`OPENAI_GPT55_RETIREMENT.md`、`admin-api-keys.md`、`channel-monitor-v2-safe-defaults.md` | 上游 `Wei-Shaw/sub2api` 自带文档 | 保持原位，随上游合并；README 和设置页链接指向这些路径 |
+| `PAYMENT.md`、`PAYMENT_CN.md`、`ADMIN_PAYMENT_INTEGRATION_API.md`、`ASYNC_IMAGE_TASKS.md`、`BATCH_IMAGE_MVP.md`、`COMPOSITE_GROUPS.md`、`PLUGIN_DEVELOPMENT.md`、`OPENAI_GPT55_RETIREMENT.md`、`admin-api-keys.md`、`channel-monitor-v2-safe-defaults.md`、`mcp.md`、`agent-resource-safety.md`、`moego-json-batching.md` | 上游 `Wei-Shaw/sub2api` 自带文档 | 保持原位，随上游合并；README 和设置页链接指向这些路径 |
 | `legal/` | 管理员合规文档（上游） | 不可移动：前端 `?raw` 打包、`Dockerfile`、`.dockerignore` 和后端常量引用该路径 |
 | `ARCHITECTURE_AND_OPS_HANDBOOK.md` | 本地架构与运维总手册（给人读） | 根 README 引用，保持原位 |
 | `安装与操作手册.md` | 历史安装包 `main@b3ff5895`（2026-05-27）的 Ubuntu 20.04 一键安装说明，不是现行手册 | 历史快照；配套脚本只在该安装包内 |
