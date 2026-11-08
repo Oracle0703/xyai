@@ -11,7 +11,7 @@ import (
 )
 
 func scopedAdminWriteOnly(c *gin.Context, readPermission string) bool {
-	p := adminaccess.FromContext(c.Request.Context())
+	p := adminaccess.RestrictedFromContext(c.Request.Context())
 	return p != nil && !slices.Contains(p.Policy.GlobalPermissions, readPermission)
 }
 
@@ -42,7 +42,7 @@ type subscriptionView struct {
 func adminSubscriptionResponse(c *gin.Context, data any) any {
 	var view subscriptionView
 	switch {
-	case adminaccess.FromContext(c.Request.Context()) != nil:
+	case adminaccess.RestrictedFromContext(c.Request.Context()) != nil:
 		view.keys = []string{"id"}
 		if !scopedAdminWriteOnly(c, "subscriptions.read") {
 			view.keys = slices.Concat(view.keys, subscriptionUsageKeys, subscriptionAssignmentKeys)

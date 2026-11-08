@@ -10,6 +10,13 @@
 - 错误脱敏: 目录与生图错误在进入页面/toast 前用请求发起时的 Key 快照替换为 `***`(`redactCredential`), 兼容 `message` 与 `error.message`。
 - 自定义尺寸: 宽高 64~4096 整数(`frontend/src/utils/imageGenSizes.ts#parseImageSize`), 网关不校验尺寸、能否出图由上游决定。非预设尺寸存 localStorage `image-gen-custom-sizes-v1`(最新在前, 最多 20, 不含 Key), 只记列表不记选中项; 当前尺寸不在列表中(历史恢复/已删除)时下拉框单独列出; 跨标签页经 storage 事件同步。详见 `docs/features/image-gen-design-cn.md` §5。
 
+## 0.2.20 MCP 连接、注册黑名单与依赖升级
+
+- 新增用户页 `/settings/mcp`（`views/user/MCPView.vue`）和授权页 `/oauth/mcp/authorize`（`views/auth/MCPOAuthAuthorizeView.vue`），API 在 `api/mcp.ts`；侧栏入口受 `FeatureFlags.mcp`（公开设置 `mcp_enabled`）控制，均为普通用户路由，不影响本地子管理员菜单过滤。
+- 设置页新增 `RegistrationEmailBlacklistEditor.vue`（保存时可查命中用户并批量禁用），管理密钥支持全权兼容模式与统计权限；账号弹窗新增 `OpenAIImageSizeTiersField.vue`。本地归档/拦截设置、Prompt Risk、GPT 额度等设置项保留，`api/admin/settings.ts` 两组导出并存。
+- `api/client.ts` 拒绝对象同时带本地 `retryAfter`（原始头，供 `useSubscriptionSelfReset`）和上游 `retry_after_seconds`（仅整数秒，供用量导出重试）；以后统一时把本地 composable 改到上游字段并删 `retryAfter`。
+- vue-i18n 升到 v11（`@intlify/message-compiler` 11.4.16）；本地代码未用已移除的 `tc/$tc/v-t`，`i18n/__tests__/localesMessageCompile.spec.ts` 会用新编译器校验全部文案。
+
 ## 0.2.19 管理密钥与模型界面
 
 - 设置安全页接入 `components/admin/settings/AdminAccessKeysSettings.vue` 与 `api/admin/adminAccessKeys.ts`：按操作/资源配置密钥，密钥明文仅创建/轮换结果显示；旧版全权密钥只保留已有密钥的轮换/删除，并使用 step-up。本地 Prompt Risk、归档配置及 JWT 子管理员菜单继续保留。

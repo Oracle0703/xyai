@@ -2243,3 +2243,23 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | PostgreSQL | 新密钥 unit 36 顶层 / 82 含子用例全部通过；PG integration 67 顶层通过、1 个部门并发超时、2 个性能 opt-in skip；超时用例双方各 3 次复跑全通过，保留首轮失败。新迁移共存及默认值/回读验证通过；隔离 PG 已停止 |
 | Wiki / 审核 | 六页 wiki、组件 README 与 wiki 图谱已更新；完整冲突、验证和边界见 `docs/upstream-sync/2026-10-29-v0.2.19/review.md` |
 | 状态 | 未提交本轮 merge、未推送、未合回 main、未部署；等待 commit 前审核 |
+
+
+## 2026-11-08 — 0.2.20 固定提交合并（待审核、未 commit）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-08 |
+| 工作分支 | `feature/hy/10231_merge_sub2api_220`，原仓库操作，不使用 worktree |
+| 第一父 / 本地 main | `bb52b73b10143a2478d66009349c8a52535a027f`（= github/main，fetch 后确认最新） |
+| 上游分支 | `Wei-Shaw/sub2api main` |
+| 上游固定提交 | `6b4b37db43443b5e88e424fe3c69602cc3810dfb`，VERSION 0.2.20（tag v0.2.20 的 VERSION 仍为 0.2.19，以同步提交为边界） |
+| merge base / 增量 | `a9240d5016c226b341242a8c54a01a8605cbbc72`；112 commits / 459 paths，83 个双方修改路径 |
+| 合并提交 | 未创建；保留 MERGE_HEAD，等待用户审核后再 commit |
+| 冲突文件 | `.gitignore`、`backend/go.mod`、`backend/cmd/server/wire.go`、`backend/cmd/server/wire_gen.go`、`backend/internal/handler/admin/scoped_admin_subscription_response.go`、`backend/internal/handler/handler.go`、`backend/internal/handler/wire.go`、`backend/internal/server/router.go`、`backend/internal/server/routes/gateway.go`、`backend/internal/service/openai_gateway_responses_chat_fallback.go`、`frontend/src/api/admin/settings.ts`、`frontend/src/api/client.ts` |
+| 处理方式 | 双方并集保留；订阅投影受限分支改用上游 `RestrictedFromContext`；chat fallback 用上游更名函数；Wire 按源图重新生成并还原 go.sum。语义适配：MCP admin 分发注入 `DepartmentActor`（新增回归测试）、两个上游 PG 集成测试补本地角色 CAS 版本。不修上游 bug |
+| 本地保留 | 26 个 docs/features 文件零改动；725 个仅本地路径逐 blob 等于第一父；归档/拦截、Prompt Metrics/Risk、Token Analysis、组织/部门/负责人/分组归属、订阅自助重置、GPT 额度、并发预设、子管理员、生图等保留；新增上游管理路由对子管理员默认拒绝 |
+| 迁移 | 新增 `249_mcp_oauth.sql`，与本地 `249_token_analysis_client_identity.sql` 按完整文件名共存；旧迁移零修改 |
+| 验证 | 前端 frozen install（临时 npmmirror registry）、lint/typecheck、438 files / 3599 tests、build 通过；Go default 56 包、unit 62 包（13288 顶层 PASS、0 FAIL）、integration 56 包（7314 顶层 PASS，repository 因无 Docker 整包跳过）均退出 0；隔离 PG18 升级模拟 329→330、MCP/黑名单 6 例、scoped admin 26 顶层通过；repository PG 全套与第一父失败集合相同（Redis 依赖 + 既有 1 例）；Ent/Wire 两次无漂移、normal/embed build、增量 lint 0 issues、tidy -diff 无差异 |
+| Wiki / 审核 | 六页 wiki、wiki 图谱、`docs/README.md`、`playbook.md` 已更新；完整记录 `docs/upstream-sync/2026-11-08-v0.2.20/review.md` |
+| 状态 | 未 commit、未推送、未合回 main、未部署；等待 commit 前审核 |
