@@ -2263,3 +2263,10 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | 前端 frozen install（临时 npmmirror registry）、lint/typecheck、438 files / 3599 tests、build 通过；Go default 56 包、unit 62 包（13288 顶层 PASS、0 FAIL）、integration 56 包（7314 顶层 PASS，repository 因无 Docker 整包跳过）均退出 0；隔离 PG18 升级模拟 329→330、MCP/黑名单 6 例、scoped admin 26 顶层通过；repository PG 全套与第一父失败集合相同（Redis 依赖 + 既有 1 例）；Ent/Wire 两次无漂移、normal/embed build、增量 lint 0 issues、tidy -diff 无差异 |
 | Wiki / 审核 | 六页 wiki、wiki 图谱、`docs/README.md`、`playbook.md` 已更新；完整记录 `docs/upstream-sync/2026-11-08-v0.2.20/review.md` |
 | 状态 | 未 commit、未推送、未合回 main、未部署；等待 commit 前审核 |
+
+
+### 2026-11-08：0.2.20 提交确认补记
+
+- 用户审核后授权 commit、push 并通过 PR 合入 main。实际合并提交：`4acd8d9e49ebc16f92896fd2b30bf45bdac7098e`（第一父 `bb52b73b10143a2478d66009349c8a52535a027f`，第二父 `6b4b37db43443b5e88e424fe3c69602cc3810dfb`）。
+- 推送到 `github`（`Oracle0703/xyai`）同名分支，经 PR #49 以 merge commit 方式合入 main（不 squash，保留上游父链）；未部署。上条待审记录保留为历史快照。
+- 本补记只更新提交状态文档，不改业务代码，沿用已完成的测试结果。

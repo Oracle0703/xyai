@@ -1,8 +1,8 @@
 # Sub2API llm-wiki 基线
 
-## 0.2.20 同步（待审核、未 commit）
+## 0.2.20 同步（已合入 main）
 
-- 2026-11-08 从本地 `main@bb52b73b10143a2478d66009349c8a52535a027f` 创建 `feature/hy/10231_merge_sub2api_220`，固定合入 `Wei-Shaw/sub2api main@6b4b37db43443b5e88e424fe3c69602cc3810dfb`（0.2.20）；保留 MERGE_HEAD，等待用户审核后再 commit。
+- 2026-11-08 从本地 `main@bb52b73b10143a2478d66009349c8a52535a027f` 创建 `feature/hy/10231_merge_sub2api_220`，固定合入 `Wei-Shaw/sub2api main@6b4b37db43443b5e88e424fe3c69602cc3810dfb`（0.2.20）。用户审核后提交合并提交 `4acd8d9e4`，经 PR #49（merge commit，不 squash）合入 main。
 - 112 commits / 459 上游路径，12 个文本冲突、83 个双方修改路径；本地独有功能全部保留，前端 `Retry-After` 本地原始值与上游整数秒字段并存。语义适配两类：管理 MCP 的 admin 内部分发注入 `DepartmentActor`（否则本地订阅接口 fail-closed）；两个上游 PG 集成测试的角色变更补本地 CAS 版本。不修上游 bug。新规则见 backend/security/ops/frontend/data 各页 0.2.20 节，审核与验证见 `docs/upstream-sync/2026-11-08-v0.2.20/review.md`。
 
 ## 0.2.19 同步（已合入 main）

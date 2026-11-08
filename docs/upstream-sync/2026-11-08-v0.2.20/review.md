@@ -1,8 +1,8 @@
 # Sub2API 0.2.20 上游同步记录（固定提交）
 
-合并日期 2026-11-08 ｜ 工作分支 `feature/hy/10231_merge_sub2api_220`（第一父 = 本地 `main@bb52b73b10143a2478d66009349c8a52535a027f`）｜ 上游 `Wei-Shaw/sub2api main@6b4b37db43443b5e88e424fe3c69602cc3810dfb`（VERSION 0.2.20）｜ 合并提交：尚未创建（保留 MERGE_HEAD，等待用户审核）
+合并日期 2026-11-08 ｜ 工作分支 `feature/hy/10231_merge_sub2api_220`（第一父 = 本地 `main@bb52b73b10143a2478d66009349c8a52535a027f`）｜ 上游 `Wei-Shaw/sub2api main@6b4b37db43443b5e88e424fe3c69602cc3810dfb`（VERSION 0.2.20）｜ 合并提交 `4acd8d9e49ebc16f92896fd2b30bf45bdac7098e` ｜ 状态：经 PR #49（merge commit）合入 main
 
-本文是该轮同步的唯一记录，复核结论直接写入正文。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-11-08 — 0.2.20 固定提交合并（待审核、未 commit）` 节。
+本文是该轮同步的唯一记录，复核结论直接写入正文。正文中"尚未创建/等待审核/未 commit"等字样是提交前审核快照，实际合并提交见上一行。台账条目见 `docs/upstream-sync/merge-log.md` 的 `2026-11-08 — 0.2.20 固定提交合并（待审核、未 commit）` 节。
 
 ## 1 范围与状态
 
