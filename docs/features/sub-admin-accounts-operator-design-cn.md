@@ -42,6 +42,8 @@
 
 说明：
 - `GET /accounts/:id` 与列表同样经 `RedactCredentials` 脱敏；测试连接和查看统计依赖它加载详情。
+- `GET /accounts/openai-request-timezones` 也是账号表单所需的只读白名单接口，仅返回固定默认值和允许的时区名，不读账号/设置或请求上游；只给 `admin.accounts_operator` 子管理员放行。前端 GET 自动附带的 `timezone` 查询参数不参与权限判断。
+- `GET /accounts/antigravity/default-model-mapping` 同属只读白名单，仅返回代码常量映射；新建表单切换 Antigravity 和关闭后的表单重置都会加载它。
 - `import/codex-session` 对子管理员只新增，规则见 §4。
 
 ## 4. 副作用收口（读取与新增附带的写入）
@@ -119,9 +121,9 @@
 2. **"新增"接口可能带"更新已有"分支。** 曾复现的失败场景（F1）：Codex 导入前端提交 `update_existing: true` 和整张创建表单；命中已有账号后构造的 `UpdateAccountInput` 含 `concurrency=99, priority=1, rate=0.01, proxy=77, groups=[88]`，绕开了对 `PUT /accounts/:id` 的拒绝。边界必须在服务端按角色实现，不能依赖前端不传。
 3. **依赖请求 context 的限制在 singleflight / `context.Background()` 处会断链。** Grok 探测在独立共享 context 中执行，限制标记要显式带入并进入 singleflight key；否则管理员与子管理员并发探测同一账号时会共用先到者的行为。复核用例：同一账号并发探测、两种角色分别先进入，只有完整管理员触发清限流。新增类似限制时同样检查。
 4. **重新授权按 key 合并会残留与新 OAuth 类型不兼容的身份字段（暂缓）。** 接口合同问题：Code Assist 账号改按 AI Studio 授权时，换码结果无 `project_id`（`GeminiTokenInfo.ProjectID` 为 `omitempty`），`ApplyOAuthCredentials` 的 `MergeCredentials` 会把旧 `project_id` 补回，而 Gemini 转发以 `project_id` 是否非空选择 Code Assist 并使用旧项目，影响实际调用。直接构造接口请求可复现（响应 200，落库凭据仍含旧项目）；页面不可触发，因为弹窗的 Gemini 类型只读、取自原 `oauth_type`，Code Assist 换码无项目会报错。完整管理员同样受影响。启用 Gemini 订阅前要加固：类型切换时清理旧 `project_id`、保留 `model_mapping`，反向切换使用新项目。
-5. **每个非 GET 白名单路由都要归类通知方式。** 漏归类会被 `TestAccountOperatorWritesAreClassifiedForNotification` 拦下；白名单路由还必须真实注册（`TestSubAdminPermissionWhitelistMatchesRegisteredAdminRoutes`）。
+5. **每个非 GET 白名单路由都要归类通知方式。** 漏归类会被 `TestAccountOperatorWritesAreClassifiedForNotification` 拦下；白名单路由还必须真实注册（`TestSubAdminPermissionWhitelistMatchesRegisteredAdminRoutes`）。注册一致性测试只能检查“白名单路由是否存在”，无法发现新表单接口未加入白名单；`openai-request-timezones` 曾因此对子管理员返回 403，新增依赖还需角色允许/拒绝回归。
 6. **分组/代理下拉不得改回完整接口。** `/admin/proxies/all` 返回含密码的 `AdminProxy`；子管理员只走 `form-options`。
-7. **受限页面必须零越权请求。** 页面任何一处对未放行接口的请求都会触发 403 恢复、把用户踢出账号页；改 `AccountsView`、`CreateAccountModal` 或单元格组件时，新增的加载请求要按 `canManageAccounts` 判断。
+7. **受限页面必须零越权请求。** 页面任何一处对未放行接口的请求都会触发 403 恢复、把用户踢出账号页；改 `AccountsView`、`CreateAccountModal` 或单元格组件时，管理员专用加载请求要按 `canManageAccounts` 判断。检查需覆盖首次加载、手动刷新、平台切换与弹窗关闭重置；计费探测设置曾只在 `onMounted` 检查权限，手动刷新仍发出越权请求。守卫现置于 `loadUpstreamBillingProbeGlobalState` 内，该设置接口仍不对子管理员放行；时区选项、Antigravity 默认映射则按 §3 放行只读接口。
 
 ## 10. 验证
 
@@ -135,13 +137,14 @@ go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler/admin ./i
 - `internal/service/account_operator_restrictions_test.go`：子管理员单条/批量用量不清错误，管理员保持原恢复。
 - `internal/handler/admin/account_operator_import_test.go`：子管理员导入跳过已有账号。
 - `internal/service/account_operator_activity_test.go`：响应解析、测试无变化不发信、状态恢复发信、重新授权不泄露凭据、批量合并与非官方地址标红、Grok 探测不清限流。
-- `internal/server/middleware/admin_auth_test.go`：限制标记只给子管理员。
+- `internal/server/middleware/admin_auth_test.go`：限制标记只给子管理员；真实 JWT 鉴权链覆盖时区选项与默认模型映射接口带/不带查询参数、所有子管理员权限及同一 JWT 撤权后的拒绝。
 - `internal/service/admin_permission_test.go`：允许/拒绝表、写路由收窄、通知归类。
 - `internal/handler/admin/account_operator_handler_test.go`：中间件只跟踪子管理员已归类写操作、`form-options` 不含代理认证信息。
 - `internal/server/routes/admin_permission_routes_test.go`：白名单路由都已注册。
-- 前端：`AccountsView.accountsOperator.spec.ts`、`AccountActionMenu.accountsOperator.spec.ts`、`ReAuthAccountModal.applyCredentials.spec.ts`、`adminPermissions.spec.ts`。
+- 前端：`AccountsView.accountsOperator.spec.ts`（含子管理员刷新跳过设置、完整管理员刷新保留设置）、`AccountActionMenu.accountsOperator.spec.ts`、`ReAuthAccountModal.applyCredentials.spec.ts`、`adminPermissions.spec.ts`。
 
 最近结果：
+- 2026-11-09（本机）：时区选项、Antigravity 默认映射补入只读白名单，手动刷新跳过子管理员的计费探测设置请求；修复前 JWT/前端回归均复现遗漏，修复后 `-tags=unit -p 1 -count=1` 下 service、server/middleware、server/routes 的 `AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|AccountOperatorWrites` 专项全部通过，覆盖查询参数、各权限隔离与撤权。前端账号页/菜单/重新授权/新建/时区/模型选择 6 文件 104 用例、typecheck、改动文件 ESLint 通过。核对了页面加载/刷新、各平台新增与重新授权、测试、统计、用量及管理员专用入口；未做线上或浏览器验收。
 - 2026-11-04（HEAD `26f6363af`，本机）：`-tags=unit` 下 `AccountOperator` 与权限白名单定向测试在 service、handler/admin、server/routes 通过。
 - 2026-10-25 实现审核（修复前）：上述 Go 四包在 `-tags=unit` 下通过（默认标签下 service、middleware 无匹配测试，不算有效覆盖）；本功能相关前端 Vitest 25 个文件 / 279 个用例通过；typecheck、变更文件 ESLint、`git diff --check` 通过。另用 Go overlay 写的 3 个反例测试按预期失败，分别证实 F1、F2（单条/批量）、F3。
 - 2026-10-25 修复后独立复核：四包通过；独立 overlay 测试 16 个子场景全部通过（导入 JWT 链 6：覆盖 `update_existing` 缺省/true/false × 两种角色；用量读取 8：角色 × 单条/批量 × `force`；Grok 并发 2）。只使用合成 JWT、内存仓储和 mock 上游，未访问生产账号、未发真实邮件。修复无前端增量，未重跑前端。

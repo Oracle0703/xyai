@@ -131,6 +131,8 @@ var adminPermissionRouteRules = map[string][]adminRouteRule{
 	AdminPermissionAccountsOperator: {
 		{"GET", "/api/v1/admin/accounts"},
 		{"GET", "/api/v1/admin/accounts/form-options"},
+		{"GET", "/api/v1/admin/accounts/openai-request-timezones"},
+		{"GET", "/api/v1/admin/accounts/antigravity/default-model-mapping"},
 		{"GET", "/api/v1/admin/accounts/upstream-billing-rates"},
 		{"GET", "/api/v1/admin/accounts/:id"},
 		{"GET", "/api/v1/admin/accounts/:id/stats"},

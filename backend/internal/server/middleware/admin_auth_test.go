@@ -152,6 +152,16 @@ func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
 		c.Status(http.StatusNoContent)
 	})
 	router.GET("/api/v1/admin/accounts", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	accountFormOptionPaths := []string{
+		"/api/v1/admin/accounts/openai-request-timezones",
+		"/api/v1/admin/accounts/antigravity/default-model-mapping",
+	}
+	for _, path := range accountFormOptionPaths {
+		router.GET(path, func(c *gin.Context) {
+			require.True(t, service.HasSubAdminAccountRestrictions(c.Request.Context()))
+			c.Status(http.StatusNoContent)
+		})
+	}
 	for _, path := range []string{"/api/v1/admin/subscriptions/assign", "/api/v1/admin/subscriptions/bulk-assign"} {
 		router.POST(path, func(c *gin.Context) {
 			subject, ok := GetAuthSubjectFromContext(c)
@@ -178,6 +188,29 @@ func TestAdminAuthSubAdminUsesLatestDatabasePermissions(t *testing.T) {
 	revoked := request("/api/v1/admin/usage")
 	require.Equal(t, http.StatusForbidden, revoked.Code)
 	require.Contains(t, revoked.Body.String(), "ADMIN_PERMISSION_DENIED")
+
+	// The account form needs these static catalogs. Check every permission using
+	// the same JWT, including revocation after the operator permission is granted.
+	permissions := append(service.AdminPermissionCatalog(), service.AdminPermissionCatalogItem{Code: "revoked"})
+	for _, permission := range permissions {
+		t.Run("account_form_options/"+permission.Code, func(t *testing.T) {
+			current.AdminPermissions = nil
+			if permission.Code != "revoked" {
+				current.AdminPermissions = []string{permission.Code}
+			}
+			for _, path := range accountFormOptionPaths {
+				for _, query := range []string{"", "?timezone=Asia%2FShanghai"} {
+					result := request(path + query)
+					if permission.Code == service.AdminPermissionAccountsOperator {
+						require.Equal(t, http.StatusNoContent, result.Code, path+query)
+					} else {
+						require.Equal(t, http.StatusForbidden, result.Code, path+query)
+						require.Contains(t, result.Body.String(), "ADMIN_PERMISSION_DENIED")
+					}
+				}
+			}
+		})
+	}
 
 	for _, path := range []string{"/api/v1/admin/subscriptions/assign", "/api/v1/admin/subscriptions/bulk-assign"} {
 		for _, allowed := range []bool{true, false} {

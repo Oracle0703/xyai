@@ -4,10 +4,13 @@ import { defineComponent } from 'vue'
 
 import AccountsView from '../AccountsView.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
+
+const access = vi.hoisted(() => ({ isAdmin: false }))
 
 vi.mock('@/composables/useAccountOperatorAccess', async () => {
   const { ref } = await import('vue')
-  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(false) }) }
+  return { useAccountOperatorAccess: () => ({ canManageAccounts: ref(access.isAdmin) }) }
 })
 
 const {
@@ -145,14 +148,15 @@ const listRow = {
 
 describe('admin AccountsView — restricted account operator', () => {
   beforeEach(() => {
+    access.isAdmin = false
     localStorage.clear()
     listAccounts.mockReset().mockResolvedValue({ items: [listRow], total: 1, page: 1, page_size: 20, pages: 1 })
     getById.mockReset().mockResolvedValue({ ...listRow, credentials: {} })
     getBatchTodayStats.mockReset().mockResolvedValue({ stats: {} })
     getUpstreamBillingProbeSettings.mockReset().mockResolvedValue({ enabled: true })
     getFormOptions.mockReset().mockResolvedValue({ groups: [{ id: 7, name: 'codex', platform: 'openai' }], proxies: [] })
-    getAllProxies.mockReset()
-    getAllGroups.mockReset()
+    getAllProxies.mockReset().mockResolvedValue([])
+    getAllGroups.mockReset().mockResolvedValue([])
     setSchedulable.mockReset()
   })
 
@@ -166,6 +170,26 @@ describe('admin AccountsView — restricted account operator', () => {
     expect(getUpstreamBillingProbeSettings).not.toHaveBeenCalled()
     expect(wrapper.get('[data-test="account-groups"]').text()).toBe('codex')
     wrapper.unmount()
+  })
+
+  it.each([false, true])('refreshes accounts with settings restricted to full admins (admin=%s)', async (isAdmin) => {
+    access.isAdmin = isAdmin
+    const wrapper = mountView()
+    await flushPromises()
+
+    listAccounts.mockClear()
+    getBatchTodayStats.mockClear()
+    getUpstreamBillingProbeSettings.mockClear()
+    try {
+      wrapper.getComponent(AccountTableActions).vm.$emit('refresh')
+      await flushPromises()
+
+      expect(listAccounts).toHaveBeenCalledTimes(1)
+      expect(getBatchTodayStats).toHaveBeenCalledTimes(1)
+      expect(getUpstreamBillingProbeSettings).toHaveBeenCalledTimes(isAdmin ? 1 : 0)
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('hides write actions and admin-only modals', async () => {
