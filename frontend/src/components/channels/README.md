@@ -13,8 +13,8 @@
 
 ## Cache write 价格
 
-- `cache_write_price` 在界面标记为 5m cache-write 价；可选 `cache_write_1h_price` 存在时再单独展示 1h 价。
-- 1h 缺失是后端“沿用 5m 价”的兼容语义，不是 0 价；显式 0 必须显示为免费档。分时价格的 5m/1h 也遵守同一规则。
+- `cache_write_price` 是通用缓存写入价；`SupportedModelChip.vue` 在可选 `cache_write_1h_price` / `cache_write_12h_price` 存在时分别展示对应时长。
+- 时长价格缺失沿用后端通用价，不是 0 价；显式 0 必须展示，分时价格遵守同一规则。
 
 ## 验证
 

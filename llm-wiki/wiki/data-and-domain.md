@@ -1,5 +1,12 @@
 # 数据与领域基线
 
+## OpenAI 缓存写入分项与 API Key 用量索引
+
+- `250_openai_cache_write_ttl.sql` 为 `usage_logs` 增加 `cache_creation_30m_tokens`/`cache_creation_12h_tokens`（NOT NULL、默认 0），为渠道模型、区间及账号统计模型/区间四张定价表增加 nullable `cache_write_12h_price`。NULL 保留通用写入价，显式 0 是有效免费价；不混用 Anthropic 5m/1h 桶。Ent usage schema、插入/读取、DTO 和前端类型随之更新。
+- `249_add_usage_logs_api_key_cost_index_notx.sql` 并发创建 `(api_key_id, created_at) INCLUDE (actual_cost)` 索引；`migrations_runner.go#prepareNonTransactionalMigration` 同时保留上游该索引与本地 Token Analysis 多类无效索引恢复分支。
+- 249/250 与本地同数字前缀迁移按完整文件名/checksum 共存；不修改或重命名已应用迁移。数据库升级与缓存时长往返验证见本轮 review。
+- EasyPay 每实例 `refundSuccessCode` 只接受 `1`（默认）或 `0`；充值倍率支持最多 6 位小数。沿上游支付实现，真实支付/退款未由本地测试替代。
+
 ## 0.2.20 MCP OAuth 与注册黑名单
 
 - 新增 `249_mcp_oauth.sql`：`mcp_oauth_grants`（用户批准时才建行，记录 scope user/admin、read_only、token_version、到期/撤销）、`mcp_oauth_codes`、`mcp_oauth_credentials`（只存摘要，refresh 复用会吊销整组）。SQL repository（`repository/mcp_oauth.go`），无 Ent entity。与本地 `249_token_analysis_client_identity.sql` 按完整文件名共存，已上线库会补跑新文件；旧迁移不改、不重命名。

@@ -1,5 +1,9 @@
 # 管理端组件权限约定
 
+## 渠道缓存时长价格
+
+- `channel/PricingEntryCard.vue`、`IntervalRow.vue` 与 pricing 类型支持 `cache_write_12h_price`；提交保留 NULL 与显式 0 的区别，分组定价采用相同字段。回归：channel/__tests__/types.spec.ts、分组定价与 intervalPrices 用例。
+
 ## 0.2.17 同步
 
 - `group/GroupI18nField.vue` 编辑分组译文，管理端保留原名/描述；RPM 请求隔离及倍率正数校验采用上游。账号恢复内联筛选，测试模态框适配新 Gemini 模型。未扩大本地子管理员/部门授权范围。

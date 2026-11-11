@@ -1,5 +1,13 @@
 # 后端知识基线
 
+## 缓存写入时长与网关兼容
+
+- OpenAI usage 新增 30m/12h 写入桶；`openai_gateway_response_handling.go#openAICacheCreationTTLTokensFromUsage` 仅在上游两个分项都是非负整数且合计等于 aggregate 时采纳，否则继续通用缓存写入价。`RecordUsage` → `UsageTokens`/`UsageLog` → repository/DTO 贯通；本地 compatible cache helper 仍只补正值，不清除上游分项。
+- `openai_gateway_messages.go` 先校验显式原始 effort，再转换、应用分组策略，最后验证最终请求；默认 effort、thinking 清理、Prompt Metrics/Risk、Token Analysis 和请求时区接线保留。`encrypted_function_args` 在协议转换中保留显式 null/空数组，外部 reasoning envelope 按上游规则忽略。
+- Codex Responses 入口拒绝非法 UTF-8，并把 Desktop page context 规范化；`codex.rate_limits`/`codex.response.metadata` 不提前提交首输出。WS 复用连接启用搜索时仅在完整历史可重建时重连；后续 turn 失败不得回放首次消息，passthrough TTFT 使用当前 `openai_ttft_mode`。
+- `securityaudit/prompt_worker.go` 在入队后唤醒本进程 worker；账号 hydration 失败归还已取得的并发槽位；Antigravity 手动额度查询传 force，跳过缓存但仍经过 singleflight。子管理员用量只读查询不因此清除账号错误。
+- Claude Fable/Mythos 5.2 模型目录、effort、协议与 fallback 定价沿上游；配置模型名称不授予实际账号访问权限。源版本及验证统一见 `docs/upstream-sync/2026-11-11-v0.2.21/review.md`。
+
 ## 0.2.20 管理 MCP、全权密钥与网关资源边界
 
 - `internal/managementmcp` + `routes/mcp.go`：`/api/v1/mcp`（POST/GET/DELETE）在私有 gin 路由里复用 `RegisterUserRoutes`/`RegisterAdminRoutes`，只开放 `managementmcp/catalog.go` 固定工具（`DispatchAuth` 要求 method+FullPath 与工具一致）。OAuth 发现/注册/令牌在 `RegisterMCPOAuthRoutes`，用户授权管理在 `/api/v1/user/mcp/*`，Wire 新增 `MCPOAuthRepository/Service/Handler`。

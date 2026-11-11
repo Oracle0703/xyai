@@ -1,5 +1,9 @@
 # Account Components
 
+## 刷新与额度保留
+
+- `AccountUsageCell.vue` 刷新时保留已有额度；Antigravity 手动查询绕过服务端缓存，状态提示区分查询中。`AccountStatusIndicator.vue` 保留冷却状态展示。回归：AccountUsageCell、AccountStatusIndicator；本地 GPT 额度与账号操作员限制不变。
+
 ## 0.2.19 Grok 模型诊断
 
 - `GrokModelDiagnosticsPanel.vue` 展示受管目录来源、时效、尝试和映射状态；EditAccountModal 保留草稿并隔离账号/模式的迟到同步。ModelWhitelistSelector/useModelWhitelist 维护受管模型 ID。本地 compatible preset、GPT 额度和子管理员限制继续保留。

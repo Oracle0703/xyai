@@ -12,7 +12,7 @@
 
 | 位置 | 内容 | 维护方式 |
 | --- | --- | --- |
-| `PAYMENT.md`、`PAYMENT_CN.md`、`ADMIN_PAYMENT_INTEGRATION_API.md`、`ASYNC_IMAGE_TASKS.md`、`BATCH_IMAGE_MVP.md`、`COMPOSITE_GROUPS.md`、`PLUGIN_DEVELOPMENT.md`、`OPENAI_GPT55_RETIREMENT.md`、`admin-api-keys.md`、`channel-monitor-v2-safe-defaults.md`、`mcp.md`、`agent-resource-safety.md`、`moego-json-batching.md` | 上游 `Wei-Shaw/sub2api` 自带文档 | 保持原位，随上游合并；README 和设置页链接指向这些路径 |
+| `PAYMENT.md`、`PAYMENT_CN.md`、`ADMIN_PAYMENT_INTEGRATION_API.md`、`ASYNC_IMAGE_TASKS.md`、`OPENAI_IMAGES_CODEX.md`、`BATCH_IMAGE_MVP.md`、`COMPOSITE_GROUPS.md`、`PLUGIN_DEVELOPMENT.md`、`OPENAI_GPT55_RETIREMENT.md`、`admin-api-keys.md`、`channel-monitor-v2-safe-defaults.md`、`mcp.md`、`agent-resource-safety.md`、`moego-json-batching.md` | 上游 `Wei-Shaw/sub2api` 自带文档 | 保持原位，随上游合并；README 和设置页链接指向这些路径 |
 | `legal/` | 管理员合规文档（上游） | 不可移动：前端 `?raw` 打包、`Dockerfile`、`.dockerignore` 和后端常量引用该路径 |
 | `ARCHITECTURE_AND_OPS_HANDBOOK.md` | 本地架构与运维总手册（给人读） | 根 README 引用，保持原位 |
 | `安装与操作手册.md` | 历史安装包 `main@b3ff5895`（2026-05-27）的 Ubuntu 20.04 一键安装说明，不是现行手册 | 历史快照；配套脚本只在该安装包内 |
@@ -41,7 +41,7 @@
 | `subscription-daily-remaining-sort-bulk-reset-design-cn.md` | 管理端订阅按每日剩余排序与批量重置 |
 | `gpt-account-quota-display-design-cn.md` | GPT 账号额度展示 |
 | `codex-prompt-risk-filter-design-cn.md` | Codex Prompt 风险过滤器与 Prompt Risk Judge |
-| `openai-request-locale-design-cn.md` | OpenAI 请求时区改写（分支保留、未合入 main） |
+| `openai-request-locale-design-cn.md` | OpenAI 请求时区改写（已合入 main；运行合同见 wiki） |
 | `openai-default-reasoning-effort-design-cn.md` | Chat Completions 缺省 reasoning_effort 注入 |
 | `prompt-metrics-feature-technical-notes-cn.md` | Prompt Metrics |
 | `image-gen-design-cn.md` | 图片生成页 |

@@ -16,8 +16,8 @@
 
 ## Cache write 展示
 
-- `PlazaModelPricingTable.vue` 在实际价和官方价两个视图中都支持 `cache_write_1h_price`，包括分时 interval。
-- 只有 1h 值非 `null/undefined` 时才在常规 cache-write 后标注 `(1h ...)`；显式 0 仍是有效价格，缺失值不额外渲染。
+- `PlazaModelPricingTable.vue` 在实际价和官方价两个视图中都支持 `cache_write_1h_price` / `cache_write_12h_price`，包括分时 interval。
+- 只有对应时长值非 `null/undefined` 时才在常规 cache-write 后标注 `(1h ...)` / `(12h ...)`；显式 0 仍是有效价格，缺失值不额外渲染。
 
 ## 验证
 

@@ -1,5 +1,9 @@
 # 管理端用量组件
 
+## OpenAI cache-write 时长
+
+- `UsageTable.vue` 接受 30m/12h 分项，仅展示后端实际报告的桶，并在存在 12h 写入时显示标记；不把它们改写为 Anthropic 5m/1h。用量列权限、用户账户列与管理端字段投影保持；回归见 UsageTable.spec.ts。
+
 ## 0.2.15 同步
 
 - `UsageTable.vue` 显示输出 TPS、长上下文提示，倍率使用 `??` 保留显式 0；速率由 `utils/latencyHealth.ts` 计算。

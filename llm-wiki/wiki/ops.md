@@ -1,5 +1,12 @@
 # 运维, 配置与验证基线
 
+## 请求体自适应预算与 0.2.21 验证入口
+
+- `gateway.request_body_memory_budget_bytes` 未在配置或非空环境变量中指定时，启动检测进程可用内存上限（Linux 同时检查 cgroup），默认 `max(内存上限 / 4, 1 GiB)`；显式正数固定预算、0 关闭。空环境变量不阻止自动计算，检测失败沿 1 GiB。示例 YAML 中显式配置会固定其值；大实例升级前应确认预期预算。
+- Go 仍 1.27.3，前端 package/lockfile 未变；Ent usage schema 新增缓存时长字段，需要生成 Ent/Wire 并复核第二次无漂移。生成工具临时增加的 go.sum checksum 不混入合并。
+- 固定上游 0.2.21 的全量 default/unit/integration、隔离 PG、lint、前端和构建结果集中在 `docs/upstream-sync/2026-11-11-v0.2.21/review.md`；不以无 Docker 时 repository 的整包跳过代替数据库验证。
+- 该版本新增 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode` 的第二轮耗时下界断言有时序敏感失败：unit 全量失败，合并结果三次复跑 2 pass/1 fail，指定上游原始快照 1 pass/2 fail。测试与核心 relay 原样保留，等待上游处理；不得把专项偶发通过或构建通过表述为全量 unit 全绿。
+
 ## 2026-11-03 PR #45–#47 合并后验证
 
 - 固定 `main@0157f2c79`，前端 lint/typecheck、423 files / 3456 tests 和 build、Go normal/embed build、时间轮文件集 `-race -count=3` 通过。隔离 PostgreSQL 18.1：部门/成员/订阅 38 顶层通过（2 个性能用例 skip），受限管理密钥 `-tags=unit` 专项 57 顶层通过、0 skip；临时库已停止。
@@ -9,7 +16,7 @@
 
 ## 0.2.20 配置与验证入口
 
-- 新配置（默认值）：`mcp.public_url`（`MCP_PUBLIC_URL`，空=关闭 MCP/OAuth；非回环必须 HTTPS，路径固定 `/api/v1/mcp`）；`gateway.disable_openai_transport_error_cooldown`（false）；`gateway.request_body_memory_budget_bytes`（1 GiB，0 禁用）；`gateway.request_body_read_timeout_seconds` / `downstream_write_timeout_seconds`（120，单次读/写 idle，0 禁用）；`gateway.sse_queue_max_bytes`（8 MiB）、`sse_event_max_bytes`（0=继承 max_line_size）、`sse_event_max_lines`（4096）。部署说明见 `deploy/EDGE_SECURITY.md`、`docs/mcp.md`。
+- 新配置（默认值）：`mcp.public_url`（`MCP_PUBLIC_URL`，空=关闭 MCP/OAuth；非回环必须 HTTPS，路径固定 `/api/v1/mcp`）；`gateway.disable_openai_transport_error_cooldown`（false）；`gateway.request_body_memory_budget_bytes`（0.2.20 为 1 GiB；现行自动默认见页首，显式 0 禁用）；`gateway.request_body_read_timeout_seconds` / `downstream_write_timeout_seconds`（120，单次读/写 idle，0 禁用）；`gateway.sse_queue_max_bytes`（8 MiB）、`sse_event_max_bytes`（0=继承 max_line_size）、`sse_event_max_lines`（4096）。部署说明见 `deploy/EDGE_SECURITY.md`、`docs/mcp.md`。
 - 前端依赖升级 vue-i18n 11.4.16：本机默认 npm registry `192.168.5.16:4879` 缺 `@intlify/*@11.4.16`（404），frozen install 需临时加 `--registry=https://registry.npmmirror.com/`（锁文件 integrity 仍校验，不改全局配置）。部署机构建同样要能拉到该版本。
 - 后端依赖：MCP go-sdk v1.4.1、brotli v1.2.7、klauspost/compress v1.20.2、x/oauth2（indirect）；Go 仍 1.27.3。Wire 有新 provider（MCP OAuth），需 `go generate ./cmd/server` 后还原 go.sum 里的 subcommands checksum；Ent schema 无变化。
 - 验证顺序同 0.2.19（default → unit → integration 依次跑、每套独立 GOTMPDIR）；结果和失败归属见 `docs/upstream-sync/2026-11-08-v0.2.20/review.md`。

@@ -1,5 +1,12 @@
 # 前端知识基线
 
+## 账号刷新、缓存时长与设置保存
+
+- 账号列表刷新保留旧行，并在加载期间禁用现有表格操作；`AccountUsageCell` 保留上次配额数值，Antigravity 查询可强制刷新。`AccountsView` 的 `canManageAccounts`、精简表单选项和受限操作员边界继续保留。
+- 管理用量表显示上游报告的 30m/12h cache-write 明细与 12h 标记；渠道、分组、模型广场支持 `cache_write_12h_price`，NULL 与显式 0 不混淆。用户 `/usage` 本地账户列及 `account{id,name}` DTO 保留，管理员独有倍率/上游模型字段仍受投影限制。
+- API Key 列表先展示列表再异步加载用量；系统设置保存按钮为底部 sticky 浮标（备份页除外），充值倍率输入/预览支持 6 位小数；EasyPay 配置可选退款成功码 1/0。
+- UseKeyModal/OpenCode 与白名单增加 Claude Fable/Mythos 5.2，实际可用性取决于上游账号。生图、Token Analysis、组织报表等本地页面保留；图片格式可能与请求不一致，依上游 `docs/OPENAI_IMAGES_CODEX.md` 核对实际输出。
+
 ## 图片生成页动态模型与记住 Key
 
 - 设计: `docs/features/image-gen-design-cn.md`。纯函数在 `frontend/src/utils/imageGenModels.ts`(候选判定/目录解析/排序/origin 校验/存储读写), 时序与状态在 `frontend/src/stores/imageGen.ts`。
