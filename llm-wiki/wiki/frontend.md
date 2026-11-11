@@ -383,7 +383,8 @@ API 模块分布:
 
 - `frontend/src/views/user/UsageView.vue` 使用 `frontend/src/api/usage.ts#getDashboardSnapshotV2` 拉取 trend/group 图表, `getDashboardModels({ model_source: "requested" })` 拉取请求模型分布, 过滤项与后端共享 `api_key_id`、`group_id`、`model`、`request_type`、`billing_type`、`billing_mode` 和日期范围。
 - 本地定制（2026-11-08）：`views/admin/DashboardView.vue`、`views/admin/UsageView.vue`、`views/user/UsageView.vue` 的默认及重置日期范围为浏览器本地“今天”（`getTodayRangeDates`），上游为近 24 小时（昨天..今天）；`DateRangePicker` 仍保留“近24小时”预设。上游合并时保留本地默认值。
-- 用户用量页的列显隐持久化 key 为 `user-usage-hidden-columns`; `created_at` 始终可见, `reasoning_effort` 和 `user_agent` 默认隐藏。CSV 导出沿用当前过滤条件, 并按 `billing_mode`/图片请求修正展示计费模式。
+- 用户用量页的列显隐持久化 key 为 `user-usage-hidden-columns`; `created_at` 始终可见, 仅 `user_agent` 默认隐藏；已有保存的列显隐设置优先。CSV 导出沿用当前过滤条件, 并按 `billing_mode`/图片请求修正展示计费模式。
+- 本地定制（2026-11-11）：用户用量页在 API Key 后增加 `account` 列（文案复用 `admin.usage.account`），默认显示，由 `UsageTable.vue` 的 `#cell-account` 渲染 `row.account?.name`；`UsageLog` 类型带可选 `account{id,name}`。CSV 导出未加该列；账号倍率/账号计费仍只在管理端（`showAccountBilling=false`）。
 - `GroupDistributionChart.vue` / `ModelDistributionChart.vue` 可通过 `enableBreakdown=false` 和 `showAccountCost=false` 在用户侧复用, 避免暴露管理端 account cost 或用户拆分下钻。
 
 项目已有组件 README:

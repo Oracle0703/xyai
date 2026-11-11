@@ -1896,6 +1896,8 @@ export interface UsageLog {
   api_key?: ApiKey
   group?: Group
   subscription?: UserSubscription
+  // 最小账号信息（ID + 名称），用户侧 /usage 账户列也返回（本地定制）
+  account?: UsageLogAccountSummary
 }
 
 export interface UsageLogAccountSummary {
@@ -1920,7 +1922,7 @@ export interface AdminUsageLog extends UsageLog {
   channel_id?: number | null
   billing_tier?: string | null
 
-  // 最小账号信息（仅管理员接口返回）
+  // 最小账号信息（用户侧 UsageLog 也返回，见上）
   account?: UsageLogAccountSummary
 }
 

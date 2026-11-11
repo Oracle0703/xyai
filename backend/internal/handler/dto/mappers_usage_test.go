@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -198,6 +199,41 @@ func TestUsageLogFromService_KeepsUserBillingAndIPWithoutAdminCostFields(t *test
 	require.NotContains(t, string(userJSON), "account_rate_multiplier")
 	require.NotContains(t, string(userJSON), "account_stats_cost")
 	require.NotContains(t, string(userJSON), "account_cost")
+}
+
+func TestUsageLogFromService_UserSeesAccountSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	notes := "internal-note"
+	log := &service.UsageLog{
+		RequestID: "req_user_account",
+		Model:     "gpt-5.4",
+		AccountID: 5,
+		Account: &service.Account{
+			ID:          5,
+			Name:        "pool-account",
+			Notes:       &notes,
+			Platform:    "openai",
+			Credentials: map[string]any{"access_token": "secret-token"},
+		},
+	}
+
+	userDTO := UsageLogFromService(log)
+	require.NotNil(t, userDTO.Account)
+	require.Equal(t, AccountSummary{ID: 5, Name: "pool-account"}, *userDTO.Account)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.Contains(t, string(userJSON), `"account":{"id":5,"name":"pool-account"}`)
+	require.NotContains(t, string(userJSON), "secret-token")
+	require.NotContains(t, string(userJSON), "internal-note")
+
+	// 管理端仍只输出一份 account（外层字段遮蔽内嵌字段）。
+	adminJSON, err := json.Marshal(UsageLogFromServiceAdmin(log))
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(string(adminJSON), `"account":`))
+
+	require.Nil(t, UsageLogFromService(&service.UsageLog{RequestID: "req_no_account"}).Account)
 }
 
 func TestUsageLogFromService_UsersSeeRequestedReasoningEffortOnly(t *testing.T) {

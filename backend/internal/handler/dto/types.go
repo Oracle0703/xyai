@@ -681,6 +681,8 @@ type UsageLog struct {
 	APIKey       *APIKey           `json:"api_key,omitempty"`
 	Group        *Group            `json:"group,omitempty"`
 	Subscription *UserSubscription `json:"subscription,omitempty"`
+	// Account 最小账号信息（仅 ID 和名称），记录所有者可见，用于 /usage 的账户列（本地定制）。
+	Account *AccountSummary `json:"account,omitempty"`
 }
 
 // AdminUsageLog 是管理员接口使用的 usage log DTO（包含管理员字段）。

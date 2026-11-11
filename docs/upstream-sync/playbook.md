@@ -79,6 +79,7 @@
 | 生图 | `/image-gen` 页面和图片生成网关可用，不能被普通文本 Codex 请求误触发。 |
 | 空上游响应 | 200 但无可见内容、无 tool calls、无 usage，不能返回成功空响应。 |
 | 生产样本 | `fixtures/`、`report/`、`runtime-report*` 不提交。 |
+| 用户用量账户列 | `GET /api/v1/usage` 列表向记录所有者返回 `account{id,name}`，`/usage` 页显示账户列（2026-11-11 本地定制）。上游的 `usageLogFromServiceUser` 注释和 `usage_handler_request_type_test.go` 断言用户响应不含 `"account":`，冲突时保留本地；账号倍率、账号计费、上游模型仍仅管理端可见。 |
 
 ## 验证清单
 
