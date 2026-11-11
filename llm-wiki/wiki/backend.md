@@ -353,6 +353,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 - `GET /api/v1/usage`, `/stats`, `/dashboard/trend`, `/dashboard/models` 共用 `parseUserUsageFilters`, 支持 user scope 下的 `api_key_id` 所有权校验、`group_id`、请求模型、`request_type`/legacy `stream`、`billing_type`、`billing_mode` 和用户时区日期范围。
 - `GET /api/v1/usage/dashboard/snapshot-v2` 为用户用量页图表聚合接口, 按 include 参数返回 trend/model/group 分布, 只暴露当前用户数据; 用户侧 stats 会清空管理端专属的 account/upstream endpoint 明细。
+- 本地定制（2026-11-11）：用户侧 `dto.UsageLog` 带 `account`（`AccountSummary`，仅 `id`/`name`），由 `usageLogFromServiceUser` 填充；`GET /api/v1/usage` 列表经 `hydrateUsageLogAssociations` 有值，`GET /api/v1/usage/:id` 不加载关联故省略。`AdminUsageLog.Account` 保留为外层同名字段（遮蔽内嵌字段，JSON 只输出一份）；受限密钥的 `scopedAdminUsageLogResponse` 是字段白名单，不受影响。上游合并时保留。
 - 网关会把客户端显式会话 header 归一后写入 `usage_logs.session_id` 并通过管理端/用户侧 UsageLog DTO 返回；仅接受有效 UTF-8、去空白后不超过 255 rune 且不含控制字符的值。该字段只用于用量关联, 不参与 sticky routing、账号选择、request ID 或 prompt cache identity。
 - 管理端 `GET /api/v1/admin/usage` 额外支持 `request_id` 去空白后的精确等值筛选；该维度只作用于列表 SQL, 不改变用户侧聚合接口合同。模型统计的 `upstream` 维度在 `upstream_model` 为空时回落实际 `model`, `mapping` 维度显示 requested 与该上游口径, 避免错误回落到 requested model。
 

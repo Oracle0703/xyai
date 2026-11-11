@@ -221,7 +221,10 @@ describe('user UsageView', () => {
     const wrapper = mountUsageView()
     await flushPromises()
 
-    expect(wrapper.findComponent(UsageTable).props('columns').map((column: { key: string }) => column.key)).toContain('latency')
+    const columnKeys = wrapper.findComponent(UsageTable).props('columns').map((column: { key: string }) => column.key)
+    expect(columnKeys).toContain('latency')
+    // 账户列默认显示，位置与管理端一致（API Key 之后）
+    expect(columnKeys.indexOf('account')).toBe(columnKeys.indexOf('api_key') + 1)
     expect(query).toHaveBeenCalled()
     expect(getStats).toHaveBeenCalled()
     expect(getDashboardModels).toHaveBeenCalled()

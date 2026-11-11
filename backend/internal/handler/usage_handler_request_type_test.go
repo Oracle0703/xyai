@@ -229,6 +229,11 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 			ChannelID:             &channelID,
 			AccountRateMultiplier: &accountRateMultiplier,
 			AccountStatsCost:      &accountStatsCost,
+			Account: &service.Account{
+				ID:          5,
+				Name:        "pool-account",
+				Credentials: map[string]any{"access_token": "secret-token"},
+			},
 		}},
 	}
 	router := newUserUsageRequestTypeTestRouter(repo)
@@ -256,7 +261,9 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 	require.NotContains(t, body, "upstream_model_mismatch")
 	require.NotContains(t, body, "billing_tier")
 	require.NotContains(t, body, "channel_id")
-	require.NotContains(t, body, `"account":`)
+	// 账户列（本地定制）：只返回 ID 和名称，不带凭据。
+	require.Contains(t, body, `"account":{"id":5,"name":"pool-account"}`)
+	require.NotContains(t, body, "secret-token")
 }
 
 func TestUserUsageStatsUsesScopedFilters(t *testing.T) {

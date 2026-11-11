@@ -690,7 +690,8 @@ func AccountSummaryFromService(a *service.Account) *AccountSummary {
 }
 
 func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
-	// 普通用户 DTO：严禁包含管理员字段（例如 account_rate_multiplier、account、upstream_model）。
+	// 普通用户 DTO：严禁包含管理员字段（例如 account_rate_multiplier、upstream_model）。
+	// 本地定制：account 只带 ID 和名称（AccountSummary），供 /usage 账户列展示。
 	requestType := l.EffectiveRequestType()
 	stream, openAIWSMode := service.ApplyLegacyRequestFields(requestType, l.Stream, l.OpenAIWSMode)
 	requestedModel := l.RequestedModel
@@ -751,11 +752,13 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		APIKey:                    APIKeyFromService(l.APIKey),
 		Group:                     GroupFromServiceShallow(l.Group),
 		Subscription:              UserSubscriptionFromService(l.Subscription),
+		Account:                   AccountSummaryFromService(l.Account),
 	}
 }
 
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
-// It excludes admin-only account/upstream internals while keeping user billing and request metadata.
+// It excludes admin-only account billing/upstream internals while keeping user billing,
+// request metadata and the minimal account summary (ID, Name).
 func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	if l == nil {
 		return nil
