@@ -82,6 +82,9 @@ var tokenAnalysisPrefixFingerprintIndexes = []string{
 	"idx_token_analysis_cand_pending",
 }
 
+const usageLogsAPIKeyCostIndexMigration = "249_add_usage_logs_api_key_cost_index_notx.sql"
+const usageLogsAPIKeyCostIndex = "idx_usage_logs_api_key_created_cost"
+
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
 	acceptedDBChecksum map[string]struct{}
@@ -344,6 +347,8 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return dropInvalidIndexIfPresent(ctx, db, tokenAnalysisClassificationPendingIndex)
 	case tokenAnalysisClassificationDueIndexMigration:
 		return dropInvalidIndexIfPresent(ctx, db, tokenAnalysisClassificationDueIndex)
+	case usageLogsAPIKeyCostIndexMigration:
+		return dropInvalidIndexIfPresent(ctx, db, usageLogsAPIKeyCostIndex)
 	default:
 		return nil
 	}

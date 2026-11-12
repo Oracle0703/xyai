@@ -1,5 +1,9 @@
 # Key Components
 
+## Claude 5.2 配置
+
+- UseKeyModal 的 Anthropic/OpenCode 模型清单加入 Fable/Mythos 5.2，支持 adaptive thinking 与 low/medium/high/xhigh/max effort。Mythos 仍要求上游账号资格；配置生成不扩大模型授权。回归：UseKeyModal.spec.ts。
+
 ## 0.2.19 模型清单
 
 - UseKeyModal 的 OpenCode 配置加入 GPT-6.1 Terra，模型/工具协议与后端上游清单同步。既有 remote model catalog、Grok 配置和 API Key 内存边界保持；回归见 UseKeyModal.spec.ts。

@@ -1,5 +1,12 @@
 # 安全与可靠性基线
 
+## 刷新令牌与新转发边界
+
+- 登录 refresh token 轮转先原子 `ConsumeRefreshToken`（Redis Lua），并发只有一个消费成功；已消费返回无效令牌，缓存故障返回服务不可用。本地刷新响应的 `AdminPermissions` 继续保留。
+- OpenAI Responses 非法 UTF-8 在 JSON 转换前拒绝；自定义冷却匹配只读取错误字段，不扫描 response output/metadata。原生 WS 后续 turn 无完整迁移历史时关闭连接，避免重放第一条请求；搜索激活需要完整历史。
+- 未配置 `gateway.request_body_memory_budget_bytes` 时预算取检测到的内存上限 1/4、最低 1 GiB；显式 0 禁用。此预算仍不涵盖本地归档/拦截的整体读取，不把新默认解释为完整内存上限。
+- 本轮上游没有新增 HTTP 路由；子管理员、部门/组织、管理密钥与 MCP 的本地授权边界不扩展。仅冲突融合，未对上游自带问题另行修补。
+
 ## 0.2.20 MCP、全权密钥与新增管理路由边界
 
 - 管理 MCP 只接受资源绑定的 OAuth access token（S256 PKCE 公共客户端，令牌/授权码只存摘要），`mcp.public_url` 为空时 MCP 与 OAuth 接口关闭。admin scope 授权和每次鉴权都要求 `user.IsAdmin()`（仅 `RoleAdmin`），本地 `sub_admin` 只能拿 user scope，不能通过 MCP 进入任何 `/admin` 工具；MCP 内部分发不经过本地 `CanAccessAdminRoute`，靠 admin scope 只给 RoleAdmin 守住。

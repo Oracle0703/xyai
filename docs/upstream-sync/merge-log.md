@@ -2270,3 +2270,18 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 - 用户审核后授权 commit、push 并通过 PR 合入 main。实际合并提交：`4acd8d9e49ebc16f92896fd2b30bf45bdac7098e`（第一父 `bb52b73b10143a2478d66009349c8a52535a027f`，第二父 `6b4b37db43443b5e88e424fe3c69602cc3810dfb`）。
 - 推送到 `github`（`Oracle0703/xyai`）同名分支，经 PR #49 以 merge commit 方式合入 main（不 squash，保留上游父链）；未部署。上条待审记录保留为历史快照。
 - 本补记只更新提交状态文档，不改业务代码，沿用已完成的测试结果。
+
+
+## 2026-11-11 — 0.2.21（待用户审核，未提交）
+
+| 项目 | 记录 |
+| --- | --- |
+| 工作分支 / 本地基线 | `feature/hy/10234_merge_sub2api_221` / `main@dc72e67a0449b025a83fed701d6ac2cf7818f0d6` |
+| 上游分支 / 提交 | `Wei-Shaw/sub2api main` / `6dd5a045b62e27e5b5b139adef91a171097f639b`，0.2.21 |
+| 合并提交 | 未创建；MERGE_HEAD 保留指定 SHA，等待用户审核 commit |
+| 范围 / 冲突 | 82 commits、200 路径、40 双方修改；唯一文本冲突 `backend/internal/repository/migrations_runner.go`（常量与非事务迁移 switch） |
+| 处理 | 本地 Token Analysis 索引恢复与上游 API Key cost 索引恢复并存；其余自动合并逐项核对，Ent/Wire 两次生成无漂移；保留本地功能，没有独立修上游 bug |
+| 验证 | Go default/integration 退出 0；unit 存在上游新增 TTFT 时序用例失败，纯上游固定快照复现，按用户要求不修；显式 skip 与无 Docker 整包跳过见 review。隔离 PG 升级 330→332，202 个功能顶层用例与管理密钥专项通过；前端 438 files/3622 tests、lint/typecheck/build、Go normal/embed、增量/Windows/Linux 全量 lint 通过；tidy 的上游 8 行 checksum 整理差异仅记录 |
+| 本地功能 / 文档 | 26 份 docs/features 零变更；wiki、组件 README、文档索引、Wiki 图谱已更新，台账只追加；旧 SQL 未改，旧归档目录未恢复 |
+| 边界 | 无生产/真实模型/支付/SMTP/浏览器端到端验收；上游 migration 250 EOF 空行原样保留，diff-check 明确豁免 |
+| 唯一审核记录 | `docs/upstream-sync/2026-11-11-v0.2.21/review.md` |

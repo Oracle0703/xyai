@@ -1,5 +1,9 @@
 # 支付组件
 
+## EasyPay 退款码
+
+- `providerConfig.ts` 为每实例提供 `refundSuccessCode`（默认 `1`，可选 `0`）；表单往返保留设置，只有匹配配置的码表示退款成功。回归：PaymentProviderDialog.spec.ts；不触发真实退款验证。
+
 ## 0.2.17 同步
 
 - PaymentQRDialog / PaymentStatusPanel 使用实际经过时间计算剩余秒数，页面重新可见时刷新倒计时，避免标签页后台节流造成显示漂移；回归 `__tests__/paymentCountdown.spec.ts`。
