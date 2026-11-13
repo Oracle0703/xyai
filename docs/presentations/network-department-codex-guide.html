@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="面向网络运维与网络运营同事的 Codex 零基础实战手册：中转接入、任务提示词、日志分析、数据报表、程序编写与代码验收。">
+<title>把重复工作交给 Codex · 网络部门实战手册</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23146b52'/%3E%3Ctext x='5' y='23' font-size='23' fill='white'%3E%3E%3C/text%3E%3C/svg%3E">
+<style>
+:root{--paper:#f6f7f3;--white:#fff;--ink:#172d30;--muted:#617173;--line:#dfe6e1;--green:#146b52;--lime:#d8ed9e;--pale:#edf4e8;--night:#152f32;--orange:#9b5c25;--rail:258px;--shadow:0 12px 42px #1b3c3010}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:35px}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.8 "Segoe UI","Microsoft YaHei","PingFang SC",sans-serif}button,input,textarea,select{font:inherit}a{color:var(--green);text-underline-offset:4px}button,a,input,textarea,select,summary{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #80bfa3;outline-offset:4px}h1,h2,h3,h4,p{margin:0}h1,h2,h3{line-height:1.3}h1{font-size:clamp(38px,4.1vw,62px);font-weight:750;letter-spacing:-2px}h2{font-size:30px;letter-spacing:-.8px}h3{font-size:19px}h4{font-size:16px}p+p{margin-top:12px}ul,ol{padding-left:23px}li+li{margin-top:7px}strong{font-weight:650}code,kbd,pre{font-family:Consolas,"Cascadia Code",monospace}code{font-size:.91em;overflow-wrap:anywhere}p code,li code,td code{background:#e8eeea;padding:2px 5px;border-radius:4px}pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;font-size:13px}button{border:0}button,a{ -webkit-tap-highlight-color:transparent}svg{flex:none}::selection{background:#d7eaa8;color:#193830}[hidden]{display:none!important}
+.skip{position:fixed;top:-100px;left:16px;z-index:50;padding:12px;background:white}.skip:focus{top:12px}.sidebar{position:fixed;inset:0 auto 0 0;width:var(--rail);background:#fcfdf9;border-right:1px solid var(--line);padding:32px 24px;display:flex;flex-direction:column;z-index:20}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);line-height:1.4;font-weight:700}.brandmark{display:grid;place-items:center;width:37px;height:37px;border-radius:11px;background:var(--green);color:white;font:700 20px Consolas}.brand small{display:block;font-size:10px;letter-spacing:1.8px;color:var(--muted);font-weight:500;margin-top:3px}.nav-label{margin:38px 10px 12px;color:#85908b;font-size:10px;letter-spacing:2px}.nav{display:grid;gap:3px;overflow-y:auto}.nav a{display:flex;gap:13px;align-items:center;padding:9px 11px;border-radius:8px;color:#617173;font-size:13px;text-decoration:none}.nav a span{font:11px Consolas;color:#99a49b}.nav a:hover{background:#f0f3ec}.nav a.active{background:#e8f0e1;color:#1c6049;font-weight:650}.nav a.active span{color:#4a8563}.side-bottom{margin-top:auto;padding-top:20px;font-size:11px;color:#7c8980}.side-bottom strong{display:block;color:var(--green);font-size:12px}.progress-track{height:3px;background:#e5eade;margin:10px 0}.progress-track i{display:block;height:100%;width:0;background:#70a75a}.mobile-bar{display:none}.main{margin-left:var(--rail)}.page{max-width:1270px;margin:auto;padding:28px 52px 65px}.topbar{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:34px;color:var(--muted);font-size:12px}.top-actions{display:flex;gap:10px}.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;padding:10px 17px;font-size:13px;font-weight:650;text-decoration:none;border:1px solid transparent;line-height:1.5}.button.primary{background:var(--green);color:white}.button.primary:hover{background:#0b513e}.button.secondary{background:white;border-color:var(--line);color:var(--ink)}.button.dark{background:var(--lime);color:var(--night)}.button.small{padding:6px 11px;font-size:12px}.eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:var(--green);margin-bottom:15px}.hero{position:relative;display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center;padding:38px 0 42px}.hero h1 em{font-style:normal;color:var(--green)}.hero p{color:var(--muted);font-size:16px;max-width:560px;margin-top:22px}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.pill{background:white;border:1px solid var(--line);padding:3px 10px;border-radius:20px;font-size:11px;color:var(--muted)}.flow-board{background:var(--night);color:#e8f0ec;border-radius:17px;padding:27px;box-shadow:var(--shadow);position:relative;overflow:hidden}.flow-board:after{content:"";position:absolute;width:220px;height:220px;border:1px solid #ffffff0c;border-radius:50%;right:-110px;top:-90px;pointer-events:none}.board-label{display:flex;align-items:center;justify-content:space-between;font:10px Consolas;letter-spacing:1px;color:#b1c5bd;margin-bottom:23px}.live-dot{display:inline-block;width:6px;height:6px;border-radius:100%;background:#d7ec9e;margin-right:5px}.flow-node{display:flex;align-items:center;gap:14px;border:1px solid #ffffff20;padding:13px 15px;border-radius:10px;background:#ffffff04}.flow-node .icon{font:18px Consolas;color:var(--lime);width:26px}.flow-node strong{font-size:14px;display:block}.flow-node small{color:#a3b8ae;font-size:11px}.flow-arrow{padding:3px 0 3px 25px;color:#829d8f;font:16px Consolas}.flow-end{display:flex;gap:7px;padding-top:20px;margin-top:18px;border-top:1px solid #ffffff15}.flow-end span{font-size:11px;background:#ffffff0b;padding:4px 9px;border-radius:5px}.intro-strip{display:grid;grid-template-columns:repeat(3,1fr);background:white;border:1px solid var(--line);border-radius:12px;margin-bottom:65px}.intro-strip>div{padding:22px 24px}.intro-strip>div+div{border-left:1px solid var(--line)}.intro-strip strong{display:block;font-size:15px}.intro-strip span{font-size:12px;color:var(--muted)}.intro-strip b{font:11px Consolas;color:var(--green);margin-right:7px}.section{margin-top:68px;scroll-margin-top:28px}.section-head{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:25px}.section-head p{color:var(--muted);margin-top:12px;max-width:740px}.section-tag{font:11px Consolas;color:#88998c;padding-top:35px;white-space:nowrap}.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{padding:25px;background:white;border:1px solid var(--line);border-radius:12px}.card p{color:var(--muted);font-size:13px;margin-top:12px}.card .card-no{display:block;color:var(--green);font:12px Consolas;margin-bottom:13px}.note{background:#edf3e7;border-left:3px solid #86a768;padding:16px 19px;border-radius:0 9px 9px 0;margin-top:20px;color:#4e634b;font-size:13px}.note.warm{background:#fff4e7;border-color:#c09157;color:#77552f}.mini{font-size:12px;color:var(--muted)}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:11px;background:white;margin-top:20px}table{border-collapse:collapse;width:100%;font-size:13px;text-align:left}th{color:#4a6258;background:#eef2ea;font-size:12px;font-weight:650}th,td{padding:14px 17px;vertical-align:top;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}td:first-child{font-weight:600;min-width:110px}caption{padding:13px;text-align:left;font-weight:600}td p{margin:0}td code{font-size:12px}.numbered{counter-reset:steps;margin:0;padding:0;list-style:none}.numbered>li{counter-increment:steps;position:relative;padding:0 0 25px 44px;margin:0}.numbered>li:last-child{padding-bottom:0}.numbered>li:before{content:counter(steps,decimal-leading-zero);position:absolute;left:0;top:1px;width:28px;height:28px;display:grid;place-items:center;font:11px Consolas;background:#e9f1e3;color:#437444;border-radius:50%}.numbered p{margin-top:6px}.access-address{padding:20px 24px;border:1px solid #cee0c4;background:#edf3e7;border-radius:11px;display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:22px}.access-address a{font-size:17px;font-weight:650;overflow-wrap:anywhere}.access-address small{display:block;color:#6d8066;font-size:11px;letter-spacing:1px}.stack{display:grid;gap:18px}.tabs{display:flex;gap:7px;padding:5px;background:#eaf0e5;border-radius:9px;width:fit-content;margin:18px 0}.tabs button{background:transparent;color:#5e715e;padding:8px 16px;border-radius:6px;font-size:12px}.tabs button[aria-selected=true]{background:white;color:#235d45;box-shadow:0 2px 5px #193e1510;font-weight:700}.codebox{background:var(--night);color:#e8eee9;border-radius:10px;overflow:hidden;margin-top:15px}.code-top{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 15px;background:#ffffff07;border-bottom:1px solid #ffffff10;color:#aec3b6;font:11px Consolas}.copy{background:#ffffff0d;color:#d0ddca;border:1px solid #ffffff19;padding:3px 10px;border-radius:5px;font:11px "Microsoft YaHei",sans-serif}.copy:hover{background:#ffffff1c}.codebox pre{padding:20px;color:#deeddd}.codebox.light{background:#f1f4ee;color:var(--ink);border:1px solid var(--line)}.codebox.light .code-top{color:var(--muted);border-bottom-color:var(--line)}.codebox.light .copy{color:var(--green);border-color:#bfd0bb;background:white}.codebox.light pre{color:var(--ink)}details{background:white;border:1px solid var(--line);border-radius:10px;margin-top:14px;overflow:hidden}summary{padding:17px 20px;cursor:pointer;font-weight:650;font-size:14px}details[open] summary{border-bottom:1px solid var(--line)}.details-body{padding:21px}.details-body p{font-size:13px;color:var(--muted)}.field{display:grid;gap:7px}.field label{font-size:12px;font-weight:650;color:#4c6255}.field input,.field select,.field textarea{width:100%;padding:11px 12px;background:#fff;border:1px solid #cedacc;color:var(--ink);border-radius:7px;font-size:13px}.field textarea{resize:vertical;min-height:100px}.config-fields{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-top:15px}.validation{font-size:12px;min-height:23px;color:#88602c;margin-top:8px}.path{font-size:12px;background:#f1f4ed;border:1px solid var(--line);border-radius:6px;padding:10px 13px;display:block;margin:12px 0;color:#466047}.phases{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:20px}.phase{background:white;padding:18px 15px;border:1px solid var(--line);border-radius:9px}.phase b{display:block;color:#87a16b;font:12px Consolas;margin-bottom:12px}.phase strong{font-size:14px}.phase p{margin-top:9px;font-size:12px;color:var(--muted)}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.scenario{background:white;border:1px solid var(--line);border-radius:11px;padding:23px}.scenario .category{font-size:10px;letter-spacing:1px;color:#60854d;display:inline-block;padding:2px 8px;background:#edf4e6;border-radius:4px;margin-bottom:13px}.scenario p{font-size:13px;color:var(--muted);margin-top:10px}.scenario .result{font-size:12px;color:#355848;border-top:1px solid #edf0e8;margin-top:14px;padding-top:12px}.scenario button{margin-top:14px}.builder{background:#eaf1e4;border:1px solid #d2dfc6;border-radius:13px;padding:27px}.builder-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:25px}.builder-fields{display:grid;gap:13px}.builder-output{display:flex;flex-direction:column}.builder-output textarea{width:100%;height:100%;min-height:440px;resize:vertical;border:0;background:var(--night);color:#e7efdf;border-radius:9px;padding:20px;font-size:13px;line-height:1.9}.builder-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}.lab-banner{background:var(--night);border-radius:12px;color:#eaf0e9;padding:27px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:22px}.lab-banner p{font-size:13px;color:#adbdaf;margin-top:10px}.lab-banner .kicker{color:#d8e9a8;font:11px Consolas;letter-spacing:1px;margin-bottom:11px}.download-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}.lab-step{margin-top:23px}.lab-step h3{font-size:17px}.metric-row{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:9px;background:white;overflow:hidden;margin-top:18px}.metric{padding:19px}.metric+.metric{border-left:1px solid var(--line)}.metric b{display:block;color:var(--green);font-size:26px;line-height:1.2}.metric span{font-size:11px;color:var(--muted)}.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.check-item{display:flex;align-items:flex-start;gap:11px;padding:16px;background:white;border:1px solid var(--line);border-radius:9px;cursor:pointer}.check-item input{accent-color:var(--green);margin-top:6px;width:16px;height:16px;flex:none}.check-item strong{font-size:13px;display:block}.check-item small{display:block;color:var(--muted);font-size:11px;margin-top:3px}.check-item:has(input:checked){background:#eaf2e1;border-color:#bccfa7}.check-progress{margin-top:15px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;color:#5c7850}.faq-list details p{line-height:1.9}.footer{margin-top:65px;padding-top:25px;border-top:1px solid var(--line);color:#708170;font-size:11px}.footer .source-links{display:flex;flex-wrap:wrap;gap:15px;margin-top:12px}.footer details{background:transparent}.footer summary{font-size:12px}.toast{position:fixed;bottom:24px;left:calc(50% + 100px);transform:translateX(-50%) translateY(20px);background:#213d31;color:white;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:.2s;z-index:60;pointer-events:none;max-width:90vw}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.print-only{display:none}.nojs{padding:15px;background:#fff0dc}.spacer{margin-top:20px}.small-list{font-size:13px;color:var(--muted)}.search-free{font-size:11px;color:#83907c}.inline-link{font-size:12px}
+@media(min-width:1500px){.page{padding-left:65px;padding-right:65px}.hero{gap:60px}}
+@media(max-width:1150px){:root{--rail:222px}.sidebar{padding:25px 17px}.page{padding:25px 30px}.hero{grid-template-columns:1fr;gap:25px}.flow-board{display:grid;grid-template-columns:1fr 25px 1fr 25px 1fr;gap:0;align-items:center;padding:22px}.board-label{grid-column:1/-1;margin-bottom:14px}.flow-node{padding:11px;gap:9px}.flow-arrow{padding:0;text-align:center;transform:rotate(-90deg)}.flow-end{grid-column:1/-1;margin-top:14px;padding-top:13px}.flow-node .icon{display:none}.three{grid-template-columns:1fr}.phases{grid-template-columns:repeat(3,1fr)}.builder-grid{grid-template-columns:1fr}.builder-output textarea{min-height:350px}.section-tag{display:none}}
+@media(max-width:760px){:root{--rail:0px}html{scroll-padding-top:85px}.sidebar{display:none;top:62px;width:100%;bottom:auto;max-height:calc(100vh - 62px);padding:15px 20px;box-shadow:var(--shadow)}.sidebar.open{display:block}.sidebar .brand,.nav-label,.side-bottom{display:none}.nav{display:grid;grid-template-columns:1fr 1fr}.mobile-bar{position:sticky;top:0;background:#fcfdf9ee;backdrop-filter:blur(12px);z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:12px 18px}.mobile-bar .brandmark{width:30px;height:30px;border-radius:8px;font-size:16px}.mobile-bar .brand{font-size:13px;gap:9px}.mobile-bar button{background:#eaf1e2;border-radius:6px;padding:6px 13px;font-size:12px;color:#416341}.main{margin-left:0}.page{padding:22px 20px 40px}.topbar{font-size:10px;margin-bottom:16px}.topbar .top-actions .secondary{display:none}.hero{padding:22px 0 27px;gap:25px}h1{font-size:42px;letter-spacing:-1px}h2{font-size:26px}.hero p{font-size:14px}.hero-actions .button{padding:10px 14px}.flow-board{display:block;padding:22px}.flow-node{padding:11px 15px}.flow-node .icon{display:block}.flow-arrow{transform:none;text-align:left;padding:3px 0 3px 28px}.flow-end{display:flex;flex-wrap:wrap}.intro-strip{grid-template-columns:1fr;margin-bottom:40px}.intro-strip>div{padding:14px 18px}.intro-strip>div+div{border-left:0;border-top:1px solid var(--line)}.section{margin-top:47px;scroll-margin-top:80px}.section-head{margin-bottom:21px}.two,.scenario-grid,.check-grid,.config-fields{grid-template-columns:1fr}.card,.scenario{padding:20px}.access-address{display:block;padding:18px}.access-address .button{margin-top:12px}.access-address a{font-size:15px}.phases{grid-template-columns:1fr 1fr}.phases .phase:last-child{grid-column:1/-1}.builder{padding:20px}.lab-banner{display:block;padding:22px}.metric-row{grid-template-columns:1fr 1fr}.metric:nth-child(3){border-left:0;border-top:1px solid var(--line)}.metric:nth-child(4){border-top:1px solid var(--line)}.lab-banner .button{margin-top:15px}.codebox pre{padding:15px;font-size:12px}.details-body{padding:17px}.toast{left:50%}table{min-width:590px}.top-actions .button{font-size:11px;padding:7px 10px}.check-progress{align-items:flex-start}.tabs button{padding:8px 13px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+@media print{@page{size:A4;margin:16mm 13mm}body{background:white;font-size:10pt;color:#172d30}.sidebar,.mobile-bar,.topbar,.hero-actions,.copy,.download-actions,.builder-actions,.toast,.button,.no-print{display:none!important}.main{margin:0}.page{max-width:none;padding:0}.hero{display:block;padding:0 0 20px}h1{font-size:30pt;letter-spacing:-1px}h2{font-size:20pt}h3{font-size:13pt}.hero p{font-size:11pt}.flow-board{margin-top:20px;background:#eef2eb;color:#172d30;display:block;box-shadow:none}.flow-node small,.board-label,.flow-node .icon,.flow-arrow{color:#385744}.flow-node{border-color:#c6d2c4}.flow-end{border-color:#c6d2c4}.flow-end span{background:#dde6d9}.intro-strip{margin-bottom:20px;display:flex}.intro-strip>div{flex:1;padding:12px}.section{margin-top:30px;break-before:auto}.section-head{margin-bottom:15px}.section-head p{font-size:10pt}.two,.three,.scenario-grid,.check-grid,.builder-grid{display:block}.card,.scenario,.check-item{margin:10px 0;padding:15px;break-inside:avoid}.phases{grid-template-columns:repeat(5,1fr);gap:5px}.phase{padding:10px}.note{padding:10px}.section-tag{display:none}.codebox{background:#f1f4ee;color:#172d30;border:1px solid #ddd;break-inside:auto}.codebox pre{color:#172d30;font-size:8pt;padding:13px}.code-top{color:#456449;border-color:#ddd}.table-wrap{overflow:visible}table{min-width:0;font-size:9pt}th,td{padding:8px}tr{break-inside:avoid}.builder-output textarea{display:none}.print-only{display:block;white-space:pre-wrap;font-size:9pt}.tabs{display:none}.access-address{padding:13px}.lab-banner{background:#edf2e8;color:#172d30}.lab-banner p,.lab-banner .kicker{color:#476041}.footer{margin-top:25px}.footer .source-links{display:block}.footer .source-links a{display:block}a{text-decoration:none;color:#245943}details{break-inside:auto}.metric{padding:12px}.metric b{font-size:20pt}.check-item input{accent-color:#146b52}.check-progress{display:block}summary{padding:12px}.details-body{padding:12px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">跳到正文</a>
+<div class="mobile-bar"><a class="brand" href="#start"><span class="brandmark">&gt;_</span>Codex 实战手册</a><button id="menu-toggle" aria-controls="sidebar" aria-expanded="false">章节目录</button></div>
+<aside class="sidebar" id="sidebar" aria-label="手册目录">
+  <a class="brand" href="#start"><span class="brandmark">&gt;_</span><span>网络部门 · AI 工作法<small>CODEX FIELD GUIDE</small></span></a>
+  <div class="nav-label">从第一次使用，到独立交付</div>
+  <nav class="nav" id="nav">
+    <a href="#start" class="active"><span>00</span>从这里开始</a><a href="#concept"><span>01</span>先弄懂三个概念</a><a href="#connect"><span>02</span>接入公司的中转</a><a href="#workflow"><span>03</span>第一次与 Codex 协作</a><a href="#scenarios"><span>04</span>运维与运营场景</a><a href="#prompts"><span>05</span>写一条好任务</a><a href="#lab"><span>06</span>动手做一个小程序</a><a href="#code"><span>07</span>读懂、运行与修改代码</a><a href="#repository"><span>08</span>在 GitLab / SVN 上迭代</a><a href="#quality"><span>09</span>检查结果与控制成本</a><a href="#trouble"><span>10</span>遇到问题怎么处理</a><a href="#team"><span>11</span>把经验变成团队资产</a>
+  </nav>
+  <div class="side-bottom"><strong>零基础友好 · 运维 / 运营双场景</strong><div class="progress-track"><i id="read-progress"></i></div><span id="read-label">准备开始</span><br>培训版 · 2026.11.13</div>
+</aside>
+<main class="main" id="content"><div class="page">
+<div class="topbar"><span>内部学习资料 / 网络部门</span><div class="top-actions"><a class="button secondary small" href="http://118.25.112.30:52997" target="_blank" rel="noopener noreferrer">打开中转平台 ↗</a><button class="button secondary small" id="print-button">打印 / 保存 PDF</button></div></div>
+<noscript><div class="nojs">正文可直接阅读。启用 JavaScript 后可使用配置预览、提示词生成、练习下载和复制功能。</div></noscript>
+<section id="start" class="hero" aria-labelledby="hero-title">
+  <div><div class="eyebrow">让 AI 成为你的工作搭档</div><h1 id="hero-title">把重复工作<br>交给 <em>Codex。</em></h1><p>从接入公司中转开始，用自然语言完成日志分析、数据整理、脚本编写和网页制作。即使没写过程序，也能从一个小任务开始。</p><div class="hero-actions"><a class="button primary" href="#connect">开始接入 <span aria-hidden="true">↗</span></a><a class="button secondary" href="#lab">直接体验一个小程序</a></div><div class="pills"><span class="pill">网络运维</span><span class="pill">网络运营</span><span class="pill">零基础入门</span><span class="pill">可离线阅读</span></div></div>
+  <div class="flow-board" aria-label="工作原理：提出需求，Codex 通过中转使用模型，形成可验证的交付物">
+    <div class="board-label"><span><i class="live-dot"></i>HOW IT WORKS</span><span>工作原理示意</span></div>
+    <div class="flow-node"><span class="icon">01</span><div><strong>你描述目标</strong><small>材料、规则、想要的结果</small></div></div><div class="flow-arrow" aria-hidden="true">↓</div>
+    <div class="flow-node"><span class="icon">02</span><div><strong>Codex + 公司中转 + 模型</strong><small>理解任务 · 编辑文件 · 运行验证</small></div></div><div class="flow-arrow" aria-hidden="true">↓</div>
+    <div class="flow-node"><span class="icon">03</span><div><strong>你检查并采用成果</strong><small>对照样本、检查差异、确认适用范围</small></div></div>
+    <div class="flow-end"><span>一个脚本</span><span>一份报表</span><span>一个网页</span></div>
+  </div>
+</section>
+<div class="intro-strip"><div><strong><b>01 / CONNECT</b> 先连通</strong><span>认识账号、API Key、模型与额度</span></div><div><strong><b>02 / BUILD</b> 再做事</strong><span>用真实工作场景提出明确任务</span></div><div><strong><b>03 / VERIFY</b> 最后验证</strong><span>让结果可以复核、复用与交接</span></div></div>
+
+<section class="section" id="concept"><div class="section-head"><div><div class="eyebrow">01 / 基础认知</div><h2>三个角色，各做一件事</h2><p>你不需要先学完一门编程语言。先分清“在哪里操作、请求经过哪里、由谁回答”，接入就会容易很多。</p></div><span class="section-tag">UNDERSTAND</span></div>
+<div class="three"><article class="card"><span class="card-no">01 — CODEX</span><h3>你的工作台</h3><p>你在 Codex 里描述任务。它可以在获得相应权限后查看项目、修改文件、执行命令、分析报错，并整理交付结果。</p><p><strong>你看到的：</strong>对话、文件修改和运行结果。</p></article><article class="card"><span class="card-no">02 — RELAY</span><h3>公司的中转平台</h3><p>中转接收客户端请求，再路由给允许使用的模型；统一管理 API Key、分组、额度和使用记录。</p><p><strong>你需要的：</strong>接入地址、自己的 Key、可用模型。</p></article><article class="card"><span class="card-no">03 — MODEL</span><h3>负责推理的模型</h3><p>模型负责理解文字、生成方案和代码。不同模型的能力、速度、费用和工具兼容性会不同，以分组实际支持为准。</p><p><strong>你选择的：</strong>管理员推荐的可用模型 ID。</p></article></div>
+<div class="table-wrap"><table><thead><tr><th>名词</th><th>可以这样理解</th><th>使用时记住</th></tr></thead><tbody><tr><td>平台账号</td><td>登录中转网站的身份</td><td>网站密码不等于 API Key。</td></tr><tr><td>API Key</td><td>客户端调用模型的通行证</td><td>每人使用自己的 Key；不放进代码仓库、群消息或截图。</td></tr><tr><td>Base URL</td><td>模型 API 的入口地址</td><td>常带 <code>/v1</code>；与网站首页、登录页是不同用途。</td></tr><tr><td>模型 ID</td><td>请求时使用的准确模型名称</td><td>必须与当前 Key 所属分组允许的名称一致。</td></tr><tr><td>Token / 额度</td><td>输入、输出及相关处理的计量与限额</td><td>长日志、多轮上下文和反复重跑会增加用量；以平台记录为准。</td></tr></tbody></table></div>
+<div class="note">接入中转用于模型调用，不会自动开通 ChatGPT 订阅、Codex 云端任务或其他应用的授权。模型请求需要联网；本手册和后面的日志分析练习可以离线使用。</div>
+</section>
+
+<section class="section" id="connect"><div class="section-head"><div><div class="eyebrow">02 / 中转接入</div><h2>第一次连接，按这个顺序做</h2><p>初次使用建议由管理员协助完成安装与配置。平台生成的接入说明是首选，下面的手动配置用于理解字段与排错。</p></div><span class="section-tag">SET UP</span></div>
+<div class="access-address"><div><small>公司中转平台 · 推荐模型：gpt-6.1-sol</small><a href="http://118.25.112.30:52997" target="_blank" rel="noopener noreferrer">http://118.25.112.30:52997</a></div><a class="button primary" href="http://118.25.112.30:52997" target="_blank" rel="noopener noreferrer">进入平台 ↗</a></div>
+<div class="note" style="margin:0 0 22px">部门推荐模型：<strong><code>gpt-6.1-sol</code></strong>（由培训需求方确认）。请确认自己的 Key 所属分组已开放该模型；模型名区分准确拼写，不能自行省略 <code>.1</code> 或更改连字符。</div>
+<div class="two"><div class="card"><h3>先在中转平台准备好</h3><ol class="numbered spacer"><li><strong>登录自己的账号</strong><p>使用管理员提供或按公司流程开通的账号；没有账号时向管理员申请，不借用他人身份。</p></li><li><strong>确认分组和可用额度</strong><p>确认用于 Codex 的分组、允许的模型及订阅 / 余额。能登录网站不代表已经有可调用额度。</p></li><li><strong>准备专用 API Key</strong><p>在「API 密钥」页创建或使用分配给自己的 Key，选择管理员指定分组。名称可用“姓名-Codex-网络部门”。</p></li><li><strong>打开 Key 对应的「使用」说明</strong><p>选择 Codex 和自己的操作系统，按页面生成的文件路径与内容配置。不同平台分组可能展示不同客户端选项。</p></li></ol></div>
+<div class="card"><h3>再选择一种使用入口</h3><div class="table-wrap"><table style="min-width:0"><thead><tr><th>入口</th><th>适合谁 / 怎么开始</th></tr></thead><tbody><tr><td>Codex 桌面应用</td><td>喜欢图形界面的同事。使用公司提供的官方安装指引，添加一个工作文件夹，在新任务中输入需求。</td></tr><tr><td>VS Code 扩展</td><td>需要边看代码边修改的同事。在官方扩展市场确认发布者 OpenAI，打开工作目录后使用 Codex 面板。</td></tr><tr><td>Codex CLI</td><td>习惯终端的运维同事。安装 Node.js 后安装 CLI，在目标目录运行 <code>codex</code>。</td></tr></tbody></table></div><p>桌面、扩展和 CLI 的界面与支持范围随版本变化。自定义中转接入以本机版本和平台「使用」说明为准；某入口不能读取自定义配置时，先用 CLI 完成验证。</p><p><strong>避免混淆：</strong>公司中转 Key 用于中转 API。不要把它填进不相干的网站登录框。</p></div></div>
+<div class="note warm">目前提供的入口是 HTTP，传输本身没有 HTTPS 加密。请在公司认可的网络环境下接入；如管理员提供了 HTTPS API 地址，优先使用该地址。教学页面不收集、不保存 API Key。</div>
+<details><summary>手动接入示例：安装 CLI、配置文件、输入 Key</summary><div class="details-body">
+<p>以下是基于本项目接入代码整理的 <strong>CLI 基础模板</strong>，用于文本与编程任务。先安装官方 Node.js LTS（含 npm），再执行安装命令。已有 Codex 的同事可直接检查版本。</p>
+<div class="codebox"><div class="code-top"><span>安装与检查 · Windows PowerShell / macOS Terminal</span><button class="copy" data-copy="install-code">复制</button></div><pre id="install-code">node --version
+npm --version
+npm install -g @openai/codex
+codex --version</pre></div>
+<p class="spacer">如果 PowerShell 提示 <code>npm.ps1</code> 或 <code>codex.ps1</code> 被执行策略拦截，可使用 <code>npm.cmd</code> / <code>codex.cmd</code> 对应入口。安装失败时保留完整错误，请管理员检查网络、权限与 Node.js 环境。</p>
+<div class="config-fields"><div class="field"><label for="base-url">API Base URL（以平台「使用」页为准）</label><input id="base-url" type="url" value="http://118.25.112.30:52997/v1" autocomplete="off" spellcheck="false"></div><div class="field"><label for="model-id">模型 ID（需在当前分组中可用）</label><input id="model-id" value="gpt-6.1-sol" placeholder="粘贴当前 Key 可用的模型 ID" autocomplete="off" spellcheck="false"></div></div>
+<div class="validation" id="config-message" role="status">已填入部门推荐模型 gpt-6.1-sol；请核对当前 Key 的分组权限。</div>
+<div class="codebox"><div class="code-top"><span>config.toml · 基础模板，不含密钥</span><button class="copy" data-copy="config-code">复制</button></div><pre id="config-code">model_provider = "company_relay"
+model = "gpt-6.1-sol"
+
+[model_providers.company_relay]
+name = "Company Relay"
+base_url = "http://118.25.112.30:52997/v1"
+wire_api = "responses"
+env_key = "SUB2API_API_KEY"
+requires_openai_auth = false
+supports_websockets = false</pre></div>
+<p class="spacer"><code>env_key</code> 填的是环境变量名称。此模板使用 HTTP/SSE Responses；先确认管理员给的模型支持该协议与 Codex 工具调用。生图、WebSocket 等扩展能力请使用平台针对版本生成的完整配置。</p>
+<div class="tabs" role="tablist" aria-label="操作系统"><button id="tab-windows" role="tab" aria-selected="true" aria-controls="os-windows" data-os="windows">Windows</button><button id="tab-macos" role="tab" aria-selected="false" aria-controls="os-macos" data-os="macos" tabindex="-1">macOS</button></div>
+<div id="os-windows" role="tabpanel" aria-labelledby="tab-windows"><h4>1. 准备 config.toml</h4><span class="path"><code>%USERPROFILE%\.codex\config.toml</code>（文件资源管理器地址栏可用）</span><p>先备份已有文件，再合并所需字段；不要把整份旧配置清空。顶层的 <code>model_provider</code> 与 <code>model</code> 放在 TOML 的表头之前，避免粘贴进其他配置段。保存时确认文件名不是 <code>config.toml.txt</code>。</p><h4 class="spacer">2. 在 PowerShell 当前窗口输入 Key，再启动</h4><div class="codebox"><div class="code-top"><span>不把真实 Key 写在命令文本里</span><button class="copy" data-copy="windows-code">复制</button></div><pre id="windows-code">$relaySecret = Read-Host '输入自己的中转 API Key' -AsSecureString
+$relayCredential = [System.Net.NetworkCredential]::new('', $relaySecret)
+$env:SUB2API_API_KEY = $relayCredential.Password
+Remove-Variable relaySecret, relayCredential
+
+# 先创建自己的练习目录，再进入该目录
+New-Item -ItemType Directory -Force "$env:USERPROFILE\codex-lab" | Out-Null
+Set-Location "$env:USERPROFILE\codex-lab"
+codex</pre></div><p class="spacer">环境变量只对这个终端及其新启动的子进程有效。新开终端需重新输入 Key；已经打开的桌面应用 / VS Code 不会自动继承。图形入口请按平台配置说明设置，完成后重新打开相应程序。</p></div>
+<div id="os-macos" role="tabpanel" aria-labelledby="tab-macos" hidden><h4>1. 准备 config.toml</h4><span class="path"><code>~/.codex/config.toml</code>（<code>~</code> 表示当前用户目录）</span><p>先备份已有文件，再合并所需字段。顶层设置放在 TOML 的表头之前，保留与本次任务无关的原有配置。</p><h4 class="spacer">2. 在默认 zsh 终端输入 Key，再启动</h4><div class="codebox"><div class="code-top"><span>macOS · zsh</span><button class="copy" data-copy="mac-code">复制</button></div><pre id="mac-code">read -s "SUB2API_API_KEY?输入自己的中转 API Key: "
+echo
+export SUB2API_API_KEY
+mkdir -p ~/codex-lab
+cd ~/codex-lab
+codex</pre></div><p class="spacer">此写法适用于 zsh。环境变量只对当前终端及其新启动的子进程有效；从 Dock 已经打开的应用不会自动获得这个值。</p></div>
+<div class="table-wrap"><table><thead><tr><th>核对项</th><th>正确判断</th></tr></thead><tbody><tr><td>首页 / API 地址</td><td>首页为 <code>http://118.25.112.30:52997</code>。未另配 API 域名时，基础地址为 <code>http://118.25.112.30:52997/v1</code>；若「使用」页显示其他地址，以该页为准。</td></tr><tr><td>最终调用路径</td><td>客户端在 Base URL 后追加 <code>/responses</code>。不要把 Base URL 填成登录页、<code>/v1/responses</code> 或重复的 <code>/v1/v1</code>。</td></tr><tr><td>身份方式</td><td>此模板采用 <code>env_key</code>。不要同时拼接另一套 <code>experimental_bearer_token</code> 或旧版登录配置。平台生成的完整配置可采用不同方式，按一整套说明使用。</td></tr></tbody></table></div>
+</div></details>
+<div class="card spacer"><h3>连通后，只做一次小验证</h3><p>在自己的练习目录启动 Codex，发送下面这句话。收到回复后，到中转平台的使用记录核对时间、Key 和模型（记录可能稍有延迟）；这样才能确认请求经过了预期中转。</p><div class="codebox light"><div class="code-top"><span>第一条消息</span><button class="copy" data-copy="hello-prompt">复制</button></div><pre id="hello-prompt">请用中文回复“已准备好”，并列出你当前能访问的工作目录。此次只确认环境，不创建或修改文件，不安装软件，不访问业务系统。</pre></div><p>模型能回复、目录能正确读取、平台能查到对应调用后，再开始实操。没有使用记录时，先检查配置和身份方式。</p></div>
+</section>
+
+<section class="section" id="workflow"><div class="section-head"><div><div class="eyebrow">03 / 工作方式</div><h2>从一句“帮我做”，变成一次完整交付</h2><p>给 Codex 一个明确工作目录，把相关样本放进去。它需要知道你的材料、环境、边界和判断对错的方法。</p></div><span class="section-tag">WORK TOGETHER</span></div>
+<div class="phases"><div class="phase"><b>01</b><strong>准备材料</strong><p>脱敏样本、文件路径、字段说明、已有规则。</p></div><div class="phase"><b>02</b><strong>说清结果</strong><p>要脚本、报表还是网页；定义输出与验收。</p></div><div class="phase"><b>03</b><strong>先做小样</strong><p>先用十几条样本打通，再扩大数据量。</p></div><div class="phase"><b>04</b><strong>看修改与验证</strong><p>查看文件差异、执行命令和实际输出。</p></div><div class="phase"><b>05</b><strong>收好交付物</strong><p>保留源码、样本、使用说明和已知限制。</p></div></div>
+<div class="two spacer"><div class="card"><h3>一个简单的工作目录</h3><div class="codebox light"><pre>codex-lab/
+├─ input/          原始样本，保留不变
+├─ src/            生成的脚本或网页源码
+├─ output/         生成的报表与结果
+├─ tests/          必要的验证样本或测试
+└─ README.md       安装、运行、字段与限制</pre></div><p>第一次练习可先用一个空文件夹。对已有项目，先让 Codex 阅读项目规则和入口，了解现状后再动手。</p></div><div class="card"><h3>用“反馈事实”推动下一轮</h3><p><strong>有效反馈：</strong>“样本 12 条，脚本只统计 11 条；第 7 行是空设备名，请拒绝处理并标注行号。”</p><p><strong>还不够明确：</strong>“不对”“不好看”“你再优化一下”。</p><p>遇到报错，把执行命令、完整报错和预期结果一起提供。对方才能定位原因，而不是反复猜测。</p><div class="note">让 Codex 报告“实际运行了什么、实际看到了什么、还有什么未验证”。生成了代码和验证了代码是两个不同阶段。</div></div></div>
+</section>
+
+<section class="section" id="scenarios"><div class="section-head"><div><div class="eyebrow">04 / 双场景速查</div><h2>从这些重复工作开始</h2><p>先选一件范围小、输入明确、结果容易核对的工作。点击「带入任务模板」，补充你的材料后就能交给 Codex。</p></div><span class="section-tag">PRACTICAL USE CASES</span></div>
+<div class="scenario-grid">
+<article class="scenario"><span class="category">网络运维 / 日志</span><h3>把告警日志变成排查清单</h3><p>输入脱敏日志、时间范围和设备列表，整理高频错误、异常时间段与待核实原因。</p><div class="result">交付：异常摘要 + 原始证据位置 + 下一步只读检查</div><button class="button secondary small" data-scenario="logs">带入任务模板 ↗</button></article>
+<article class="scenario"><span class="category">网络运维 / 巡检</span><h3>把每日检查变成巡检脚本</h3><p>对批准的目标检查 DNS、TCP 端口或 HTTP 状态，统一超时、并发与结果格式。</p><div class="result">交付：可配置脚本 + 演示数据 + 巡检报告</div><button class="button secondary small" data-scenario="inspection">带入任务模板 ↗</button></article>
+<article class="scenario"><span class="category">网络运维 / 配置</span><h3>比对两份配置发生了什么</h3><p>给出已脱敏的变更前后配置，按新增、删除、修改分类，并列出可能影响。</p><div class="result">交付：配置差异表 + 验证步骤 + 回退建议</div><button class="button secondary small" data-scenario="diff">带入任务模板 ↗</button></article>
+<article class="scenario"><span class="category">网络运营 / 报表</span><h3>自动汇总每天的数据</h3><p>用 CSV 样本与口径说明计算渠道、日期和业务指标，处理重复值、缺失值与分母为零。</p><div class="result">交付：汇总脚本 + 明细对账 + 图表或 HTML</div><button class="button secondary small" data-scenario="report">带入任务模板 ↗</button></article>
+<article class="scenario"><span class="category">网络运营 / 内容</span><h3>整理巡查记录与工作周报</h3><p>把检查清单、工单摘录、运营数据汇总为问题、处理进度、影响和下一步工作。</p><div class="result">交付：带来源的周报草稿 + 缺失信息清单</div><button class="button secondary small" data-scenario="weekly">带入任务模板 ↗</button></article>
+<article class="scenario"><span class="category">运维 + 运营 / 小工具</span><h3>做一个可离线打开的网页</h3><p>例如渠道数据看板、值班交接单、设备台账查询和活动参数检查器。</p><div class="result">交付：单文件 HTML + 样本数据 + 操作说明</div><button class="button secondary small" data-scenario="web">带入任务模板 ↗</button></article>
+</div><div class="note">巡检与排障先从导出文件、模拟数据和只读操作开始。连接真实设备、调整配置、批量变更或执行上线时，明确目标与授权范围，并遵循部门变更流程。</div>
+</section>
+
+<section class="section" id="prompts"><div class="section-head"><div><div class="eyebrow">05 / 任务提示词工作台</div><h2>写清六件事，结果更接近预期</h2><p><strong>目标 → 材料 → 环境 → 交付 → 边界 → 验收。</strong>下面会根据你的填写生成一段可以复制的完整任务，所有内容只在本页处理。</p></div><span class="section-tag">PROMPT WORKBENCH</span></div>
+<div class="builder"><div class="builder-grid"><div class="builder-fields">
+<div class="field"><label for="task-kind">选择任务起点</label><select id="task-kind"><option value="logs">日志分析与异常统计</option><option value="inspection">生成网络巡检脚本</option><option value="diff">配置变更对比</option><option value="report">运营数据汇总报表</option><option value="weekly">整理工作周报</option><option value="web">制作单文件网页工具</option></select></div>
+<div class="field"><label for="task-goal">我想完成什么</label><textarea id="task-goal" rows="2">把脱敏设备日志按设备和级别统计，找出高频错误，形成一份可复核的报告。</textarea></div>
+<div class="field"><label for="task-input">材料在哪里、包含什么</label><textarea id="task-input" rows="2">input/sample.csv，字段为 time、device、level、message。先检查样本结构，不自行补造数据。</textarea></div>
+<div class="field"><label for="task-env">运行环境</label><input id="task-env" value="Windows；Python 3.10+；优先标准库；中文说明"></div>
+<div class="field"><label for="task-output">交付物与验收标准</label><textarea id="task-output" rows="3">交付可运行脚本、summary.csv、report.html 和 README。样本统计须与人工计数一致；覆盖空文件、缺列和非法数据。</textarea></div>
+</div><div class="builder-output"><label class="mini" for="prompt-output" style="margin-bottom:8px">生成的任务 · 可继续编辑</label><textarea id="prompt-output" spellcheck="false"></textarea><pre id="prompt-print" class="print-only"></pre><div class="builder-actions"><button class="button primary" id="copy-prompt">复制完整任务</button><button class="button secondary" id="reset-prompt">恢复该场景模板</button></div><p class="mini spacer">将目录、字段和验收值换成你的实际情况。不要在这里填写密码、Key 或真实客户敏感数据。</p></div></div></div>
+<details><summary>后续追问也有模板：解释、报错、检查、交接</summary><div class="details-body"><div class="codebox light"><div class="code-top"><span>解释一段代码</span><button class="copy" data-copy="explain-prompt">复制</button></div><pre id="explain-prompt">请面向零基础同事解释这个脚本：输入是什么，输出是什么，从哪个函数开始，数据经过哪些步骤。用一条样本演示每一步，标出哪些操作会写文件或访问网络。暂不修改代码。</pre></div><div class="codebox light"><div class="code-top"><span>带着事实定位报错</span><button class="copy" data-copy="debug-prompt">复制</button></div><pre id="debug-prompt">执行命令：[粘贴原命令]
+运行目录与版本：[补充路径、系统、Python/Node 版本]
+完整报错：[粘贴已脱敏的终端输出]
+预期结果：[说明应该怎样]
+实际结果：[说明当前怎样]
+请先定位根因，再做最小修改。保留原始输入，运行对应验证，解释修复依据和未覆盖的情况。</pre></div><div class="codebox light"><div class="code-top"><span>交付前检查</span><button class="copy" data-copy="review-prompt">复制</button></div><pre id="review-prompt">请检查本次修改是否满足原始需求：计算口径、异常输入、超时与重试、文件覆盖、敏感信息、资源消耗。列出有证据的问题及位置，不为了凑数提建议。汇总实际运行命令、结果、未验证项，并补全 README 的使用步骤。</pre></div></div></details>
+</section>
+
+<section class="section" id="lab"><div class="section-head"><div><div class="eyebrow">06 / 第一个小程序</div><h2>把 12 条日志，变成一份异常报告</h2><p>这个练习使用虚构设备和离线数据，不连接业务系统。你会完成“准备样本 → 提需求 → 运行 → 核对 → 追加功能”的完整闭环。</p></div><span class="section-tag">HANDS-ON LAB</span></div>
+<div class="lab-banner"><div><div class="kicker">YOUR FIRST DELIVERABLE</div><h3>输入一个 CSV，输出一张汇总表和一个网页。</h3><p>网络运维可以用它整理告警；网络运营可以把同样的方法迁移到渠道、工单和活动数据。</p></div><a class="button dark" href="#lab-run">查看运行步骤 ↓</a></div>
+<div class="lab-step"><h3>① 下载样本，交给 Codex 提出实现</h3><p class="mini spacer">新建一个练习文件夹，把下载的 <code>sample.csv</code> 放进去。可先只下载样本，体验 Codex 生成代码；参考脚本用于对照或快速体验。</p><div class="download-actions"><button class="button primary" id="download-sample">下载 sample.csv</button><button class="button secondary" id="download-script">下载参考脚本 analyze_logs.py</button></div>
+<div class="codebox light"><div class="code-top"><span>交给 Codex 的练习任务</span><button class="copy" data-copy="lab-prompt">复制</button></div><pre id="lab-prompt">请在当前练习目录编写 analyze_logs.py，使用 Python 3.10+ 标准库。
+输入 sample.csv，字段固定为 time、device、level、message。
+要求：
+1. 先读取样本，说明字段与统计口径，然后实现。
+2. 统计各设备 INFO、WARNING、ERROR 数量和 ERROR / 总条数。
+3. 写入 output/summary.csv 和 output/report.html；HTML 可离线打开。
+4. 原始输入不修改；默认不覆盖已有输出目录，重复执行时换一个目录。
+5. 空文件、仅表头、缺列、空设备、非法级别或时间必须清楚报错，给出行号。
+6. HTML 转义日志内容，CSV 防止文本被当成公式；不用外部服务或依赖。
+7. 提供 --help、完整运行命令和 README，并实际用样本运行。
+验收：12 条；INFO=6、WARNING=2、ERROR=4；
+core-01 为 6 条 / ERROR 3 条，edge-01 为 6 条 / ERROR 1 条。
+总体错误率是 4/12=33.33%；只描述现象，不把日志统计直接认定为故障根因。</pre></div></div>
+<div class="lab-step" id="lab-run"><h3>② 安装 Python 后运行</h3><p class="mini spacer">Windows 在该文件夹打开 PowerShell，macOS 打开终端并进入该文件夹。先确认 Python 版本不低于 3.10；未安装时请按公司软件安装流程准备。</p><div class="two"><div class="codebox"><div class="code-top"><span>Windows</span><button class="copy" data-copy="lab-win">复制</button></div><pre id="lab-win">python --version
+python analyze_logs.py --help
+python analyze_logs.py --input sample.csv --output output</pre></div><div class="codebox"><div class="code-top"><span>macOS</span><button class="copy" data-copy="lab-mac">复制</button></div><pre id="lab-mac">python3 --version
+python3 analyze_logs.py --help
+python3 analyze_logs.py --input sample.csv --output output</pre></div></div><p class="mini spacer">运行完成后打开 <code>output/report.html</code>，并用表格软件或文本编辑器检查 <code>output/summary.csv</code>。参考脚本重复运行时，请把输出目录改成 <code>output-2</code>。</p></div>
+<div class="lab-step"><h3>③ 先用这些数字核对</h3><div class="metric-row"><div class="metric"><b>12</b><span>总日志条数</span></div><div class="metric"><b>6 / 2 / 4</b><span>INFO / WARNING / ERROR</span></div><div class="metric"><b>33.33%</b><span>ERROR ÷ 总条数</span></div><div class="metric"><b>3 / 1</b><span>core-01 / edge-01 错误数</span></div></div><div class="note">日志条数不是故障次数：同一次故障可能产生多条日志。高错误比例也不能直接证明设备故障；还要结合采集范围、时间窗口和原始内容。</div></div>
+<div class="lab-step"><h3>④ 追加一个小需求，体验迭代</h3><div class="codebox light"><div class="code-top"><span>第二轮任务</span><button class="copy" data-copy="iterate-prompt">复制</button></div><pre id="iterate-prompt">在现有脚本上新增“按小时统计”的报表，保留原有设备统计。
+时间格式按样本处理，不猜测时区；新增三条跨小时样本验证分组。
+先说明会改哪些文件，再实现并运行原样本与新样本。
+验收：原有 12 条的结果保持不变；各小时计数相加必须等于总条数。
+更新 README，列出实际验证结果。</pre></div></div>
+<details><summary>展开样本与完整参考代码（也可直接下载）</summary><div class="details-body"><p>参考实现只处理指定的四列 CSV 和 <code>YYYY-MM-DD HH:MM:SS</code> 时间格式，适合小到中等规模的教学样本。大文件可继续让 Codex 改成流式处理。</p><div class="codebox light"><div class="code-top"><span>sample.csv · 全部为虚构内容</span><button class="copy" data-copy="sample-code">复制</button></div><pre id="sample-code"></pre></div><div class="codebox"><div class="code-top"><span>analyze_logs.py · Python 3.10+</span><button class="copy" data-copy="python-code">复制</button></div><pre id="python-code"></pre></div></div></details>
+</section>
+
+<section class="section" id="code"><div class="section-head"><div><div class="eyebrow">07 / 利用好生成的代码</div><h2>代码生成之后，接下来做什么</h2><p>“拿到一段代码”只是开始。你还需要知道它放在哪里、怎样运行、改哪里、哪些结果值得信任。</p></div><span class="section-tag">USE THE CODE</span></div>
+<div class="table-wrap"><table><thead><tr><th>手上的代码</th><th>如何使用</th><th>让 Codex 补充什么</th></tr></thead><tbody><tr><td><code>.html</code> 网页</td><td>单文件静态网页可直接用浏览器打开；需要服务器或 API 的网页按项目说明启动。</td><td>离线可用范围、输入格式、浏览器兼容、是否发送网络请求。</td></tr><tr><td><code>.py</code> 脚本</td><td>在文件所在目录用 Python 运行，按说明传输入路径和参数。</td><td>Python 版本、依赖安装、<code>--help</code>、样本与预期输出。</td></tr><tr><td><code>.ps1</code> 脚本</td><td>先确认脚本操作范围，再按公司 PowerShell 策略执行。</td><td>只读 / 写操作说明、路径范围、预演能力、错误处理与回退方式。</td></tr><tr><td>已有项目的修改</td><td>查看 Git diff 或编辑器差异，再运行现有测试和构建；完成本地验收后按团队流程提交。</td><td>改动原因、影响范围、验证命令、配置变化与未验证项。</td></tr></tbody></table></div>
+<div class="two spacer"><div class="card"><h3>不会读代码，也能问到关键点</h3><ol class="small-list"><li>哪个文件是入口，第一条命令是什么？</li><li>输入从哪里来，字段如何对应？</li><li>结果写到哪里，会不会覆盖原文件？</li><li>哪些语句访问网络或修改系统？</li><li>换一份数据时，哪些参数需要修改？</li><li>出现异常会停止、跳过还是重试？</li></ol><p>让 Codex 用一个真实样本逐步解释，并给出你可以手工核对的中间结果。</p></div><div class="card"><h3>已有代码，先理解再修改</h3><div class="codebox light"><div class="code-top"><span>接手项目的第一条任务</span><button class="copy" data-copy="existing-prompt">复制</button></div><pre id="existing-prompt">请先阅读项目规则、README 和相关入口，只读分析。
+说明项目用途、启动方法、目标功能所在文件、依赖和现有验证方式。
+我要调整的行为是：[旧行为 → 新行为]。
+先定位最小影响范围，列出需要确认的业务口径；信息足够后再做局部修改，不做无关重构，不自动提交或发布。</pre></div></div></div>
+<details><summary>进阶：什么时候需要在你写的程序里调用中转 API？</summary><div class="details-body"><p><strong>用 Codex 帮你写程序：</strong>模型调用由 Codex 完成；日志统计、固定公式报表等程序写好后通常可以自行运行，不需要每次再调用模型。</p><p><strong>你的程序本身需要 AI：</strong>例如每次收到工单都要生成摘要，才需要在程序中调用中转 API。把 API Key 放在服务端环境变量，前端网页通过自己的后端调用；不要把 Key 写进可分发的 HTML 或浏览器脚本。</p><div class="table-wrap"><table><thead><tr><th>需求</th><th>优先实现方式</th><th>验收重点</th></tr></thead><tbody><tr><td>汇总、排序、去重、固定公式</td><td>普通代码按明确规则计算</td><td>相同输入产生相同结果；可对账。</td></tr><tr><td>文本归纳、分类、知识问答</td><td>程序按需调用模型，保留输入来源</td><td>抽样检查、异常与限流处理、费用预算。</td></tr><tr><td>对生产系统执行操作</td><td>独立权限校验、执行日志与明确确认</td><td>模型建议与最终执行分开验证。</td></tr></tbody></table></div><div class="codebox light"><div class="code-top"><span>给 Codex 的 API 开发任务</span><button class="copy" data-copy="api-prompt">复制</button></div><pre id="api-prompt">请设计一个内部工单摘要服务。
+服务端从环境变量读取中转地址、模型 ID 和 API Key，不在前端暴露 Key。
+先与管理员确认当前分组允许 Responses API 和程序化调用；使用模拟响应完成开发。
+对调用设置超时、有限重试和请求上限，记录脱敏错误信息，避免重复计费或无限循环。
+输出可审阅的方案、最小实现、测试和部署说明。真实调用只在明确提供测试范围与预算后进行。</pre></div></div></details>
+</section>
+
+<section class="section" id="repository"><div class="section-head"><div><div class="eyebrow">08 / 已有仓库迭代实战</div><h2>从 GitLab 或 SVN，开始一次小迭代</h2><p>公司已经有代码时，把仓库下载到本机，让 Codex 在这个工作目录中理解、修改和验证。下面用同一个小需求，分别演示 GitLab 与 SVN 的完整流程。</p></div><span class="section-tag">ITERATE AN EXISTING PROJECT</span></div>
+<div class="lab-banner"><div><div class="kicker">EXAMPLE / 设备台账搜索</div><h3>在已有“设备列表”页面，新增按设备名称搜索。</h3><p>输入“核心”后显示匹配设备；清空后恢复列表。保留原有分页、详情、权限与接口约定，不重新生成整个项目。</p></div></div>
+<div class="table-wrap"><table><thead><tr><th>开始前拿到什么</th><th>示例 / 要确认的内容</th></tr></thead><tbody><tr><td>仓库位置与权限</td><td>GitLab 的 Clone 地址，或 SVN 的实际 checkout URL；使用自己的 GitLab / SVN 身份。<strong>仓库登录凭据与中转 API Key 分别管理。</strong></td></tr><tr><td>工作基线</td><td>Git 确认从哪个分支开始、合并回哪里；SVN 确认在哪个 trunk / branch 路径开发。不要仅凭名字猜测。</td></tr><tr><td>本机环境</td><td>Git 或 SVN 客户端、项目要求的语言与依赖版本、README、测试环境地址与启动方法。</td></tr><tr><td>需求与验收</td><td>搜索字段为设备名称，忽略输入首尾空格；清空恢复；无结果有提示；切换关键词回到第一页。大小写与匹配规则沿用现有约定，缺失时先确认。</td></tr></tbody></table></div>
+<div class="note">下面的 <code>gitlab.example.com</code>、<code>svn.example.com</code>、项目名、分支号和文件路径都是教学占位。先替换为负责人确认的实际值。已有本地代码时先检查状态，不要重新初始化仓库或覆盖原目录。</div>
+
+<details open id="gitlab-example"><summary>路线 A · GitLab：克隆 → 功能分支 → Codex 修改 → MR 审核</summary><div class="details-body">
+<ol class="numbered"><li><strong>把已有 GitLab 项目克隆到自己的工作目录</strong><p>安装 Git 后，在 GitLab 项目页的 Clone / Code 区域复制 HTTPS 或 SSH 地址。按公司方式完成身份验证，不把密码或访问令牌嵌入 URL。第一次下载可以执行：</p><div class="codebox"><div class="code-top"><span>首次下载 · 仓库地址为示例</span><button class="copy" data-copy="git-clone-code">复制</button></div><pre id="git-clone-code">git --version
+git clone "https://gitlab.example.com/network/network-portal.git"
+cd network-portal
+git status --short --branch
+git branch --show-current</pre></div><p class="spacer">已经有这个项目时，直接进入现有目录，运行最后两条检查命令。若存在未提交修改，先让 Codex 列清文件和差异，确定是否属于本次需求；无法分开时，在另一个新目录克隆，保留原工作区。</p></li>
+<li><strong>从确认过的基线创建功能分支</strong><p>以下假设负责人确认基线是 <code>dev</code>，工作区没有未提交修改。若实际为 main、master 或其他分支，替换命令中的 dev。示例功能号 <code>10001</code> 也应替换为团队分配的编号。</p><div class="codebox"><div class="code-top"><span>干净工作区 · 从 dev 开始</span><button class="copy" data-copy="git-branch-code">复制</button></div><pre id="git-branch-code">git fetch origin
+git switch dev
+git pull --ff-only origin dev
+git switch -c feature/hy/10001_device_search
+git status --short --branch</pre></div><p class="spacer">每条命令成功后再执行下一条。若快进更新失败或同名分支已存在，先检查原因，不执行强制重置。新增功能分支使用 <code>feature/hy/10xxx_XXX</code>；问题修复使用 <code>hotfix/hy/0000_XXX</code>，按实际任务类型命名。</p></li>
+<li><strong>让 Codex 打开这个本地目录</strong><p>桌面应用添加 <code>network-portal</code> 项目目录；VS Code 用“打开文件夹”；CLI 则在该目录运行 <code>codex</code>。先发送下方共用的“只读接手”提示词，再发送实现任务。GitLab 网页链接可作背景，实际代码工作以本地目录为准。</p></li>
+<li><strong>验证完，先看差异，再决定提交</strong><p>在项目根目录执行下面的只读检查。<code>git diff</code> 不显示未跟踪文件的正文；对 <code>??</code> 文件要单独打开检查。已暂存内容用 <code>git diff --cached</code> 查看。</p><div class="codebox"><div class="code-top"><span>本地检查 · 不会推送代码</span><button class="copy" data-copy="git-review-code">复制</button></div><pre id="git-review-code">git status --short
+git diff --stat
+git diff --check
+git diff
+git diff --cached</pre></div><p class="spacer">与需求无关的改动、凭据文件、运行日志和构建产物不应混入本次提交。构建成功之后，还要按下方验收表检查页面实际行为。</p></li>
+</ol>
+<details><summary>代码已审核且明确允许提交后：提交、推送并创建 Merge Request</summary><div class="details-body"><p>只暂存确认过的文件。下面的带中文文件路径需要替换；不应把命令原样当作实际文件名使用。</p><div class="codebox"><div class="code-top"><span>这些操作会创建提交并写入 GitLab</span><button class="copy" data-copy="git-delivery-code">复制</button></div><pre id="git-delivery-code">git add -- "实际修改文件1" "实际修改文件2"
+git diff --cached
+git commit -m "feat: add device name search"
+git push -u origin feature/hy/10001_device_search</pre></div><p class="spacer">在 GitLab 创建 <strong>Merge Request（合并请求，简称 MR）</strong>：源分支选本次功能分支，目标分支选负责人确认的基线（此例 dev），填写需求、变更和验证结果，指定审核人。跟进 CI 检查与审核意见，修正后推送到同一分支。推送成功不代表已经合并；合并与部署仍按团队流程执行。</p></div></details>
+</div></details>
+
+<details open id="svn-example"><summary>路线 B · SVN：检出工作副本 → 更新基线 → Codex 修改 → 审核提交</summary><div class="details-body">
+<ol class="numbered"><li><strong>检出负责人指定的代码路径</strong><p>安装 SVN 客户端。Windows 同事可使用 TortoiseSVN：在空目录右键选择“SVN Checkout”，填写实际 URL。以下命令展示同一操作；教学路径采用 trunk，实际若要求在功能分支开发，就使用已分配的 branch URL。</p><div class="codebox"><div class="code-top"><span>首次 checkout · SVN URL 为示例</span><button class="copy" data-copy="svn-checkout-code">复制</button></div><pre id="svn-checkout-code">svn --version --quiet
+svn checkout "https://svn.example.com/svn/network-portal/trunk" network-portal-svn
+cd network-portal-svn
+svn info
+svn status</pre></div><p class="spacer">已有工作副本时直接进入目录，从 <code>svn info</code> 核对 URL，再看 <code>svn status</code>。状态为空通常表示没有本地变更；<code>M</code> 是修改、<code>?</code> 是尚未纳入版本控制的文件。保留已有改动，不直接执行全目录 revert。</p></li>
+<li><strong>从干净工作副本同步基线</strong><p>确认路径正确且已有修改得到处理后，再更新：</p><div class="codebox"><div class="code-top"><span>修改前更新 · 记录工作路径和版本</span><button class="copy" data-copy="svn-update-code">复制</button></div><pre id="svn-update-code">svn update
+svn status
+svn info</pre></div><p class="spacer">记录实际 URL、更新结果及版本信息。若出现 <code>C</code> 或树冲突，先处理冲突再开发。SVN 分支通常是服务器上的目录，不使用 <code>git switch</code>；需要新分支时，按团队流程创建或由负责人提供路径。</p></li>
+<li><strong>在工作副本中使用 Codex</strong><p>用 Codex 桌面应用 / VS Code 打开 <code>network-portal-svn</code>，或在该目录运行 <code>codex</code>。明确告知“这是 SVN 项目”；不要让它执行 <code>git init</code>、删除 <code>.svn</code>，或把整个工作副本改造成 Git 项目。</p></li>
+<li><strong>检查变更与新文件</strong><div class="codebox"><div class="code-top"><span>本地检查 · 不会提交到 SVN 服务器</span><button class="copy" data-copy="svn-review-code">复制</button></div><pre id="svn-review-code">svn status
+svn diff --summarize
+svn diff</pre></div><p class="spacer"><code>svn diff</code> 不包含 <code>?</code> 新文件的正文，需要单独打开审核。确认需要纳管的新文件才执行 <code>svn add</code>；不把依赖目录、编译输出和本地凭据一起加入。</p></li>
+</ol>
+<details><summary>代码已审核且明确允许提交后：选择路径，直接提交到服务器</summary><div class="details-body"><p>提交前与仓库同步，若产生冲突，先人工确认合并结果并重新验证。TortoiseSVN 可依次使用 SVN Update、Check for modifications / Diff、Commit，在提交窗口仅勾选本次需求相关路径。</p><div class="codebox"><div class="code-top"><span>逐步执行 · 路径需替换</span><button class="copy" data-copy="svn-delivery-code">复制</button></div><pre id="svn-delivery-code">svn update
+svn status
+
+# 有冲突时到此停止，解决后重新运行项目验证
+# 仅当确有已审核的新文件时，才执行下一条
+svn add -- "实际新增文件路径"
+svn diff
+
+# 按团队要求完成审核与验证后，再提交指定路径
+svn commit "实际修改文件路径" "实际新增文件路径" -m "feat: add device name search"
+svn status</pre></div><p class="spacer">没有新文件时省略 <code>svn add</code>，提交命令中也去掉该路径。<strong><code>svn commit</code> 成功就已经写入服务器，不存在之后再 push 的步骤。</strong>记录服务端返回的修订号（如 <code>r12345</code>，仅为示例），用于需求关联与交接。SVN 不自带 GitLab MR 流程，应在 commit 前按团队要求完成评审；提交也不等于部署。</p></div></details>
+</div></details>
+
+<div class="lab-step"><h3>两条路线共用：给 Codex 的三轮任务</h3><p class="mini spacer">把“仓库类型、当前路径、需求编号、基线”换成自己的信息。未知技术栈和启动命令先从项目文档确认，不让 Codex 默认重建项目。</p>
+<div class="codebox light"><div class="code-top"><span>第一轮 · 只读接手，不修改</span><button class="copy" data-copy="repo-discover-prompt">复制</button></div><pre id="repo-discover-prompt">这是一个已经存在的项目，我要在原有代码上迭代。
+仓库类型：[GitLab / SVN 二选一]
+本地目录：[填写当前项目绝对路径]
+工作基线：[Git 当前功能分支及目标分支 / SVN URL 与版本信息]
+需求：给已有设备列表新增“按设备名称搜索”。
+
+本轮只做只读分析：
+1. Git 检查 status、当前分支和差异；SVN 检查 info、status 和差异。列出已有修改，不覆盖。
+2. 读取 AGENTS.md（如有）、README、项目知识库与相关模块说明。
+3. 定位现有列表页面、数据来源、搜索接口、分页、权限检查和相关测试。
+4. 给出实际文件路径、建议最小改动范围、启动与验证命令。
+5. 说明数据是全量加载还是服务端分页；接口是否已支持名称查询。
+6. 无法从源码确认的匹配规则和接口能力，列为待确认项。
+不改文件，不安装依赖，不初始化新项目，不提交或推送。</pre></div>
+<div class="codebox light"><div class="code-top"><span>第二轮 · 在确认的范围内实现</span><button class="copy" data-copy="repo-implement-prompt">复制</button></div><pre id="repo-implement-prompt">根据上一轮定位结果，实现已确认的设备名称搜索需求。
+复用项目现有组件、请求封装、状态处理和代码规范；保留无关改动。
+
+验收要求：
+- 输入关键词时按已确认的名称匹配规则查询，忽略输入首尾空格。
+- 搜索条件变化回到第一页；清空后恢复默认列表与正确总数。
+- 无结果有明确提示；请求失败沿用项目错误提示，不显示旧结果冒充新结果。
+- 若是服务端分页，必须使用覆盖全量结果的查询接口，不能只筛当前页。
+- 原有详情跳转、分页与权限行为保持正常。
+
+若现有接口不支持搜索，先说明所需后端改动与影响，确认范围后再扩展。
+先记录现有验证基线，再实施最小修改，补充必要验证，用测试数据或隔离环境运行。
+不擅自升级依赖、不改生产配置、不提交、推送或部署。
+交付改动文件、运行命令、实际结果、已有失败及未验证项。</pre></div>
+<div class="codebox light"><div class="code-top"><span>第三轮 · 复核与交付说明</span><button class="copy" data-copy="repo-handoff-prompt">复制</button></div><pre id="repo-handoff-prompt">请对本次修改做交付前复核。
+检查：关键词与分页同步、清空行为、请求失败、权限边界及无关改动。
+区分原有问题与本次引入的问题，不把未执行的测试写为通过。
+
+Git：汇总未暂存、已暂存和未跟踪文件，准备 MR 标题与描述草稿。
+SVN：汇总修改、新增、删除及冲突状态，准备提交说明与拟提交路径。
+根据实际仓库类型选择上述一项，不混用 Git / SVN 命令。
+说明需求、改动、验证结果与未验证项，保留给审核人的复现步骤。
+本轮只准备交付材料，不创建提交、不推送、不合并、不部署。</pre></div></div>
+
+<div class="table-wrap"><table><thead><tr><th>验收用例</th><th>怎么检查</th><th>期待看到什么</th></tr></thead><tbody><tr><td>关键字匹配</td><td>测试数据为“核心交换机 A / B”“接入交换机 A”“办公路由器 A”；搜索“核心”。</td><td>只出现两台核心交换机；分页总数与筛选结果一致。</td></tr><tr><td>空格与清空</td><td>搜索“ 核心 ”，再清空关键词。</td><td>首尾空格不影响结果；清空恢复完整列表。</td></tr><tr><td>跨页查询</td><td>让匹配设备分布在不同数据页，从第二页发起搜索。</td><td>回到第一页，结果覆盖所有匹配数据，而非只筛本页。</td></tr><tr><td>无结果与失败</td><td>搜索不存在的名称；在隔离环境模拟请求失败。</td><td>有对应提示，数据状态与提示一致，不伪造成功。</td></tr><tr><td>回归原有操作</td><td>分页、打开详情，用不同角色检查已有权限。</td><td>原有功能继续正常，搜索不扩大可见数据范围。</td></tr></tbody></table></div>
+<div class="note"><strong>遇到更新或合并冲突：</strong>让 Codex 展示双方差异，按实际业务语义合并后重新验证。不要为了消除冲突标记直接全选“我的 / 对方的”；保留已有工作，也不要用整库 reset、clean 或 revert 来清理问题。</div>
+<div class="table-wrap"><table><thead><tr><th>环节</th><th>GitLab / Git</th><th>SVN</th></tr></thead><tbody><tr><td>获取与同步</td><td>clone；干净基线上 fetch / pull。</td><td>checkout；在确认的工作副本中 update。</td></tr><tr><td>隔离迭代</td><td>创建功能分支，基线由团队确认。</td><td>使用团队指定的 trunk / branch URL。</td></tr><tr><td>提交的含义</td><td>commit 先写本地；push 后才上传远端。</td><td>commit 直接写远端服务器。</td></tr><tr><td>评审与交付</td><td>MR → CI / 审核 → 合并，记录分支与提交。</td><td>按团队流程先评审再提交，记录路径与修订号。</td></tr></tbody></table></div>
+</section>
+
+<section class="section" id="quality"><div class="section-head"><div><div class="eyebrow">09 / 交付与成本</div><h2>能运行，还要能说明为什么对</h2><p>交付前逐项核对。这些勾选只用于本页自查，刷新后清空，不会提交到任何平台。</p></div><span class="section-tag">CHECK THE RESULT</span></div>
+<div class="check-grid" id="checklist"><label class="check-item"><input type="checkbox"><span><strong>结果口径一致</strong><small>样本计数、公式、时间范围、单位与需求一致。</small></span></label><label class="check-item"><input type="checkbox"><span><strong>真实执行过</strong><small>保存运行命令、版本、输出；区别实际验证与推测。</small></span></label><label class="check-item"><input type="checkbox"><span><strong>异常输入有处理</strong><small>空文件、缺列、乱码、缺失值和无权限时能说明原因。</small></span></label><label class="check-item"><input type="checkbox"><span><strong>原始材料得到保留</strong><small>输出写到新目录；修改有差异可查、可以回退。</small></span></label><label class="check-item"><input type="checkbox"><span><strong>数据与凭据范围合适</strong><small>样本已脱敏，Key 未写入源码、日志或可分发文件。</small></span></label><label class="check-item"><input type="checkbox"><span><strong>别人能够接手</strong><small>有 README、依赖、示例输入、预期输出与已知限制。</small></span></label></div>
+<div class="check-progress"><span id="check-label" role="status">已检查 0 / 6 项</span><button class="button secondary small" id="reset-checks">清空勾选</button></div>
+<div class="three spacer"><div class="card"><span class="card-no">少给无关材料</span><h3>先定位，再读取</h3><p>给相关目录、文件和片段。分析大日志时，先用代码筛选时间窗与错误类型，再让模型解释。</p></div><div class="card"><span class="card-no">让任务保持聚焦</span><h3>按成果拆小</h3><p>一个任务完成一个目标。需求改变时说明差异；换项目或任务跨度过大时，新建任务并提供简短背景。</p></div><div class="card"><span class="card-no">先小样，再放量</span><h3>观察用量与效果</h3><p>先用小样本试跑，查看中转使用记录。模型选择以效果、速度和分组费用为依据，不盲目提高推理强度。</p></div></div>
+</section>
+
+<section class="section" id="trouble"><div class="section-head"><div><div class="eyebrow">10 / 常见问题</div><h2>先看现象，再找原因</h2><p>错误信息只是线索。提供发生时间、客户端版本、模型 ID、脱敏报错及请求 ID（若有），能帮助管理员更快定位。</p></div><span class="section-tag">TROUBLESHOOTING</span></div>
+<div class="table-wrap"><table><thead><tr><th>现象</th><th>优先检查</th><th>下一步</th></tr></thead><tbody><tr><td>网站能开，Codex 不通</td><td>API Base URL、客户端配置位置、API Key、分组是否允许 Codex。</td><td>用平台对应 Key 的「使用」说明核对；网站登录成功不等于 API 鉴权成功。</td></tr><tr><td>401 / 鉴权失败</td><td>Key 是否正确、过期或撤销；环境变量是否传给当前进程。</td><td>不要输出 Key 全文；核对变量是否存在、配置方式是否混用。</td></tr><tr><td>403 / 无权限</td><td>分组、模型或客户端限制，IP 策略以及网关返回的具体信息。</td><td>向管理员确认权限与策略，不反复更换身份尝试绕过。</td></tr><tr><td>404 / 模型不存在</td><td>是否重复 / 缺少 <code>/v1</code>，模型 ID 是否允许，端点是否匹配。</td><td>从平台配置重新复制准确地址与模型名称。</td></tr><tr><td>429 / 配额相关错误</td><td>并发或速率限制、余额、订阅日额度与可用容量。</td><td>减少并行任务，按提示稍后重试；额度问题按部门流程处理。</td></tr><tr><td>超时、连接失败、5xx</td><td>本机 DNS / 代理、网络可达性、网关与上游服务状态。</td><td>保留时间和错误信息；避免密集无限重试。</td></tr><tr><td>能回复，但不会操作文件</td><td>是否打开正确工作目录、文件权限、模型工具兼容性、当前审批模式。</td><td>先做小范围文件读取验证，再按任务需要调整授权。</td></tr><tr><td>代码运行报错</td><td>工作目录、文件名、依赖版本、输入格式与完整错误堆栈。</td><td>使用前面的报错模板，把可复现信息交给 Codex。</td></tr></tbody></table></div>
+<div class="faq-list"><details><summary>网页里能聊天，为什么还要用 Codex？</summary><div class="details-body"><p>Codex 的价值在于围绕工作目录持续处理文件、修改代码和执行验证。只需要解释一个概念时，聊天已经足够；需要完成一个可运行成果时，工作目录与工具执行能减少来回复制。</p></div></details><details><summary>我完全不懂代码，能直接使用生成的程序吗？</summary><div class="details-body"><p>从离线样本、小范围任务开始，要求生成完整运行步骤和可人工核对的结果。涉及真实设备、客户数据或生产变更的程序，由具备相应经验的同事复核后再使用。至少先弄懂输入、输出、写入位置与访问范围。</p></div></details><details><summary>中转是不是意味着材料只留在公司？</summary><div class="details-body"><p>不能这样理解。模型请求会经过中转，通常还会转发到上游；中转是否记录请求取决于实际配置。文件片段、提示词和工具输出也可能作为模型上下文发送。只使用公司允许处理的数据，必要时先脱敏；本机的某个“存储关闭”设置不代表所有链路都不留存。</p></div></details><details><summary>没有结果时，是否应该不停点重试？</summary><div class="details-body"><p>先判断是网络、鉴权、额度还是任务本身的问题。重复请求可能增加负载和费用，也可能重复执行已完成的操作。查看客户端输出和平台记录后，再决定是否重试。</p></div></details><details><summary>如何向管理员描述“接不上”？</summary><div class="details-body"><p>提供：发生时间、系统与 Codex 版本、使用入口（桌面 / 扩展 / CLI）、已脱敏的 Base URL、模型 ID、Key 名称或末几位、错误码和请求 ID（若有）。不要发送完整 API Key、认证文件或未脱敏日志。</p></div></details></div>
+</section>
+
+<section class="section" id="team"><div class="section-head"><div><div class="eyebrow">11 / 团队复用</div><h2>让一个人的小工具，变成大家的工作方法</h2><p>每次只沉淀真正验证过的做法。保存有效提示词、典型样本和运行说明，下一位同事就不用从头摸索。</p></div><span class="section-tag">BUILD A TEAM HABIT</span></div>
+<div class="table-wrap"><table><thead><tr><th>阶段</th><th>建议完成的事</th><th>可检查的成果</th></tr></thead><tbody><tr><td>第一次使用</td><td>接通中转，做一次小请求，完成日志分析练习。</td><td>对应使用记录 + 可打开的 HTML 报告。</td></tr><tr><td>第一个真实任务</td><td>选择一项重复工作，用脱敏样本明确口径和验收。</td><td>可运行脚本 + 样本 + README + 实测结果。</td></tr><tr><td>团队复用</td><td>统一目录、参数、版本和负责人，让另一位同事复跑。</td><td>交接成功记录 + 已知限制 + 后续改进清单。</td></tr></tbody></table></div>
+<details><summary>给小工具加一份 AGENTS.md，让 Codex 遵守共同约定</summary><div class="details-body"><p>将下面内容按实际情况调整后保存到项目根目录的 <code>AGENTS.md</code>。它是给 Codex 的项目工作指引，不能替代系统权限与正式审批。</p><div class="codebox light"><div class="code-top"><span>AGENTS.md · 部门工具示例</span><button class="copy" data-copy="agents-prompt">复制</button></div><pre id="agents-prompt"># 部门小工具协作约定
+
+- 使用中文说明。开始前读取 README 和相关代码，检查已有改动。
+- input/ 是原始样本目录，生成结果放 output/ 的新目录中。
+- 配置通过参数或环境变量传入，不在代码中保存密码和 API Key。
+- 修改前明确数据字段与统计口径，不补造缺失事实。
+- 默认使用脱敏样本；连接真实设备和修改生产配置须明确授权。
+- 修改后运行与本次变更相关的验证，报告实际命令、结果和未验证项。
+- 更新 README 的运行方式、输入输出和已知限制。
+- 不擅自提交、推送或部署。</pre></div></div></details>
+<div class="note"><strong>每次发任务前，只问自己一句：</strong>如果把这件事交给一位新同事，我有没有给足材料，并说明怎样才算完成？把这些内容告诉 Codex，就是一个好的开始。</div>
+</section>
+<footer class="footer"><strong>网络部门 · Codex 与中转实战手册</strong><p>培训内容：运维 / 运营双场景 · 整理日期：2026-11-13 · 单文件 HTML，样式、交互与练习均内置。复制、配置预览与下载在本地完成；点击外部链接才会访问相应网站。</p><div class="source-links"><a href="https://developers.openai.com/codex/cli" target="_blank" rel="noopener noreferrer">OpenAI Docs · CLI</a><a href="https://developers.openai.com/codex/config-advanced" target="_blank" rel="noopener noreferrer">OpenAI Docs · 自定义配置</a><a href="https://developers.openai.com/codex/config-reference" target="_blank" rel="noopener noreferrer">OpenAI Docs · 配置参考</a><a href="https://developers.openai.com/codex/" target="_blank" rel="noopener noreferrer">OpenAI Docs · Codex 入口</a></div><details><summary>内容依据与适用范围</summary><div class="details-body"><p>公司入口由本次培训需求指定。平台操作和接入示例参考本地项目的 <code>frontend/src/views/user/KeysView.vue</code>、<code>frontend/src/components/keys/UseKeyModal.vue</code> 与 <code>frontend/src/utils/codexAuthConfig.ts</code>。生产站点的具体菜单、API 地址、可用模型与权限，以管理员配置和当前界面为准。</p><p>整理时 OpenAI 官方文档与手册返回 HTTP 403，以上链接保留为后续查询入口，未据此声称已核验最新版本。示例未使用真实 Key 调用生产模型；不保证所有 Codex 版本、模型或图形入口的自定义提供商兼容性。课堂优先使用管理员已验证的版本与平台生成的说明。</p></div></details></footer>
+</div></main><div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2600)}
+async function copyText(text){try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text)}else{const el=document.createElement('textarea');el.value=text;el.style.position='fixed';el.style.opacity='0';document.body.appendChild(el);el.select();const ok=document.execCommand('copy');el.remove();if(!ok)throw new Error('copy unavailable')}toast('已复制，可以粘贴到 Codex 或配置文件')}catch{toast('浏览器未允许复制，请选中文本后手动复制')}}
+document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener('click',()=>copyText($(button.dataset.copy).textContent)));
+function download(name,text,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);toast('已发起下载：'+name)}
+const scenarios={
+logs:{goal:'把脱敏设备日志按设备和级别统计，找出高频错误，形成一份可复核的报告。',input:'input/sample.csv，字段为 time、device、level、message。先检查样本结构，不自行补造数据。',env:'Windows；Python 3.10+；优先标准库；中文说明',output:'交付可运行脚本、summary.csv、report.html 和 README。样本统计须与人工计数一致；覆盖空文件、缺列和非法数据。'},
+inspection:{goal:'生成一个网络巡检脚本，检查批准目标的 DNS 解析、指定 TCP 端口和 HTTP 状态，并汇总异常。',input:'input/targets.csv，字段为 name、host、port、url；先用模拟数据演示，真实目标清单稍后确认。',env:'Windows；Python 3.10+；目标必须在明确批准的清单内',output:'交付配置化脚本、模拟测试、报告与 README。单项超时 5 秒，并发最多 3；不扫描清单外地址，不执行写操作；未获真实测试授权时只运行模拟验证。'},
+diff:{goal:'对比变更前后配置，按新增、删除、修改分类，说明可能影响及需要验证的点。',input:'input/before.txt 与 input/after.txt，均为脱敏副本；设备类型和版本请先向我确认。',env:'只读分析文本；不连接设备；使用中文',output:'交付差异表，标明文件位置和原文依据；区分确定变化与推测影响；提供验证步骤与回退建议，不自动下发配置。'},
+report:{goal:'汇总每日渠道运营数据，按日期和渠道计算访问量、转化量、转化率并生成报表。',input:'input/data.csv，包含 date、channel、visits、conversions；请先确认行粒度、去重键、转化定义与时区，不自行猜测。',env:'Windows；Python 3.10+；优先标准库；结果离线可用',output:'交付脚本、汇总 CSV、HTML 报表和 README。总体转化率采用转化总数/访问总数，不平均各行百分比；零分母记为无有效值；覆盖缺失、重复与非法数值，抽样人工对账。'},
+weekly:{goal:'把本周工单摘录、巡查记录和运营数据整理为工作周报，突出问题、进度和下一步。',input:'input/ 下的脱敏记录；请先列出文件清单和日期范围，缺失信息单独标注，不补造结论。',env:'中文；面向部门负责人；只读分析材料',output:'交付 Markdown 或 HTML 周报，区分已完成、进行中、待确认；每项结论附来源文件和记录位置，数字可回查，风险有依据。'},
+web:{goal:'制作一个可离线打开的单文件 HTML 数据看板，支持导入 CSV、筛选和查看汇总。',input:'先使用虚构样本，字段为 date、channel、visits、conversions；先确认指标口径和交互。',env:'Chrome / Edge；HTML + CSS + JavaScript；无外部依赖',output:'交付 index.html、样本和使用说明。数据仅在本机浏览器处理；支持窄屏、空数据、非法输入与中文；验证筛选结果、公式、键盘操作及无外发请求。'}
+};
+function renderPrompt(){const result=`请协助我完成以下任务，面向零基础同事用中文说明。\n\n【目标】\n${$('task-goal').value.trim()}\n\n【输入材料】\n${$('task-input').value.trim()}\n\n【运行环境】\n${$('task-env').value.trim()}\n\n【交付与验收】\n${$('task-output').value.trim()}\n\n【工作边界】\n先阅读相关材料与项目规则，检查已有改动。信息缺失时明确指出；原始输入保持不变，结果写入新目录。不要读取无关目录、暴露凭据或连接未授权系统。\n\n【完成方式】\n先说明处理步骤，再做最小可用成果；用样本实际运行并核对。遇到错误先定位原因再修复。交付运行命令、结果、必要说明与未验证项；不自动提交、推送或部署。`;$('prompt-output').value=result;$('prompt-print').textContent=result}
+function chooseScenario(key){const item=scenarios[key];$('task-kind').value=key;$('task-goal').value=item.goal;$('task-input').value=item.input;$('task-env').value=item.env;$('task-output').value=item.output;renderPrompt()}
+['task-goal','task-input','task-env','task-output'].forEach(id=>$(id).addEventListener('input',renderPrompt));
+$('task-kind').addEventListener('change',()=>chooseScenario($('task-kind').value));
+$('reset-prompt').addEventListener('click',()=>chooseScenario($('task-kind').value));
+$('copy-prompt').addEventListener('click',()=>copyText($('prompt-output').value));
+$('prompt-output').addEventListener('input',()=>{$('prompt-print').textContent=$('prompt-output').value});
+document.querySelectorAll('[data-scenario]').forEach(button=>button.addEventListener('click',()=>{chooseScenario(button.dataset.scenario);$('prompts').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}));
+renderPrompt();
+function updateConfig(){let base=$('base-url').value.trim().replace(/\/+$/,'');let model=$('model-id').value.trim()||'YOUR_MODEL_ID';let message='';try{const parsed=new URL(base);if(!['http:','https:'].includes(parsed.protocol)||parsed.username||parsed.password||parsed.search||parsed.hash)throw new Error();if(/\/(responses|chat\/completions|login)$/.test(parsed.pathname)||/\/v1\/v1$/.test(parsed.pathname)){message='请填写 API 基础地址，不要填写完整调用端点、登录页或重复的 /v1。'}else if(!base.endsWith('/v1')){message='当前地址未以 /v1 结尾；请与平台「使用」页的 Base URL 核对，本页不会擅自追加路径。'}}catch{message='请填写有效的 HTTP(S) API 基础地址，不包含密码、查询参数或片段。'}if(!message&&model==='YOUR_MODEL_ID')message='模型尚未填写；示例中的 YOUR_MODEL_ID 必须替换。';if(!message&&/[\s\x00-\x1f\x7f]/.test(model))message='模型 ID 不应包含空白或控制字符，请与管理员提供的准确名称核对。';$('config-message').textContent=message||'已生成基础示例。复制前确认地址、模型与本机 Codex 版本匹配。';$('config-code').textContent=`model_provider = "company_relay"\nmodel = ${JSON.stringify(model)}\n\n[model_providers.company_relay]\nname = "Company Relay"\nbase_url = ${JSON.stringify(base)}\nwire_api = "responses"\nenv_key = "SUB2API_API_KEY"\nrequires_openai_auth = false\nsupports_websockets = false`;document.querySelector('[data-copy="config-code"]').disabled=!!message}
+['base-url','model-id'].forEach(id=>$(id).addEventListener('input',updateConfig));updateConfig();
+function selectOS(os){document.querySelectorAll('[data-os]').forEach(button=>{const chosen=button.dataset.os===os;button.setAttribute('aria-selected',String(chosen));button.tabIndex=chosen?0:-1;$('os-'+button.dataset.os).hidden=!chosen})}
+document.querySelectorAll('[data-os]').forEach(button=>{button.addEventListener('click',()=>selectOS(button.dataset.os));button.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?'windows':event.key==='End'?'macos':button.dataset.os==='windows'?'macos':'windows';selectOS(next);$('tab-'+next).focus()}})});
+function updateChecks(){const checked=document.querySelectorAll('#checklist input:checked').length;$('check-label').textContent=`已检查 ${checked} / 6 项`+(checked===6?' · 请保留验证记录':'')}
+document.querySelectorAll('#checklist input').forEach(input=>input.addEventListener('change',updateChecks));$('reset-checks').addEventListener('click',()=>{document.querySelectorAll('#checklist input').forEach(input=>input.checked=false);updateChecks()});
+$('menu-toggle').addEventListener('click',()=>{const open=$('sidebar').classList.toggle('open');$('menu-toggle').setAttribute('aria-expanded',String(open))});
+document.querySelectorAll('#nav a').forEach(link=>link.addEventListener('click',()=>{$('sidebar').classList.remove('open');$('menu-toggle').setAttribute('aria-expanded','false')}));
+const sections=[...document.querySelectorAll('section[id]')],navLinks=[...document.querySelectorAll('#nav a')];let queued=false;
+function updateReading(){queued=false;const max=document.documentElement.scrollHeight-innerHeight;const progress=max>0?Math.min(100,Math.max(0,scrollY/max*100)):100;$('read-progress').style.width=progress+'%';$('read-label').textContent='阅读进度 '+Math.round(progress)+'%';let current=sections[0].id;for(const section of sections){if(section.getBoundingClientRect().top<160)current=section.id}navLinks.forEach(a=>{const active=a.getAttribute('href')==='#'+current;a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current')})}
+addEventListener('scroll',()=>{if(!queued){queued=true;requestAnimationFrame(updateReading)}},{passive:true});addEventListener('resize',updateReading);updateReading();
+let printState=null;
+function preparePrint(){if(printState)return;printState={details:[...document.querySelectorAll('details')].map(el=>[el,el.open]),panels:[...document.querySelectorAll('[role="tabpanel"]')].map(el=>[el,el.hidden])};printState.details.forEach(([el])=>el.open=true);printState.panels.forEach(([el])=>el.hidden=false);$('prompt-print').textContent=$('prompt-output').value}
+function restorePrint(){if(!printState)return;printState.details.forEach(([el,open])=>el.open=open);printState.panels.forEach(([el,hidden])=>el.hidden=hidden);printState=null}
+addEventListener('beforeprint',preparePrint);addEventListener('afterprint',restorePrint);$('print-button').addEventListener('click',()=>{preparePrint();window.print()});
+const sampleCSV=`time,device,level,message
+2026-11-13 09:00:00,core-01,INFO,巡检开始
+2026-11-13 09:01:00,core-01,INFO,接口状态正常
+2026-11-13 09:02:00,core-01,WARNING,延迟升高
+2026-11-13 09:03:00,core-01,ERROR,上行探测超时
+2026-11-13 09:04:00,core-01,ERROR,上行探测超时
+2026-11-13 09:05:00,core-01,ERROR,DNS 探测失败
+2026-11-13 09:00:00,edge-01,INFO,巡检开始
+2026-11-13 09:01:00,edge-01,INFO,接口状态正常
+2026-11-13 09:02:00,edge-01,INFO,DNS 解析正常
+2026-11-13 09:03:00,edge-01,WARNING,响应变慢
+2026-11-13 09:04:00,edge-01,ERROR,HTTP 探测超时
+2026-11-13 09:05:00,edge-01,INFO,探测恢复
+`;
+const labPython=String.raw`#!/usr/bin/env python3
+"""离线日志统计练习。Python 3.10+，仅使用标准库。"""
+import argparse
+import csv
+import html
+import sys
+from collections import Counter, defaultdict
+from datetime import datetime
+from pathlib import Path
+
+FIELDS = ["time", "device", "level", "message"]
+LEVELS = ("INFO", "WARNING", "ERROR")
+
+
+def read_rows(path):
+    rows = []
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != FIELDS:
+            raise ValueError("第 1 行必须依次为: " + ",".join(FIELDS))
+        for raw in reader:
+            line = reader.line_num
+            if None in raw or any(raw.get(key) is None for key in FIELDS):
+                raise ValueError(f"第 {line} 行列数不正确")
+            row = {key: raw[key].strip() for key in FIELDS}
+            if any(not row[key] for key in FIELDS):
+                raise ValueError(f"第 {line} 行存在空字段")
+            if row["level"] not in LEVELS:
+                raise ValueError(f"第 {line} 行日志级别无效")
+            try:
+                parsed = datetime.strptime(row["time"], "%Y-%m-%d %H:%M:%S")
+                if parsed.strftime("%Y-%m-%d %H:%M:%S") != row["time"]:
+                    raise ValueError("时间格式必须补齐零位")
+            except ValueError as exc:
+                raise ValueError(f"第 {line} 行时间格式无效") from exc
+            rows.append(row)
+    if not rows:
+        raise ValueError("文件没有有效数据记录")
+    return rows
+
+
+def safe_csv_text(value):
+    # 防止来自外部数据的设备名称被表格软件当作公式执行。
+    return "'" + value if value.startswith(("=", "+", "-", "@")) else value
+
+
+def build_report(rows, output):
+    counts = defaultdict(Counter)
+    totals = Counter()
+    for row in rows:
+        counts[row["device"]][row["level"]] += 1
+        totals[row["level"]] += 1
+
+    # 验证完成后才创建输出；已存在的目录拒绝覆盖。
+    output.mkdir(parents=True, exist_ok=False)
+    summary = []
+    with (output / "summary.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["device", "total", *LEVELS, "error_rate"])
+        for device, count in sorted(counts.items()):
+            total = sum(count.values())
+            rate = f'{count["ERROR"] / total:.2%}'
+            summary.append((device, total, *(count[level] for level in LEVELS), rate))
+            writer.writerow([safe_csv_text(device), total,
+                             *(count[level] for level in LEVELS), rate])
+
+    table_rows = "".join(
+        "<tr>" + "".join(f"<td>{html.escape(str(cell))}</td>" for cell in row) + "</tr>"
+        for row in summary
+    )
+    error_items = "".join(
+        "<li>" + html.escape(f'{row["time"]} | {row["device"]} | {row["message"]}') + "</li>"
+        for row in rows if row["level"] == "ERROR"
+    ) or "<li>样本中没有 ERROR 记录</li>"
+    rate = totals["ERROR"] / len(rows)
+    report = f'''<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>离线日志分析报告</title>
+<style>body{{font:16px/1.8 system-ui,sans-serif;max-width:1000px;margin:40px auto;padding:0 20px;color:#193b31}}
+table{{border-collapse:collapse;width:100%;font-size:14px}}td,th{{border:1px solid #dce5da;padding:10px;text-align:left}}
+th{{background:#eef4e8}}.table{{overflow-x:auto}}li{{overflow-wrap:anywhere}}</style>
+<h1>离线日志分析报告</h1>
+<p>共 {len(rows)} 条；INFO={totals["INFO"]}，WARNING={totals["WARNING"]}，ERROR={totals["ERROR"]}。</p>
+<p>总体错误率：{rate:.2%}（ERROR 条数 / 总条数）。设备数：{len(counts)}。</p>
+<p>样本时间：{html.escape(min(row["time"] for row in rows))} — {html.escape(max(row["time"] for row in rows))}；时区未指定。</p>
+<div class="table"><table><tr><th>设备</th><th>总条数</th><th>INFO</th><th>WARNING</th><th>ERROR</th><th>错误率</th></tr>{table_rows}</table></div>
+<h2>ERROR 原始内容</h2><ul>{error_items}</ul>
+<p>此报告描述输入样本；日志条数不等于故障次数，不能直接推断故障根因。</p></html>'''
+    (output / "report.html").write_text(report, encoding="utf-8")
+    print(f"完成: {len(rows)} 条，ERROR={totals['ERROR']}，错误率={rate:.2%}")
+    print(f"报告目录: {output.resolve()}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="将四列 CSV 日志汇总为 CSV 与离线 HTML")
+    parser.add_argument("--input", type=Path, required=True, help="UTF-8 日志 CSV")
+    parser.add_argument("--output", type=Path, required=True, help="新的输出目录，不覆盖已有目录")
+    args = parser.parse_args()
+    try:
+        if args.output.exists():
+            raise ValueError("输出路径已存在，请换一个目录，例如 output-2")
+        rows = read_rows(args.input)
+        build_report(rows, args.output)
+    except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+        print(f"处理失败: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+`;
+$('sample-code').textContent=sampleCSV;$('python-code').textContent=labPython;
+$('download-sample').addEventListener('click',()=>download('sample.csv','\ufeff'+sampleCSV,'text/csv;charset=utf-8'));
+$('download-script').addEventListener('click',()=>download('analyze_logs.py',labPython,'text/x-python;charset=utf-8'));
+</script>
+</body>
+</html>

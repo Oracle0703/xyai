@@ -20,6 +20,8 @@
 | `presentations/` | 面向人的 HTML 演示材料（汇报页、介绍页） | 文字结论以对应功能文档为准；不放审核或证据 |
 | `upstream-sync/` | 上游合并台账、流程和每轮同步记录 | 见下节 |
 
+面向网络运维与网络运营同事的培训材料：[Codex 与中转实战手册](presentations/network-department-codex-guide.html)。单文件 HTML，包含接入说明、任务模板、离线日志练习、GitLab / SVN 已有仓库迭代示例与代码验收方法；模型与分组权限以实际配置为准。
+
 ### features/ 功能文档
 
 | 文档 | 功能 |

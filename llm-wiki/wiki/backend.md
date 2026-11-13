@@ -167,7 +167,7 @@
 
 ## 技术栈与入口
 
-- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.27.2`。
+- Go module: `github.com/Wei-Shaw/sub2api`, 当前 `backend/go.mod` 声明 Go `1.27.3`。
 - HTTP 框架: Gin。
 - ORM: Ent, 生成代码位于 `backend/ent/`, schema 位于 `backend/ent/schema/`。
 - 依赖注入: Google Wire, 入口在 `backend/cmd/server/wire.go`, 生成文件 `wire_gen.go`。
