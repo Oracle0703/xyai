@@ -125,12 +125,15 @@ describe('OrganizationUsagePeopleTable layout', () => {
     expect(header).toContain('admin.organizationUsage.metrics.inputOutputRatio')
     expect(header).not.toContain('admin.organizationUsage.metrics.actualCost')
     expect(wrapper.find('[data-sort-key="actual_cost"]').exists()).toBe(false)
-    // 2 / 3 * 100 = 66.666… -> one decimal place
-    expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('66.7%')
+    // output 3 / input 2 * 100
+    expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('150.0%')
     expect(wrapper.get('tbody').text()).not.toContain('$')
 
     const [item] = wrapper.props('items')
-    await wrapper.setProps({ items: [{ ...item, output_tokens: 0 }] })
+    // output 1 / input 3 * 100 = 33.333… -> one decimal place
+    await wrapper.setProps({ items: [{ ...item, input_tokens: 3, output_tokens: 1 }] })
+    expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('33.3%')
+    await wrapper.setProps({ items: [{ ...item, input_tokens: 0 }] })
     expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('-')
   })
 

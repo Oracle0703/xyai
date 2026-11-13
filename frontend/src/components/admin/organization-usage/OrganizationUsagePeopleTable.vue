@@ -197,7 +197,7 @@ const columns = computed(() => [
   { key: 'output_tokens', label: t('admin.organizationUsage.metrics.outputTokens'), sortable: true, sortKey: 'output_tokens' as const, numeric: true },
   { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheTokens'), sortable: true, sortKey: 'cache_read_tokens' as const, numeric: true },
   { key: 'total_tokens', label: t('admin.organizationUsage.metrics.totalTokens'), sortable: true, sortKey: 'total_tokens' as const, numeric: true },
-  // Derived on the client (input / output); the server has no matching sort key.
+  // Derived on the client (output / input); the server has no matching sort key.
   { key: 'input_output_ratio', label: t('admin.organizationUsage.metrics.inputOutputRatio'), numeric: true },
   { key: 'peak_day', label: t('admin.organizationUsage.columns.peakDay'), sortable: true, sortKey: 'peak_day_tokens' as const, numeric: true },
   { key: 'peak_week', label: t('admin.organizationUsage.columns.peakWeek'), sortable: true, sortKey: 'peak_week_tokens' as const, numeric: true },
@@ -226,8 +226,8 @@ function emitSort(sortBy: OrganizationUsageSortBy) {
 }
 
 function inputOutputRatio(item: OrganizationUsageSummaryItem) {
-  if (!(item.output_tokens > 0)) return '-'
-  return `${(item.input_tokens / item.output_tokens * 100).toFixed(1)}%`
+  if (!(item.input_tokens > 0)) return '-'
+  return `${(item.output_tokens / item.input_tokens * 100).toFixed(1)}%`
 }
 
 function organizationLabel(value: string) {
