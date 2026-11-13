@@ -9,7 +9,7 @@
 | `OrganizationUsageTrendChart.vue` | Chart.js 双轴、日周月粒度、独立 loading/error/retry；系列为总 Token、各组织总 Token（按 `points[].organizations`，颜色按组织固定；“其他”有用量才画；可见组织不足两个时不画）和请求数，不画输入/输出 Token；总 Token 包含缓存创建/读取；数据截至只在最后一个桶的 tooltip 中显示 |
 | `OrganizationUsageSummary.vue` | 仅渲染服务端返回的组织，不补范围外组织行；按钮提交原内部键 |
 | `OrganizationUsageBreakdowns.vue` | 同范围部门/平台汇总，平台活跃人数不能相加作为总人数 |
-| `OrganizationUsagePeopleTable.vue` | 人员表：排名、邮箱固定在左侧，其后组织、部门与指标；跨分页连续排名，服务端排序分页，数值列表头右对齐，宽表横向滚动；卡片头可下载当前页 PNG，每页条数用 `Pagination` 自带选择器 |
+| `OrganizationUsagePeopleTable.vue` | 人员表：排名、邮箱固定在左侧，其后组织、部门与指标；跨分页连续排名，服务端排序分页，数值列表头右对齐，宽表横向滚动；卡片头可下载当前页 PNG，每页条数用 `Pagination` 自带选择器。不展示实际成本，原位置为前端计算的“输入输出比”（`input_tokens / output_tokens × 100%`，一位小数，输出为 0 显示 `-`，不可排序） |
 | `OrganizationUsageSegmented.vue` | 报表周期与趋势粒度共用的分段按钮，样式同仪表盘图表切换 |
 | `organizationUsageTable.css` | `org-usage-table` 等类：表格沿用 `DataTable` 的表头、分隔线与悬停样式，卡片头/标题/行内链接统一 |
 

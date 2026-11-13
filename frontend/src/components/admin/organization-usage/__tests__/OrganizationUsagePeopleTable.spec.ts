@@ -119,6 +119,21 @@ describe('OrganizationUsagePeopleTable layout', () => {
     }
   })
 
+  it('shows the input/output ratio instead of actual cost', async () => {
+    const wrapper = mountTable(1)
+    const header = wrapper.get('thead').text()
+    expect(header).toContain('admin.organizationUsage.metrics.inputOutputRatio')
+    expect(header).not.toContain('admin.organizationUsage.metrics.actualCost')
+    expect(wrapper.find('[data-sort-key="actual_cost"]').exists()).toBe(false)
+    // 2 / 3 * 100 = 66.666… -> one decimal place
+    expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('66.7%')
+    expect(wrapper.get('tbody').text()).not.toContain('$')
+
+    const [item] = wrapper.props('items')
+    await wrapper.setProps({ items: [{ ...item, output_tokens: 0 }] })
+    expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('-')
+  })
+
   it('right-aligns numeric headers with their values and leads rows with rank and email', () => {
     const wrapper = mountTable(1)
     const headers = wrapper.findAll('thead th')

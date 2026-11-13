@@ -65,6 +65,7 @@ export default {
       totalTokens: '总 Token',
       totalTokensHelp: '所选报表周期内消耗的输入、输出和缓存 Token 总量。',
       actualCost: '实际成本',
+      inputOutputRatio: '输入输出比',
       tokenShare: 'Token 占比'
     },
     columns: {

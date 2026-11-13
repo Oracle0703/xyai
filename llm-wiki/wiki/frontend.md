@@ -371,6 +371,7 @@ API 模块分布:
 - 人数只改前端展示名：`active_users` 显示为“成员人数”，`used_users` 显示为“活跃人数”，后端统计条件和 API 字段不变。组织内部键/API 筛选值仍为 `xunyou` / `wsdashi` / `other`，页面在 Filters、组织汇总和人员表显示为“迅游”/“速宝”/“其他”。
 - Excel 构建在 `frontend/src/utils/organizationUsageReport.ts`, 生成“报表概览、人员汇总、组织汇总、部门汇总、平台汇总、月度明细、周度明细、日度明细”八个 Sheet。人员汇总为筛选范围内全部人员（含零用量成员、组织/部门、费用和日周月峰值），设置列宽与自动筛选，不受页面分页限制。所有数据 Sheet（含新增汇总）合计最多 100,000 行; workbook 构建与 `XLSX.write` 在可终止的 `organizationUsageExport.worker.ts` 中执行, 页面卸载只清理任务, 不显示用户主动取消提示。
 - 人员表“每页”前的截图按钮通过 `utils/tableScreenshot.ts` 按需加载 `html2canvas`，下载当前页所有实际人员行及完整宽表列的 PNG，文件名包含日期范围和页码；截图不请求其它分页。空数据/加载中禁用，重复点击防重，分页、查询数据变化或卸载时作废在途截图。
+- 页面人员表（`OrganizationUsagePeopleTable.vue`）2026-11-13 起不展示实际成本，原位置改为前端计算的“输入输出比”= `input_tokens / output_tokens × 100%`（一位小数，输出为 0 显示 `-`）；该列不可排序（后端无对应 `sort_by`，`actual_cost` 排序键仍保留但页面不再触发）。概览卡片、组织/部门/平台汇总和 Excel 仍含实际成本，API 不变。
 - 页面组件位于 `frontend/src/components/admin/organization-usage/`; 人员表始终保持宽表横向滚动, 不使用移动端卡片化 DataTable。修改筛选、组织汇总、峰值、趋势或导出交互时同步该目录 README、View/Worker 测试与中英文 `admin/organizationUsage.ts` locale。
 
 管理端 Token Analysis 计费用量趋势:

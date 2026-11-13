@@ -79,7 +79,7 @@
               <td class="org-usage-num">{{ formatNumber(item.output_tokens) }}</td>
               <td class="org-usage-num">{{ formatNumber(item.cache_read_tokens) }}</td>
               <td class="org-usage-num font-semibold">{{ formatNumber(item.total_tokens) }}</td>
-              <td class="org-usage-num">${{ formatCostFixed(item.actual_cost) }}</td>
+              <td class="org-usage-num" data-testid="people-io-ratio">{{ inputOutputRatio(item) }}</td>
               <td class="org-usage-num"><PeakCell :period="item.peak_day" /></td>
               <td class="org-usage-num"><PeakCell :period="item.peak_week" /></td>
               <td class="org-usage-num"><PeakCell :period="item.peak_month" /></td>
@@ -116,7 +116,7 @@ import type {
 } from '@/api/admin/organizationUsage'
 import Icon from '@/components/icons/Icon.vue'
 import Pagination from '@/components/common/Pagination.vue'
-import { formatCostFixed, formatNumber } from '@/utils/format'
+import { formatNumber } from '@/utils/format'
 import { formatOrganizationUsageOrganization } from '@/utils/organizationUsageReport'
 import { captureTablePng } from '@/utils/tableScreenshot'
 import { useAppStore } from '@/stores/app'
@@ -197,7 +197,8 @@ const columns = computed(() => [
   { key: 'output_tokens', label: t('admin.organizationUsage.metrics.outputTokens'), sortable: true, sortKey: 'output_tokens' as const, numeric: true },
   { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheTokens'), sortable: true, sortKey: 'cache_read_tokens' as const, numeric: true },
   { key: 'total_tokens', label: t('admin.organizationUsage.metrics.totalTokens'), sortable: true, sortKey: 'total_tokens' as const, numeric: true },
-  { key: 'actual_cost', label: t('admin.organizationUsage.metrics.actualCost'), sortable: true, sortKey: 'actual_cost' as const, numeric: true },
+  // Derived on the client (input / output); the server has no matching sort key.
+  { key: 'input_output_ratio', label: t('admin.organizationUsage.metrics.inputOutputRatio'), numeric: true },
   { key: 'peak_day', label: t('admin.organizationUsage.columns.peakDay'), sortable: true, sortKey: 'peak_day_tokens' as const, numeric: true },
   { key: 'peak_week', label: t('admin.organizationUsage.columns.peakWeek'), sortable: true, sortKey: 'peak_week_tokens' as const, numeric: true },
   { key: 'peak_month', label: t('admin.organizationUsage.columns.peakMonth'), sortable: true, sortKey: 'peak_month_tokens' as const, numeric: true }
@@ -222,6 +223,11 @@ function ariaSort(column: (typeof columns.value)[number]) {
 
 function emitSort(sortBy: OrganizationUsageSortBy) {
   emit('sort', sortBy, props.sortBy === sortBy && props.sortOrder === 'asc' ? 'desc' : 'asc')
+}
+
+function inputOutputRatio(item: OrganizationUsageSummaryItem) {
+  if (!(item.output_tokens > 0)) return '-'
+  return `${(item.input_tokens / item.output_tokens * 100).toFixed(1)}%`
 }
 
 function organizationLabel(value: string) {

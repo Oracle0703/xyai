@@ -65,6 +65,7 @@ export default {
       totalTokens: 'Total tokens',
       totalTokensHelp: 'All input, output and cache tokens consumed in the selected report period.',
       actualCost: 'Actual cost',
+      inputOutputRatio: 'Input/output ratio',
       tokenShare: 'Token share'
     },
     columns: {
