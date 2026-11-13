@@ -149,10 +149,10 @@ Periods 明细和 Excel 只返回有用量的周期，不生成全零行；只�
 
 | 附加参数 | 默认 | 允许值 |
 | --- | --- | --- |
-| `sort_by` | `total_tokens` | `email`、`requests`、`input_tokens`、`output_tokens`、`cache_creation_tokens`、`cache_read_tokens`、`total_tokens`、`actual_cost`、`peak_day_tokens`、`peak_week_tokens`、`peak_month_tokens` |
+| `sort_by` | `total_tokens` | `email`、`requests`、`input_tokens`、`output_tokens`、`cache_creation_tokens`、`cache_read_tokens`、`total_tokens`、`actual_cost`、`output_input_ratio`、`peak_day_tokens`、`peak_week_tokens`、`peak_month_tokens` |
 | `sort_order` | `desc` | `asc\|desc` |
 
-排序后统一追加 `user_id ASC` 作为稳定次序；`email` 按 `LOWER(email)`，峰值列按 `COALESCE(peak.total_tokens, 0)`。
+排序后统一追加 `user_id ASC` 作为稳定次序；`email` 按 `LOWER(email)`，峰值列按 `COALESCE(peak.total_tokens, 0)`。`output_input_ratio`（2026-11-13，人员表“输入输出比”列）按 `ut.output_tokens::double precision / NULLIF(ut.input_tokens, 0)` 排序并固定 `NULLS LAST`：输入为 0（含零用量成员）无比值，升降序都排在最后。表达式必须带 `ut.` 前缀，峰值 join 也有同名 token 列；响应不新增字段，页面按同一公式前端计算展示。
 
 | 响应字段 | 内容 |
 | --- | --- |
