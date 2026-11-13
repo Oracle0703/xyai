@@ -56,6 +56,10 @@ func TestOrganizationUsageOrderBy_IsFixedAllowlistWithStableUserTieBreak(t *test
 		"peak_day_tokens":   {order: "desc", want: "COALESCE(dp.total_tokens, 0) DESC, user_id ASC"},
 		"peak_week_tokens":  {order: "desc", want: "COALESCE(wp.total_tokens, 0) DESC, user_id ASC"},
 		"peak_month_tokens": {order: "desc", want: "COALESCE(mp.total_tokens, 0) DESC, user_id ASC"},
+		"output_input_ratio": {
+			order: "asc",
+			want:  "ut.output_tokens::double precision / NULLIF(ut.input_tokens, 0) ASC NULLS LAST, user_id ASC",
+		},
 	}
 	for sortBy, tt := range tests {
 		got, err := organizationUsageOrderBy(sortBy, tt.order)

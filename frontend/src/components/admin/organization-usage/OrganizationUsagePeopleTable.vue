@@ -197,8 +197,8 @@ const columns = computed(() => [
   { key: 'output_tokens', label: t('admin.organizationUsage.metrics.outputTokens'), sortable: true, sortKey: 'output_tokens' as const, numeric: true },
   { key: 'cache_read_tokens', label: t('admin.organizationUsage.metrics.cacheTokens'), sortable: true, sortKey: 'cache_read_tokens' as const, numeric: true },
   { key: 'total_tokens', label: t('admin.organizationUsage.metrics.totalTokens'), sortable: true, sortKey: 'total_tokens' as const, numeric: true },
-  // Derived on the client (output / input); the server has no matching sort key.
-  { key: 'input_output_ratio', label: t('admin.organizationUsage.metrics.inputOutputRatio'), numeric: true },
+  // Displayed value is derived on the client; the server sorts by the same output / input formula.
+  { key: 'output_input_ratio', label: t('admin.organizationUsage.metrics.inputOutputRatio'), sortable: true, sortKey: 'output_input_ratio' as const, numeric: true },
   { key: 'peak_day', label: t('admin.organizationUsage.columns.peakDay'), sortable: true, sortKey: 'peak_day_tokens' as const, numeric: true },
   { key: 'peak_week', label: t('admin.organizationUsage.columns.peakWeek'), sortable: true, sortKey: 'peak_week_tokens' as const, numeric: true },
   { key: 'peak_month', label: t('admin.organizationUsage.columns.peakMonth'), sortable: true, sortKey: 'peak_month_tokens' as const, numeric: true }

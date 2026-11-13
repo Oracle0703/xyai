@@ -545,7 +545,7 @@ func organizationUsageCalendarDays(start, end time.Time) int {
 
 func validOrganizationUsageSortBy(sortBy string) bool {
 	switch sortBy {
-	case "email", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost", "peak_day_tokens", "peak_week_tokens", "peak_month_tokens":
+	case "email", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "actual_cost", "output_input_ratio", "peak_day_tokens", "peak_week_tokens", "peak_month_tokens":
 		return true
 	default:
 		return false

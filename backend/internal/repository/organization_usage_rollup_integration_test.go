@@ -79,7 +79,7 @@ func requireOrganizationUsageSourcesMatch(t *testing.T, ctx context.Context, lab
 	clipped.EndTime = asOf
 	summaryRanges = append(summaryRanges, clipped)
 	for _, params := range summaryRanges {
-		for _, sortBy := range []string{"total_tokens", "actual_cost", "peak_week_tokens"} {
+		for _, sortBy := range []string{"total_tokens", "actual_cost", "output_input_ratio", "peak_week_tokens"} {
 			params.SortBy = sortBy
 			params.Filters = filters
 			want, err := raw.Summary(ctx, params)

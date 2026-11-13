@@ -137,6 +137,18 @@ describe('OrganizationUsagePeopleTable layout', () => {
     expect(wrapper.get('[data-testid="people-io-ratio"]').text()).toBe('-')
   })
 
+  it('sorts by the server-side output/input ratio key', async () => {
+    const wrapper = mountTable(1)
+    const button = wrapper.get('[data-sort-key="output_input_ratio"]')
+    expect(button.element.closest('th')!.classList).toContain('org-usage-num')
+    await button.trigger('click')
+    expect(wrapper.emitted('sort')).toEqual([['output_input_ratio', 'asc']])
+    await wrapper.setProps({ sortBy: 'output_input_ratio', sortOrder: 'asc' })
+    expect(button.element.closest('th')!.getAttribute('aria-sort')).toBe('ascending')
+    await button.trigger('click')
+    expect(wrapper.emitted('sort')![1]).toEqual(['output_input_ratio', 'desc'])
+  })
+
   it('right-aligns numeric headers with their values and leads rows with rank and email', () => {
     const wrapper = mountTable(1)
     const headers = wrapper.findAll('thead th')

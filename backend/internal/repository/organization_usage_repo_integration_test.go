@@ -69,6 +69,22 @@ func TestOrganizationUsageRepositoryIntegration_SummaryContracts(t *testing.T) {
 	require.Equal(t, int64(1), organizations[service.OrganizationWsdashi].ActiveUsers)
 	require.Equal(t, int64(2), organizations[service.OrganizationOther].ActiveUsers)
 	require.Equal(t, int64(1), organizations[service.OrganizationOther].UsedUsers)
+
+	// output/input: xunyou 22/11=2.0, subdomain 3/2=1.5, wsdashi 6/5=1.2; zero usage has no ratio and stays last.
+	for order, want := range map[string][]int64{
+		"asc":  {wsdashi.ID, subdomain.ID, xunyou.ID, zero.ID},
+		"desc": {xunyou.ID, subdomain.ID, wsdashi.ID, zero.ID},
+	} {
+		params := organizationUsageSummaryIntegrationParams(prefix, "2026-01-01", "2026-01-10")
+		params.SortBy, params.SortOrder = "output_input_ratio", order
+		sorted, err := repo.Summary(ctx, params)
+		require.NoError(t, err)
+		got := make([]int64, 0, len(sorted.Items))
+		for _, item := range sorted.Items {
+			got = append(got, item.UserID)
+		}
+		require.Equal(t, want, got, "output_input_ratio %s", order)
+	}
 }
 
 func TestOrganizationUsageRepositoryIntegration_SearchTreatsWildcardsLiterally(t *testing.T) {

@@ -773,6 +773,8 @@ func organizationUsageOrderBy(sortBy, sortOrder string) (string, error) {
 		"cache_creation_tokens": "cache_creation_tokens", "cache_read_tokens": "cache_read_tokens", "total_tokens": "total_tokens",
 		"actual_cost": "actual_cost", "peak_day_tokens": "COALESCE(dp.total_tokens, 0)",
 		"peak_week_tokens": "COALESCE(wp.total_tokens, 0)", "peak_month_tokens": "COALESCE(mp.total_tokens, 0)",
+		// Qualified with ut: the peak joins also expose input/output token columns.
+		"output_input_ratio": "ut.output_tokens::double precision / NULLIF(ut.input_tokens, 0)",
 	}
 	column, ok := columns[sortBy]
 	if !ok {
@@ -782,7 +784,12 @@ func organizationUsageOrderBy(sortBy, sortOrder string) (string, error) {
 	if order != "asc" && order != "desc" {
 		return "", fmt.Errorf("invalid organization usage sort_order %q", sortOrder)
 	}
-	return fmt.Sprintf("%s %s, user_id ASC", column, strings.ToUpper(order)), nil
+	nulls := ""
+	if sortBy == "output_input_ratio" {
+		// No input (incl. zero usage) has no ratio; keep those rows last in both directions.
+		nulls = " NULLS LAST"
+	}
+	return fmt.Sprintf("%s %s%s, user_id ASC", column, strings.ToUpper(order), nulls), nil
 }
 
 func organizationUsageSearchPattern(q string) string {

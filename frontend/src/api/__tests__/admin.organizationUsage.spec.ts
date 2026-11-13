@@ -158,6 +158,7 @@ describe('organization usage API', () => {
       'cache_read_tokens',
       'total_tokens',
       'actual_cost',
+      'output_input_ratio',
       'peak_day_tokens',
       'peak_week_tokens',
       'peak_month_tokens'
