@@ -1,6 +1,6 @@
 # 0.2.21 上游同步审核
 
-日期：2026-11-11；分支：`feature/hy/10234_merge_sub2api_221`；状态：合并待审核，未 commit / push / 合回 main / 部署。
+日期：2026-11-11；分支：`feature/hy/10234_merge_sub2api_221`；状态：合并待审核，未 commit / push / 合回 main / 部署（2026-11-15 补记：合并提交 `57d88abbc` 已经 PR #52 合入 main；未核验部署）。
 
 ## 1 范围
 

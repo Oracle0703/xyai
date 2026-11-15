@@ -2285,3 +2285,20 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 本地功能 / 文档 | 26 份 docs/features 零变更；wiki、组件 README、文档索引、Wiki 图谱已更新，台账只追加；旧 SQL 未改，旧归档目录未恢复 |
 | 边界 | 无生产/真实模型/支付/SMTP/浏览器端到端验收；上游 migration 250 EOF 空行原样保留，diff-check 明确豁免 |
 | 唯一审核记录 | `docs/upstream-sync/2026-11-11-v0.2.21/review.md` |
+
+
+## 2026-11-15 — 上游 PR #8759 cherry-pick（已提交到本地 main，未推送）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-15 |
+| 工作分支 | 本地 `main`（用户指定直接合到本地 main）；在仓库外临时 worktree 提交与验证后 fast-forward，未改动 main 工作区已有的暂存文档 |
+| 第一父 / 本地 main | `65674a94c`（已含 0.2.21：合并提交 `57d88abbc`，经 PR #52 合入 main） |
+| 上游来源 | `Wei-Shaw/sub2api` PR [#8759](https://github.com/Wei-Shaw/sub2api/pull/8759)，核验时仍 open；head `8480cb0cd95710de66052dabf364f6e62d267f0f`，`fix(antigravity): match schema items to the selected type` |
+| 合入方式 | `git cherry-pick -x 8480cb0`，生成 `9974cfdcc`；不建合并父。PR base `530c5e3a4` = 0.2.21 + 一个 README 赞助商提交（`chore: update sponsors`），按“PR base 不等于已合入边界时只纳入内容”的规则未带入该提交 |
+| 改动路径 | `backend/internal/pkg/antigravity/schema_cleaner.go`、`backend/internal/service/antigravity_gateway_compat_test.go`（+72/-13）；两文件本地与 0.2.21 一致，结果 blob 逐个等于 PR head |
+| 冲突文件 | 无冲突 |
+| 处理方式 | 原样采用 PR：Gemini 工具 schema 只有 `type=array` 保留 `items`（缺失/非对象/空对象补 string），非 array 删除 `items`；不改其他上游或本地代码 |
+| 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（antigravity、service）通过；新回归 `TestAntigravityCompatToolSchemaItemsMatchSelectedType` chat/responses/messages 通过，换回旧 `schema_cleaner.go` 时失败；golangci-lint v2.14.0（全量参数，antigravity+service）0 issues；`-tags=unit` antigravity、handler/... 全部通过；service 唯一失败为既有上游时序用例 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode`（visible 1.085s < 1.1s），已在 0.2.21 review 第 6 节登记，与本 PR 路径无关 |
+| 边界 | 未发真实 Gemini/Antigravity 请求；未推送、未部署 |
+| Wiki | `llm-wiki/wiki/backend.md` 新增 schema `items` 规则；`llm-wiki/wiki/README.md` 与 0.2.21 review 状态修正为已合入 main |

@@ -1,8 +1,9 @@
 # Sub2API llm-wiki 基线
 
-## 当前上游同步：0.2.21（待审核、未提交）
+## 当前上游同步：0.2.21（已合入 main）
 
-- 基于本地 main 创建 `feature/hy/10234_merge_sub2api_221`，固定合入用户指定的上游提交；范围、冲突裁决与验证唯一入口：`docs/upstream-sync/2026-11-11-v0.2.21/review.md`。保留本地独有功能，采用上游新增行为，仅解决合并冲突，不独立修复上游 bug。
+- 基于本地 main 创建 `feature/hy/10234_merge_sub2api_221`，固定合入用户指定的上游提交；合并提交 `57d88abbc` 已经 PR #52 合入 main。范围、冲突裁决与验证唯一入口：`docs/upstream-sync/2026-11-11-v0.2.21/review.md`。保留本地独有功能，采用上游新增行为，仅解决合并冲突，不独立修复上游 bug。
+- 2026-11-15 在 0.2.21 之上单独 cherry-pick 上游未合并 PR [#8759](https://github.com/Wei-Shaw/sub2api/pull/8759) head `8480cb0cd95710de66052dabf364f6e62d267f0f`（Antigravity/Gemini 工具 schema `items` 与所选 type 对齐，规则见 backend）。PR base `530c5e3a4` 比 0.2.21 多一个 README 赞助商提交，未带入；记录见 `docs/upstream-sync/merge-log.md`。
 - 现行合同：缓存 30m/12h 分项与计费见 backend/data，刷新令牌原子消费与 WS 重放边界见 security，请求体自适应内存预算见 ops，账号刷新/设置保存/价格展示见 frontend。上一轮 0.2.20 已经 PR #49 合入 main，历史过程见其 review。
 
 ## 0.2.19 同步（已合入 main）
