@@ -130,7 +130,7 @@
 - reasoning effort 策略只使用已解析为 OpenAI 的分组上下文，模型范围匹配不做模糊 contains；超限 `deny` 是本地准入拒绝，HTTP/Anthropic 兼容出口返回 403 并标记 `local_policy_denied`，WS 终止当前 turn。默认 `downgrade` 保持存量行为，未识别或缺省 effort 不应因此被拒绝。
 - OpenAI API Key Chat 兼容路径自动派生的 prompt-cache identity 会混入 API Key ID，使不同租户使用相同 model/system/first-user 前缀时也不共享上游 session。自动派生仅针对 GPT-5/Codex 族的 Chat 形状；Responses 形状不派生，并且不得在 Agent Identity recovery 重试中二次 hash 同一 identity。
 - Anthropic body 中的 `fallbacks`、`fallback_credit_token` 与 `context_management` 必须按最终出站 `anthropic-beta` 能力对称保留，缺少对应 token 就在签名前删除，不依赖模型名或客户端类型猜测。Bedrock Claude Code 兼容链也使用等价过滤，不可让 body 字段与 beta header 失配。
-- Codex scheduled automation 只对结构和内容都严格符合 automation bootstrap envelope、且缺少 `call_id` 的 `codex_app.automation_update` call output 改写为 user message；其他 function call output 仍执行通用 call-id/item-reference 校验。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
+- Codex 独立上下文（page/browser、`agent.*`、`guardian.*`、`codex_app.automation_update`、`codex_app`/`codex_tui` 的 `create_thread`/`send_message_to_thread`、`cloud_threads.send_message`）只有在 namespace/name 精确匹配、缺少 `call_id` 且 output 形态符合预期时，才从 call-id/item-reference 校验副本中剔除；转发体保持原样，不改写为 user message（PR #8680 起）。显式 `call_id`（含空串）、格式错误或未知名称仍走通用校验；不按通配符放行动态名称。安全审计/内容审核读到的仍是 `function_call_output` 而不是 user 文本。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
 
 ## 0.2.1 合并增量
 

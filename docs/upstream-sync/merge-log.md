@@ -2302,3 +2302,20 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（antigravity、service）通过；新回归 `TestAntigravityCompatToolSchemaItemsMatchSelectedType` chat/responses/messages 通过，换回旧 `schema_cleaner.go` 时失败；golangci-lint v2.14.0（全量参数，antigravity+service）0 issues；`-tags=unit` antigravity、handler/... 全部通过；service 唯一失败为既有上游时序用例 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode`（visible 1.085s < 1.1s），已在 0.2.21 review 第 6 节登记，与本 PR 路径无关 |
 | 边界 | 未发真实 Gemini/Antigravity 请求；未推送、未部署 |
 | Wiki | `llm-wiki/wiki/backend.md` 新增 schema `items` 规则；`llm-wiki/wiki/README.md` 与 0.2.21 review 状态修正为已合入 main |
+
+
+## 2026-11-15 — 上游 PR #8680 cherry-pick（已提交到本地 main，未推送）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-15 |
+| 工作分支 | 本地 `main`（用户指定）；仓库外临时 worktree 提交与验证后 fast-forward |
+| 第一父 / 本地 main | `dcb40e360`（已含 0.2.21 与 PR #8759） |
+| 上游来源 | `Wei-Shaw/sub2api` PR [#8680](https://github.com/Wei-Shaw/sub2api/pull/8680)，核验时仍 open；head `19b0c17477d2bd64ceedb38d29204f3bb721fe36`，`fix(openai): preserve Codex standalone context on Responses`；PR 提交 `e64d277c4`、`d2026584e`、`19b0c1747` |
+| 合入方式 | `git cherry-pick -x` 三个提交，生成 `ec9f0be0c`、`662c21784`、`2933a058c`；不建合并父。PR base 同为 `530c5e3a4`（0.2.21 + README 赞助商提交），赞助商提交未带入 |
+| 改动路径 | handler：`openai_gateway_handler.go`、`openai_page_context.go`、page/automation/delegation/standalone 四个测试；service：`openai_codex_transform.go`、`openai_responses_namespace.go`、`openai_desktop_context_forward_test.go` |
+| 冲突文件 | 无冲突。`openai_gateway_handler.go`（本地 `service.IsSafeRetryAfter` 收敛）与 `openai_codex_transform.go`（本地 `SupportsOpenAIReasoningEffort`）有本地改动，自动合并；结果相对 PR head 的差异恰好等于本地增量，其余 7 个文件 blob 等于 PR head |
+| 处理方式 | 原样采用 PR：删除 page/automation/delegation 改写为 user message 的逻辑，独立上下文原样转发，只在 call/result 校验副本中剔除精确白名单项。本地依赖已核对：RequestArchive 在路由层存原始请求体，Token Analysis 不受影响；被删函数无本地调用方 |
+| 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（handler、service）通过；PR 相关专项测试通过；golangci-lint v2.14.0（全量参数，handler/...、service/...）0 issues；`-tags=unit` 与 default tag 下 handler/...、apicompat 全部通过；service 唯一失败为既有上游时序用例 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode`（499ms < 500ms、1.095s < 1.1s），已在 0.2.21 review 第 6 节登记，与本 PR 路径无关 |
+| 边界 | 未发真实 Codex OAuth/API Key 请求；未推送、未部署 |
+| Wiki | `llm-wiki/wiki/backend.md`、`security-and-reliability.md`、`README.md` 已更新独立上下文规则 |

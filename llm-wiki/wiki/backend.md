@@ -4,7 +4,7 @@
 
 - OpenAI usage 新增 30m/12h 写入桶；`openai_gateway_response_handling.go#openAICacheCreationTTLTokensFromUsage` 仅在上游两个分项都是非负整数且合计等于 aggregate 时采纳，否则继续通用缓存写入价。`RecordUsage` → `UsageTokens`/`UsageLog` → repository/DTO 贯通；本地 compatible cache helper 仍只补正值，不清除上游分项。
 - `openai_gateway_messages.go` 先校验显式原始 effort，再转换、应用分组策略，最后验证最终请求；默认 effort、thinking 清理、Prompt Metrics/Risk、Token Analysis 和请求时区接线保留。`encrypted_function_args` 在协议转换中保留显式 null/空数组，外部 reasoning envelope 按上游规则忽略。
-- Codex Responses 入口拒绝非法 UTF-8，并把 Desktop page context 规范化；`codex.rate_limits`/`codex.response.metadata` 不提前提交首输出。WS 复用连接启用搜索时仅在完整历史可重建时重连；后续 turn 失败不得回放首次消息，passthrough TTFT 使用当前 `openai_ttft_mode`。
+- Codex Responses 入口拒绝非法 UTF-8；Codex 注入的独立上下文（无 `call_id` 的命名 `function_call_output`：page snapshot、browser_tabs、`agent.*`/`guardian.*` 上下文、automation、delegation）原样转发，不再改写为 user message（上游 PR #8680，本地 cherry-pick）。`codexStandaloneContextValidationBody`（`handler/openai_page_context.go`）只在 call/result 配对校验用的副本里剔除精确命中白名单的项；OAuth `filterCodexInputWithOptions` 不从 `id` 合成 `call_id`，API Key 路径保留 namespace；`codex.rate_limits`/`codex.response.metadata` 不提前提交首输出。WS 复用连接启用搜索时仅在完整历史可重建时重连；后续 turn 失败不得回放首次消息，passthrough TTFT 使用当前 `openai_ttft_mode`。
 - `securityaudit/prompt_worker.go` 在入队后唤醒本进程 worker；账号 hydration 失败归还已取得的并发槽位；Antigravity 手动额度查询传 force，跳过缓存但仍经过 singleflight。子管理员用量只读查询不因此清除账号错误。
 - Claude Fable/Mythos 5.2 模型目录、effort、协议与 fallback 定价沿上游；配置模型名称不授予实际账号访问权限。源版本及验证统一见 `docs/upstream-sync/2026-11-11-v0.2.21/review.md`。
 
