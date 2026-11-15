@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>让 AI 接手真实工作 · 迅游网络部分享</title>
+<meta name="description" content="迅游网络部 AI 应用演讲：部门观察、真实实践、现场小工具、工作方法与行动。含逐字稿与讲者提示。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23145c46'/%3E%3Ctext x='7' y='23' fill='white' font-size='22'%3EA%3C/text%3E%3C/svg%3E">
+<style>
+:root {
+  --ink-950: oklch(0.205 0.025 190);
+  --ink-900: oklch(0.255 0.027 190);
+  --ink-700: oklch(0.405 0.025 190);
+  --ink-500: oklch(0.535 0.018 190);
+  --mist-50: oklch(0.975 0.008 180);
+  --mist-100: oklch(0.945 0.012 180);
+  --mist-200: oklch(0.89 0.015 180);
+  --mint-300: oklch(0.87 0.14 172);
+  --mint-500: oklch(0.69 0.12 172);
+  --mint-700: oklch(0.49 0.09 172);
+  --blue-500: oklch(0.65 0.13 245);
+  --coral-500: oklch(0.68 0.16 35);
+
+  --surface-page: var(--mist-50);
+  --surface-slide: oklch(0.965 0.009 180);
+  --surface-raised: oklch(0.99 0.004 180 / 0.82);
+  --surface-soft: oklch(0.925 0.018 180 / 0.68);
+  --text-primary: var(--ink-950);
+  --text-secondary: var(--ink-700);
+  --text-muted: var(--ink-500);
+  --accent: var(--mint-700);
+  --accent-bright: var(--mint-300);
+  --line: oklch(0.84 0.018 180);
+  --line-strong: oklch(0.73 0.025 180);
+  --dark-bg: var(--ink-950);
+  --dark-raised: oklch(0.27 0.03 190 / 0.72);
+  --dark-text: oklch(0.965 0.012 180);
+  --dark-muted: oklch(0.78 0.025 180);
+  --dark-line: oklch(0.48 0.035 190 / 0.55);
+
+  --font-sans: "MiSans", "HarmonyOS Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: "Aptos Display", "MiSans", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-data: "DIN Alternate", "Aptos", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  --shadow-float: 0 20px 60px oklch(0.2 0.025 190 / 0.12), 0 2px 10px oklch(0.2 0.025 190 / 0.06);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; background: var(--surface-page); }
+body {
+  margin: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: 17px/1.65 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, select, textarea, input { font: inherit; }
+button, a, select { touch-action: manipulation; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.38; }
+button, a, select, textarea, input { outline-offset: 4px; }
+button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible {
+  outline: 3px solid var(--mint-500);
+  outline-offset: 3px;
+}
+[hidden] { display: none !important; }
+h1, h2, h3, p { margin: 0; }
+a { color: inherit; text-underline-offset: 5px; }
+::selection { background: var(--mint-300); color: var(--ink-950); }
+
+header {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 40;
+  height: 72px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid oklch(0.84 0.018 180 / 0.7);
+  background: oklch(0.965 0.009 180 / 0.82);
+  backdrop-filter: blur(20px) saturate(130%);
+  transition: background-color 200ms ease-out, color 200ms ease-out, border-color 200ms ease-out;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.brand::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 0 5px oklch(0.49 0.09 172 / 0.1);
+  transform: rotate(45deg);
+}
+.brand::after {
+  content: "KEYNOTE / 2026";
+  margin-left: 8px;
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+  color: var(--text-muted);
+  font: 10px/1.2 var(--font-data);
+  letter-spacing: 0.12em;
+}
+.header-actions { display: flex; gap: 7px; align-items: center; }
+button, .header-actions a {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 13px;
+  background: transparent;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1.5;
+  transition: transform 160ms ease-out, background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+}
+button:hover, .header-actions a:hover { background: var(--surface-soft); border-color: var(--line-strong); }
+button:active, .header-actions a:active { transform: scale(0.97); }
+button[aria-pressed="true"] { border-color: var(--accent); background: oklch(0.49 0.09 172 / 0.1); color: var(--accent); }
+.solid { background: var(--accent); border-color: var(--accent); color: var(--mist-50); font-weight: 650; }
+.solid:hover { background: var(--ink-900); border-color: var(--ink-900); }
+body:has(.slide.dark:not([hidden])) header {
+  color: var(--dark-text);
+  border-bottom-color: var(--dark-line);
+  background: oklch(0.205 0.025 190 / 0.84);
+}
+body:has(.slide.dark:not([hidden])) header button { color: var(--dark-text); border-color: var(--dark-line); }
+body:has(.slide.dark:not([hidden])) header button:hover { background: var(--dark-raised); }
+body:has(.slide.dark:not([hidden])) .brand::after { color: var(--dark-muted); border-color: var(--dark-line); }
+body:has(.slide.dark:not([hidden])) .brand::before { background: var(--accent-bright); }
+.reading header { color: var(--text-primary) !important; background: oklch(0.965 0.009 180 / 0.9) !important; border-bottom-color: var(--line) !important; }
+.reading header button { color: var(--text-primary) !important; border-color: var(--line) !important; }
+
+.slide {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 100dvh;
+  padding: 72px 0 88px;
+  overflow: hidden;
+  background: var(--surface-slide);
+  color: var(--text-primary);
+}
+.slide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(oklch(0.55 0.025 190 / 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.55 0.025 190 / 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 88% 12%, oklch(0.69 0.12 172 / 0.11), transparent 32%);
+  background-size: 56px 56px, 56px 56px, auto;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+.slide::after {
+  content: attr(data-page) "  /  XUNYOU AI";
+  position: absolute;
+  z-index: 2;
+  top: 102px;
+  right: 26px;
+  color: var(--text-muted);
+  font: 10px/1 var(--font-data);
+  letter-spacing: 0.16em;
+  writing-mode: vertical-rl;
+}
+.slide-main {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1400px;
+  min-width: 0;
+  margin: auto;
+  padding: 40px 72px 34px;
+  overflow-wrap: anywhere;
+}
+.slide-main > * { position: relative; z-index: 1; }
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  color: var(--accent);
+  font: 650 12px/1.5 var(--font-sans);
+  letter-spacing: 0.16em;
+}
+.eyebrow::before { content: ""; width: 22px; height: 1px; background: currentColor; }
+h1 {
+  max-width: 1120px;
+  margin: 0 0 30px;
+  color: inherit;
+  font: 680 clamp(42px, 4.25vw, 64px)/1.16 var(--font-display);
+  letter-spacing: -0.045em;
+}
+h1 em { color: var(--accent-bright); font-style: normal; }
+.lead { max-width: 1040px; color: var(--text-secondary); font-size: clamp(20px, 1.8vw, 27px); line-height: 1.6; text-wrap: balance; }
+.lead.small { margin-top: 26px; font-size: 21px; color: var(--text-primary); }
+.signature { margin-top: 46px; color: var(--dark-muted); font-size: 13px; letter-spacing: 0.08em; }
+.signature span { margin-left: 25px; color: var(--dark-muted); }
+.statement { margin: 4px 0 30px; font-size: clamp(28px, 3vw, 43px); font-weight: 520; line-height: 1.55; letter-spacing: -0.025em; }
+.footnote { max-width: 1160px; margin-top: 24px; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.disclosure { color: var(--accent); font: 650 12px/1.6 var(--font-sans); letter-spacing: 0.04em; }
+.dark { background: var(--dark-bg); color: var(--dark-text); }
+.dark::before {
+  background-image:
+    linear-gradient(oklch(0.85 0.03 180 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.85 0.03 180 / 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 82% 35%, oklch(0.69 0.12 172 / 0.09), transparent 35%);
+  background-size: 56px 56px, 56px 56px, auto;
+}
+.dark::after { color: var(--dark-muted); }
+.dark .eyebrow { color: var(--accent-bright); }
+.dark .lead, .dark .opening-question, .dark .closing-purpose { color: var(--dark-muted); }
+.dark .footnote { color: var(--dark-muted); }
+.dark .lead.small, .dark .practice-conclusion { color: var(--dark-text); }
+
+/* Opening and statement slides use a CSS-only neural orbit, keeping the file offline. */
+#opening .slide-main, #closing .slide-main { padding-right: 41%; }
+#opening h1, #closing h1 { font-size: clamp(56px, 5.6vw, 82px); }
+#opening .slide-main::before, #closing .slide-main::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 48%;
+  right: 3%;
+  width: min(35vw, 480px);
+  aspect-ratio: 1;
+  border: 1px solid oklch(0.87 0.14 172 / 0.32);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 30%, oklch(0.94 0.11 172 / 0.75) 0 1.2%, transparent 1.8%),
+    radial-gradient(circle at 65% 62%, oklch(0.87 0.14 172 / 0.4) 0 1%, transparent 1.6%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 28px, oklch(0.87 0.14 172 / 0.09) 29px 30px),
+    conic-gradient(from 215deg, transparent 0 18%, oklch(0.87 0.14 172 / 0.5) 24%, transparent 33% 58%, oklch(0.65 0.13 245 / 0.35) 67%, transparent 76%);
+  box-shadow:
+    0 0 0 32px oklch(0.87 0.14 172 / 0.035),
+    0 0 0 76px oklch(0.87 0.14 172 / 0.02),
+    0 0 100px oklch(0.69 0.12 172 / 0.14),
+    inset 0 0 80px oklch(0.69 0.12 172 / 0.08);
+  transform: translateY(-50%) rotate(-16deg);
+  pointer-events: none;
+}
+#opening .slide-main::after, #closing .slide-main::after {
+  content: "HUMAN  ×  MACHINE";
+  position: absolute;
+  z-index: 1;
+  right: 6%;
+  bottom: 8%;
+  color: var(--accent-bright);
+  font: 11px/1 var(--font-data);
+  letter-spacing: 0.24em;
+}
+.opening-question { margin-top: 24px; font-size: 21px; line-height: 1.7; }
+#opening .signature { margin-top: 38px; }
+#first-judgment .slide-main::before, #value .slide-main::before {
+  content: "?";
+  position: absolute;
+  z-index: 0;
+  right: 4%;
+  top: 45%;
+  transform: translateY(-50%);
+  color: transparent;
+  -webkit-text-stroke: 1px oklch(0.87 0.14 172 / 0.17);
+  font: 700 min(38vw, 480px)/1 var(--font-display);
+  pointer-events: none;
+}
+#value .slide-main::before { content: "→"; right: 8%; -webkit-text-stroke-color: oklch(0.87 0.14 172 / 0.22); }
+#failure h1 { margin-bottom: 22px; font-size: clamp(60px, 5.8vw, 84px); letter-spacing: -0.06em; }
+#failure .lead { max-width: 700px; }
+.failure-lessons { max-width: 840px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--dark-line); font-size: 18px; line-height: 1.7; }
+.failure-lessons p { display: flex; gap: 14px; align-items: baseline; }
+.failure-lessons p::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--coral-500); }
+.human-role { margin-top: 24px; color: var(--accent-bright); font-size: 20px; line-height: 1.65; }
+.organization-memory { margin: 8px 0 24px; font-size: clamp(26px, 2.8vw, 39px); line-height: 1.65; letter-spacing: -0.02em; }
+.closing-answers { margin-bottom: 15px; color: var(--accent-bright); font-size: 23px; line-height: 1.65; }
+.closing-purpose { font-size: 19px; line-height: 1.7; }
+.closing-pledge { margin-top: 26px; font-size: 20px; line-height: 1.8; }
+.closing-pledge strong { display: inline-block; color: var(--accent-bright); font-size: 30px; }
+.closing-links { display: flex; gap: 24px; margin-top: 30px; font-size: 14px; }
+.closing-links a { min-height: 44px; padding: 10px 0; border-bottom: 1px solid var(--dark-line); color: var(--dark-text); text-decoration: none; }
+.closing-links a:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+
+/* Editorial grids and workflow patterns */
+.comparison, .thesis-columns, .independent-flow, .migration-responsibilities, .role-starts, .levels {
+  display: grid;
+  gap: 24px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.comparison { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.comparison.peer-cases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.thesis-columns { grid-template-columns: 1.1fr repeat(2, minmax(0, 1fr)); }
+.independent-flow, .migration-responsibilities { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.role-starts, .levels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.comparison article, .thesis-columns article, .independent-flow article, .migration-responsibilities article, .role-starts article, .levels li {
+  min-width: 0;
+  padding: 22px 0 0;
+  border-top: 1px solid var(--line-strong);
+}
+.comparison article > span, .thesis-columns article > span, .independent-flow span, .role-starts article > span, .levels li > span {
+  color: var(--accent);
+  font: 650 12px/1.5 var(--font-data);
+  letter-spacing: 0.06em;
+}
+.comparison h3, .thesis-columns h3, .independent-flow h3, .role-starts h3 { margin: 13px 0 10px; font-size: 25px; line-height: 1.4; letter-spacing: -0.02em; }
+.comparison p, .thesis-columns p, .independent-flow p, .role-starts p, .levels small { color: var(--text-secondary); font-size: 18px; line-height: 1.75; }
+.thesis-columns h3 { font-size: 25px; }
+.thesis-columns p { font-size: 18px; }
+.dark .thesis-columns article { border-color: var(--dark-line); }
+.dark .thesis-columns article > span { color: var(--accent-bright); }
+.dark .thesis-columns p { color: var(--dark-muted); }
+blockquote { margin: 26px 0 0; font-size: 24px; font-weight: 650; line-height: 1.55; }
+
+.practice-route { display: grid; grid-template-columns: 1.12fr 0.88fr; gap: 16px; margin-top: 20px; }
+.practice-route article {
+  min-width: 0;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+.practice-route article:first-child { background: oklch(0.49 0.09 172 / 0.08); border-color: oklch(0.49 0.09 172 / 0.28); }
+.practice-route article > span { color: var(--accent); font: 650 11px/1.5 var(--font-data); letter-spacing: 0.06em; }
+.practice-route h3 { margin: 8px 0 8px; font-size: 21px; line-height: 1.4; letter-spacing: -0.02em; }
+.practice-route p { color: var(--text-secondary); font-size: 15px; line-height: 1.65; }
+.practice-conclusion { margin-top: 22px; color: var(--text-primary); font-size: 20px; font-weight: 570; line-height: 1.65; letter-spacing: -0.015em; }
+.execution-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; margin: 22px 0; padding: 0; list-style: none; }
+.execution-stages li {
+  position: relative;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+.execution-stages li:not(:last-child)::after { content: "→"; position: absolute; top: 26px; right: -18px; z-index: 2; color: var(--accent); font: 18px/1 var(--font-data); }
+.execution-stages span { color: var(--accent); font: 650 11px/1.5 var(--font-data); }
+.execution-stages b { display: block; margin: 13px 0 10px; font-size: 20px; line-height: 1.45; }
+.execution-stages small { color: var(--text-secondary); font-size: 14px; line-height: 1.7; }
+.migration-line { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin: 24px 0; font-size: 23px; }
+.migration-line i { color: var(--accent); font-style: normal; }
+.migration-line strong { color: var(--accent); font-size: 28px; }
+.migration-responsibilities b { font-size: 21px; }
+.migration-responsibilities p { margin-top: 10px; color: var(--text-secondary); font-size: 16px; line-height: 1.7; }
+
+/* Data and tables */
+.company-figures, .evidence-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 22px 0 26px; border-block: 1px solid var(--line); }
+.company-figures > div, .evidence-strip > div { min-width: 0; padding: 20px 22px; }
+.company-figures > div + div, .evidence-strip > div + div { border-left: 1px solid var(--line); }
+.company-figures b, .evidence-strip b { display: block; color: var(--text-primary); font: 650 54px/1.1 var(--font-data); letter-spacing: -0.055em; font-variant-numeric: tabular-nums; }
+.company-figures b small { margin-left: 6px; color: var(--text-muted); font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+.company-figures > div > span, .evidence-strip span { display: block; margin-top: 11px; color: var(--text-muted); font-size: 13px; }
+#company-data .org-figures { grid-template-columns: 1.05fr 1fr 1fr 1.25fr; margin: 18px 0 24px; }
+#company-data .org-figures b { font-size: 46px; white-space: nowrap; }
+#company-data .org-figures b small { font-size: 21px; }
+#company-data .org-figures > div > span { margin-top: 9px; font-size: 12px; }
+#company-requests, #company-tokens { color: var(--accent); }
+.project-table-wrap, .org-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+th, td { padding: 14px 17px; border-bottom: 1px solid var(--line); font-size: 16px; line-height: 1.55; }
+tr:last-child td, tr:last-child th { border-bottom: 0; }
+thead th { background: oklch(0.49 0.09 172 / 0.055); color: var(--text-muted); font-size: 11px; font-weight: 650; letter-spacing: 0.05em; }
+tbody tr { transition: background-color 160ms ease-out; }
+tbody tr:hover { background: oklch(0.49 0.09 172 / 0.045); }
+td.empty { padding: 34px 18px; color: var(--text-muted); font-size: 18px; }
+.project-table th, .project-table td { padding: 12px 16px; font-size: 15px; }
+.project-table th { font-size: 11px; }
+.project-table td:first-child { color: var(--accent); font-weight: 650; white-space: nowrap; }
+.project-table td:nth-child(3), .project-table th:nth-child(2) { }
+.project-table th:nth-child(2) { width: 38%; }
+.company-cases th, .company-cases td { padding: 15px 17px; font-size: 15px; }
+.company-cases th { font-size: 11px; }
+.company-cases th:nth-child(2) { width: 42%; }
+.company-cases td:nth-child(3) { white-space: normal; }
+.org-table { min-width: 660px; }
+.org-table thead th { padding: 11px 16px; white-space: nowrap; }
+.org-table tbody th { padding: 14px 16px; color: var(--text-primary); font-size: 19px; }
+.org-table td { padding: 14px 16px; font: 550 18px/1.4 var(--font-data); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.org-table td:last-child, .org-table thead th:last-child { text-align: right; }
+#company-data .footnote { margin-top: 18px; }
+
+.chart-head, .history-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; color: var(--text-muted); font-size: 12px; }
+select {
+  min-height: 38px;
+  max-width: 100%;
+  padding: 7px 34px 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.chart-row { display: grid; grid-template-columns: 132px minmax(0, 1fr) 118px; gap: 20px; align-items: center; margin: 18px 0; }
+.chart-name b { display: block; font-size: 18px; }
+.chart-name small { display: block; color: var(--text-muted); font-size: 11px; }
+.bar-track { position: relative; height: 8px; overflow: hidden; border-radius: 99px; background: var(--mist-200); }
+.bar-fill { height: 100%; min-width: 0; border-radius: inherit; background: var(--accent); transition: width 240ms ease-out; }
+.chart-row:nth-child(2n) .bar-fill { background: var(--mint-500); }
+.chart-value { text-align: right; font: 650 18px/1.3 var(--font-data); font-variant-numeric: tabular-nums; }
+.bar-empty { position: absolute; inset: -7px auto auto 0; color: var(--text-muted); font-size: 13px; }
+.company-departments { display: grid; grid-template-rows: repeat(5, auto); grid-auto-flow: column; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; }
+.company-departments .chart-row { grid-template-columns: 102px minmax(0, 1fr) 82px; gap: 13px; margin: 12px 0; }
+.company-departments .chart-name b { font-size: 16px; line-height: 1.25; }
+.company-departments .chart-name small { font-size: 10px; line-height: 1.4; }
+.company-departments .chart-value { font-size: 16px; }
+.company-departments .chart-row:last-child .bar-fill { background: var(--line-strong); }
+.history-legend { display: flex; gap: 22px; margin: 14px 0; color: var(--text-muted); font-size: 12px; }
+.history-legend span { display: flex; align-items: center; gap: 8px; }
+.history-legend i { width: 16px; height: 6px; border-radius: 99px; }
+.history-xunyou { background: var(--mint-700); }
+.history-subao { background: var(--blue-500); }
+.history-row { display: grid; grid-template-columns: 138px minmax(0, 1fr) 118px; gap: 20px; align-items: center; margin: 17px 0; }
+.history-month { font-size: 16px; font-weight: 650; }
+.history-row > b { text-align: right; font: 650 21px/1.3 var(--font-data); white-space: nowrap; }
+.history-track { display: flex; height: 18px; overflow: hidden; border-radius: 5px; background: var(--mist-200); }
+.history-track span { display: block; flex-shrink: 0; height: 100%; }
+.history-row small { display: block; margin-top: 6px; color: var(--text-muted); font-size: 11px; line-height: 1.45; }
+.history-partial .history-track { outline: 1px dashed var(--line-strong); outline-offset: 3px; }
+.history-partial .history-month { color: var(--text-muted); }
+.history-takeaway { margin-top: 20px; color: var(--accent); font-size: 18px; font-weight: 650; }
+#usage-trend .footnote { margin-top: 15px; }
+
+/* Compact lists and business maps */
+.brief p, .system-rows p, .work-rows p, .repo-lines p, .handoff-rows p, .leader-rows p, .observability-rows p, .handover-ledger p {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.65fr) minmax(0, 1.6fr);
+  gap: 26px;
+  margin: 0;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 19px;
+  line-height: 1.6;
+}
+.brief p span, .system-rows span, .work-rows p > span, .repo-lines span, .handoff-rows span, .leader-rows span, .observability-rows span, .handover-ledger span { color: var(--text-muted); font-size: 15px; }
+.handoff-rows b, .leader-rows b, .observability-rows b, .handover-ledger b { font-weight: 570; }
+.leader-rows p { grid-template-columns: minmax(170px, 0.65fr) minmax(0, 1.6fr); }
+.leader-rows p > b { color: var(--text-primary); }
+.reason-line { display: flex; align-items: center; flex-wrap: wrap; gap: 13px; padding: 18px 0; border-block: 1px solid var(--line); font-size: 17px; }
+.reason-line span { padding: 8px 13px; border-radius: 8px; background: var(--surface-soft); }
+.reason-line i { color: var(--accent); font-style: normal; }
+.business-map { margin-top: 18px; border-top: 1px solid var(--line-strong); }
+.business-map-head, .business-map-row { display: grid; grid-template-columns: 1.2fr 1.05fr 0.85fr; gap: 24px; }
+.business-map-head { padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--text-muted); font-size: 11px; }
+.business-map-row { align-items: center; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.business-map-row b { display: block; font-size: 18px; line-height: 1.5; }
+.business-map-row > div > span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 14px; }
+.business-map-row > strong { color: var(--accent); font-size: 19px; line-height: 1.5; }
+.business-map-row > span { color: var(--text-secondary); font-size: 14px; line-height: 1.65; }
+.action-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; max-width: 880px; margin: 20px 0 26px; }
+.action-row > div { padding: 24px 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-raised); }
+.action-row b { display: block; color: var(--accent); font: 650 96px/1 var(--font-data); letter-spacing: -0.07em; }
+.action-row b small { margin-left: 9px; color: var(--text-muted); font-size: 28px; font-weight: 500; letter-spacing: 0; }
+.action-row span { display: block; margin-top: 18px; font-size: 18px; line-height: 1.7; }
+
+/* Historical work gallery */
+.practice-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+.practice-tabs button { min-height: 38px; padding: 7px 14px; border-radius: 99px; font-size: 12px; }
+.practice-tabs [aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--mist-50); }
+.practice-gallery { display: grid; grid-template-columns: 1.18fr 0.82fr; gap: 28px; align-items: center; }
+.practice-image-button { position: relative; min-width: 0; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); line-height: 1; box-shadow: 0 18px 50px oklch(0.2 0.025 190 / 0.08); }
+.practice-image-button img { display: block; width: 100%; height: 270px; object-fit: cover; object-position: center top; transition: transform 240ms ease-out; }
+.practice-image-button:hover img { transform: scale(1.015); }
+.practice-image-button > span { position: absolute; right: 12px; bottom: 12px; padding: 8px 11px; border: 1px solid oklch(0.84 0.018 180 / 0.7); border-radius: 8px; background: oklch(0.975 0.008 180 / 0.9); color: var(--text-primary); font-size: 11px; backdrop-filter: blur(12px); }
+.practice-copy #practice-kicker { color: var(--accent); font-size: 12px; line-height: 1.6; }
+.practice-copy h3 { margin: 8px 0 12px; font-size: 26px; line-height: 1.4; letter-spacing: -0.025em; }
+.practice-copy p { margin: 10px 0; color: var(--text-secondary); font-size: 16px; line-height: 1.7; }
+.practice-copy small { display: block; margin-top: 14px; color: var(--text-muted); font-size: 11px; line-height: 1.7; }
+
+/* Offline replay */
+.replay-disclosure { margin-bottom: 14px; color: var(--accent); font-size: 12px; }
+.replay-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+.replay-controls label { display: grid; gap: 6px; color: var(--text-muted); font-size: 11px; }
+.replay-controls select, .replay-controls input { min-height: 40px; max-width: 100%; padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-slide); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
+.replay-controls input { min-width: 240px; }
+.replay-controls button { font-size: 12px; }
+.replay-baseline { margin: 13px 0; color: var(--text-muted); font-size: 12px; }
+.replay-baseline b { color: var(--text-secondary); }
+.replay-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+.replay-results > div { min-width: 0; padding: 15px 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.replay-results span { color: var(--text-muted); font-size: 11px; }
+.replay-results b { display: block; margin-top: 8px; overflow-wrap: anywhere; font: 600 19px/1.5 var(--font-data); }
+.replay-result { min-height: 32px; margin-top: 12px; font-size: 18px; line-height: 1.6; }
+.replay-result[data-result="mismatch"] { color: oklch(0.52 0.16 35); }
+.replay-result[data-result="match"] { color: var(--accent); }
+.replay-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.text-button { min-height: 38px; padding: 7px 0; border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; color: var(--accent); font-size: 12px; }
+.text-button:hover { border-color: var(--accent); background: transparent; }
+.replay-actions .text-button { margin: 0; }
+#task-brief h1 { margin-bottom: 22px; }
+#task-brief .footnote { margin-top: 15px; }
+
+/* Presenter notes, dialogs and navigation */
+.speaker { display: none; z-index: 3; width: min(390px, 100%); min-width: 360px; max-height: calc(100dvh - 160px); overflow: auto; padding: 26px; border-left: 1px solid var(--line); background: var(--mist-50); color: var(--text-primary); font-size: 14px; line-height: 1.85; }
+.speaker p { margin: 14px 0; }
+.speaker-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); color: var(--text-muted); font: 11px/1.6 var(--font-data); }
+.speaker-head span { display: block; color: var(--accent); font-family: var(--font-sans); font-weight: 700; }
+.cue { margin-top: 20px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); font-size: 12px; }
+.cue b { display: block; margin-bottom: 6px; }
+.sources { padding-left: 17px; color: var(--text-muted); font-size: 10px; overflow-wrap: anywhere; }
+.notes-open .speaker { display: block; }
+.notes-open .slide-main { padding: 30px 40px; }
+.notes-open h1 { font-size: 40px; }
+.notes-open .lead { font-size: 20px; }
+.notes-open .slide-main::before, .notes-open .slide-main::after { display: none; }
+.notes-open #opening .slide-main, .notes-open #closing .slide-main { padding-right: 40px; }
+.notes-open .comparison, .notes-open .thesis-columns, .notes-open .independent-flow { gap: 16px; }
+.notes-open .comparison p, .notes-open .thesis-columns p, .notes-open .independent-flow p { font-size: 15px; }
+.notes-open .comparison h3, .notes-open .thesis-columns h3, .notes-open .independent-flow h3 { font-size: 20px; }
+.notes-open .practice-route { grid-template-columns: 1fr; gap: 10px; }
+.notes-open .practice-route article { padding: 13px 16px; }
+.notes-open .practice-route h3 { font-size: 18px; }
+.notes-open .practice-gallery { grid-template-columns: 1fr; }
+.notes-open .practice-image-button img { height: 200px; }
+.notes-open .execution-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.notes-open .execution-stages b { font-size: 18px; }
+.notes-open .company-figures b, .notes-open .evidence-strip b { font-size: 36px; }
+.notes-open #company-data .org-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.notes-open #company-data .org-figures b { font-size: 34px; }
+.notes-open .company-departments { display: block; }
+.notes-open .company-departments .chart-row { grid-template-columns: 88px minmax(0, 1fr) 72px; }
+.notes-open .history-row { grid-template-columns: 110px minmax(0, 1fr) 96px; gap: 14px; }
+.notes-open .business-map-head, .notes-open .business-map-row { gap: 14px; }
+.notes-open .business-map-row b, .notes-open .business-map-row > strong { font-size: 15px; }
+.notes-open .organization-memory { font-size: 26px; }
+.notes-open .closing-answers { font-size: 19px; }
+.notes-open .closing-pledge strong { font-size: 25px; }
+.notes-open .action-row b { font-size: 68px; }
+.notes-open .observability-rows p, .notes-open .handover-ledger p, .notes-open .handoff-rows p, .notes-open .leader-rows p { grid-template-columns: 110px 1fr; gap: 14px; font-size: 16px; }
+.notes-open .replay-results b { font-size: 16px; }
+
+.controls {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid oklch(0.84 0.018 180 / 0.85);
+  border-radius: 16px;
+  background: oklch(0.975 0.008 180 / 0.88);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(22px) saturate(140%);
+  transform: translateX(-50%);
+  font-size: 11px;
+}
+.controls button { min-height: 38px; white-space: nowrap; }
+.controls select { width: 260px; min-height: 38px; background-color: transparent; }
+.controls .grow { flex: 1; min-width: 4px; }
+.slide-count { color: var(--text-muted); font: 11px/1 var(--font-data); white-space: nowrap; }
+.timer { color: var(--accent); font: 13px/1 var(--font-data); }
+.timer-button { padding-inline: 10px; }
+.progress { position: fixed; z-index: 50; left: 0; bottom: 0; height: 2px; background: var(--mint-500); transition: width 200ms ease-out; }
+.toast { position: fixed; z-index: 80; left: 50%; bottom: 90px; max-width: min(90vw, 560px); padding: 11px 18px; border: 1px solid var(--dark-line); border-radius: 10px; background: var(--ink-900); color: var(--dark-text); box-shadow: var(--shadow-float); transform: translateX(-50%); font-size: 12px; }
+.data-dialog, .practice-image-dialog { width: min(900px, 94vw); max-height: 90dvh; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface-slide); color: var(--text-primary); box-shadow: var(--shadow-float); }
+.data-dialog::backdrop, .practice-image-dialog::backdrop { background: oklch(0.15 0.025 190 / 0.72); backdrop-filter: blur(6px); }
+.dialog-head, .practice-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.dialog-head h2, .practice-dialog-head h2 { font-size: 22px; }
+.data-dialog p, .practice-image-dialog p { margin: 12px 0; color: var(--text-secondary); font-size: 13px; }
+.data-dialog label { display: block; margin: 14px 0 7px; font-size: 12px; }
+.data-dialog textarea { width: 100%; min-height: 280px; max-height: 48vh; padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--mist-50); color: var(--text-primary); resize: vertical; font: 12px/1.7 var(--font-data); }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.data-status { min-height: 24px; color: oklch(0.52 0.12 65); font-size: 12px; }
+.practice-image-dialog { width: min(94vw, 1450px); max-height: 92dvh; }
+.practice-dialog-head { position: sticky; z-index: 1; top: -26px; padding: 8px 0; background: var(--surface-slide); }
+.practice-image-dialog img { display: block; width: 100%; height: auto; }
+.nojs { padding: 90px 24px 20px; background: var(--surface-soft); }
+.reading .slide { display: flex !important; min-height: 100dvh; border-bottom: 1px solid var(--line); }
+.reading .controls { position: fixed; }
+.reading .speaker { max-height: none; }
+.reading .slide-main { margin-top: 0; }
+.reading .progress { display: none; }
+.demo, .demo-metrics, .log-lines, .error-list, .result-story, .result-pair, .industry, .system-rows, .work-rows, .repo-lines { min-width: 0; }
+.demo { margin-top: 16px; padding: 18px 0; border-block: 1px solid var(--line); }
+.demo-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.demo-controls .disclosure { margin-right: auto; }
+.log-lines { display: grid; gap: 8px; padding: 18px 0 8px; }
+.log-lines code { font: 14px/1.7 var(--font-data); }
+.log-lines p { margin-top: 7px; color: var(--text-muted); font-size: 13px; }
+.demo-metrics { display: grid; grid-template-columns: repeat(3, 1fr); margin: 18px 0; }
+.demo-metrics b { display: block; font: 650 42px/1.2 var(--font-data); }
+.demo-metrics span { color: var(--text-muted); font-size: 12px; }
+.error-list { max-height: 150px; overflow: auto; font-size: 13px; }
+.error-list p { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.result-story { display: grid; grid-template-columns: 0.9fr 1.4fr; align-items: center; gap: 40px; }
+.big-number { font: 650 86px/1.1 var(--font-data); letter-spacing: -0.06em; }
+.big-number small { display: block; margin-top: 10px; color: var(--text-muted); font: 16px/1.5 var(--font-sans); letter-spacing: 0; }
+.result-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-left: 40px; border-left: 1px solid var(--line); }
+.result-pair span { color: var(--text-muted); font-size: 14px; }
+.result-pair b { display: block; margin-top: 9px; font: 650 42px/1.3 var(--font-data); white-space: nowrap; }
+.result-pair > div:last-child b { color: var(--accent); }
+.industry { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+.industry article { padding-top: 18px; border-top: 1px solid var(--line-strong); }
+.industry article > span { color: var(--accent); font-size: 14px; }
+.industry h3 { margin: 14px 0; font-size: 25px; }
+.industry p { font-size: 18px; line-height: 1.75; }
+.industry a { display: inline-block; margin-top: 14px; font-size: 12px; }
+
+@media (min-width: 701px) and (max-height: 800px) {
+  .slide-main { padding: 25px 60px; }
+  .eyebrow { margin-bottom: 13px; font-size: 11px; }
+  h1 { margin-bottom: 22px; font-size: 46px; }
+  #opening h1, #closing h1 { font-size: 64px; }
+  .lead, .lead.small { font-size: 20px; }
+  .statement { font-size: 33px; }
+  .opening-question { margin-top: 18px; font-size: 19px; }
+  #opening .signature { margin-top: 28px; }
+  .signature { margin-top: 32px; }
+  .footnote { margin-top: 16px; font-size: 11px; }
+  .practice-route { margin-top: 15px; gap: 12px; }
+  .practice-route article { padding: 15px 18px; }
+  .practice-route h3 { font-size: 19px; }
+  .practice-conclusion { margin-top: 17px; font-size: 18px; }
+  .company-figures, .evidence-strip { margin: 15px 0 20px; }
+  .company-figures > div, .evidence-strip > div { padding-block: 15px; }
+  #company-data .org-figures { margin: 12px 0 18px; }
+  #company-data .org-figures b { font-size: 40px; }
+  .company-figures b, .evidence-strip b { font-size: 46px; }
+  .company-departments .chart-row { margin: 9px 0; }
+  .company-cases th, .company-cases td { padding: 11px 15px; font-size: 14px; }
+  .history-row { margin: 12px 0; }
+  .history-legend { margin: 10px 0; }
+  .history-takeaway { margin-top: 14px; font-size: 16px; }
+  .execution-stages { margin: 17px 0; }
+  .execution-stages li { padding: 16px; }
+  .execution-stages b { font-size: 18px; }
+  .practice-image-button img { height: 225px; }
+  .practice-copy h3 { font-size: 23px; }
+  .practice-copy p { font-size: 15px; }
+  .replay-controls { padding: 12px; }
+  .replay-results { margin: 12px 0; }
+  .replay-results > div { padding: 12px 15px; }
+  .business-map-row { padding: 14px 0; }
+  .closing-answers { font-size: 21px; }
+  .closing-purpose { font-size: 17px; }
+  .closing-pledge { margin-top: 20px; font-size: 18px; }
+  .closing-pledge strong { font-size: 27px; }
+  .human-role { margin-top: 18px; font-size: 18px; }
+  .organization-memory { font-size: 32px; }
+  .action-row b { font-size: 78px; }
+}
+
+@media (max-width: 1100px) {
+  header { padding-inline: 22px; }
+  .brand::after { display: none; }
+  .slide-main { padding: 36px 44px; }
+  .slide::after { right: 14px; }
+  h1 { font-size: 48px; }
+  #opening .slide-main, #closing .slide-main { padding-right: 34%; }
+  #opening h1, #closing h1 { font-size: 62px; }
+  #opening .slide-main::before, #closing .slide-main::before { right: -5%; width: 42vw; }
+  #opening .slide-main::after, #closing .slide-main::after { right: 2%; }
+  .company-departments { column-gap: 26px; }
+  .company-departments .chart-row { grid-template-columns: 88px minmax(0, 1fr) 74px; gap: 10px; }
+  .company-departments .chart-name b, .company-departments .chart-value { font-size: 14px; }
+  .role-starts, .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .practice-gallery { gap: 22px; }
+  .practice-copy p { font-size: 15px; }
+  .controls select { width: 220px; }
+  .notes-open .slide { display: block; }
+  .notes-open .speaker { width: 100%; min-width: 0; max-height: 450px; border-top: 1px solid var(--line); border-left: 0; }
+  .notes-open .slide-main { padding: 32px 40px; }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) and (max-height: 800px) {
+  .slide-main { padding: 24px 40px; }
+}
+
+@media (max-width: 700px) {
+  body { font-size: 16px; }
+  header { height: auto; min-height: 112px; padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
+  .brand { font-size: 12px; }
+  .header-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 6px; }
+  .header-actions button, .header-actions a { min-height: 44px; padding: 7px 5px; font-size: 11px; white-space: nowrap; }
+  .header-actions #full-button { display: none; }
+  .slide { min-height: 100dvh; padding: 120px 0 148px; }
+  .slide::after { display: none; }
+  .slide-main { padding: 30px 22px; }
+  .eyebrow { margin-bottom: 16px; font-size: 11px; }
+  h1 { margin-bottom: 24px; font-size: 37px; letter-spacing: -0.04em; }
+  #opening .slide-main, #closing .slide-main { padding-right: 22px; }
+  #opening h1, #closing h1 { font-size: 48px; }
+  #opening .slide-main::before, #closing .slide-main::before { top: 31%; right: -32%; width: 85vw; opacity: 0.45; }
+  #opening .slide-main::after, #closing .slide-main::after { display: none; }
+  .lead, .lead.small { font-size: 19px; }
+  .opening-question { font-size: 18px; }
+  .signature { margin-top: 36px; font-size: 12px; }
+  .statement { font-size: 27px; }
+  .organization-memory { font-size: 26px; }
+  .closing-answers { font-size: 20px; }
+  .closing-purpose { font-size: 17px; }
+  .closing-pledge { font-size: 18px; }
+  .closing-pledge strong { font-size: 25px; }
+  .closing-links { flex-wrap: wrap; gap: 16px; font-size: 12px; }
+  #failure h1 { font-size: 66px; }
+  .failure-lessons { font-size: 17px; }
+  .human-role { font-size: 18px; }
+  .comparison, .comparison.peer-cases, .thesis-columns, .independent-flow, .migration-responsibilities, .role-starts, .levels { grid-template-columns: 1fr; gap: 20px; }
+  .comparison h3, .thesis-columns h3, .independent-flow h3 { font-size: 22px; }
+  .comparison p, .thesis-columns p, .independent-flow p, .role-starts p, .levels small { font-size: 16px; }
+  .practice-route { grid-template-columns: 1fr; }
+  .practice-route h3 { font-size: 20px; }
+  .practice-conclusion { font-size: 18px; }
+  .execution-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .execution-stages li { padding: 15px; }
+  .execution-stages li:not(:last-child)::after { display: none; }
+  .execution-stages b { font-size: 17px; }
+  .execution-stages small { font-size: 13px; }
+  .migration-line { gap: 10px; font-size: 19px; }
+  .migration-line strong { font-size: 22px; }
+  .company-figures, .evidence-strip, #company-data .org-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 18px 0; }
+  .company-figures > div, .evidence-strip > div { padding: 16px 12px; }
+  .company-figures > div + div, .evidence-strip > div + div { border-left: 0; }
+  .company-figures > div:nth-child(even), .evidence-strip > div:nth-child(even) { border-left: 1px solid var(--line); }
+  .company-figures b, .evidence-strip b, #company-data .org-figures b { font-size: 34px; }
+  .company-figures b small, #company-data .org-figures b small { font-size: 17px; }
+  .company-figures > div > span, .evidence-strip span, #company-data .org-figures > div > span { font-size: 11px; }
+  .org-table { min-width: 590px; }
+  .company-departments { display: block; }
+  .company-departments .chart-row { grid-template-columns: 86px minmax(0, 1fr) 70px; margin: 18px 0; }
+  .chart-row { grid-template-columns: 76px minmax(0, 1fr) 68px; gap: 11px; }
+  .chart-name b { font-size: 15px; }
+  .chart-value { font-size: 15px; }
+  .history-chart-head { align-items: flex-start; font-size: 11px; }
+  .history-row, .notes-open .history-row { grid-template-columns: 1fr 92px; gap: 9px; margin: 20px 0; }
+  .history-row > div:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .history-row > b { grid-column: 2; grid-row: 1; font-size: 18px; }
+  .history-takeaway { font-size: 16px; }
+  .project-table { min-width: 560px; }
+  .business-map-head { display: none; }
+  .business-map-row { grid-template-columns: 1fr; gap: 9px; padding: 17px 0; }
+  .business-map-row > strong { font-size: 18px; }
+  .brief p, .system-rows p, .work-rows p, .repo-lines p, .handoff-rows p, .leader-rows p, .observability-rows p, .handover-ledger p, .notes-open .observability-rows p, .notes-open .handover-ledger p, .notes-open .handoff-rows p, .notes-open .leader-rows p { grid-template-columns: 1fr; gap: 5px; font-size: 17px; }
+  .reason-line { gap: 9px; font-size: 15px; }
+  .action-row { gap: 12px; }
+  .action-row > div { padding: 19px 16px; }
+  .action-row b { font-size: 62px; }
+  .action-row b small { font-size: 20px; }
+  .action-row span { font-size: 15px; }
+  .practice-gallery { grid-template-columns: 1fr; gap: 17px; }
+  .practice-image-button img { height: 220px; }
+  .practice-tabs { gap: 6px; }
+  .practice-tabs button { min-height: 44px; padding-inline: 12px; }
+  .practice-copy h3 { font-size: 23px; }
+  .replay-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .replay-controls label { grid-column: 1 / -1; min-width: 0; }
+  .replay-controls input { width: 100%; min-width: 0; }
+  .replay-controls select { width: 100%; }
+  .replay-controls button { min-height: 44px; }
+  .replay-results { grid-template-columns: 1fr; gap: 10px; }
+  .replay-results b { font-size: 17px; }
+  .controls { bottom: 10px; display: flex; flex-wrap: wrap; gap: 7px; width: calc(100vw - 24px); max-width: none; min-height: 0; padding: 8px; border-radius: 14px; }
+  .controls select { order: -1; width: 100%; min-height: 44px; }
+  .controls button { min-height: 44px; padding: 8px 10px; font-size: 11px; }
+  .controls .grow { display: none; }
+  .controls .slide-count { margin-left: auto; align-self: center; }
+  .controls #timer, .controls .timer-button { display: none; }
+  .toast { bottom: 136px; }
+  .speaker { min-width: 0; }
+  .notes-open .slide-main { padding: 28px 22px; }
+  .notes-open h1 { font-size: 34px; }
+  .notes-open .execution-stages { grid-template-columns: 1fr; }
+  .notes-open .company-figures b, .notes-open #company-data .org-figures b { font-size: 30px; }
+  .data-dialog, .practice-image-dialog { padding: 18px; }
+  .practice-dialog-head { top: -18px; }
+  .dialog-head h2, .practice-dialog-head h2 { font-size: 19px; }
+  .result-story { grid-template-columns: 1fr; gap: 20px; }
+  .result-pair { padding: 18px 0 0; border-top: 1px solid var(--line); border-left: 0; }
+  .result-pair b { font-size: 32px; }
+  .industry { grid-template-columns: 1fr; gap: 24px; }
+  .reading .slide { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; }
+}
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  :root { --surface-slide: #f7f9f8; --text-primary: #14251f; --text-secondary: #344b43; --text-muted: #53675f; --accent: #146b5b; --line: #d5dfda; }
+  body { background: #f7f9f8; font-size: 11pt; }
+  header, .controls, .progress, .toast, dialog, button, select, .closing-links, .demo-controls { display: none !important; }
+  .slide, .slide[hidden] { display: block !important; min-height: 0; padding: 0; overflow: visible; break-before: page; background: #f7f9f8 !important; color: #14251f !important; }
+  .slide:first-child { break-before: auto; }
+  .slide::before, .slide::after, .slide-main::before, .slide-main::after { display: none !important; }
+  .slide-main, #opening .slide-main, #closing .slide-main { max-width: none; margin: 0; padding: 0; }
+  h1, #opening h1, #closing h1, #failure h1 { margin-bottom: 18px; color: #14251f !important; font-size: 26pt; letter-spacing: -0.02em; }
+  h1 br { display: none; }
+  h1 em { color: #146b5b !important; }
+  .eyebrow { margin-bottom: 12px; color: #146b5b !important; font-size: 9pt; }
+  .lead, .lead.small, .statement, .opening-question, .human-role, .organization-memory, .closing-answers, .closing-purpose, .closing-pledge { color: #344b43 !important; font-size: 13pt; }
+  .closing-pledge strong { color: #146b5b !important; font-size: 16pt; }
+  .footnote, .dark .footnote { color: #53675f !important; font-size: 8pt; }
+  .speaker { display: block; width: 100%; min-width: 0; max-height: none; padding: 18px 0 0; border: 0; background: transparent; color: #14251f; font-size: 10pt; line-height: 1.75; }
+  .speaker p { margin: 11px 0; }
+  .cue, .sources { font-size: 8pt; }
+  .company-figures b, .evidence-strip b, #company-data .org-figures b { font-size: 28pt; }
+  .company-figures b small { font-size: 14pt; }
+  .comparison h3, .thesis-columns h3, .independent-flow h3, .practice-route h3, .execution-stages b, .migration-responsibilities b { font-size: 13pt; }
+  .comparison p, .thesis-columns p, .independent-flow p, .practice-route p, .execution-stages small, .migration-responsibilities p { font-size: 10pt; }
+  .practice-tabs, .practice-image-dialog, .replay-controls, .replay-actions { display: none !important; }
+  .practice-image-button img { height: 180px; }
+  .practice-copy h3 { font-size: 14pt; }
+  .practice-copy p { font-size: 10pt; }
+  .org-table, .project-table { min-width: 0; }
+  th, td, .company-cases th, .company-cases td { padding: 8px; font-size: 9pt; }
+  .business-map-row b, .business-map-row > strong { font-size: 11pt; }
+  .business-map-row > span, .business-map-row > div > span { font-size: 9pt; }
+  .action-row b { font-size: 48pt; }
+  .action-row span { font-size: 12pt; }
+  .error-list { max-height: none; overflow: visible; }
+}
+
+
+/* Department-specific composition on top of the shared AI keynote theme. */
+#opening .slide-main { padding-right: 34%; }
+#opening h1 { font-size: clamp(50px, 4.7vw, 68px); }
+#opening .slide-main::before { width: min(31vw, 420px); }
+#closing .slide-main { padding-right: 28%; }
+#closing h1 { font-size: clamp(48px, 4.7vw, 68px); }
+#closing .slide-main::before { right: 0; width: min(28vw, 380px); opacity: 0.58; }
+.action-row { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: none; }
+.demo { border-color: var(--line); }
+.demo-controls button, .demo-controls select { min-height: 40px; }
+.log-lines { padding: 22px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+.log-lines code { color: var(--text-secondary); }
+#demo-after { padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); }
+.result-story { padding: 24px 0; border-block: 1px solid var(--line); }
+.big-number { color: var(--accent); }
+.repo-lines p { display: grid; grid-template-columns: 130px 1fr; }
+.repo-lines b { min-width: 0; color: var(--accent); }
+.system-rows p b, .work-rows p b { font-weight: 570; }
+.levels b { color: var(--text-primary); }
+
+@media (min-width: 701px) and (max-height: 800px) {
+  #opening h1, #closing h1 { font-size: 54px; }
+  .action-row b { font-size: 76px; }
+}
+@media (max-width: 1100px) {
+  #opening .slide-main { padding-right: 29%; }
+  #closing .slide-main { padding-right: 24%; }
+  #opening h1, #closing h1 { font-size: 54px; }
+  #opening .slide-main::before { width: 36vw; }
+  .action-row > div { padding: 20px; }
+}
+@media (max-width: 700px) {
+  #opening .slide-main, #closing .slide-main { padding-right: 22px; }
+  #opening h1, #closing h1 { font-size: 43px; }
+  #opening .slide-main::before { width: 82vw; }
+  #closing .slide-main::before { width: 72vw; }
+  .action-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .action-row > div { padding: 16px 11px; }
+  .action-row b { font-size: 52px; }
+  .action-row span { font-size: 13px; }
+  .demo-controls button, .demo-controls select { min-height: 44px; }
+  .log-lines { padding: 16px; }
+  .repo-lines p { grid-template-columns: 1fr; gap: 6px; }
+}
+.mobile-break { display: none; }
+@media screen and (max-width: 700px) {
+  .mobile-break { display: block; }
+}
+
+</style>
+</head>
+<body>
+<header><div class="brand">迅游 / AI 应用实践</div><nav class="header-actions" aria-label="演讲工具"><button id="notes-button" aria-pressed="false">讲者稿 N</button><button id="reading-button" aria-pressed="false">通读模式</button><button id="data-button">会前数据</button><button id="script-button">下载逐字稿</button><button id="full-button">全屏 F</button></nav></header>
+<noscript><p class="nojs">启用 JavaScript 可使用翻页、逐字稿与现场演示。打印时可显示全部内容。</p></noscript>
+<main id="deck"><section class="slide dark" id="opening" aria-label="第 1 页：今天，AI 替你解决了哪个工作问题？" >
+    <div class="slide-main"><div class="eyebrow">开场</div><h1>今天，AI<br class="mobile-break"> 替你解决了<br>哪个工作问题？</h1><p class="lead">一场关于真实任务、可用成果和工作方法的分享</p><div class="signature">迅游 AI 应用实践 <span>网络部专场</span></div></div>
+    <aside class="speaker"><div class="speaker-head">第 01 页 / 00:00–01:00<span>讲者逐字稿</span></div><p>各位，今天我想请大家先想一个具体问题：这个月，哪一项本来需要你亲手完成的工作，已经交给 AI 做出了可以使用的结果？</p><p>可以是一份巡检报告，可以是一个查日志的小工具，也可以是给已有系统加上一个你们一直想要的小功能。</p><p>今天我会把自己实践里最有价值的部分拿出来：我怎样把事情交出去，怎样让它持续做，怎样发现它做错了，以及怎样把一次成功变成下一次直接可用的能力。</p><p>这场结束时，我希望每个人都能说出一句具体的话：我的这个问题，今天就拿去试。工具接入和操作手册我已经准备好，大家可以带走。现场，我们把注意力放在工作能发生什么变化。</p><div class="cue"><b>现场提示</b>停顿，扫视全场。让大家在心里选一个真实问题。语气直接，不用自我介绍头衔。</div></aside></section>
+<section class="slide " id="department-data" aria-label="第 2 页：三组同事的使用，放在同一张图上看" hidden>
+    <div class="slide-main"><div class="eyebrow">部门观察</div><h1>三组同事的使用，<br>放在同一张图上看</h1><div class="chart-head"><span id="period-label">本月同口径观察</span><select id="metric" aria-label="部门对比指标"><option value="tokens">Token 总量（含缓存）</option><option value="coverage">活跃覆盖率</option><option value="perActive">活跃用户人均 Token</option></select></div><div id="department-chart" class="department-chart"></div><p class="footnote">网络部按指定 5 账号拆出，技术支持“其余”已扣除这 5 人；产运使用平台原名。按当前归属、全部平台统计。<br>总 Token 含缓存，不等同于人工输入或工作产出。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 02 页 / 01:00–03:00<span>讲者逐字稿</span></div><p>我先把这次实际读到的数据放上来。统计从十一月一日开始，到十一月十三日十三点五十九分，来自公司中转平台。</p><p>网络部按这次明确的五个账号统计，四位有调用，活跃覆盖率百分之八十，总 Token 约一点七二亿，共两千二百七十六次请求。</p><p>这五位目前在平台的技术支持组里，所以对比时我把他们扣掉。技术支持其余五位全部活跃，总 Token 约六十二点五四亿。平台“产运”十一位成员，九位活跃，总 Token 约四十九点三四亿。</p><p>我们还可以切换到活跃用户人均口径，减少人数差异的影响。但这些 Token 都包含缓存，不能当成手工输入字数，也不能直接换算成工作产出。</p><p>对我来说，数据已经修正了一个过于简单的说法：网络部已经有人开始，而且做的事情很具体。接下来我们要问，这些投入是不是形成了可用成果，能不能进一步持续、扩大和复用。现在我们往下看项目。</p><div class="cue"><b>现场提示</b>网络部为用户指定的5个账号，从平台技术支持10人中拆出；技术支持其余5人与网络部互斥。“产运”保留平台原名，不声称它严格等同产品岗位。比较当前归属、全部模型平台、含缓存 Token。切换一次活跃覆盖率或人均 Token 即可。</div><ul class="sources"><li>中转平台 GET /api/v1/admin/usage/organization-report/summary；2026-11-01 至 2026-11-13；organization=xunyou；as_of=2026-11-13T05:59:03.807Z。</li><li>E:/tmp/network-department-ai-keynote/organization-snapshot.json。</li><li>网络部账号口径由需求方明确：huangmingyou、chengdu、jiayun、xuyang、huangxiaobo，邮箱后缀均为 @xunyou.com。</li></ul></aside></section>
+<section class="slide " id="projects" aria-label="第 3 页：网络部五位同事，已经把 AI 用到了哪里" hidden>
+    <div class="slide-main"><div class="eyebrow">个人项目</div><h1>网络部五位同事，<br>已经把 AI 用到了哪里</h1><div class="project-table-wrap"><table class="project-table"><thead><tr><th>账号前缀</th><th>核验到的工作场景</th><th>个人总 Token</th><th>记录能证明什么</th></tr></thead><tbody id="project-rows"></tbody></table></div><p class="footnote">所有账号后缀为 @xunyou.com。个人总量包含其他目录，不能全归于所列场景。<br>工作场景来自本月请求摘要，任务指令不代表已完成或已部署。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 03 页 / 03:00–05:00<span>讲者逐字稿</span></div><p>这一页是五位同事本月的实际记录。表里的数字是个人总用量，右边列的是我从请求摘要里核对到的工作场景，二者不能直接划等号。</p><p>huangmingyou 已经在让 AI 分析交换机配置、比对新旧配置、整理网络关系图，还在尝试 Debian 镜像测试。chengdu 让 AI 阅读节点配置平台的代码、整理需求，并尝试把个人排查经验做成同事能使用的知识助手。</p><p>jiayun 给出的工作任务很具体：写 Python 查询云服务器绑定的 EIP，输出 Excel，再扩展到所有地域。xuyang 在处理 Nginx 配置行为和 Azure 系统重装问题。</p><p>huangxiaobo 在这个时间范围内，本平台没有调用记录。这只能说明我们在这个平台没有观察到使用，其他工具的情况还没有核验。</p><p>我在这里看到的是已经出现的起点。下一步，请大家补上最重要的一列：哪个工具已经能跑，哪个结果核对过，哪个可以交给第二个人使用。任务记录说明大家在尝试，交付证据决定它能不能成为团队能力。</p><div class="cue"><b>现场提示</b>按屏幕账号前缀称呼，不猜中文姓名。业务场景来自请求摘要；个人总 Token 包括其他目录，不全归给列出的工作。对暂无记录的账号只陈述观察，不作工作态度或绩效推断。</div><ul class="sources"><li>E:/tmp/network-department-ai-keynote/organization-snapshot.json：5账号总量 172238630 Token、2276 请求。</li><li>E:/tmp/network-department-ai-keynote/network-projects-sanitized.json；network-work-examples.json；xuyang-work-context.json。项目与任务在当日部门账单快照之后读取，二者存在索引和时间差，不直接对账。</li></ul></aside></section>
+<section class="slide " id="support-case" aria-label="第 4 页：技术支持，已经在做自己的测试工具" hidden>
+    <div class="slide-main"><div class="eyebrow">同事的真实实践</div><h1>技术支持，已经在<br>做自己的测试工具</h1><div class="comparison peer-cases"><article><span>chenxi · PS、xbox主机模拟</span><h3>明确的工具目标</h3><p>Windows 上模拟主机下载<br>可配置网络参数<br>继续调整界面与网络行为</p></article><article><span>duanyufei · DTest</span><h3>持续排查与复用</h3><p>串流帧数不足<br>提供日志与实测反馈<br>要求适用于其他 TV 盒子</p></article></div><blockquote>一条实测反馈：“收到 8 MiB，完成且无错误。”</blockquote><p class="footnote">本月真实请求摘要与用户反馈。项目名来自工作目录归因；不是整套工具验收或部署证明。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 04 页 / 05:00–07:00<span>讲者逐字稿</span></div><p>给大家看两段真实记录。技术支持的 chenxi 账号在“PS、xbox主机模拟”这个工作目录里提出了一个很明确的需求：写一个 Windows 工具，模拟游戏主机发起下载请求，可以手动配置网络参数，用来测试加速器效果。</p><p>后面的记录还有界面调整、网络排查和复测。在十一月十二日的一条反馈里，用户明确回复：收到了八 MiB，完成且无错误。这是一次用户反馈，不能外推成所有场景已经通过，但它说明任务已经推进到了实际操作和验证。</p><p>另一位 duanyufei 在 DTest 里，先给出串流帧数不足的问题，再给日志路径，继续要求分析 TV 能力，优化测试程序，让后续换一个 TV 盒子也方便测试。</p><p>这段要求非常值得学。他已经在考虑下一次复用。第一次解决一个问题，之后把方法做成工具。同样的思路，完全可以用在你们的巡检和故障排查里。</p><div class="cue"><b>现场提示</b>账号使用平台可核验的邮箱前缀，不推断中文姓名。只摘录任务目标与一条用户测试反馈，不宣称已验收整个工具，不展示原始内网地址或凭据。</div><ul class="sources"><li>中转 Token 分析，user_id=15 / 98，项目 PS、xbox主机模拟 / DTest，2026-11-01 至 13 日。</li><li>E:/tmp/network-department-ai-keynote/peer-task-context.json；peer-task-previews.json。</li></ul></aside></section>
+<section class="slide " id="product-case" aria-label="第 5 页：产运，已经把 AI放进数据与工具迭代" hidden>
+    <div class="slide-main"><div class="eyebrow">同事的真实实践</div><h1>产运，已经把 AI<br>放进数据与工具迭代</h1><div class="comparison peer-cases"><article><span>liaowei1 · ai数据后台</span><h3>把数据要求说具体</h3><p>时间、国家、游戏、指标<br>汇总口径与字段顺序<br>反复校正表格与展示</p></article><article><span>hongyang · 热点支持</span><h3>把工具做到好使用</h3><p>界面动线、快捷键<br>打包与跨电脑运行问题<br>要求双击即可运行</p></article></div><p class="lead small">同事正在定义交付体验，并用反馈推进迭代。</p><p class="footnote">平台部门名为“产运”。依据本月请求摘要，未据发布指令认定正式发布成功。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 05 页 / 07:00–09:00<span>讲者逐字稿</span></div><p>再看平台“产运”部门的实际记录。liaowei1 在“ai数据后台”里的需求，已经具体到时间范围、国家、游戏和字段：哪些指标要汇总，游戏 ID 要换成游戏名，按什么指标倒序，哪些列隐藏。</p><p>这里有多轮反馈。前一轮发现同一个游戏的日期数据还没有汇总，就继续提出修正；下一轮重新安排工作表和字段顺序。后面还出现了“先在指定环境修改”和“发布到远端”的指令。</p><p>我能确认的是，这个账号在持续处理数据、反馈结果并推进迭代。仅凭发布指令，不能说发布已经成功。</p><p>hongyang 的“热点支持”记录里，也有明确的界面动线、快捷键、打包运行和跨电脑测试问题。有一句很具体的要求：我要双击就能运行。这就是业务同事在定义最终体验。</p><p>你看，使用 AI 的深度，往往就是你对“这个东西最终怎么用”的要求有多具体。</p><div class="cue"><b>现场提示</b>目前使用平台“产运”名称，是否对应产品部门按用户确认口径调整。展示经过概括的任务轨迹，不展示付费金额等原始业务数据，不把任务指令等同上线成功。</div><ul class="sources"><li>中转 Token 分析，user_id=71 / 103，项目 ai数据后台 / 热点支持，2026-11-01 至 13 日。</li><li>E:/tmp/network-department-ai-keynote/peer-task-context.json；peer-task-previews.json。</li></ul></aside></section>
+<section class="slide " id="peers" aria-label="第 6 页：已经发生的实践，可以迁移到你的工作" hidden>
+    <div class="slide-main"><div class="eyebrow">同岗类比</div><h1>已经发生的实践，<br>可以迁移到你的工作</h1><p class="disclosure">从已核验任务提炼方法，网络侧为建议迁移</p><div class="comparison"><article><span>技术支持</span><h3>自己的测试工具</h3><p>明确测试目标<br>生成与改进工具<br>用实测反馈推进</p></article><article><span>产运</span><h3>数据与交付体验</h3><p>明确统计口径<br>生成报表与工具<br>按实际使用修正</p></article><article><span>网络部门</span><h3>配置与巡检复用</h3><p>从真实样本开始<br>逐步做成可靠工具<br>让同事复跑验收</p></article></div></div>
+    <aside class="speaker"><div class="speaker-head">第 06 页 / 09:00–10:00<span>讲者逐字稿</span></div><p>刚才这些案例里，我最希望大家注意到的是：提出需求的人非常了解自己想解决什么。</p><p>技术支持说，我要在 Windows 上模拟主机下载请求，用它检查加速器对主机的效果。产运说，我要按游戏和国家整理这些数据，哪些字段保留，按什么口径汇总。业务要求越具体，AI 越容易沿着正确方向往前走。</p><p>网络部也一样。日志、设备资料、链路指标和交接记录，就是你的材料。异常怎么判断，什么不能动，什么结果才有意义，就是你的标准。</p><p>这些场景可以类比迁移。比如把主机测试工具的思路换成链路巡检，把运营报表的思路换成网络质量日报，把知识库的方法换成故障处理经验。</p><p>你们已有的业务判断，正是把 AI 用深的起点。</p><div class="cue"><b>现场提示</b>先讲前两页已读取的真实任务，再讲向网络场景的建议迁移。别把建议迁移说成网络部已经完成。</div></aside></section>
+<section class="slide dark" id="diagnosis" aria-label="第 7 页：你们已经起步，下一步是让成果稳定复用" hidden>
+    <div class="slide-main"><div class="eyebrow">我的判断</div><h1>你们已经起步，<br>下一步是让成果稳定复用</h1><p class="statement">把个人探索，<br>做成整个团队都能用的工具。</p><p class="footnote">尚未开始的同事，先交出一个真实任务。已经开始的同事，把现有成果推进到可验证、可交接。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 07 页 / 10:00–11:00<span>讲者逐字稿</span></div><p>看到真实记录之后，我对网络部的建议会更具体。你们已经有人在做脚本、读代码、搭知识助手，完全可以从这些已有尝试继续向前推进。</p><p>我最关心的，是把任务做到最后一段：结果能否复核，换一份输入能否继续运行，别人能否照着说明用起来。这个环节，需要大家带着实际产物回来一起看，不能仅凭 Token 高低替它下结论。</p><p>对于还没有开始的同事，先交出一件真实工作。对于已经开始的同事，从自己现有项目里选一个，把它做成一个稳定、可交接的小工具。</p><p>我的建议是沿着两条路推进：让更多人真正开始，同时让已经开始的实践继续深化。把一个人的排查经验变成脚本，把一次正确分析变成验收样本，把一份临时成果变成部门可以拿来用的能力。</p><p>这才是我们下一轮希望在数据和成果里同时看到的变化。</p><div class="cue"><b>现场提示</b>此页依据真实记录修正原先“没有用量就没有尝试”的泛化。讲行动建议，不预设当前成果一定不可用，也不把用量差异解释为效率差异。</div></aside></section>
+<section class="slide " id="depth" aria-label="第 8 页：同一个 AI，你可以使用到四个层次" hidden>
+    <div class="slide-main"><div class="eyebrow">使用深度</div><h1>同一个 AI，<br>你可以使用到四个层次</h1><ol class="levels"><li><span>01</span><b>问到答案</b><small>帮我理解问题</small></li><li><span>02</span><b>拿到成果</b><small>文件、报表、代码</small></li><li><span>03</span><b>执行验证</b><small>运行、观察、修复</small></li><li><span>04</span><b>持续复用</b><small>规则、知识、工具</small></li></ol><p class="lead small">每往下一层，AI 就多接手一段工作。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 08 页 / 11:00–12:00<span>讲者逐字稿</span></div><p>我把 AI 使用分成四个层次。第一层是问答，帮我理解一个问题。第二层是交付文件，给我一份真的能打开的报表、网页或者脚本。第三层是执行和验证，自己运行，看到错误，修复，再运行。第四层是把经验留下来，让下次任务从已经完成的位置继续。</p><p>真正的变化，发生在第三层和第四层。你开始管理一个任务的目标和质量，AI 持续处理实现细节。</p><p>我的工作方式是：每次都追问结果文件在哪里，运行记录在哪里，原始证据在哪里，下次换一份输入还能不能继续用。</p><p>等这套习惯建立起来，很多以前觉得必须找开发排期的内部小工具，你已经可以先做出一个能讨论、能验证的版本。</p><div class="cue"><b>现场提示</b>每层只讲一句，不解释模型术语。把“执行证据”和“下次复用”说重一点。</div></aside></section>
+<section class="slide " id="live-demo" aria-label="第 9 页：一份日志，现在就变成一个工作台" hidden>
+    <div class="slide-main"><div class="eyebrow">现场演示</div><h1>一份日志，<br>现在就变成一个工作台</h1><div class="demo"><div class="demo-controls"><span class="disclosure">虚构样本 · 本地程序实跑 · 不调用模型</span><button id="run-demo" class="solid">生成分析报告</button><select id="device" aria-label="筛选设备"><option value="all">全部设备</option><option value="core-01">core-01</option><option value="edge-01">edge-01</option></select><button id="download-demo" disabled>下载报告</button></div><div id="demo-before" class="log-lines"><code>09:03 core-01 ERROR 上行探测超时</code><code>09:04 core-01 ERROR 上行探测超时</code><code>09:04 edge-01 ERROR HTTP 探测超时</code><p>12 条记录，2 台设备。点击生成，查看实际统计。</p></div><div id="demo-after" hidden><div class="demo-metrics"><div><b id="demo-total">—</b><span>日志条数</span></div><div><b id="demo-errors">—</b><span>ERROR 条数</span></div><div><b id="demo-rate">—</b><span>错误比例</span></div></div><div id="error-list" class="error-list"></div></div></div><p class="footnote">由 AI 辅助编写的代码可以独立运行。日志条数不等于故障次数，结果不能直接证明根因。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 09 页 / 12:00–14:00<span>讲者逐字稿</span></div><p>我们直接看一个可以操作的东西。这里有十二条虚构日志，我点击生成报告，它就统计设备、级别和错误率。再选一台设备，结果会跟着变化，最后可以把报告带走。</p><p>看到了吗？我拿到的是一个可以反复运行的小程序。今天换数据，明天换设备，逻辑还能继续使用。这个程序是用 AI 辅助写出来的，页面上的这次计算由程序在本地完成，不需要每点一次都再问模型。</p><p>现在请大家提出一个小变化：按小时统计怎么样？增加一个异常阈值怎么样？这就是下一轮需求。我把变更和验收标准交给 Codex，让它在现有代码上迭代。</p><p>这就是我希望大家体验的感觉：脑子里的工作想法，可以很快落到一个能操作的界面上。你们负责指出它哪里还不符合业务，AI 负责把这一步继续做出来。</p><div class="cue"><b>现场提示</b>操作顺序：生成报告，筛选 core-01，切回全部，下载报告。询问观众一个改动点，只讨论下一轮实现，不把预制交互说成现场模型生成。若演示失败，直接打开会前已保存的报告。</div><ul class="sources"><li>本次手册内置的虚构 12 条日志及参考脚本。参考脚本已完成 9 项本地检查；不连接真实设备。</li></ul></aside></section>
+<section class="slide " id="how-built" aria-label="第 10 页：界面是结果，任务设计才是我的方法" hidden>
+    <div class="slide-main"><div class="eyebrow">演示背后</div><h1>界面是结果，<br>任务设计才是我的方法</h1><div class="brief"><p><span>目标</span>把日志变成可以复核的报告</p><p><span>材料</span>12 条样本、字段与时间格式</p><p><span>边界</span>保留原文，离线运行，输出到新目录</p><p><span>验收</span>12 条记录、4 条 ERROR、33.33%</p></div><button class="text-button" id="copy-brief">复制这条任务 ↗</button></div>
+    <aside class="speaker"><div class="speaker-head">第 10 页 / 14:00–15:00<span>讲者逐字稿</span></div><p>刚才那个界面，真正决定质量的是前面怎样给任务。</p><p>我给它四类信息：我要把哪件事做完，材料具体在哪里，什么范围可以动，以及怎样证明它做对了。比如十二条日志必须算出十二条，四条 ERROR 必须对应原文，缺列必须明确报错，原始文件不能被覆盖。</p><p>这些条件会改变 AI 的工作方式。它不再只追求生成一段像样的回答，它需要交付文件，再用输入和输出对照。</p><p>我经常把任务拆成两轮：先理解现有环境，再实现一个最小版本。发现问题后，让它依据报错定位原因。重复几轮，交付物会越来越贴近你的实际工作。</p><p>这里最有价值的输入，是你们对业务的理解。工具可以学，业务判断是你们已经积累下来的优势。</p><div class="cue"><b>现场提示</b>屏幕只保留四项任务条件。可点“复制任务”展示完整任务文本，但不要现场逐字念提示词。</div></aside></section>
+<section class="slide " id="context" aria-label="第 11 页：给对上下文，AI 才能沿着业务往前走" hidden>
+    <div class="slide-main"><div class="eyebrow">方法拆解一</div><h1>给对上下文，<br>AI 才能沿着业务往前走</h1><div class="brief"><p><span>问题</span>时间窗口、异常现象、正常对照</p><p><span>材料</span>相关日志、设备信息、最近变更</p><p><span>规则</span>哪些能动、哪些不能动、怎样验收</p><p><span>复用</span>稳定规则进项目说明，事实进知识库</p></div><p class="footnote">先定位，再读取。大日志先用脚本过滤相关片段。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 11 页 / 15:00–16:30<span>讲者逐字稿</span></div><p>我再拆一个大家很容易忽略的地方：上下文。</p><p>只说“帮我看看网络有问题”，它只能给你泛泛的建议。你给它故障时间、正常时的对照、日志位置、设备型号和最近的变更，它才有条件分析一条具体链路。</p><p>材料越多，并不自动意味着更好。我通常先让 AI 列出需要查什么，定位相关目录和时间窗口，再读取关键内容。大日志先用脚本过滤，留下能支撑判断的片段，避免反复把整份材料都塞进去。</p><p>长期不变的规则放进项目说明。每次变化的目标写在当前任务里。经过验证的业务结论留在知识库。这样你不用每次从零解释，也更容易发现它依据了哪条过时信息。</p><p>这就像带一位新同事。你把目标、资料和公司规则介绍清楚，他才知道怎么做事。你自己的业务经验，会通过这些材料变成 AI 可以使用的能力。</p><div class="cue"><b>现场提示</b>可现场拿“链路延迟异常”举例，只讲材料结构，不上传真实未脱敏日志。强调定位后读取与确定性脚本筛选。</div></aside></section>
+<section class="slide " id="feedback-loop" aria-label="第 12 页：一次失败，可以变成下一轮的明确任务" hidden>
+    <div class="slide-main"><div class="eyebrow">方法拆解二</div><h1>一次失败，<br>可以变成下一轮的明确任务</h1><blockquote>“12 条只统计了 11 条，<br>漏掉的是空设备名称这一行。”</blockquote><div class="brief"><p><span>定位</span>给原命令、输入、完整错误与预期</p><p><span>修复</span>最小改动，解释原因</p><p><span>复验</span>原样本再跑，原有功能也检查</p><p><span>沉淀</span>把这次问题变成测试或项目约定</p></div></div>
+    <aside class="speaker"><div class="speaker-head">第 12 页 / 16:30–18:00<span>讲者逐字稿</span></div><p>再看迭代过程中最重要的一步：怎样反馈。</p><p>如果你只说“还是不行”，AI 需要重新猜测。你说“十二条记录只统计了十一条，漏掉的是空设备名称这一行”，下一步就变得具体了。它应该检查解析规则，给出错误提示，再跑同一份样本。</p><p>我会让它同时保留修改前后的验证结果。新功能好了，老功能是否还在？搜索加上了，分页有没有回到第一页？请求失败了，界面是否还拿旧数据装作成功？</p><p>任务复杂时，把实现和复核分成不同轮次。实现轮负责把目标做出来，复核轮拿原始验收条件逐项检查。真正重要的是证据独立，而不是让同一段自信的回答重复两遍。</p><p>这个过程里的经验要留下来。今天踩过的坑，明天变成一条测试或项目约定。这样每一次失败都能减少下一次的不确定性，而不只是消耗一次耐心。</p><div class="cue"><b>现场提示</b>演示“报错事实→定位→最小修复→原样本回归”的例子。可邀请观众把一句模糊反馈改成可复现反馈。</div></aside></section>
+<section class="slide " id="knowledge" aria-label="第 13 页：270 份文档，要变成能答对问题的知识" hidden>
+    <div class="slide-main"><div class="eyebrow">真实实践</div><h1>270 份文档，<br>要变成能答对问题的知识</h1><div class="result-story"><div class="big-number">270<small>份文档</small></div><div class="result-pair"><div><span>历史快速问答</span><b>8 / 10</b></div><div><span>专用问答复验</span><b>10 / 10</b></div></div></div><p class="lead small">拆问题，读正文，重排，核对 141 处引用，再用原题复验。</p><p class="footnote">2026-11-12 验收记录 · 固定 10 题串行测试 · 复杂问题仍较慢 · 未证明并发容量与所有问题表现</p></div>
+    <aside class="speaker"><div class="speaker-head">第 13 页 / 18:00–19:30<span>讲者逐字稿</span></div><p>再看一个更有深度的例子。我把客户端的代码知识整理进了知识库，最终纳入两百七十份文档。真正困难的部分发生在上传之后。</p><p>最初那组十道固定问题，快速问答通过八道。有两个问题，它没有找到关键正文。材料明明在库里，回答却还不完整。</p><p>我继续调整检索方式，让它按子问题找资料，必要时读完整模块，加入重排，要求每个关键结论引用实质内容，再用原来的十道题复验。专用问答最终十道全部通过，一百四十一处引用也做了核对。</p><p>这组结果有边界：它来自十道固定题的串行验收，复杂问题仍然慢，并不代表任何问题都能答对。</p><p>网络部可以类比：把设备资料、历史故障、处置记录和部门规则变成可检索知识，再用你们最常遇到的十个问题验收。核心是答案能不能查回证据。</p><div class="cue"><b>现场提示</b>强调 8/10 与 10/10 是同一套题、不同问答配置，不是更换题目。模型为该案例实际使用的 grok-4.7，与本次 Codex 推荐模型 gpt-6.1-sol 不混淆。</div><ul class="sources"><li>E:/tmp/weknora-import-cf-20261111/final-report.md，更新于 2026-11-12 00:33，北京时间。</li><li>E:/tmp/weknora-import-cf-20261111/retrieval-optimization/report.md。固定 10 题，串行验收；复杂题 93–458 秒，中位数 167.5 秒，并发容量未验收。</li></ul></aside></section>
+<section class="slide dark" id="failure" aria-label="第 14 页：6 / 16我也会把失败放上台" hidden>
+    <div class="slide-main"><div class="eyebrow">专业判断</div><h1>6 / 16<br>我也会把失败放上台</h1><p class="lead">资料已导入，回答有引用，<br>关键流程仍可能没有答完整。</p><p class="footnote">i.xunyou 知识库 · 2026-11-11 主问题验收快照 · 6/16 通过<br>保留失败，才能知道下一步该修哪里。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 14 页 / 19:30–20:30<span>讲者逐字稿</span></div><p>我也给大家看一组没过关的结果。另一套 i.xunyou 知识库的主问题验收，十六道题只通过六道。</p><p>资料已经导入，回答也能带引用，但有些题没有覆盖关键流程，有些把已知和未知混在一起。这样一个系统，我不能因为它看上去很聪明，就说已经达到使用要求。</p><p>我会把失败留住，继续拆分问题、追查召回和证据链。你们做故障排查也是一样：有日志不等于已经找到根因，有截图不等于已经证明修复。</p><p>我希望传递给大家的专业习惯是：敢让 AI 做事，也敢要求它接受检查。第一次失败提供了下一步要修的具体位置。把这个过程走完，你才真的拥有这项能力。</p><div class="cue"><b>现场提示</b>这里的失败是历史验收快照，不宣称知识库今天仍然保持该状态。不要把它包装成“成功率已提升”，目前没有这项后续证据。</div><ul class="sources"><li>E:/tmp/weknora-import-xunyou-i-20261111/qa-acceptance.md：2026-11-11 记录，主问题 6/16，通过针对性补问 6/13；补问通过不折算原题通过。</li></ul></aside></section>
+<section class="slide " id="repositories" aria-label="第 15 页：已有 GitLab / SVN，也可以从一个小需求开始" hidden>
+    <div class="slide-main"><div class="eyebrow">已有系统</div><h1>已有 GitLab / SVN，<br>也可以从一个小需求开始</h1><p class="lead small">同一个需求：设备台账新增名称搜索</p><div class="repo-lines"><p><b>GitLab</b><span>理解项目 → 功能分支 → 修改与验证 → MR</span></p><p><b>SVN</b><span>确认工作副本 → 更新 → 修改与验证 → 审核提交</span></p></div><blockquote>“服务端分页时，不能只筛当前页。”</blockquote><p class="footnote">业务判断决定验收标准。完整操作步骤见会后手册第 08 章。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 15 页 / 20:30–22:00<span>讲者逐字稿</span></div><p>有同事会说，新建一个小工具可以，公司的老项目我不敢碰。我的建议是，从一个明确、可回退的小需求切进去。</p><p>比如已有设备台账加一个名称搜索。先让 Codex 阅读项目规则，找到页面、接口、分页和测试。弄清楚现有系统怎么工作，再确定最小修改范围。</p><p>这里有一个典型坑：服务端分页的列表，不能只筛选当前这一页，就宣称完成了全量搜索。懂业务的人能提出这个验收要求，AI 才有正确的目标。</p><p>GitLab 走功能分支、差异审核和合并请求。SVN 按指定工作副本开发，审核后提交指定路径。两套流程我都放进会后手册了。</p><p>你不必一开始就理解整个系统，先把一个有边界的小改动做对，再一点一点扩大自己的能力范围。</p><div class="cue"><b>现场提示</b>屏幕展示同一需求的两条交付路线。不要现场执行真实 commit、push 或 svn commit。</div></aside></section>
+<section class="slide " id="system" aria-label="第 16 页：让每次任务，都从已有经验上继续" hidden>
+    <div class="slide-main"><div class="eyebrow">我的工作系统</div><h1>让每次任务，<br>都从已有经验上继续</h1><div class="system-rows"><p><b>项目规则</b><span>权限、目录、规范与验证命令</span></p><p><b>可检索知识</b><span>业务定义、事实来源与已知边界</span></p><p><b>可靠工具</b><span>脚本完成精确计算与固定动作</span></p><p><b>复用流程</b><span>模板与 Skill 留住已经走通的方法</span></p></div><p class="lead small">下一次工作，从已有经验上继续。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 16 页 / 22:00–23:00<span>讲者逐字稿</span></div><p>我现在更看重一件事：让前一次投入，变成下一次工作的起点。</p><p>项目规则告诉 AI 什么可以动、怎样验证。知识库保存业务定义、代码入口和已经确认的结论。脚本承担固定、重复、需要精确计算的任务。经过授权的工具连接，把需要执行的动作交给系统完成。</p><p>当一种方法反复有效，就把它沉淀为固定模板或可复用流程。下次再遇到同类任务，不需要重新解释所有背景，也不需要把成功过程从头摸一遍。</p><p>使用深度就体现在这里：你逐渐拥有一套能持续积累的工作系统。模型换代时，你的业务材料、验收标准和可靠工具仍然有价值。</p><p>对网络部而言，最值得积累的是故障证据、处置规则、验证步骤，以及真正跑通过的工具。</p><div class="cue"><b>现场提示</b>可解释名词：AGENTS.md 是项目工作约定，知识库提供可追溯材料，Skill 是复用流程，工具连接提供具体执行能力。强调这些各司其职，不要求新人今天全部配置。</div></aside></section>
+<section class="slide " id="network-work" aria-label="第 17 页：你们桌上的材料，已经是最好的起点" hidden>
+    <div class="slide-main"><div class="eyebrow">迁移到你们的工作</div><h1>你们桌上的材料，<br>已经是最好的起点</h1><div class="work-rows"><p><span>日志与链路指标</span><b>有原文依据的异常时间线</b></p><p><span>周期报表</span><b>统一口径、自动计算、可对账</b></p><p><span>历史工单</span><b>带出处的处理建议与答复草稿</b></p><p><span>重复巡检</span><b>限定目标的只读检查工具</b></p></div></div>
+    <aside class="speaker"><div class="speaker-head">第 17 页 / 23:00–24:00<span>讲者逐字稿</span></div><p>我们把方法换成你们桌上已有的材料。</p><p>每天看日志，可以从自动整理异常时间线开始，再把值得关注的记录指回原文。每周做报表，可以从统一统计口径和对账开始，再输出能直接打开的看板。反复处理同类工单，可以从整理已批准的解决步骤开始，再做有出处的答复草稿。</p><p>如果要接真实设备，先做只读巡检，限定目标和频率。涉及配置变更，仍由有权限的人确认执行。这个边界不会妨碍探索，它能让你的工具更容易被同事接受。</p><p>你们最熟悉的业务问题，就是最容易判断 AI 有没有做对的题目。起点离工作越近，第一次尝试越容易产生能留下来的成果。</p><div class="cue"><b>现场提示</b>邀请观众说出一个重复任务。把他的描述复述成“输入材料＋最终产物＋一个验收条件”。</div></aside></section>
+<section class="slide " id="industry" aria-label="第 18 页：行业正在把 AI，接进任务的执行过程" hidden>
+    <div class="slide-main"><div class="eyebrow">业界方向</div><h1>行业正在把 AI，<br>接进任务的执行过程</h1><div class="industry"><article><span>GitHub Copilot</span><h3>仓库中的连续任务</h3><p>理解代码、计划改动、编辑文件、运行验证、审核变更</p><a href="https://docs.github.com/en/copilot/concepts/copilot-surfaces/copilot-on-github" target="_blank" rel="noopener noreferrer">官方资料 ↗</a></article><article><span>Microsoft 365 Copilot</span><h3>Researcher / Analyst</h3><p>多步骤研究、结合工作资料、执行 Python 数据分析</p><a href="https://www.microsoft.com/en-us/copilot/blog/2025/03/25/introducing-researcher-and-analyst-in-microsoft-365-copilot/" target="_blank" rel="noopener noreferrer">官方资料 ↗</a></article></div><p class="footnote">资料核对：2026-11-13。能力与可用性受版本、套餐和组织权限影响，非本公司上线或提效证明。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 18 页 / 24:00–25:30<span>讲者逐字稿</span></div><p>看看业界现在把能力往哪里做。GitHub 的官方资料已经把仓库理解、计划修改、编辑文件、运行验证、代码审核放在连续的任务流程中。微软在 Microsoft 365 Copilot 里推出 Researcher 和 Analyst，分别面向复杂研究与数据分析。</p><p>这些产品有不同的权限、套餐和使用条件，我今天不做采购推荐。我想让大家看到一个共同方向：AI 正在接触更多材料、使用更多工具，并把任务推进到可以检查的产物。</p><p>这意味着机会会继续向懂业务的人开放。你知道该问什么，知道哪些数据可信，知道什么结果能落地，这些能力会越来越直接地决定 AI 能帮你走多远。</p><p>我们今天积累一个工具、一组验收题、一套可靠流程，就是在为接下来的变化做准备。</p><div class="cue"><b>现场提示</b>只讲已核对的官方产品能力。不引用未核验的提效百分比，不把供应商演示当成本公司生产效果。</div><ul class="sources"><li>https://docs.github.com/en/copilot/concepts/copilot-surfaces/copilot-on-github</li><li>https://www.microsoft.com/en-us/copilot/blog/2025/03/25/introducing-researcher-and-analyst-in-microsoft-365-copilot/</li></ul></aside></section>
+<section class="slide dark" id="future" aria-label="第 19 页：下一步，你会管理一组能执行任务的工具" hidden>
+    <div class="slide-main"><div class="eyebrow">我的判断</div><h1>下一步，你会管理<br>一组能执行任务的工具</h1><p class="statement">你定义目标。<br>你组织执行。<br>你判断结果。</p><p class="footnote">演讲者判断与愿景，不是产品能力或落地时间承诺。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 19 页 / 25:30–26:30<span>讲者逐字稿</span></div><p>我对未来的判断是，一个懂业务的人，会越来越像一个小型团队的负责人。你给出目标和判断标准，让不同工具去查资料、做分析、生成程序、检查结果，然后把它们组织起来。</p><p>未来的差距，会逐渐体现在谁更能把模糊的问题定义清楚，谁有足够好的业务材料，谁能判断一个结果是否可信。</p><p>我不会承诺所有工作明天都会自动完成。但我已经看到，很多过去只能留在想法里的事情，现在可以先做出一个版本，再通过反馈继续推进。</p><p>所以我希望你们今天开始练的，就是这种能力：提出一个值得做的目标，带着 AI 把它做完，并且留下可以复用的东西。</p><div class="cue"><b>现场提示</b>这是演讲者判断与愿景，语气自信，但不许诺时间表或人员替代比例。</div></aside></section>
+<section class="slide " id="cost-value" aria-label="第 20 页：费用愿意投入，结果需要认真对账" hidden>
+    <div class="slide-main"><div class="eyebrow">投入与回报</div><h1>费用愿意投入，<br>结果需要认真对账</h1><div class="comparison peer-cases"><article><span>固定规则的工作</span><h3>写成程序，反复运行</h3><p>汇总、排序、去重、转换<br>结果可对账</p></article><article><span>每次要理解新材料</span><h3>按需调用模型</h3><p>归纳、分析、知识问答<br>保留来源与检查步骤</p></article></div><p class="lead small">记录原流程、实际改进与复现结果，再谈收益。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 20 页 / 26:30–27:30<span>讲者逐字稿</span></div><p>讲到这里，我也想把投入这件事说清楚。为了把一件工作做好，我们应该愿意投入 Token，愿意多跑几轮验证。与此同时，我们要对结果有数。</p><p>最简单的做法是记录原来这件事怎么做，需要哪些步骤；现在工具接手了哪些步骤，人工还要检查什么；另一位同事能不能复现。如果没有记录，就先不讲节省百分之多少。</p><p>有些工作只需要一段确定性的程序，比如排序、汇总、格式转换。让 AI 帮你把程序写好，之后重复运行就可以。有些工作需要理解新材料，比如归纳陌生工单，才需要在运行时继续调用模型。</p><p>区分这两类任务，会让成本和可靠性更容易控制。我们的目标是让每一次投入都留下东西：一个工具、一组验证样本，或者一份下次还能使用的知识。</p><div class="cue"><b>现场提示</b>连接结尾的费用承诺。没有基线时不填节省时间与 ROI。强调固定计算由程序承担，不是每次都调用模型。</div></aside></section>
+<section class="slide " id="action" aria-label="第 21 页：七天，完成你的第一个工作成果" hidden>
+    <div class="slide-main"><div class="eyebrow">会后行动</div><h1>七天，完成你的<br>第一个工作成果</h1><div class="action-row"><div><b>1</b><span>个真实问题</span></div><div><b>1</b><span>份可用成果</span></div><div><b>1</b><span>次同事复跑</span></div></div><p class="lead small">展示原来的做法、新的做法，以及仍未解决的问题。</p></div>
+    <aside class="speaker"><div class="speaker-head">第 21 页 / 27:30–28:30<span>讲者逐字稿</span></div><p>这场分享结束后，我建议我们做一个七天实验。每个人选一件真实工作，范围小一点，结果明确一点。</p><p>第一天把问题和样本准备好。接下来用 AI 做出一个能运行的最小版本，遇到问题继续反馈和修正。七天内，让另一位同事用你的说明再跑一遍。</p><p>最后只需要展示三件事：原来怎么做，现在怎样做，还有什么没有解决。省了多少时间，有记录再说；没有测过就不填数字。</p><p>我最想看到的，是你们带回来一个个具体成果：这个报表以后不用反复整理了，这类日志终于能自动归类了，这个小功能我已经做出可验证的版本了。</p><p>我们就从这些事情开始，把方法带进部门的日常工作。</p><div class="cue"><b>现场提示</b>建议行动，不宣称已经获得部门制度批准。现场可邀请三位愿意尝试的同事说出各自的问题。</div></aside></section>
+<section class="slide dark" id="closing" aria-label="第 22 页：问题带来。大胆去试。Token 的钱，我来兜底。" hidden>
+    <div class="slide-main"><div class="eyebrow">最后一句</div><h1>问题带来。<br>大胆去试。<br><em>Token 的钱，我来兜底。</em></h1><p class="lead">让每一个想解决的工作问题，<br>都有一次 AI 参与的机会。</p><div class="closing-links"><a href="network-department-codex-guide.html" target="_blank" rel="noopener noreferrer">带走实战手册 ↗</a><a href="http://118.25.112.30:52997" target="_blank" rel="noopener noreferrer">打开公司中转 ↗</a></div><p class="footnote">推荐模型：gpt-6.1-sol · 以当前 Key 分组权限为准</p></div>
+    <aside class="speaker"><div class="speaker-head">第 22 页 / 28:30–30:00<span>讲者逐字稿</span></div><p>最后，我把态度讲清楚。</p><p>你们用 AI 去解决工作问题，为了把事情做成而产生的 Token 费用，我来兜底。不要让“怕花钱”成为第一次尝试的障碍。</p><p>我希望你们把注意力放在更重要的事情上：这个问题有没有被认真交出去，结果有没有被检查，做出来的东西能不能让下一位同事也用上。</p><p>从今天开始，遇到一件你想解决的工作问题，先给 AI 一个参与的机会。小到一份表、一段日志，大到一个流程、一套工具，都可以先拆出第一步。</p><p>这次我把案例、方法和工具入口带来了。下一次，我希望站在这里展示成果的人，就是你们。</p><p>现在，请每个人想好：你离开这个会场之后，准备交给 AI 的第一件事是什么？我们就从那件事开始。</p><div class="cue"><b>现场提示</b>费用承诺按需求方要求写入，以演讲者第一人称表达。结尾放慢，在“我来兜底”后停顿。最后一个问题留给现场互动，指向会后手册。</div></aside></section></main>
+<footer class="controls"><button id="prev" aria-label="上一页">← 上一页</button><button id="next" aria-label="下一页">下一页 →</button><select id="page-picker" aria-label="跳转演讲页"></select><span id="page-count" class="slide-count">01 / 22</span><span class="grow"></span><span id="timer" class="timer" aria-label="演讲计时">00:00</span><button id="timer-toggle" class="timer-button">开始计时</button><button id="timer-reset" class="timer-button">归零</button></footer>
+<div id="progress" class="progress"></div><div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<dialog id="data-dialog" class="data-dialog" aria-labelledby="data-title"><div class="dialog-head"><h2 id="data-title">会前填写真实数据</h2><button id="close-data" aria-label="关闭数据编辑">关闭</button></div><p>统一统计时间、平台和部门范围。members 为成员人数，active 为活跃人数，tokens 为同口径 Token 总数（含缓存）。未知值保留 null。缺失数据不会绘制虚构柱形。</p><p>projects 可填写已核验的网络部项目：{"person":"同事名称","project":"实际项目","tokens":123,"result":"实际产物与状态","evidence":"核验依据"}。不要从 Token 数量推断完成状态。</p><label for="data-editor">数据 JSON（只在本机处理）</label><textarea id="data-editor" spellcheck="false"></textarea><p id="data-status" class="data-status" role="status"></p><div class="dialog-actions"><button id="apply-data" class="solid">校验并应用</button><button id="export-html">下载含当前数据的演讲 HTML</button><button id="clear-data">恢复原始快照</button></div><p>修改不会自动写回原文件或上传。下载后的 HTML 会包含你填写的部门和人员信息，请按内部材料范围分享。</p></dialog>
+<script>
+'use strict';
+const TALK = {"title": "让 AI 接手真实工作", "subtitle": "迅游网络部 AI 应用分享", "duration": "30 分钟，含案例拆解与现场演示", "slides": [{"id": "opening", "time": "00:00–01:00", "label": "开场", "theme": "dark", "title": "今天，AI 替你解决了<br>哪个工作问题？", "kind": "opening", "speech": "各位，今天我想请大家先想一个具体问题：这个月，哪一项本来需要你亲手完成的工作，已经交给 AI 做出了可以使用的结果？\n\n可以是一份巡检报告，可以是一个查日志的小工具，也可以是给已有系统加上一个你们一直想要的小功能。\n\n今天我会把自己实践里最有价值的部分拿出来：我怎样把事情交出去，怎样让它持续做，怎样发现它做错了，以及怎样把一次成功变成下一次直接可用的能力。\n\n这场结束时，我希望每个人都能说出一句具体的话：我的这个问题，今天就拿去试。工具接入和操作手册我已经准备好，大家可以带走。现场，我们把注意力放在工作能发生什么变化。", "cue": "停顿，扫视全场。让大家在心里选一个真实问题。语气直接，不用自我介绍头衔。"}, {"id": "department-data", "time": "01:00–03:00", "label": "部门观察", "title": "三组同事的使用，<br>放在同一张图上看", "kind": "department", "speech": "我先把这次实际读到的数据放上来。统计从十一月一日开始，到十一月十三日十三点五十九分，来自公司中转平台。\n\n网络部按这次明确的五个账号统计，四位有调用，活跃覆盖率百分之八十，总 Token 约一点七二亿，共两千二百七十六次请求。\n\n这五位目前在平台的技术支持组里，所以对比时我把他们扣掉。技术支持其余五位全部活跃，总 Token 约六十二点五四亿。平台“产运”十一位成员，九位活跃，总 Token 约四十九点三四亿。\n\n我们还可以切换到活跃用户人均口径，减少人数差异的影响。但这些 Token 都包含缓存，不能当成手工输入字数，也不能直接换算成工作产出。\n\n对我来说，数据已经修正了一个过于简单的说法：网络部已经有人开始，而且做的事情很具体。接下来我们要问，这些投入是不是形成了可用成果，能不能进一步持续、扩大和复用。现在我们往下看项目。", "cue": "网络部为用户指定的5个账号，从平台技术支持10人中拆出；技术支持其余5人与网络部互斥。“产运”保留平台原名，不声称它严格等同产品岗位。比较当前归属、全部模型平台、含缓存 Token。切换一次活跃覆盖率或人均 Token 即可。", "sources": ["中转平台 GET /api/v1/admin/usage/organization-report/summary；2026-11-01 至 2026-11-13；organization=xunyou；as_of=2026-11-13T05:59:03.807Z。", "E:/tmp/network-department-ai-keynote/organization-snapshot.json。", "网络部账号口径由需求方明确：huangmingyou、chengdu、jiayun、xuyang、huangxiaobo，邮箱后缀均为 @xunyou.com。"]}, {"id": "projects", "time": "03:00–05:00", "label": "个人项目", "title": "网络部五位同事，<br>已经把 AI 用到了哪里", "kind": "projects", "speech": "这一页是五位同事本月的实际记录。表里的数字是个人总用量，右边列的是我从请求摘要里核对到的工作场景，二者不能直接划等号。\n\nhuangmingyou 已经在让 AI 分析交换机配置、比对新旧配置、整理网络关系图，还在尝试 Debian 镜像测试。chengdu 让 AI 阅读节点配置平台的代码、整理需求，并尝试把个人排查经验做成同事能使用的知识助手。\n\njiayun 给出的工作任务很具体：写 Python 查询云服务器绑定的 EIP，输出 Excel，再扩展到所有地域。xuyang 在处理 Nginx 配置行为和 Azure 系统重装问题。\n\nhuangxiaobo 在这个时间范围内，本平台没有调用记录。这只能说明我们在这个平台没有观察到使用，其他工具的情况还没有核验。\n\n我在这里看到的是已经出现的起点。下一步，请大家补上最重要的一列：哪个工具已经能跑，哪个结果核对过，哪个可以交给第二个人使用。任务记录说明大家在尝试，交付证据决定它能不能成为团队能力。", "cue": "按屏幕账号前缀称呼，不猜中文姓名。业务场景来自请求摘要；个人总 Token 包括其他目录，不全归给列出的工作。对暂无记录的账号只陈述观察，不作工作态度或绩效推断。", "sources": ["E:/tmp/network-department-ai-keynote/organization-snapshot.json：5账号总量 172238630 Token、2276 请求。", "E:/tmp/network-department-ai-keynote/network-projects-sanitized.json；network-work-examples.json；xuyang-work-context.json。项目与任务在当日部门账单快照之后读取，二者存在索引和时间差，不直接对账。"]}, {"id": "support-case", "label": "同事的真实实践", "title": "技术支持，已经在<br>做自己的测试工具", "kind": "support-case", "speech": "给大家看两段真实记录。技术支持的 chenxi 账号在“PS、xbox主机模拟”这个工作目录里提出了一个很明确的需求：写一个 Windows 工具，模拟游戏主机发起下载请求，可以手动配置网络参数，用来测试加速器效果。\n\n后面的记录还有界面调整、网络排查和复测。在十一月十二日的一条反馈里，用户明确回复：收到了八 MiB，完成且无错误。这是一次用户反馈，不能外推成所有场景已经通过，但它说明任务已经推进到了实际操作和验证。\n\n另一位 duanyufei 在 DTest 里，先给出串流帧数不足的问题，再给日志路径，继续要求分析 TV 能力，优化测试程序，让后续换一个 TV 盒子也方便测试。\n\n这段要求非常值得学。他已经在考虑下一次复用。第一次解决一个问题，之后把方法做成工具。同样的思路，完全可以用在你们的巡检和故障排查里。", "cue": "账号使用平台可核验的邮箱前缀，不推断中文姓名。只摘录任务目标与一条用户测试反馈，不宣称已验收整个工具，不展示原始内网地址或凭据。", "sources": ["中转 Token 分析，user_id=15 / 98，项目 PS、xbox主机模拟 / DTest，2026-11-01 至 13 日。", "E:/tmp/network-department-ai-keynote/peer-task-context.json；peer-task-previews.json。"], "time": "05:00–07:00"}, {"id": "product-case", "label": "同事的真实实践", "title": "产运，已经把 AI<br>放进数据与工具迭代", "kind": "product-case", "speech": "再看平台“产运”部门的实际记录。liaowei1 在“ai数据后台”里的需求，已经具体到时间范围、国家、游戏和字段：哪些指标要汇总，游戏 ID 要换成游戏名，按什么指标倒序，哪些列隐藏。\n\n这里有多轮反馈。前一轮发现同一个游戏的日期数据还没有汇总，就继续提出修正；下一轮重新安排工作表和字段顺序。后面还出现了“先在指定环境修改”和“发布到远端”的指令。\n\n我能确认的是，这个账号在持续处理数据、反馈结果并推进迭代。仅凭发布指令，不能说发布已经成功。\n\nhongyang 的“热点支持”记录里，也有明确的界面动线、快捷键、打包运行和跨电脑测试问题。有一句很具体的要求：我要双击就能运行。这就是业务同事在定义最终体验。\n\n你看，使用 AI 的深度，往往就是你对“这个东西最终怎么用”的要求有多具体。", "cue": "目前使用平台“产运”名称，是否对应产品部门按用户确认口径调整。展示经过概括的任务轨迹，不展示付费金额等原始业务数据，不把任务指令等同上线成功。", "sources": ["中转 Token 分析，user_id=71 / 103，项目 ai数据后台 / 热点支持，2026-11-01 至 13 日。", "E:/tmp/network-department-ai-keynote/peer-task-context.json；peer-task-previews.json。"], "time": "07:00–09:00"}, {"id": "peers", "time": "09:00–10:00", "label": "同岗类比", "title": "已经发生的实践，<br>可以迁移到你的工作", "kind": "peers", "speech": "刚才这些案例里，我最希望大家注意到的是：提出需求的人非常了解自己想解决什么。\n\n技术支持说，我要在 Windows 上模拟主机下载请求，用它检查加速器对主机的效果。产运说，我要按游戏和国家整理这些数据，哪些字段保留，按什么口径汇总。业务要求越具体，AI 越容易沿着正确方向往前走。\n\n网络部也一样。日志、设备资料、链路指标和交接记录，就是你的材料。异常怎么判断，什么不能动，什么结果才有意义，就是你的标准。\n\n这些场景可以类比迁移。比如把主机测试工具的思路换成链路巡检，把运营报表的思路换成网络质量日报，把知识库的方法换成故障处理经验。\n\n你们已有的业务判断，正是把 AI 用深的起点。", "cue": "先讲前两页已读取的真实任务，再讲向网络场景的建议迁移。别把建议迁移说成网络部已经完成。"}, {"id": "diagnosis", "time": "10:00–11:00", "label": "我的判断", "theme": "dark", "title": "你们已经起步，<br>下一步是让成果稳定复用", "kind": "diagnosis", "speech": "看到真实记录之后，我对网络部的建议会更具体。你们已经有人在做脚本、读代码、搭知识助手，完全可以从这些已有尝试继续向前推进。\n\n我最关心的，是把任务做到最后一段：结果能否复核，换一份输入能否继续运行，别人能否照着说明用起来。这个环节，需要大家带着实际产物回来一起看，不能仅凭 Token 高低替它下结论。\n\n对于还没有开始的同事，先交出一件真实工作。对于已经开始的同事，从自己现有项目里选一个，把它做成一个稳定、可交接的小工具。\n\n我的建议是沿着两条路推进：让更多人真正开始，同时让已经开始的实践继续深化。把一个人的排查经验变成脚本，把一次正确分析变成验收样本，把一份临时成果变成部门可以拿来用的能力。\n\n这才是我们下一轮希望在数据和成果里同时看到的变化。", "cue": "此页依据真实记录修正原先“没有用量就没有尝试”的泛化。讲行动建议，不预设当前成果一定不可用，也不把用量差异解释为效率差异。"}, {"id": "depth", "time": "11:00–12:00", "label": "使用深度", "title": "同一个 AI，<br>你可以使用到四个层次", "kind": "depth", "speech": "我把 AI 使用分成四个层次。第一层是问答，帮我理解一个问题。第二层是交付文件，给我一份真的能打开的报表、网页或者脚本。第三层是执行和验证，自己运行，看到错误，修复，再运行。第四层是把经验留下来，让下次任务从已经完成的位置继续。\n\n真正的变化，发生在第三层和第四层。你开始管理一个任务的目标和质量，AI 持续处理实现细节。\n\n我的工作方式是：每次都追问结果文件在哪里，运行记录在哪里，原始证据在哪里，下次换一份输入还能不能继续用。\n\n等这套习惯建立起来，很多以前觉得必须找开发排期的内部小工具，你已经可以先做出一个能讨论、能验证的版本。", "cue": "每层只讲一句，不解释模型术语。把“执行证据”和“下次复用”说重一点。"}, {"id": "live-demo", "time": "12:00–14:00", "label": "现场演示", "title": "一份日志，<br>现在就变成一个工作台", "kind": "demo", "speech": "我们直接看一个可以操作的东西。这里有十二条虚构日志，我点击生成报告，它就统计设备、级别和错误率。再选一台设备，结果会跟着变化，最后可以把报告带走。\n\n看到了吗？我拿到的是一个可以反复运行的小程序。今天换数据，明天换设备，逻辑还能继续使用。这个程序是用 AI 辅助写出来的，页面上的这次计算由程序在本地完成，不需要每点一次都再问模型。\n\n现在请大家提出一个小变化：按小时统计怎么样？增加一个异常阈值怎么样？这就是下一轮需求。我把变更和验收标准交给 Codex，让它在现有代码上迭代。\n\n这就是我希望大家体验的感觉：脑子里的工作想法，可以很快落到一个能操作的界面上。你们负责指出它哪里还不符合业务，AI 负责把这一步继续做出来。", "cue": "操作顺序：生成报告，筛选 core-01，切回全部，下载报告。询问观众一个改动点，只讨论下一轮实现，不把预制交互说成现场模型生成。若演示失败，直接打开会前已保存的报告。", "sources": ["本次手册内置的虚构 12 条日志及参考脚本。参考脚本已完成 9 项本地检查；不连接真实设备。"]}, {"id": "how-built", "time": "14:00–15:00", "label": "演示背后", "title": "界面是结果，<br>任务设计才是我的方法", "kind": "method", "speech": "刚才那个界面，真正决定质量的是前面怎样给任务。\n\n我给它四类信息：我要把哪件事做完，材料具体在哪里，什么范围可以动，以及怎样证明它做对了。比如十二条日志必须算出十二条，四条 ERROR 必须对应原文，缺列必须明确报错，原始文件不能被覆盖。\n\n这些条件会改变 AI 的工作方式。它不再只追求生成一段像样的回答，它需要交付文件，再用输入和输出对照。\n\n我经常把任务拆成两轮：先理解现有环境，再实现一个最小版本。发现问题后，让它依据报错定位原因。重复几轮，交付物会越来越贴近你的实际工作。\n\n这里最有价值的输入，是你们对业务的理解。工具可以学，业务判断是你们已经积累下来的优势。", "cue": "屏幕只保留四项任务条件。可点“复制任务”展示完整任务文本，但不要现场逐字念提示词。"}, {"id": "context", "label": "方法拆解一", "title": "给对上下文，<br>AI 才能沿着业务往前走", "kind": "context", "speech": "我再拆一个大家很容易忽略的地方：上下文。\n\n只说“帮我看看网络有问题”，它只能给你泛泛的建议。你给它故障时间、正常时的对照、日志位置、设备型号和最近的变更，它才有条件分析一条具体链路。\n\n材料越多，并不自动意味着更好。我通常先让 AI 列出需要查什么，定位相关目录和时间窗口，再读取关键内容。大日志先用脚本过滤，留下能支撑判断的片段，避免反复把整份材料都塞进去。\n\n长期不变的规则放进项目说明。每次变化的目标写在当前任务里。经过验证的业务结论留在知识库。这样你不用每次从零解释，也更容易发现它依据了哪条过时信息。\n\n这就像带一位新同事。你把目标、资料和公司规则介绍清楚，他才知道怎么做事。你自己的业务经验，会通过这些材料变成 AI 可以使用的能力。", "cue": "可现场拿“链路延迟异常”举例，只讲材料结构，不上传真实未脱敏日志。强调定位后读取与确定性脚本筛选。", "time": "15:00–16:30"}, {"id": "feedback-loop", "label": "方法拆解二", "title": "一次失败，<br>可以变成下一轮的明确任务", "kind": "feedback-loop", "speech": "再看迭代过程中最重要的一步：怎样反馈。\n\n如果你只说“还是不行”，AI 需要重新猜测。你说“十二条记录只统计了十一条，漏掉的是空设备名称这一行”，下一步就变得具体了。它应该检查解析规则，给出错误提示，再跑同一份样本。\n\n我会让它同时保留修改前后的验证结果。新功能好了，老功能是否还在？搜索加上了，分页有没有回到第一页？请求失败了，界面是否还拿旧数据装作成功？\n\n任务复杂时，把实现和复核分成不同轮次。实现轮负责把目标做出来，复核轮拿原始验收条件逐项检查。真正重要的是证据独立，而不是让同一段自信的回答重复两遍。\n\n这个过程里的经验要留下来。今天踩过的坑，明天变成一条测试或项目约定。这样每一次失败都能减少下一次的不确定性，而不只是消耗一次耐心。", "cue": "演示“报错事实→定位→最小修复→原样本回归”的例子。可邀请观众把一句模糊反馈改成可复现反馈。", "time": "16:30–18:00"}, {"id": "knowledge", "time": "18:00–19:30", "label": "真实实践", "title": "270 份文档，<br>要变成能答对问题的知识", "kind": "knowledge", "speech": "再看一个更有深度的例子。我把客户端的代码知识整理进了知识库，最终纳入两百七十份文档。真正困难的部分发生在上传之后。\n\n最初那组十道固定问题，快速问答通过八道。有两个问题，它没有找到关键正文。材料明明在库里，回答却还不完整。\n\n我继续调整检索方式，让它按子问题找资料，必要时读完整模块，加入重排，要求每个关键结论引用实质内容，再用原来的十道题复验。专用问答最终十道全部通过，一百四十一处引用也做了核对。\n\n这组结果有边界：它来自十道固定题的串行验收，复杂问题仍然慢，并不代表任何问题都能答对。\n\n网络部可以类比：把设备资料、历史故障、处置记录和部门规则变成可检索知识，再用你们最常遇到的十个问题验收。核心是答案能不能查回证据。", "cue": "强调 8/10 与 10/10 是同一套题、不同问答配置，不是更换题目。模型为该案例实际使用的 grok-4.7，与本次 Codex 推荐模型 gpt-6.1-sol 不混淆。", "sources": ["E:/tmp/weknora-import-cf-20261111/final-report.md，更新于 2026-11-12 00:33，北京时间。", "E:/tmp/weknora-import-cf-20261111/retrieval-optimization/report.md。固定 10 题，串行验收；复杂题 93–458 秒，中位数 167.5 秒，并发容量未验收。"]}, {"id": "failure", "time": "19:30–20:30", "label": "专业判断", "theme": "dark", "title": "6 / 16<br>我也会把失败放上台", "kind": "failure", "speech": "我也给大家看一组没过关的结果。另一套 i.xunyou 知识库的主问题验收，十六道题只通过六道。\n\n资料已经导入，回答也能带引用，但有些题没有覆盖关键流程，有些把已知和未知混在一起。这样一个系统，我不能因为它看上去很聪明，就说已经达到使用要求。\n\n我会把失败留住，继续拆分问题、追查召回和证据链。你们做故障排查也是一样：有日志不等于已经找到根因，有截图不等于已经证明修复。\n\n我希望传递给大家的专业习惯是：敢让 AI 做事，也敢要求它接受检查。第一次失败提供了下一步要修的具体位置。把这个过程走完，你才真的拥有这项能力。", "cue": "这里的失败是历史验收快照，不宣称知识库今天仍然保持该状态。不要把它包装成“成功率已提升”，目前没有这项后续证据。", "sources": ["E:/tmp/weknora-import-xunyou-i-20261111/qa-acceptance.md：2026-11-11 记录，主问题 6/16，通过针对性补问 6/13；补问通过不折算原题通过。"]}, {"id": "repositories", "time": "20:30–22:00", "label": "已有系统", "title": "已有 GitLab / SVN，<br>也可以从一个小需求开始", "kind": "repository", "speech": "有同事会说，新建一个小工具可以，公司的老项目我不敢碰。我的建议是，从一个明确、可回退的小需求切进去。\n\n比如已有设备台账加一个名称搜索。先让 Codex 阅读项目规则，找到页面、接口、分页和测试。弄清楚现有系统怎么工作，再确定最小修改范围。\n\n这里有一个典型坑：服务端分页的列表，不能只筛选当前这一页，就宣称完成了全量搜索。懂业务的人能提出这个验收要求，AI 才有正确的目标。\n\nGitLab 走功能分支、差异审核和合并请求。SVN 按指定工作副本开发，审核后提交指定路径。两套流程我都放进会后手册了。\n\n你不必一开始就理解整个系统，先把一个有边界的小改动做对，再一点一点扩大自己的能力范围。", "cue": "屏幕展示同一需求的两条交付路线。不要现场执行真实 commit、push 或 svn commit。"}, {"id": "system", "time": "22:00–23:00", "label": "我的工作系统", "title": "让每次任务，<br>都从已有经验上继续", "kind": "system", "speech": "我现在更看重一件事：让前一次投入，变成下一次工作的起点。\n\n项目规则告诉 AI 什么可以动、怎样验证。知识库保存业务定义、代码入口和已经确认的结论。脚本承担固定、重复、需要精确计算的任务。经过授权的工具连接，把需要执行的动作交给系统完成。\n\n当一种方法反复有效，就把它沉淀为固定模板或可复用流程。下次再遇到同类任务，不需要重新解释所有背景，也不需要把成功过程从头摸一遍。\n\n使用深度就体现在这里：你逐渐拥有一套能持续积累的工作系统。模型换代时，你的业务材料、验收标准和可靠工具仍然有价值。\n\n对网络部而言，最值得积累的是故障证据、处置规则、验证步骤，以及真正跑通过的工具。", "cue": "可解释名词：AGENTS.md 是项目工作约定，知识库提供可追溯材料，Skill 是复用流程，工具连接提供具体执行能力。强调这些各司其职，不要求新人今天全部配置。"}, {"id": "network-work", "time": "23:00–24:00", "label": "迁移到你们的工作", "title": "你们桌上的材料，<br>已经是最好的起点", "kind": "network", "speech": "我们把方法换成你们桌上已有的材料。\n\n每天看日志，可以从自动整理异常时间线开始，再把值得关注的记录指回原文。每周做报表，可以从统一统计口径和对账开始，再输出能直接打开的看板。反复处理同类工单，可以从整理已批准的解决步骤开始，再做有出处的答复草稿。\n\n如果要接真实设备，先做只读巡检，限定目标和频率。涉及配置变更，仍由有权限的人确认执行。这个边界不会妨碍探索，它能让你的工具更容易被同事接受。\n\n你们最熟悉的业务问题，就是最容易判断 AI 有没有做对的题目。起点离工作越近，第一次尝试越容易产生能留下来的成果。", "cue": "邀请观众说出一个重复任务。把他的描述复述成“输入材料＋最终产物＋一个验收条件”。"}, {"id": "industry", "time": "24:00–25:30", "label": "业界方向", "title": "行业正在把 AI，<br>接进任务的执行过程", "kind": "industry", "speech": "看看业界现在把能力往哪里做。GitHub 的官方资料已经把仓库理解、计划修改、编辑文件、运行验证、代码审核放在连续的任务流程中。微软在 Microsoft 365 Copilot 里推出 Researcher 和 Analyst，分别面向复杂研究与数据分析。\n\n这些产品有不同的权限、套餐和使用条件，我今天不做采购推荐。我想让大家看到一个共同方向：AI 正在接触更多材料、使用更多工具，并把任务推进到可以检查的产物。\n\n这意味着机会会继续向懂业务的人开放。你知道该问什么，知道哪些数据可信，知道什么结果能落地，这些能力会越来越直接地决定 AI 能帮你走多远。\n\n我们今天积累一个工具、一组验收题、一套可靠流程，就是在为接下来的变化做准备。", "cue": "只讲已核对的官方产品能力。不引用未核验的提效百分比，不把供应商演示当成本公司生产效果。", "sources": ["https://docs.github.com/en/copilot/concepts/copilot-surfaces/copilot-on-github", "https://www.microsoft.com/en-us/copilot/blog/2025/03/25/introducing-researcher-and-analyst-in-microsoft-365-copilot/"]}, {"id": "future", "time": "25:30–26:30", "label": "我的判断", "theme": "dark", "title": "下一步，你会管理<br>一组能执行任务的工具", "kind": "future", "speech": "我对未来的判断是，一个懂业务的人，会越来越像一个小型团队的负责人。你给出目标和判断标准，让不同工具去查资料、做分析、生成程序、检查结果，然后把它们组织起来。\n\n未来的差距，会逐渐体现在谁更能把模糊的问题定义清楚，谁有足够好的业务材料，谁能判断一个结果是否可信。\n\n我不会承诺所有工作明天都会自动完成。但我已经看到，很多过去只能留在想法里的事情，现在可以先做出一个版本，再通过反馈继续推进。\n\n所以我希望你们今天开始练的，就是这种能力：提出一个值得做的目标，带着 AI 把它做完，并且留下可以复用的东西。", "cue": "这是演讲者判断与愿景，语气自信，但不许诺时间表或人员替代比例。"}, {"id": "cost-value", "label": "投入与回报", "title": "费用愿意投入，<br>结果需要认真对账", "kind": "cost-value", "speech": "讲到这里，我也想把投入这件事说清楚。为了把一件工作做好，我们应该愿意投入 Token，愿意多跑几轮验证。与此同时，我们要对结果有数。\n\n最简单的做法是记录原来这件事怎么做，需要哪些步骤；现在工具接手了哪些步骤，人工还要检查什么；另一位同事能不能复现。如果没有记录，就先不讲节省百分之多少。\n\n有些工作只需要一段确定性的程序，比如排序、汇总、格式转换。让 AI 帮你把程序写好，之后重复运行就可以。有些工作需要理解新材料，比如归纳陌生工单，才需要在运行时继续调用模型。\n\n区分这两类任务，会让成本和可靠性更容易控制。我们的目标是让每一次投入都留下东西：一个工具、一组验证样本，或者一份下次还能使用的知识。", "cue": "连接结尾的费用承诺。没有基线时不填节省时间与 ROI。强调固定计算由程序承担，不是每次都调用模型。", "time": "26:30–27:30"}, {"id": "action", "time": "27:30–28:30", "label": "会后行动", "title": "七天，完成你的<br>第一个工作成果", "kind": "action", "speech": "这场分享结束后，我建议我们做一个七天实验。每个人选一件真实工作，范围小一点，结果明确一点。\n\n第一天把问题和样本准备好。接下来用 AI 做出一个能运行的最小版本，遇到问题继续反馈和修正。七天内，让另一位同事用你的说明再跑一遍。\n\n最后只需要展示三件事：原来怎么做，现在怎样做，还有什么没有解决。省了多少时间，有记录再说；没有测过就不填数字。\n\n我最想看到的，是你们带回来一个个具体成果：这个报表以后不用反复整理了，这类日志终于能自动归类了，这个小功能我已经做出可验证的版本了。\n\n我们就从这些事情开始，把方法带进部门的日常工作。", "cue": "建议行动，不宣称已经获得部门制度批准。现场可邀请三位愿意尝试的同事说出各自的问题。"}, {"id": "closing", "time": "28:30–30:00", "label": "最后一句", "theme": "dark", "title": "问题带来。<br>大胆去试。<br><em>Token 的钱，我来兜底。<\/em>", "kind": "closing", "speech": "最后，我把态度讲清楚。\n\n你们用 AI 去解决工作问题，为了把事情做成而产生的 Token 费用，我来兜底。不要让“怕花钱”成为第一次尝试的障碍。\n\n我希望你们把注意力放在更重要的事情上：这个问题有没有被认真交出去，结果有没有被检查，做出来的东西能不能让下一位同事也用上。\n\n从今天开始，遇到一件你想解决的工作问题，先给 AI 一个参与的机会。小到一份表、一段日志，大到一个流程、一套工具，都可以先拆出第一步。\n\n这次我把案例、方法和工具入口带来了。下一次，我希望站在这里展示成果的人，就是你们。\n\n现在，请每个人想好：你离开这个会场之后，准备交给 AI 的第一件事是什么？我们就从那件事开始。", "cue": "费用承诺按需求方要求写入，以演讲者第一人称表达。结尾放慢，在“我来兜底”后停顿。最后一个问题留给现场互动，指向会后手册。"}]};
+const INITIAL_METRICS = {"period": "2026-11-01 至 11-13 13:59（北京时间）", "source": "组织用量报表固定快照，全部平台，总 Token 含缓存。网络部按用户指定5账号从技术支持拆出；技术支持其余5人；产运采用平台名称。个人总量含其他目录，列举工作不等于已交付。", "departments": [{"name": "网络部", "members": 5, "active": 4, "tokens": 172238630}, {"name": "技术支持其余", "members": 5, "active": 5, "tokens": 6254163979}, {"name": "产运", "members": 11, "active": 9, "tokens": 4933888705}], "projects": [{"person": "huangmingyou", "project": "配置比对、网络关系图；Debian 镜像测试", "tokens": 80791800, "result": "已见分析与工具需求", "evidence": "huawei-config / debian-iso 请求摘要"}, {"person": "chengdu", "project": "节点配置平台；个人技能知识助手", "tokens": 56671955, "result": "已见代码阅读与需求迭代", "evidence": "zai / wo-x 请求摘要"}, {"person": "jiayun", "project": "腾讯云服务器 EIP 盘点与 Excel 导出", "tokens": 24429039, "result": "已见跨地域与导出要求", "evidence": "cloud_tencent 请求摘要"}, {"person": "xuyang", "project": "Nginx 配置解释；Azure 系统重装问题", "tokens": 10345836, "result": "已见排障咨询", "evidence": "x20-partvps 请求摘要"}, {"person": "huangxiaobo", "project": "本月本平台暂无调用记录", "tokens": 0, "result": "其他工具使用情况未核验", "evidence": "本月账单汇总为 0，归档项目列表为空"}]};
+const SCRIPT_MD = "# 让 AI 接手真实工作\n\n迅游网络部 AI 应用分享｜30 分钟，含真实案例、方法拆解与现场演示\n\n> 演讲口吻：自信、直接、重实操。用真实案例建立专家可信度。正文为演讲者第一人称，方括号或现场提示不朗读。费用承诺按需求方要求写入。\n\n## 会前准备\n\n| 材料 | 当前状态 | 上台处理 |\n| --- | --- | --- |\n| 三组本月用量与成员口径 | 已读取真实数据 | 2026-11-01 至 2026-11-13 13:59:03，北京时间。网络部 4/5 活跃、1.7224 亿 Token；技术支持其余 5/5 活跃、62.5416 亿 Token；产运 9/11 活跃、49.3389 亿 Token。含缓存，按当前成员归属。 |\n| 网络部口径 | 用户已明确五账号 | 从平台技术支持组拆出 huangmingyou、chengdu、jiayun、xuyang、huangxiaobo；对比技术支持其余五人，互不重复。产运保留平台原名。 |\n| 网络部个人本月工作场景 | 已核对请求摘要 | 记录证明尝试内容与反馈，不证明全部成果完成。账号使用已核验邮箱前缀，不推断中文姓名。 |\n| 12 条日志现场演示 | 内置离线程序，虚构样本 | 先生成、筛选，再下载。明确这是程序计算，不能说成现场模型生成。 |\n| 客户端知识库与 i.xunyou 验收 | 有历史执行记录 | 按固定题和记录日期讲，不外推全部问题或当前生产效果。 |\n| 行业案例 | 已读取 GitHub、Microsoft 官方资料 | 讲任务执行趋势，不引用未经核验的提效比例。 |\n\n**口径提醒：** 部门总量来自固定 as_of 的账单汇总，项目归因来自本月归档索引的读取快照，两者存在覆盖与时间差。任务摘要可以证明尝试内容，不能自动证明完成。网络部、技术支持其余与产运三组互不重复。个人总 Token 包含其他目录，不全部归于演讲列举的工作场景。\n\n## 演讲流程\n\n| 页 | 时间 | 内容 |\n| --- | --- | --- |\n| 01 | 00:00–01:00 | 今天，AI 替你解决了哪个工作问题？ |\n| 02 | 01:00–03:00 | 三组同事的使用，放在同一张图上看 |\n| 03 | 03:00–05:00 | 网络部五位同事，已经把 AI 用到了哪里 |\n| 04 | 05:00–07:00 | 技术支持，已经在做自己的测试工具 |\n| 05 | 07:00–09:00 | 产运，已经把 AI放进数据与工具迭代 |\n| 06 | 09:00–10:00 | 已经发生的实践，可以迁移到你的工作 |\n| 07 | 10:00–11:00 | 你们已经起步，下一步是让成果稳定复用 |\n| 08 | 11:00–12:00 | 同一个 AI，你可以使用到四个层次 |\n| 09 | 12:00–14:00 | 一份日志，现在就变成一个工作台 |\n| 10 | 14:00–15:00 | 界面是结果，任务设计才是我的方法 |\n| 11 | 15:00–16:30 | 给对上下文，AI 才能沿着业务往前走 |\n| 12 | 16:30–18:00 | 一次失败，可以变成下一轮的明确任务 |\n| 13 | 18:00–19:30 | 270 份文档，要变成能答对问题的知识 |\n| 14 | 19:30–20:30 | 6 / 16我也会把失败放上台 |\n| 15 | 20:30–22:00 | 已有 GitLab / SVN，也可以从一个小需求开始 |\n| 16 | 22:00–23:00 | 让每次任务，都从已有经验上继续 |\n| 17 | 23:00–24:00 | 你们桌上的材料，已经是最好的起点 |\n| 18 | 24:00–25:30 | 行业正在把 AI，接进任务的执行过程 |\n| 19 | 25:30–26:30 | 下一步，你会管理一组能执行任务的工具 |\n| 20 | 26:30–27:30 | 费用愿意投入，结果需要认真对账 |\n| 21 | 27:30–28:30 | 七天，完成你的第一个工作成果 |\n| 22 | 28:30–30:00 | 问题带来。大胆去试。Token 的钱，我来兜底。 |\n\n## 01｜今天，AI 替你解决了 哪个工作问题？（00:00–01:00）\n\n各位，今天我想请大家先想一个具体问题：这个月，哪一项本来需要你亲手完成的工作，已经交给 AI 做出了可以使用的结果？\n\n可以是一份巡检报告，可以是一个查日志的小工具，也可以是给已有系统加上一个你们一直想要的小功能。\n\n今天我会把自己实践里最有价值的部分拿出来：我怎样把事情交出去，怎样让它持续做，怎样发现它做错了，以及怎样把一次成功变成下一次直接可用的能力。\n\n这场结束时，我希望每个人都能说出一句具体的话：我的这个问题，今天就拿去试。工具接入和操作手册我已经准备好，大家可以带走。现场，我们把注意力放在工作能发生什么变化。\n\n> 现场提示：停顿，扫视全场。让大家在心里选一个真实问题。语气直接，不用自我介绍头衔。\n\n## 02｜三组同事的使用， 放在同一张图上看（01:00–03:00）\n\n我先把这次实际读到的数据放上来。统计从十一月一日开始，到十一月十三日十三点五十九分，来自公司中转平台。\n\n网络部按这次明确的五个账号统计，四位有调用，活跃覆盖率百分之八十，总 Token 约一点七二亿，共两千二百七十六次请求。\n\n这五位目前在平台的技术支持组里，所以对比时我把他们扣掉。技术支持其余五位全部活跃，总 Token 约六十二点五四亿。平台“产运”十一位成员，九位活跃，总 Token 约四十九点三四亿。\n\n我们还可以切换到活跃用户人均口径，减少人数差异的影响。但这些 Token 都包含缓存，不能当成手工输入字数，也不能直接换算成工作产出。\n\n对我来说，数据已经修正了一个过于简单的说法：网络部已经有人开始，而且做的事情很具体。接下来我们要问，这些投入是不是形成了可用成果，能不能进一步持续、扩大和复用。现在我们往下看项目。\n\n> 现场提示：网络部为用户指定的5个账号，从平台技术支持10人中拆出；技术支持其余5人与网络部互斥。“产运”保留平台原名，不声称它严格等同产品岗位。比较当前归属、全部模型平台、含缓存 Token。切换一次活跃覆盖率或人均 Token 即可。\n\n依据：\n- 中转平台 GET /api/v1/admin/usage/organization-report/summary；2026-11-01 至 2026-11-13；organization=xunyou；as_of=2026-11-13T05:59:03.807Z。\n- E:/tmp/network-department-ai-keynote/organization-snapshot.json。\n- 网络部账号口径由需求方明确：huangmingyou、chengdu、jiayun、xuyang、huangxiaobo，邮箱后缀均为 @xunyou.com。\n\n## 03｜网络部五位同事， 已经把 AI 用到了哪里（03:00–05:00）\n\n这一页是五位同事本月的实际记录。表里的数字是个人总用量，右边列的是我从请求摘要里核对到的工作场景，二者不能直接划等号。\n\nhuangmingyou 已经在让 AI 分析交换机配置、比对新旧配置、整理网络关系图，还在尝试 Debian 镜像测试。chengdu 让 AI 阅读节点配置平台的代码、整理需求，并尝试把个人排查经验做成同事能使用的知识助手。\n\njiayun 给出的工作任务很具体：写 Python 查询云服务器绑定的 EIP，输出 Excel，再扩展到所有地域。xuyang 在处理 Nginx 配置行为和 Azure 系统重装问题。\n\nhuangxiaobo 在这个时间范围内，本平台没有调用记录。这只能说明我们在这个平台没有观察到使用，其他工具的情况还没有核验。\n\n我在这里看到的是已经出现的起点。下一步，请大家补上最重要的一列：哪个工具已经能跑，哪个结果核对过，哪个可以交给第二个人使用。任务记录说明大家在尝试，交付证据决定它能不能成为团队能力。\n\n> 现场提示：按屏幕账号前缀称呼，不猜中文姓名。业务场景来自请求摘要；个人总 Token 包括其他目录，不全归给列出的工作。对暂无记录的账号只陈述观察，不作工作态度或绩效推断。\n\n依据：\n- E:/tmp/network-department-ai-keynote/organization-snapshot.json：5账号总量 172238630 Token、2276 请求。\n- E:/tmp/network-department-ai-keynote/network-projects-sanitized.json；network-work-examples.json；xuyang-work-context.json。项目与任务在当日部门账单快照之后读取，二者存在索引和时间差，不直接对账。\n\n## 04｜技术支持，已经在 做自己的测试工具（05:00–07:00）\n\n给大家看两段真实记录。技术支持的 chenxi 账号在“PS、xbox主机模拟”这个工作目录里提出了一个很明确的需求：写一个 Windows 工具，模拟游戏主机发起下载请求，可以手动配置网络参数，用来测试加速器效果。\n\n后面的记录还有界面调整、网络排查和复测。在十一月十二日的一条反馈里，用户明确回复：收到了八 MiB，完成且无错误。这是一次用户反馈，不能外推成所有场景已经通过，但它说明任务已经推进到了实际操作和验证。\n\n另一位 duanyufei 在 DTest 里，先给出串流帧数不足的问题，再给日志路径，继续要求分析 TV 能力，优化测试程序，让后续换一个 TV 盒子也方便测试。\n\n这段要求非常值得学。他已经在考虑下一次复用。第一次解决一个问题，之后把方法做成工具。同样的思路，完全可以用在你们的巡检和故障排查里。\n\n> 现场提示：账号使用平台可核验的邮箱前缀，不推断中文姓名。只摘录任务目标与一条用户测试反馈，不宣称已验收整个工具，不展示原始内网地址或凭据。\n\n依据：\n- 中转 Token 分析，user_id=15 / 98，项目 PS、xbox主机模拟 / DTest，2026-11-01 至 13 日。\n- E:/tmp/network-department-ai-keynote/peer-task-context.json；peer-task-previews.json。\n\n## 05｜产运，已经把 AI 放进数据与工具迭代（07:00–09:00）\n\n再看平台“产运”部门的实际记录。liaowei1 在“ai数据后台”里的需求，已经具体到时间范围、国家、游戏和字段：哪些指标要汇总，游戏 ID 要换成游戏名，按什么指标倒序，哪些列隐藏。\n\n这里有多轮反馈。前一轮发现同一个游戏的日期数据还没有汇总，就继续提出修正；下一轮重新安排工作表和字段顺序。后面还出现了“先在指定环境修改”和“发布到远端”的指令。\n\n我能确认的是，这个账号在持续处理数据、反馈结果并推进迭代。仅凭发布指令，不能说发布已经成功。\n\nhongyang 的“热点支持”记录里，也有明确的界面动线、快捷键、打包运行和跨电脑测试问题。有一句很具体的要求：我要双击就能运行。这就是业务同事在定义最终体验。\n\n你看，使用 AI 的深度，往往就是你对“这个东西最终怎么用”的要求有多具体。\n\n> 现场提示：目前使用平台“产运”名称，是否对应产品部门按用户确认口径调整。展示经过概括的任务轨迹，不展示付费金额等原始业务数据，不把任务指令等同上线成功。\n\n依据：\n- 中转 Token 分析，user_id=71 / 103，项目 ai数据后台 / 热点支持，2026-11-01 至 13 日。\n- E:/tmp/network-department-ai-keynote/peer-task-context.json；peer-task-previews.json。\n\n## 06｜已经发生的实践， 可以迁移到你的工作（09:00–10:00）\n\n刚才这些案例里，我最希望大家注意到的是：提出需求的人非常了解自己想解决什么。\n\n技术支持说，我要在 Windows 上模拟主机下载请求，用它检查加速器对主机的效果。产运说，我要按游戏和国家整理这些数据，哪些字段保留，按什么口径汇总。业务要求越具体，AI 越容易沿着正确方向往前走。\n\n网络部也一样。日志、设备资料、链路指标和交接记录，就是你的材料。异常怎么判断，什么不能动，什么结果才有意义，就是你的标准。\n\n这些场景可以类比迁移。比如把主机测试工具的思路换成链路巡检，把运营报表的思路换成网络质量日报，把知识库的方法换成故障处理经验。\n\n你们已有的业务判断，正是把 AI 用深的起点。\n\n> 现场提示：先讲前两页已读取的真实任务，再讲向网络场景的建议迁移。别把建议迁移说成网络部已经完成。\n\n## 07｜你们已经起步， 下一步是让成果稳定复用（10:00–11:00）\n\n看到真实记录之后，我对网络部的建议会更具体。你们已经有人在做脚本、读代码、搭知识助手，完全可以从这些已有尝试继续向前推进。\n\n我最关心的，是把任务做到最后一段：结果能否复核，换一份输入能否继续运行，别人能否照着说明用起来。这个环节，需要大家带着实际产物回来一起看，不能仅凭 Token 高低替它下结论。\n\n对于还没有开始的同事，先交出一件真实工作。对于已经开始的同事，从自己现有项目里选一个，把它做成一个稳定、可交接的小工具。\n\n我的建议是沿着两条路推进：让更多人真正开始，同时让已经开始的实践继续深化。把一个人的排查经验变成脚本，把一次正确分析变成验收样本，把一份临时成果变成部门可以拿来用的能力。\n\n这才是我们下一轮希望在数据和成果里同时看到的变化。\n\n> 现场提示：此页依据真实记录修正原先“没有用量就没有尝试”的泛化。讲行动建议，不预设当前成果一定不可用，也不把用量差异解释为效率差异。\n\n## 08｜同一个 AI， 你可以使用到四个层次（11:00–12:00）\n\n我把 AI 使用分成四个层次。第一层是问答，帮我理解一个问题。第二层是交付文件，给我一份真的能打开的报表、网页或者脚本。第三层是执行和验证，自己运行，看到错误，修复，再运行。第四层是把经验留下来，让下次任务从已经完成的位置继续。\n\n真正的变化，发生在第三层和第四层。你开始管理一个任务的目标和质量，AI 持续处理实现细节。\n\n我的工作方式是：每次都追问结果文件在哪里，运行记录在哪里，原始证据在哪里，下次换一份输入还能不能继续用。\n\n等这套习惯建立起来，很多以前觉得必须找开发排期的内部小工具，你已经可以先做出一个能讨论、能验证的版本。\n\n> 现场提示：每层只讲一句，不解释模型术语。把“执行证据”和“下次复用”说重一点。\n\n## 09｜一份日志， 现在就变成一个工作台（12:00–14:00）\n\n我们直接看一个可以操作的东西。这里有十二条虚构日志，我点击生成报告，它就统计设备、级别和错误率。再选一台设备，结果会跟着变化，最后可以把报告带走。\n\n看到了吗？我拿到的是一个可以反复运行的小程序。今天换数据，明天换设备，逻辑还能继续使用。这个程序是用 AI 辅助写出来的，页面上的这次计算由程序在本地完成，不需要每点一次都再问模型。\n\n现在请大家提出一个小变化：按小时统计怎么样？增加一个异常阈值怎么样？这就是下一轮需求。我把变更和验收标准交给 Codex，让它在现有代码上迭代。\n\n这就是我希望大家体验的感觉：脑子里的工作想法，可以很快落到一个能操作的界面上。你们负责指出它哪里还不符合业务，AI 负责把这一步继续做出来。\n\n> 现场提示：操作顺序：生成报告，筛选 core-01，切回全部，下载报告。询问观众一个改动点，只讨论下一轮实现，不把预制交互说成现场模型生成。若演示失败，直接打开会前已保存的报告。\n\n依据：\n- 本次手册内置的虚构 12 条日志及参考脚本。参考脚本已完成 9 项本地检查；不连接真实设备。\n\n## 10｜界面是结果， 任务设计才是我的方法（14:00–15:00）\n\n刚才那个界面，真正决定质量的是前面怎样给任务。\n\n我给它四类信息：我要把哪件事做完，材料具体在哪里，什么范围可以动，以及怎样证明它做对了。比如十二条日志必须算出十二条，四条 ERROR 必须对应原文，缺列必须明确报错，原始文件不能被覆盖。\n\n这些条件会改变 AI 的工作方式。它不再只追求生成一段像样的回答，它需要交付文件，再用输入和输出对照。\n\n我经常把任务拆成两轮：先理解现有环境，再实现一个最小版本。发现问题后，让它依据报错定位原因。重复几轮，交付物会越来越贴近你的实际工作。\n\n这里最有价值的输入，是你们对业务的理解。工具可以学，业务判断是你们已经积累下来的优势。\n\n> 现场提示：屏幕只保留四项任务条件。可点“复制任务”展示完整任务文本，但不要现场逐字念提示词。\n\n## 11｜给对上下文， AI 才能沿着业务往前走（15:00–16:30）\n\n我再拆一个大家很容易忽略的地方：上下文。\n\n只说“帮我看看网络有问题”，它只能给你泛泛的建议。你给它故障时间、正常时的对照、日志位置、设备型号和最近的变更，它才有条件分析一条具体链路。\n\n材料越多，并不自动意味着更好。我通常先让 AI 列出需要查什么，定位相关目录和时间窗口，再读取关键内容。大日志先用脚本过滤，留下能支撑判断的片段，避免反复把整份材料都塞进去。\n\n长期不变的规则放进项目说明。每次变化的目标写在当前任务里。经过验证的业务结论留在知识库。这样你不用每次从零解释，也更容易发现它依据了哪条过时信息。\n\n这就像带一位新同事。你把目标、资料和公司规则介绍清楚，他才知道怎么做事。你自己的业务经验，会通过这些材料变成 AI 可以使用的能力。\n\n> 现场提示：可现场拿“链路延迟异常”举例，只讲材料结构，不上传真实未脱敏日志。强调定位后读取与确定性脚本筛选。\n\n## 12｜一次失败， 可以变成下一轮的明确任务（16:30–18:00）\n\n再看迭代过程中最重要的一步：怎样反馈。\n\n如果你只说“还是不行”，AI 需要重新猜测。你说“十二条记录只统计了十一条，漏掉的是空设备名称这一行”，下一步就变得具体了。它应该检查解析规则，给出错误提示，再跑同一份样本。\n\n我会让它同时保留修改前后的验证结果。新功能好了，老功能是否还在？搜索加上了，分页有没有回到第一页？请求失败了，界面是否还拿旧数据装作成功？\n\n任务复杂时，把实现和复核分成不同轮次。实现轮负责把目标做出来，复核轮拿原始验收条件逐项检查。真正重要的是证据独立，而不是让同一段自信的回答重复两遍。\n\n这个过程里的经验要留下来。今天踩过的坑，明天变成一条测试或项目约定。这样每一次失败都能减少下一次的不确定性，而不只是消耗一次耐心。\n\n> 现场提示：演示“报错事实→定位→最小修复→原样本回归”的例子。可邀请观众把一句模糊反馈改成可复现反馈。\n\n## 13｜270 份文档， 要变成能答对问题的知识（18:00–19:30）\n\n再看一个更有深度的例子。我把客户端的代码知识整理进了知识库，最终纳入两百七十份文档。真正困难的部分发生在上传之后。\n\n最初那组十道固定问题，快速问答通过八道。有两个问题，它没有找到关键正文。材料明明在库里，回答却还不完整。\n\n我继续调整检索方式，让它按子问题找资料，必要时读完整模块，加入重排，要求每个关键结论引用实质内容，再用原来的十道题复验。专用问答最终十道全部通过，一百四十一处引用也做了核对。\n\n这组结果有边界：它来自十道固定题的串行验收，复杂问题仍然慢，并不代表任何问题都能答对。\n\n网络部可以类比：把设备资料、历史故障、处置记录和部门规则变成可检索知识，再用你们最常遇到的十个问题验收。核心是答案能不能查回证据。\n\n> 现场提示：强调 8/10 与 10/10 是同一套题、不同问答配置，不是更换题目。模型为该案例实际使用的 grok-4.7，与本次 Codex 推荐模型 gpt-6.1-sol 不混淆。\n\n依据：\n- E:/tmp/weknora-import-cf-20261111/final-report.md，更新于 2026-11-12 00:33，北京时间。\n- E:/tmp/weknora-import-cf-20261111/retrieval-optimization/report.md。固定 10 题，串行验收；复杂题 93–458 秒，中位数 167.5 秒，并发容量未验收。\n\n## 14｜6 / 16 我也会把失败放上台（19:30–20:30）\n\n我也给大家看一组没过关的结果。另一套 i.xunyou 知识库的主问题验收，十六道题只通过六道。\n\n资料已经导入，回答也能带引用，但有些题没有覆盖关键流程，有些把已知和未知混在一起。这样一个系统，我不能因为它看上去很聪明，就说已经达到使用要求。\n\n我会把失败留住，继续拆分问题、追查召回和证据链。你们做故障排查也是一样：有日志不等于已经找到根因，有截图不等于已经证明修复。\n\n我希望传递给大家的专业习惯是：敢让 AI 做事，也敢要求它接受检查。第一次失败提供了下一步要修的具体位置。把这个过程走完，你才真的拥有这项能力。\n\n> 现场提示：这里的失败是历史验收快照，不宣称知识库今天仍然保持该状态。不要把它包装成“成功率已提升”，目前没有这项后续证据。\n\n依据：\n- E:/tmp/weknora-import-xunyou-i-20261111/qa-acceptance.md：2026-11-11 记录，主问题 6/16，通过针对性补问 6/13；补问通过不折算原题通过。\n\n## 15｜已有 GitLab / SVN， 也可以从一个小需求开始（20:30–22:00）\n\n有同事会说，新建一个小工具可以，公司的老项目我不敢碰。我的建议是，从一个明确、可回退的小需求切进去。\n\n比如已有设备台账加一个名称搜索。先让 Codex 阅读项目规则，找到页面、接口、分页和测试。弄清楚现有系统怎么工作，再确定最小修改范围。\n\n这里有一个典型坑：服务端分页的列表，不能只筛选当前这一页，就宣称完成了全量搜索。懂业务的人能提出这个验收要求，AI 才有正确的目标。\n\nGitLab 走功能分支、差异审核和合并请求。SVN 按指定工作副本开发，审核后提交指定路径。两套流程我都放进会后手册了。\n\n你不必一开始就理解整个系统，先把一个有边界的小改动做对，再一点一点扩大自己的能力范围。\n\n> 现场提示：屏幕展示同一需求的两条交付路线。不要现场执行真实 commit、push 或 svn commit。\n\n## 16｜让每次任务， 都从已有经验上继续（22:00–23:00）\n\n我现在更看重一件事：让前一次投入，变成下一次工作的起点。\n\n项目规则告诉 AI 什么可以动、怎样验证。知识库保存业务定义、代码入口和已经确认的结论。脚本承担固定、重复、需要精确计算的任务。经过授权的工具连接，把需要执行的动作交给系统完成。\n\n当一种方法反复有效，就把它沉淀为固定模板或可复用流程。下次再遇到同类任务，不需要重新解释所有背景，也不需要把成功过程从头摸一遍。\n\n使用深度就体现在这里：你逐渐拥有一套能持续积累的工作系统。模型换代时，你的业务材料、验收标准和可靠工具仍然有价值。\n\n对网络部而言，最值得积累的是故障证据、处置规则、验证步骤，以及真正跑通过的工具。\n\n> 现场提示：可解释名词：AGENTS.md 是项目工作约定，知识库提供可追溯材料，Skill 是复用流程，工具连接提供具体执行能力。强调这些各司其职，不要求新人今天全部配置。\n\n## 17｜你们桌上的材料， 已经是最好的起点（23:00–24:00）\n\n我们把方法换成你们桌上已有的材料。\n\n每天看日志，可以从自动整理异常时间线开始，再把值得关注的记录指回原文。每周做报表，可以从统一统计口径和对账开始，再输出能直接打开的看板。反复处理同类工单，可以从整理已批准的解决步骤开始，再做有出处的答复草稿。\n\n如果要接真实设备，先做只读巡检，限定目标和频率。涉及配置变更，仍由有权限的人确认执行。这个边界不会妨碍探索，它能让你的工具更容易被同事接受。\n\n你们最熟悉的业务问题，就是最容易判断 AI 有没有做对的题目。起点离工作越近，第一次尝试越容易产生能留下来的成果。\n\n> 现场提示：邀请观众说出一个重复任务。把他的描述复述成“输入材料＋最终产物＋一个验收条件”。\n\n## 18｜行业正在把 AI， 接进任务的执行过程（24:00–25:30）\n\n看看业界现在把能力往哪里做。GitHub 的官方资料已经把仓库理解、计划修改、编辑文件、运行验证、代码审核放在连续的任务流程中。微软在 Microsoft 365 Copilot 里推出 Researcher 和 Analyst，分别面向复杂研究与数据分析。\n\n这些产品有不同的权限、套餐和使用条件，我今天不做采购推荐。我想让大家看到一个共同方向：AI 正在接触更多材料、使用更多工具，并把任务推进到可以检查的产物。\n\n这意味着机会会继续向懂业务的人开放。你知道该问什么，知道哪些数据可信，知道什么结果能落地，这些能力会越来越直接地决定 AI 能帮你走多远。\n\n我们今天积累一个工具、一组验收题、一套可靠流程，就是在为接下来的变化做准备。\n\n> 现场提示：只讲已核对的官方产品能力。不引用未核验的提效百分比，不把供应商演示当成本公司生产效果。\n\n依据：\n- https://docs.github.com/en/copilot/concepts/copilot-surfaces/copilot-on-github\n- https://www.microsoft.com/en-us/copilot/blog/2025/03/25/introducing-researcher-and-analyst-in-microsoft-365-copilot/\n\n## 19｜下一步，你会管理 一组能执行任务的工具（25:30–26:30）\n\n我对未来的判断是，一个懂业务的人，会越来越像一个小型团队的负责人。你给出目标和判断标准，让不同工具去查资料、做分析、生成程序、检查结果，然后把它们组织起来。\n\n未来的差距，会逐渐体现在谁更能把模糊的问题定义清楚，谁有足够好的业务材料，谁能判断一个结果是否可信。\n\n我不会承诺所有工作明天都会自动完成。但我已经看到，很多过去只能留在想法里的事情，现在可以先做出一个版本，再通过反馈继续推进。\n\n所以我希望你们今天开始练的，就是这种能力：提出一个值得做的目标，带着 AI 把它做完，并且留下可以复用的东西。\n\n> 现场提示：这是演讲者判断与愿景，语气自信，但不许诺时间表或人员替代比例。\n\n## 20｜费用愿意投入， 结果需要认真对账（26:30–27:30）\n\n讲到这里，我也想把投入这件事说清楚。为了把一件工作做好，我们应该愿意投入 Token，愿意多跑几轮验证。与此同时，我们要对结果有数。\n\n最简单的做法是记录原来这件事怎么做，需要哪些步骤；现在工具接手了哪些步骤，人工还要检查什么；另一位同事能不能复现。如果没有记录，就先不讲节省百分之多少。\n\n有些工作只需要一段确定性的程序，比如排序、汇总、格式转换。让 AI 帮你把程序写好，之后重复运行就可以。有些工作需要理解新材料，比如归纳陌生工单，才需要在运行时继续调用模型。\n\n区分这两类任务，会让成本和可靠性更容易控制。我们的目标是让每一次投入都留下东西：一个工具、一组验证样本，或者一份下次还能使用的知识。\n\n> 现场提示：连接结尾的费用承诺。没有基线时不填节省时间与 ROI。强调固定计算由程序承担，不是每次都调用模型。\n\n## 21｜七天，完成你的 第一个工作成果（27:30–28:30）\n\n这场分享结束后，我建议我们做一个七天实验。每个人选一件真实工作，范围小一点，结果明确一点。\n\n第一天把问题和样本准备好。接下来用 AI 做出一个能运行的最小版本，遇到问题继续反馈和修正。七天内，让另一位同事用你的说明再跑一遍。\n\n最后只需要展示三件事：原来怎么做，现在怎样做，还有什么没有解决。省了多少时间，有记录再说；没有测过就不填数字。\n\n我最想看到的，是你们带回来一个个具体成果：这个报表以后不用反复整理了，这类日志终于能自动归类了，这个小功能我已经做出可验证的版本了。\n\n我们就从这些事情开始，把方法带进部门的日常工作。\n\n> 现场提示：建议行动，不宣称已经获得部门制度批准。现场可邀请三位愿意尝试的同事说出各自的问题。\n\n## 22｜问题带来。 大胆去试。 Token 的钱，我来兜底。（28:30–30:00）\n\n最后，我把态度讲清楚。\n\n你们用 AI 去解决工作问题，为了把事情做成而产生的 Token 费用，我来兜底。不要让“怕花钱”成为第一次尝试的障碍。\n\n我希望你们把注意力放在更重要的事情上：这个问题有没有被认真交出去，结果有没有被检查，做出来的东西能不能让下一位同事也用上。\n\n从今天开始，遇到一件你想解决的工作问题，先给 AI 一个参与的机会。小到一份表、一段日志，大到一个流程、一套工具，都可以先拆出第一步。\n\n这次我把案例、方法和工具入口带来了。下一次，我希望站在这里展示成果的人，就是你们。\n\n现在，请每个人想好：你离开这个会场之后，准备交给 AI 的第一件事是什么？我们就从那件事开始。\n\n> 现场提示：费用承诺按需求方要求写入，以演讲者第一人称表达。结尾放慢，在“我来兜底”后停顿。最后一个问题留给现场互动，指向会后手册。\n\n## 现场问答备用\n\n**“我们不懂代码，做出来敢用吗？”** 从脱敏样本和只读任务开始。要求 AI 交付运行步骤与可人工核对的结果；业务验收由你负责，生产变更按原有流程复核。\n\n**“模型也会出错，这不增加工作吗？”** 先选结果容易检查的重复工作，让验证成本可控。把第一次发现的错误变成下一次的检查项；如果总成本仍更高，就调整场景和流程，而不假定所有任务都值得自动化。\n\n**“Token 用得多就是做得好吗？”** 不是这个评价口径。先看是否开始实践，再看是否形成可靠成果，最后看是否被同事复用。不同模型、上下文和缓存机制会影响用量。\n\n**“现有系统里能直接操作吗？”** 先确认权限和操作范围，从只读检查、测试数据或隔离环境开始。提交、生产配置变更和发布遵循现有审批。\n\n**“今天回去第一句话怎么说？”** “我要完成这件工作。材料在这里。最终要交付这个文件或工具。用这几个条件验收。先理解材料，做最小版本，再运行验证。”\n";
+let metrics=structuredClone(INITIAL_METRICS);
+const $=id=>document.getElementById(id), slides=[...document.querySelectorAll('.slide')];
+slides.forEach((slide,i)=>{slide.dataset.page=String(i+1).padStart(2,'0')});
+let index=0,reading=false,toastTask;
+function showToast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTask);toastTask=setTimeout(()=>$('toast').hidden=true,2400)}
+function download(name,text,type){const link=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type}));link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}
+async function copy(text){try{if(navigator.clipboard&&isSecureContext){await navigator.clipboard.writeText(text)}else{const input=document.createElement('textarea');input.value=text;input.style.position='fixed';input.style.opacity='0';document.body.appendChild(input);input.select();if(!document.execCommand('copy'))throw Error();input.remove()}showToast('已复制任务')}catch{showToast('请允许复制，或从逐字稿中手动复制')}}
+TALK.slides.forEach((slide,i)=>{const option=document.createElement('option');option.value=i;option.textContent=String(i+1).padStart(2,'0')+' '+slide.title.replace(/<[^>]+>/g,'');$('page-picker').appendChild(option)});
+function go(to,updateHash=true){index=Math.max(0,Math.min(slides.length-1,to));slides.forEach((s,i)=>s.hidden=!reading&&i!==index);$('prev').disabled=index===0;$('next').disabled=index===slides.length-1;$('page-picker').value=index;$('page-count').textContent=String(index+1).padStart(2,'0')+' / '+slides.length;$('progress').style.width=((index+1)/slides.length*100)+'%';if(updateHash)history.replaceState(null,'','#'+slides[index].id);if(reading)slides[index].scrollIntoView({behavior:'instant'});else window.scrollTo({top:0,behavior:'instant'})}
+$('prev').onclick=()=>go(index-1);$('next').onclick=()=>go(index+1);$('page-picker').onchange=()=>go(Number($('page-picker').value));
+function toggleNotes(){const on=document.body.classList.toggle('notes-open');$('notes-button').setAttribute('aria-pressed',on);$('notes-button').textContent=on?'隐藏讲者稿 N':'讲者稿 N'}
+$('notes-button').onclick=toggleNotes;
+$('reading-button').onclick=()=>{reading=!reading;document.body.classList.toggle('reading',reading);$('reading-button').setAttribute('aria-pressed',reading);$('reading-button').textContent=reading?'返回演讲':'通读模式';go(index)};
+async function full(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{showToast('当前浏览器未允许全屏')}}
+$('full-button').onclick=full;
+document.addEventListener('keydown',event=>{if(event.target.closest('input,textarea,select,button,a')||$('data-dialog').open)return;if(['ArrowRight','PageDown',' '].includes(event.key)){event.preventDefault();go(index+1)}else if(['ArrowLeft','PageUp'].includes(event.key)){event.preventDefault();go(index-1)}else if(event.key==='Home'){event.preventDefault();go(0)}else if(event.key==='End'){event.preventDefault();go(slides.length-1)}else if(event.key.toLowerCase()==='n')toggleNotes();else if(event.key.toLowerCase()==='f')full()});
+addEventListener('hashchange',()=>{const found=slides.findIndex(s=>s.id===location.hash.slice(1));if(found>=0)go(found,false)});
+const initialIndex=slides.findIndex(s=>s.id===location.hash.slice(1));go(initialIndex>=0?initialIndex:0,false);
+let elapsed=0,started=null;
+function updateTimer(){const ms=elapsed+(started===null?0:Date.now()-started);const seconds=Math.floor(ms/1000);$('timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')}
+$('timer-toggle').onclick=()=>{if(started===null){started=Date.now();$('timer-toggle').textContent='暂停计时'}else{elapsed+=Date.now()-started;started=null;$('timer-toggle').textContent='继续计时'}updateTimer()};$('timer-reset').onclick=()=>{elapsed=0;started=null;$('timer-toggle').textContent='开始计时';updateTimer()};setInterval(updateTimer,1000);
+function number(value){return value===null?'待确认':new Intl.NumberFormat('zh-CN',{notation:value>=10000?'compact':'standard',maximumFractionDigits:2}).format(value)}
+function valueFor(dept){const metric=$('metric').value;if(metric==='coverage')return dept.members&&dept.active!==null?dept.active/dept.members*100:null;if(metric==='perActive')return dept.active&&dept.tokens!==null?dept.tokens/dept.active:null;return dept.tokens}
+function renderMetrics(){const valid=metrics.departments.some(d=>d.tokens!==null||d.active!==null);$('period-label').textContent=valid?metrics.period:'本月同口径观察 · 真实数据待补';const values=metrics.departments.map(valueFor);const max=$('metric').value==='coverage'?100:Math.max(...values.filter(v=>v!==null),1);$('department-chart').replaceChildren();metrics.departments.forEach((dept,i)=>{const row=document.createElement('div');row.className='chart-row';const name=document.createElement('div');name.className='chart-name';const b=document.createElement('b');b.textContent=dept.name;const sub=document.createElement('small');sub.textContent='活跃 '+number(dept.active)+' / 成员 '+number(dept.members);name.append(b,sub);const track=document.createElement('div');track.className='bar-track';if(values[i]===null){const empty=document.createElement('span');empty.className='bar-empty';empty.textContent='尚无已核验数据';track.appendChild(empty)}else{const fill=document.createElement('div');fill.className='bar-fill';fill.style.width=(values[i]/max*100)+'%';track.appendChild(fill)}const val=document.createElement('span');val.className='chart-value';val.textContent=number(values[i])+($('metric').value==='coverage'&&values[i]!==null?'%':'');row.append(name,track,val);$('department-chart').appendChild(row)});$('project-rows').replaceChildren();if(!metrics.projects.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.className='empty';td.textContent='待补：网络部每位同事本月的实际任务、投入和可核验产物';tr.appendChild(td);$('project-rows').appendChild(tr)}else{metrics.projects.forEach(p=>{const tr=document.createElement('tr');[p.person,p.project,number(p.tokens)+' Token',p.result].forEach(v=>{const td=document.createElement('td');td.textContent=v;td.title=p.evidence;tr.appendChild(td)});$('project-rows').appendChild(tr)})}}
+$('metric').onchange=renderMetrics;renderMetrics();
+function validateMetrics(input){if(!input||typeof input!=='object'||typeof input.period!=='string'||!input.period.trim()||typeof input.source!=='string'||!input.source.trim())throw Error('请填写统计时间与来源。');if(!Array.isArray(input.departments)||input.departments.length!==3)throw Error('需填写三个对比部门的数据。');const names=INITIAL_METRICS.departments.map(d=>d.name);input.departments.forEach((d,i)=>{if(d.name!==names[i])throw Error('请保留三部门名称和顺序。');for(const key of ['members','active','tokens']){if(d[key]!==null&&(!Number.isSafeInteger(d[key])||d[key]<0))throw Error(key+' 必须为非负安全整数或 null。')}if(d.active!==null&&d.members!==null&&d.active>d.members)throw Error('活跃人数不能大于成员人数。');if(d.tokens>0&&d.active===0)throw Error('有 Token 用量时，活跃人数不能为 0。')});if(!Array.isArray(input.projects)||input.projects.length>200)throw Error('projects 必须是数组，最多 200 条。');input.projects.forEach(p=>{for(const key of ['person','project','result','evidence'])if(typeof p[key]!=='string'||!p[key].trim())throw Error('个人项目需填写姓名、项目、结果和核验依据。');if(p.tokens!==null&&(!Number.isSafeInteger(p.tokens)||p.tokens<0))throw Error('个人 Token 数必须为非负安全整数或 null。')});return input}
+$('data-button').onclick=()=>{$('data-editor').value=JSON.stringify(metrics,null,2);$('data-status').textContent='修改只影响当前页面。可下载包含数据的版本保存。';$('data-dialog').showModal()};$('close-data').onclick=()=>$('data-dialog').close();
+$('apply-data').onclick=()=>{try{metrics=validateMetrics(JSON.parse($('data-editor').value));renderMetrics();$('data-status').textContent='已应用。请核对图表口径与个人项目后再分享。'}catch(error){$('data-status').textContent='未应用：'+error.message}};
+$('clear-data').onclick=()=>{metrics=structuredClone(INITIAL_METRICS);$('data-editor').value=JSON.stringify(metrics,null,2);renderMetrics();$('data-status').textContent='已恢复本文件内的原始快照。'};
+$('export-html').onclick=()=>{try{const chosen=validateMetrics(JSON.parse($('data-editor').value));metrics=chosen;renderMetrics();const clone=document.documentElement.cloneNode(true);clone.querySelector('body').classList.remove('notes-open','reading');clone.querySelectorAll('section.slide').forEach((s,i)=>s.hidden=i!==0);clone.querySelector('#data-dialog').removeAttribute('open');clone.querySelector('#page-picker').replaceChildren();clone.querySelector('#notes-button').setAttribute('aria-pressed','false');clone.querySelector('#notes-button').textContent='讲者稿 N';clone.querySelector('#reading-button').setAttribute('aria-pressed','false');clone.querySelector('#reading-button').textContent='通读模式';clone.querySelector('#toast').hidden=true;clone.querySelector('#timer').textContent='00:00';clone.querySelector('#timer-toggle').textContent='开始计时';clone.querySelector('#data-editor').textContent='';const code=clone.querySelector('script');code.textContent=code.textContent.replace(/const INITIAL_METRICS = [\s\S]*?;\nconst SCRIPT_MD =/, ()=> 'const INITIAL_METRICS = '+JSON.stringify(chosen).replace(/</g,'\\u003c')+';\nconst SCRIPT_MD =');download('迅游网络部-AI演讲.html','<!doctype html>\n'+clone.outerHTML,'text/html;charset=utf-8');$('data-status').textContent='已生成下载，包含当前部门与人员数据。'}catch(error){$('data-status').textContent='未导出：'+error.message}};
+$('script-button').onclick=()=>download('迅游网络部-AI演讲逐字稿.md',SCRIPT_MD,'text/markdown;charset=utf-8');
+const demoRows=[['09:00','core-01','INFO','巡检开始'],['09:01','core-01','INFO','接口状态正常'],['09:02','core-01','WARNING','延迟升高'],['09:03','core-01','ERROR','上行探测超时'],['09:04','core-01','ERROR','上行探测超时'],['09:05','core-01','ERROR','DNS 探测失败'],['09:00','edge-01','INFO','巡检开始'],['09:01','edge-01','INFO','接口状态正常'],['09:02','edge-01','INFO','DNS 解析正常'],['09:03','edge-01','WARNING','响应变慢'],['09:04','edge-01','ERROR','HTTP 探测超时'],['09:05','edge-01','INFO','探测恢复']];
+let demoReady=false;
+function calculate(){const rows=demoRows.filter(row=>$('device').value==='all'||row[1]===$('device').value),errors=rows.filter(row=>row[2]==='ERROR');return {rows,errors,rate:rows.length?(errors.length/rows.length*100).toFixed(2)+'%':'无数据'}}
+function renderDemo(){if(!demoReady)return;const result=calculate();$('demo-total').textContent=result.rows.length;$('demo-errors').textContent=result.errors.length;$('demo-rate').textContent=result.rate;$('error-list').replaceChildren();result.errors.forEach(row=>{const p=document.createElement('p');p.textContent=row.join(' · ');$('error-list').appendChild(p)});$('demo-before').hidden=true;$('demo-after').hidden=false;$('download-demo').disabled=false;$('run-demo').textContent='重新计算'}
+$('run-demo').onclick=()=>{demoReady=true;renderDemo()};$('device').onchange=renderDemo;
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('download-demo').onclick=()=>{const result=calculate();const report='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>日志分析报告</title><style>body{font:17px/1.8 system-ui,sans-serif;max-width:850px;margin:40px auto;padding:0 20px;color:#183d32}li{padding:8px 0}</style><h1>日志分析报告</h1><p>演讲虚构样本，本地程序统计，不是生产巡检结果。</p><p>范围：'+escapeHTML($('device').value)+'；记录 '+result.rows.length+' 条，ERROR '+result.errors.length+' 条，错误比例 '+result.rate+'。</p><h2>ERROR 原始内容</h2><ul>'+result.errors.map(r=>'<li>'+escapeHTML(r.join(' · '))+'</li>').join('')+'</ul><p>日志条数不等于故障次数，不能据此直接认定根因。</p></html>';download('日志分析演示报告.html',report,'text/html;charset=utf-8')};
+$('copy-brief').onclick=()=>copy('请把 sample.csv 的 12 条日志做成可离线打开的交互分析网页，按设备与级别统计，支持筛选和报告下载。保留原始数据，不调用外部服务。验收：全部 12 条、ERROR 4 条、错误比例 33.33%；core-01 为 6 条和 3 条 ERROR；edge-01 为 6 条和 1 条 ERROR。请实际运行验证，报告文件位置、结果和未验证项。');
+</script>
+</body></html>
