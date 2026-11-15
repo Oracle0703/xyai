@@ -6,6 +6,7 @@
 - 2026-11-15 在 0.2.21 之上单独 cherry-pick 上游未合并 PR [#8759](https://github.com/Wei-Shaw/sub2api/pull/8759) head `8480cb0cd95710de66052dabf364f6e62d267f0f`（Antigravity/Gemini 工具 schema `items` 与所选 type 对齐，规则见 backend）。PR base `530c5e3a4` 比 0.2.21 多一个 README 赞助商提交，未带入；记录见 `docs/upstream-sync/merge-log.md`。
 - 同日同样方式 cherry-pick 上游未合并 PR [#8680](https://github.com/Wei-Shaw/sub2api/pull/8680) 的 3 个提交（head `19b0c17477d2bd64ceedb38d29204f3bb721fe36`，同一 base）：Codex 独立上下文原样转发、只在校验副本中剔除，规则见 backend/security。
 - 同日同样方式 cherry-pick 上游未合并 PR [#8829](https://github.com/Wei-Shaw/sub2api/pull/8829)（head `297a2122701c853602294fb4b524327514171404`，同一 base）：Antigravity system 文本删除会触发上游假 429 的 Dual-use 句，新增可选环境变量 `SUB2API_ANTIGRAVITY_STRIP_PATTERNS`，规则见 backend/ops。
+- 同日在分支 `fix/antigravity-client-identity-429` cherry-pick 上游未合并 PR [#8793](https://github.com/Wei-Shaw/sub2api/pull/8793)（Pi 身份句，head `7478a34e7f660f855edf0f02b2a35b7f4073d59e`，同一 base），并新增本地通用客户端身份改写（Cline、OpenCode 等，可选环境变量 `SUB2API_ANTIGRAVITY_IDENTITY_NAMES`）。起因是部署 #8829 后生产 Cline 请求经 Antigravity 仍稳定 429，规则与实测依据见 backend/ops。
 - 现行合同：缓存 30m/12h 分项与计费见 backend/data，刷新令牌原子消费与 WS 重放边界见 security，请求体自适应内存预算见 ops，账号刷新/设置保存/价格展示见 frontend。上一轮 0.2.20 已经 PR #49 合入 main，历史过程见其 review。
 
 ## 0.2.19 同步（已合入 main）
