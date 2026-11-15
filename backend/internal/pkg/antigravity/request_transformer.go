@@ -307,7 +307,8 @@ var systemIdentityOpeners = []*regexp.Regexp{
 
 // NeutralizeSystemIdentity removes leading client attribution, drops sentences the
 // upstream rejects with a fake 429 (see StripUpstreamTriggerSentences) and rewrites a
-// leading vendor identity sentence, preserving the rest of the system block.
+// leading vendor identity sentence, preserving the rest of the system block. Other agent
+// products ("You are Cline, ...") are handled generically by neutralizeClientIdentity.
 // Only Antigravity forwarding should use this; native Anthropic may require attribution.
 func NeutralizeSystemIdentity(text string) string {
 	text = StripUpstreamTriggerSentences(stripClaudeAttribution(text))
@@ -322,7 +323,7 @@ func NeutralizeSystemIdentity(text string) string {
 			return "You are an AI agent." + text[loc[1]:]
 		}
 	}
-	return text
+	return neutralizeClientIdentity(text)
 }
 
 func stripClaudeAttribution(text string) string {

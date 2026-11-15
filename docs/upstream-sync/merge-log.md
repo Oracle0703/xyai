@@ -2336,3 +2336,20 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（antigravity、service）通过；PR 新增 5 个用例及 `TestNeutralizeClaudeIdentity` 通过；golangci-lint v2.14.0（全量参数，antigravity）0 issues；`go test -tags=unit ./internal/service/ ./internal/handler/... ./internal/pkg/...` 36 个包全部通过、退出 0（此前偶发的 TTFT 时序用例本次未失败，不代表已修复） |
 | 边界 | 未发真实 Antigravity 请求；环境变量未加入 `deploy/.env.example`/Compose；PR 范围外的“裸 429 冷却整个 `antigravity:gemini` scope”（上游 #8824）未处理；未推送、未部署 |
 | Wiki | `llm-wiki/wiki/backend.md`、`ops.md`、`README.md` 已更新 |
+
+
+## 2026-11-15 — 上游 PR #8793 cherry-pick + 本地通用客户端身份改写（经 GitHub PR 合入 main，部署由用户执行）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-15 |
+| 工作分支 | `fix/antigravity-client-identity-429`（自本地 `main@51b330cf8` = github/main，已含 0.2.21、PR #8759、#8680、#8829） |
+| 上游来源 | `Wei-Shaw/sub2api` PR [#8793](https://github.com/Wei-Shaw/sub2api/pull/8793)（Fix #8791），核验时仍 open；head `7478a34e7f660f855edf0f02b2a35b7f4073d59e`，`fix(antigravity): neutralize Pi identity in system prompts` |
+| 合入方式 | `git cherry-pick -x 7478a34e7`，生成 `d3051740c`；不建合并父。PR base 同为 `530c5e3a4`，README 赞助商提交未带入 |
+| 改动路径 | `backend/internal/pkg/antigravity/attribution_test.go`（blob 等于 PR head）、`request_transformer.go`（相对 PR head 的差异恰好是本地已有的 #8829 两行） |
+| 冲突文件 | 无冲突 |
+| 处理方式 | 原样采用 PR：`systemIdentityOpeners` 增加 Pi 身份句。另因部署 #8829 后生产 Cline 请求仍 429，本地新增 `client_identity.go`：专用规则未命中时，system 块开头 `You are <名字>`（内置产品名 / 环境变量 `SUB2API_ANTIGRAVITY_IDENTITY_NAMES` / 大写名字且同句含 agent 类描述词）改写为 `You are an AI agent`，保留后半句；`Antigravity`/`Gemini` 不改；`NeutralizeSystemIdentity` 末尾一行改为调用它。作用于全部 Antigravity 链路（gemini-* 与 claude-* 映射），其他平台不调用 |
+| 生产实测（改代码前，118，分组 21，`claude-opus-5-5` → Antigravity Claude 模型，每次 429 后间隔 72s） | Cline 原请求 429；仅首句换成 `You are an AI agent.` 200；system 仅 `You are Cline, an AI coding agent.` 429、仅 `You are an AI agent.` 200；OpenCode `You are OpenCode, the best coding agent on the planet.` 429、改写结果 200；新代码对 Cline 原请求的实际改写结果 200 |
+| 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（antigravity、service）通过；新增 `TestNeutralizeSystemIdentity_ClientIdentity`、`TestCompileKnownClientIdentity_ExtraNames`、`TestTransformClaudeToGemini_NeutralizesClientIdentity`、`TestAntigravityClientIdentityAcrossProtocols`（chat/responses/messages × gemini/claude）、`TestInjectAntigravityGeminiClientIdentity` 通过，去掉调用后 4 个失败；golangci-lint v2.14.0（全量参数，antigravity、service）0 issues；`-tags=unit` `./internal/pkg/...`、`./internal/handler/...` 全部通过；service 唯一失败为既有时序用例 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode`，单独重跑通过 |
+| 边界 | 生产实测只覆盖分组 21 的 Antigravity Claude 映射，未测 gemini-* 映射；`/v1/messages` 中 role=system 的消息不经改写（既有缺口）；裸 429 冷却整个 scope（上游 #8836）未合入；未部署（用户自行部署） |
+| Wiki | `llm-wiki/wiki/backend.md`、`ops.md`、`README.md` 已更新 |
