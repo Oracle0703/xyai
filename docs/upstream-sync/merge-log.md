@@ -2319,3 +2319,20 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（handler、service）通过；PR 相关专项测试通过；golangci-lint v2.14.0（全量参数，handler/...、service/...）0 issues；`-tags=unit` 与 default tag 下 handler/...、apicompat 全部通过；service 唯一失败为既有上游时序用例 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode`（499ms < 500ms、1.095s < 1.1s），已在 0.2.21 review 第 6 节登记，与本 PR 路径无关 |
 | 边界 | 未发真实 Codex OAuth/API Key 请求；未推送、未部署 |
 | Wiki | `llm-wiki/wiki/backend.md`、`security-and-reliability.md`、`README.md` 已更新独立上下文规则 |
+
+
+## 2026-11-15 — 上游 PR #8829 cherry-pick（已提交到本地 main，未推送）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-15 |
+| 工作分支 | 本地 `main`（用户指定）；仓库外临时 worktree 提交与验证后 fast-forward |
+| 第一父 / 本地 main | `6f97d1be7`（= github/main，已含 0.2.21、PR #8759、PR #8680） |
+| 上游来源 | `Wei-Shaw/sub2api` PR [#8829](https://github.com/Wei-Shaw/sub2api/pull/8829)，核验时仍 open；head `297a2122701c853602294fb4b524327514171404`，`fix(antigravity): strip the Claude Code dual-use security sentence that triggers a fake 429` |
+| 合入方式 | `git cherry-pick -x 297a21227`，生成 `67f5c493c`；不建合并父。PR base 同为 `530c5e3a4`，README 赞助商提交未带入 |
+| 改动路径 | `backend/internal/pkg/antigravity/request_transformer.go`（本地与 0.2.21 一致）、新增 `upstream_trigger_filter.go` 与 `_test.go`；3 个结果 blob 均等于 PR head |
+| 冲突文件 | 无冲突 |
+| 处理方式 | 原样采用 PR：`NeutralizeSystemIdentity` 先删除 Claude Code Dual-use 安全句，新增启动时读取的可选环境变量 `SUB2API_ANTIGRAVITY_STRIP_PATTERNS`。调用方仅 Antigravity 三条链路；`gateway_service.go` 的 Claude Code 伪装提示词（含同一句）走原生 Anthropic 路径，不受影响 |
+| 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（antigravity、service）通过；PR 新增 5 个用例及 `TestNeutralizeClaudeIdentity` 通过；golangci-lint v2.14.0（全量参数，antigravity）0 issues；`go test -tags=unit ./internal/service/ ./internal/handler/... ./internal/pkg/...` 36 个包全部通过、退出 0（此前偶发的 TTFT 时序用例本次未失败，不代表已修复） |
+| 边界 | 未发真实 Antigravity 请求；环境变量未加入 `deploy/.env.example`/Compose；PR 范围外的“裸 429 冷却整个 `antigravity:gemini` scope”（上游 #8824）未处理；未推送、未部署 |
+| Wiki | `llm-wiki/wiki/backend.md`、`ops.md`、`README.md` 已更新 |
