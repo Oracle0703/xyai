@@ -2388,3 +2388,19 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 2026-11-18 工作位置更新：按用户要求，将同名分支的未提交合并迁回 `E:/allsite/xyai`，并快进纳入最新本地 `main@74af5ac80ab13c8bc0c134a674c75fbf07e17072` 的演示文件删除和 Grok wiki 补充。迁回后的暂存树与“原审核树 + 最新 main 增量”精确相等，backend/frontend 与已测试版本逐树一致；MERGE_HEAD 仍为指定 `2af3f1e15c98c893a89255a037f551046883b8c0`，未提交。原始验证基线和结果保留在上表，当前工作位置及迁移核对并入同一份 review；恢复备份与测试证据仍留在仓库外。
 
 同次迁移清理完成：`E:/tmp/xyai-merge-223-20261118/worktree` 已取消 Git worktree 登记并删除实际目录；原有测试日志、快照和迁移恢复备份保留在其父目录，未删除其他任务的工作树。
+
+## 2026-11-18 — 本地修复 Grok 无账号证据 403（上游 issue #8935；已提交到本地分支，未推送）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-18 |
+| 工作分支 / 本地基线 | `hotfix/hy/0000_grok_unknown_403` / 本地 `main@885472202`（= github/main，已含 0.2.23） |
+| 上游分支 / 提交 | 修复分支 `fix/grok-unknown-403-shared-fallback` 基于 `Wei-Shaw/sub2api main@2af3f1e15c98c893a89255a037f551046883b8c0`（0.2.23，当日核对仍是上游最新），只含一个提交 `0cbb4a98865303b32fe97ebf44356f4c77a38f23`，不含本地二开 |
+| 来源 | 本地编写，对应上游 issue [#8935](https://github.com/Wei-Shaw/sub2api/issues/8935)（关联 #7398、#8152）。未采用上游未合并 PR #8153 的提交（作者未签 CLA，带入会使我方 PR 过不了 `cla-check`），判定重新实现 |
+| 合并提交 | `f6aba99ebe121bf80028bf7a1f021117cd1b8760`（`git merge --no-ff`） |
+| 改动路径 | `backend/internal/service` 13 个文件：`grok_upstream_errors.go`、`openai_gateway_grok.go`、`ratelimit_service.go`，6 个文件的 `shouldFailoverGrokUpstreamError` 调用点，新增 `grok_unclassified_forbidden_test.go`，4 个既有测试文件适配 |
+| 冲突文件 | 无冲突（`openai_gateway_cc_pipeline.go`、`openai_gateway_chat_completions_raw.go` 自动合并） |
+| 处理方式 | 没有账号证据的 Grok 403 不冷却、不按响应头写限流、不切号，`RateLimitService.handle403` 不再 `SetError`；HTML / Cloudflare 拦截页不处罚但继续切号；账号证据、凭据拒绝、pool 模式、命中临时不可调度规则的响应体维持原行为。现行规则见 `llm-wiki/wiki/backend.md` 的 Grok 上游错误条目 |
+| 验证 | 修复分支（纯上游基线）：新增路径级用例在未修改的 `main@2af3f1e15` 上失败、修改后通过；gofmt、`go build ./...`、`go vet -tags=unit` 通过；golangci-lint v2.14.0（go1.27.4 构建）全仓 0 issues，`GOOS=linux` `./internal/service/...` 0 issues；`go test -tags=unit ./...` 60 个包通过，service 仅 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 失败，未修改上游同样失败。本地合并分支：build、vet 通过；`-tags=unit` `./internal/handler/...` 4 个包通过；service 整包仅 `TestFilterThinkingBlocksSignedHistorySkipsDecode` 失败（分配次数断言，与本改动无关），单独重跑 5 次全过 |
+| 边界 | 未对真实 xAI 上游验证；集成测试未跑（无 Docker，改动不涉及仓储和 SQL）；此前已被置为 error 的账号不会自动恢复；账号确实被封但响应体无账号证据时会留在调度里，需用临时不可调度规则处理；上游 PR 未提交（需用户本人签 CLA）；未推送、未部署 |
+| Wiki | `llm-wiki/wiki/backend.md`、`security-and-reliability.md`、`README.md` 已更新；Wiki 图谱未刷新 |

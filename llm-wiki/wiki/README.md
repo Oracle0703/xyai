@@ -1,8 +1,9 @@
 # Sub2API llm-wiki 基线
 
-## 当前上游同步：0.2.23（合并待审核）
+## 当前上游同步：0.2.23（已合入 main）
 
-- 当前分支 `feature/hy/10236_merge_sub2api_223` 已迁回原仓库工作目录，合并第一父为本地 `main@74af5ac80ab13c8bc0c134a674c75fbf07e17072`（含初次验证后提交的两项文档修改），固定合入 `Wei-Shaw/sub2api main@2af3f1e15c98c893a89255a037f551046883b8c0`；保留 MERGE_HEAD，等待用户审核后提交。唯一审核入口：`docs/upstream-sync/2026-11-18-v0.2.23/review.md`。
+- `feature/hy/10236_merge_sub2api_223` 以本地 `main@74af5ac80ab13c8bc0c134a674c75fbf07e17072` 为第一父，固定合入 `Wei-Shaw/sub2api main@2af3f1e15c98c893a89255a037f551046883b8c0`；合并提交 `885472202` 已在本地 main 与 `github/main`（2026-11-18 核对）。唯一审核入口：`docs/upstream-sync/2026-11-18-v0.2.23/review.md`。
+- 2026-11-18 本地携带的上游修复：分支 `hotfix/hy/0000_grok_unknown_403` 合入 `fix/grok-unknown-403-shared-fallback` 的提交 `0cbb4a988`（基于上游 `2af3f1e15`，对应上游 issue [#8935](https://github.com/Wei-Shaw/sub2api/issues/8935)）：Grok 无账号证据的 403 不再处罚账号、不再切号，规则见 backend/security。上游 PR 尚未提交（需先签 CLA）；上游同步时若该 PR 已合入则重叠部分采用上游，未合入则保留本提交。记录见 `docs/upstream-sync/merge-log.md`。
 - 当前新增合同：缓存快照/TTL 计费、GPT-6.2 Sol/Astra 与首输出前 idle 切换见 backend/security；渠道 Ultrafast 倍率、请求时点价格见 data/frontend；migration 252、验证命令与环境边界见 ops。只处理文本与必要语义冲突，保留本地独有功能，不另修上游 bug。
 
 ## 0.2.22 同步（已合入本地 main）
