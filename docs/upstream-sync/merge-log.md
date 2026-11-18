@@ -2404,3 +2404,5 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | 修复分支（纯上游基线）：新增路径级用例在未修改的 `main@2af3f1e15` 上失败、修改后通过；gofmt、`go build ./...`、`go vet -tags=unit` 通过；golangci-lint v2.14.0（go1.27.4 构建）全仓 0 issues，`GOOS=linux` `./internal/service/...` 0 issues；`go test -tags=unit ./...` 60 个包通过，service 仅 `TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort` 失败，未修改上游同样失败。本地合并分支：build、vet 通过；`-tags=unit` `./internal/handler/...` 4 个包通过；service 整包仅 `TestFilterThinkingBlocksSignedHistorySkipsDecode` 失败（分配次数断言，与本改动无关），单独重跑 5 次全过 |
 | 边界 | 未对真实 xAI 上游验证；集成测试未跑（无 Docker，改动不涉及仓储和 SQL）；此前已被置为 error 的账号不会自动恢复；账号确实被封但响应体无账号证据时会留在调度里，需用临时不可调度规则处理；上游 PR 未提交（需用户本人签 CLA）；未推送、未部署 |
 | Wiki | `llm-wiki/wiki/backend.md`、`security-and-reliability.md`、`README.md` 已更新；Wiki 图谱未刷新 |
+
+2026-11-18 后续：上述修复已作为上游 PR [#8940](https://github.com/Wei-Shaw/sub2api/pull/8940) 提交（head `Oracle0703:fix/grok-unknown-403-shared-fallback`@`0cbb4a988`，1 个提交、13 个 service 文件，不含本地二开）；CLA 待用户本人在 PR 评论签署，尚未审核。
