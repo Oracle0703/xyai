@@ -1,5 +1,10 @@
 # 前端知识基线
 
+## 渠道 Ultrafast 价格与 GPT-6.2
+
+- OpenAI 渠道定价卡增加 `ultrafast_multiplier`，空输入提交 NULL（继承模型默认），有效值必须为正数；创建、编辑、模型同步、API 回填与保存均贯通。组件回归见 `ChannelsView.ultrafastPricing.spec.ts`，接口与后端约束见 data-and-domain。
+- UseKeyModal 的 OpenCode 模型与白名单加入 GPT-6.2 Sol/Astra，context 1,050,000 / output 128,000，effort 为 low/medium/high/xhigh/max。实际权限由上游账号决定；Token Analysis、组织/部门、子管理员、本地生图页与用户账户列没有被替换。
+
 ## 账号刷新、缓存时长与设置保存
 
 - 账号列表刷新保留旧行，并在加载期间禁用现有表格操作；`AccountUsageCell` 保留上次配额数值，Antigravity 查询可强制刷新。`AccountsView` 的 `canManageAccounts`、精简表单选项和受限操作员边界继续保留。

@@ -1,8 +1,13 @@
 # Sub2API llm-wiki 基线
 
-## 当前上游同步：0.2.22（合并待审核）
+## 当前上游同步：0.2.23（合并待审核）
 
-- 2026-11-17 从本地 `main@be6d173ef` 创建 `feature/hy/10235_merge_sub2api_222`，`--no-commit` 固定合入 `Wei-Shaw/sub2api main@15871f904056f548dd874a1d069ffc6cdf777b78`（0.2.22），等待用户审核后提交。范围、冲突裁决与验证唯一入口：`docs/upstream-sync/2026-11-17-v0.2.22/review.md`。保留本地独有功能，功能重叠采用上游，仅解决冲突，不修上游 bug。
+- 当前分支 `feature/hy/10236_merge_sub2api_223` 已迁回原仓库工作目录，合并第一父为本地 `main@74af5ac80ab13c8bc0c134a674c75fbf07e17072`（含初次验证后提交的两项文档修改），固定合入 `Wei-Shaw/sub2api main@2af3f1e15c98c893a89255a037f551046883b8c0`；保留 MERGE_HEAD，等待用户审核后提交。唯一审核入口：`docs/upstream-sync/2026-11-18-v0.2.23/review.md`。
+- 当前新增合同：缓存快照/TTL 计费、GPT-6.2 Sol/Astra 与首输出前 idle 切换见 backend/security；渠道 Ultrafast 倍率、请求时点价格见 data/frontend；migration 252、验证命令与环境边界见 ops。只处理文本与必要语义冲突，保留本地独有功能，不另修上游 bug。
+
+## 0.2.22 同步（已合入本地 main）
+
+- 2026-11-17 从本地 `main@be6d173ef` 创建 `feature/hy/10235_merge_sub2api_222`，`--no-commit` 固定合入 `Wei-Shaw/sub2api main@15871f904056f548dd874a1d069ffc6cdf777b78`（0.2.22），已由合并提交 `d8dab5fad236a73a22f9701094931c85f7d08ca0` 纳入本地 main。范围、冲突裁决与验证唯一入口：`docs/upstream-sync/2026-11-17-v0.2.22/review.md`。保留本地独有功能，功能重叠采用上游，仅解决冲突，不修上游 bug。
 - 本地 cherry-pick 过的上游 PR：#8759 上游已合入，结果与上游一致；#8680 上游关闭未合入、改合 #8769，两者只部分重叠：上游识别的 Codex 独立上下文采用上游“改写为 user message”，上游未覆盖的 7 个生产者保留 #8680 的原样转发（`handler/openai_standalone_context.go`，见 backend/security）；#8829、#8793 仍未合并，本地 Antigravity Dual-use 句删除与客户端身份改写保留。
 - 现行合同：分组强制 Ultrafast、passthrough 按模型筛选、工具 schema Python `re` 规则见 backend；分组日汇总非阻塞重建、保留下界与本地组织日汇总分区标脏见 security/data；Go 1.27.4、两个 251 迁移与 `concurrency.ping_interval=0` 见 ops。
 

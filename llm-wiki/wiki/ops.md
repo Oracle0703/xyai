@@ -1,5 +1,12 @@
 # 运维, 配置与验证基线
 
+## 0.2.23 运行与验证入口
+
+- Go 维持 1.27.4；前端 package.json / pnpm-lock.yaml 与第一父相同。Windows 需显式使用同版本 GOROOT/编译器与由 Go 1.27.4 构建的 golangci-lint；各测试套件使用独立 GOTMPDIR，前端使用独立 TEMP/TMP。
+- 新增 `252_channel_pricing_ultrafast_multiplier.sql`，存量卡 NULL 继续继承默认倍率；唯一新增迁移与本地同号文件共存，升级前后核对完整文件名与 checksum。无 Ent schema、Wire provider、新配置或环境变量变化。
+- 全量 default/unit/integration、隔离 PG、前端测试与构建、生成一致性、lint 和失败归属均记录在 `docs/upstream-sync/2026-11-18-v0.2.23/review.md`。无 Docker 时 repository 整包跳过不能记作数据库通过；不为合并修复上游原生 bug。
+- postgres-only 局部测试选择也可能受同一进程先前夹具残留影响：订阅列表用例应在全新库单独复核，并与第一父同选集对照，不能直接归因于合并。已确认的一组选择在两侧均残留 4 条订阅、导致相同 6 个子用例失败；独立订阅 suite 全部通过，细节见本轮 review。
+
 ## 0.2.22 运行与验证要点
 
 - Go 升至 1.27.4（上游 #8767）。本机 golangci-lint 须用 `GOTOOLCHAIN=go1.27.4` 重建，go1.27.0 构建的旧二进制结果不可信。

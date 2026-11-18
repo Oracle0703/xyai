@@ -1,5 +1,9 @@
 # 管理端组件权限约定
 
+## 渠道 Ultrafast 倍率
+
+- `channel/PricingEntryCard.vue` 仅在 OpenAI 平台显示 Ultra Fast 倍率；`ChannelsView.vue` 的新增、同步模型、回填与保存贯通 `ultrafast_multiplier`。空值提交 NULL，非空必须为有限正数，继承关系与数据库约束见 wiki data-and-domain。回归：`ChannelsView.ultrafastPricing.spec.ts`。
+
 ## 渠道缓存时长价格
 
 - `channel/PricingEntryCard.vue`、`IntervalRow.vue` 与 pricing 类型支持 `cache_write_12h_price`；提交保留 NULL 与显式 0 的区别，分组定价采用相同字段。回归：channel/__tests__/types.spec.ts、分组定价与 intervalPrices 用例。

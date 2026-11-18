@@ -2369,3 +2369,22 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | 前端 lint/typecheck/build 通过，Vitest 440 files / 3657 tests（独立 TEMP 重跑）通过；Go unit 全量 0 失败；#8680 兼容修复后审核方 11 个场景 11/11 放行，unit 全量重跑仅既有图片代理时序用例偶发失败一次（隔离与 handler 包重跑通过），lint 重跑 0 issues；default/integration 各仅上游 TTFT 时序用例失败，纯上游快照复现；隔离 PG 18.3 迁移 332→334，repository 包（仓库外副本补 DSN）852 顶层通过、仅 Redis 子用例失败；Ent/Wire 无漂移；normal/embed build 通过；golangci-lint（go1.27.4 构建）增量与 Windows/Linux 全量 0 issues；tidy 差异同 0.2.21 |
 | 本地功能 / 文档 | `docs/features/` 零变更；wiki（README/backend/security/data/ops）、Wiki 图谱、playbook 规则已更新；台账只追加；旧文档目录未恢复 |
 | 唯一审核记录 | `docs/upstream-sync/2026-11-17-v0.2.22/review.md` |
+
+## 2026-11-18 — 0.2.23（待用户审核，未提交）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-18 |
+| 工作分支 / 本地基线 | `feature/hy/10236_merge_sub2api_223` / 本地 `main@d8dab5fad236a73a22f9701094931c85f7d08ca0`；原 main 的未提交改动保留，本轮使用独立 Git worktree |
+| 上游分支 / 提交 | `Wei-Shaw/sub2api main` / `2af3f1e15c98c893a89255a037f551046883b8c0`，0.2.23；共同祖先 `15871f904056f548dd874a1d069ffc6cdf777b78` |
+| 合并提交 | 未创建；`git merge --no-commit --no-ff`，MERGE_HEAD 保留指定 SHA，等待用户审核后 commit |
+| 范围 | 32 commits / 90 上游路径；15 双方修改、75 仅上游、819 仅本地路径 |
+| 冲突文件 | 1 个文本冲突：`backend/internal/service/openai_gateway_messages.go` |
+| 处理方式 | 上游要求终态嵌套 `response.usage` 优先，本地已有相同顺序并含兼容缓存补充；保留本地完整段落，删除合并产生的重复赋值，最终该文件等于第一父。其余 14 个双方改动文件逐项保留双方增量；GPT-6.2、缓存 TTL 计费、渠道 Ultrafast、idle failover 与性能改动采用上游。未修上游 bug |
+| 验证 | Go default/unit/integration 全量均退出 0（Docker/外部依赖跳过边界单列）；前端 lint/typecheck/build 通过，完整 Vitest 3660/3661 通过，唯一文案断言失败在纯上游复现、第一父通过，原样保留。PG 迁移 334→335，既有 checksum 不变；扩大回归 853 顶层通过、1 次并发时序失败，第一父整包与双方各 3 次精确复跑均通过；部分选集的订阅夹具残留在第一父同样复现。Ent/Wire 末轮零漂移；增量、Windows/Linux 全量 lint 均 0 issues；normal/embed 构建及 tidy 最终结果见 review |
+| 本地功能 / 文档 | `docs/features/` 26 份文档零修改/零删除；本地独有功能与权限/路由接线保留；6 个 wiki 页、组件 README 与 Wiki 图谱已更新；台账只追加，旧文档目录未恢复 |
+| 唯一审核记录 | `docs/upstream-sync/2026-11-18-v0.2.23/review.md` |
+
+2026-11-18 工作位置更新：按用户要求，将同名分支的未提交合并迁回 `E:/allsite/xyai`，并快进纳入最新本地 `main@74af5ac80ab13c8bc0c134a674c75fbf07e17072` 的演示文件删除和 Grok wiki 补充。迁回后的暂存树与“原审核树 + 最新 main 增量”精确相等，backend/frontend 与已测试版本逐树一致；MERGE_HEAD 仍为指定 `2af3f1e15c98c893a89255a037f551046883b8c0`，未提交。原始验证基线和结果保留在上表，当前工作位置及迁移核对并入同一份 review；恢复备份与测试证据仍留在仓库外。
+
+同次迁移清理完成：`E:/tmp/xyai-merge-223-20261118/worktree` 已取消 Git worktree 登记并删除实际目录；原有测试日志、快照和迁移恢复备份保留在其父目录，未删除其他任务的工作树。

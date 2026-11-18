@@ -1,5 +1,9 @@
 # Key Components
 
+## GPT-6.2 配置
+
+- OpenCode 模型加入 GPT-6.2 Sol/Astra，context 1,050,000 / output 128,000，effort low/medium/high/xhigh/max，`store: false`。已有 GPT-6.1 Sol 沿用同一配置模板；配置不授予模型或 Ultrafast 账号资格。回归：`UseKeyModal.spec.ts`。
+
 ## Claude 5.2 配置
 
 - UseKeyModal 的 Anthropic/OpenCode 模型清单加入 Fable/Mythos 5.2，支持 adaptive thinking 与 low/medium/high/xhigh/max effort。Mythos 仍要求上游账号资格；配置生成不扩大模型授权。回归：UseKeyModal.spec.ts。

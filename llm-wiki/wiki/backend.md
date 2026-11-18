@@ -1,5 +1,14 @@
 # 后端知识基线
 
+## 缓存快照、GPT-6.2 与流式超时
+
+- Anthropic 5m/1h 写入分项在原生/Chat/Responses 桥接中保留缺省与显式值，累计快照不重复相加；`ClaudeUsage.billingUsageTokens`、`OpenAIUsage.billingUsageTokens` 和 `allocateCacheCreationBillingTokens` 统一计费投影，未分类写入量按上游 5m 回退规则处理。OpenAI 30m/12h 仍是独立桶，不与 Anthropic 桶混用。
+- Responses 转 Anthropic 终态同时有顶层 `usage` 和 `response.usage` 时，后者优先。本地 `openai_gateway_messages.go#handleAnthropicStreamingResponse` 先补兼容缓存字段再复制；只有嵌套 usage 缺省时才复用顶层对象，兼容源路径必须随之选择。上游的优先级调整已由该本地顺序覆盖，不能因重复赋值覆盖最终结果。回归：`TestResponsesTerminalUsageMatchesAnthropicOutput`、`TestAnthropicConverterOutputCacheFields` 及本地 compatible cache 用例。
+- GPT-6.2 Sol/Astra 模型目录与 Codex metadata、别名、effort、价格沿上游：工具调用要求 Responses；拒绝 `none`/`minimal`，支持 low/medium/high/xhigh/max，移除不支持的 temperature/top_p。OAuth 强制 Ultrafast 先看 Pro 权益（pro/chatgptpro：Sol；promax：两者），再看账号 manifest；API Key 沿上游策略。配置模型清单不授予实际账号资格。
+- 原生 Chat 流在 Scanner 即将再次读取上游前统一 flush，并在结束时刷新余量；DeepSeek reasoning 占位与 Ollama reasoning 回填改为单遍编辑，定位失败沿上游逐条回退。
+- OpenAI SSE 空闲超时使用 Timer 按最后读取时间重设。模型输出前（仅 keepalive）允许进入首输出切换预算，最多一次账号切换；已输出模型内容时保持报错终止。实现与边界见 `openai_gateway_response_handling.go`、`openai_stream_idle_timeout_test.go`，不扩大本地路由或权限。
+- 本轮来源、冲突裁决与验证：`docs/upstream-sync/2026-11-18-v0.2.23/review.md`。
+
 ## 0.2.22 合并增量
 
 - 分组 `force_openai_ultrafast`（migration `251_group_force_openai_ultrafast.sql`）：对支持 Ultrafast 的模型在全局 Fast/Flex 策略前强制 `service_tier=ultrafast`，优先于 `force_openai_fast`；只在管理 DTO（`dto.AdminGroup`）暴露。

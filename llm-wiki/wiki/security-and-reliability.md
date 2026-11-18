@@ -1,5 +1,11 @@
 # 安全与可靠性基线
 
+## 流式空闲超时与首输出切换预算
+
+- OpenAI SSE 的 idle Timer 按最近一次上游读取重新计时，不依赖周期 ticker。超时且仅写过 keepalive 时，使用 `SafeToFailoverAfterWrite` 接入首输出切换预算，最多一次切换；已开始模型输出不能拼接其他账号的响应。
+- GPT-6.2 的 OAuth 强制 Ultrafast 受 Pro 权益或账号 discovery metadata 约束；不把分组开关当成账号资格。渠道自定义倍率要求有限正数且数据库 CHECK 拒绝 0/负数。
+- 此次没有新增 HTTP 路由或管理授权入口，RequestArchive/RequestIntercept、组织/部门范围、子管理员白名单与 Codex 额外独立上下文白名单保留。具体合并边界见 `docs/upstream-sync/2026-11-18-v0.2.23/review.md`。
+
 ## 刷新令牌与新转发边界
 
 - 登录 refresh token 轮转先原子 `ConsumeRefreshToken`（Redis Lua），并发只有一个消费成功；已消费返回无效令牌，缓存故障返回服务不可用。本地刷新响应的 `AdminPermissions` 继续保留。

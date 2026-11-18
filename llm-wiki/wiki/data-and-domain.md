@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 渠道 Ultrafast 倍率与缓存计费
+
+- `252_channel_pricing_ultrafast_multiplier.sql` 给 `channel_model_pricing` 增加 `ultrafast_multiplier NUMERIC(12,6)`：NULL 沿用模型默认，非 NULL 必须大于 0；不改变存量 Fast/Flex 倍率。与本地 `252_` 迁移按完整文件名共存，不重命名已应用文件；此字段走渠道 SQL repository，不新增 Ent schema。
+- 倍率贯通渠道管理 API、定价 resolver、账单及账号统计价格。渠道显式 Ultrafast 倍率优先；GPT-6.2 默认在请求时点早于 `2027-03-01T08:00:00Z` 时为 3，否则为 6，延迟结算使用原请求时点（`openAIUltrafastMultiplier`）。该时点相当于北京时间 2027-03-01 16:00。
+- Anthropic 缓存 aggregate 与原始 5m/1h 明细分别保留；计费通过上游 `normalizeCacheCreationBreakdown` / `allocateCacheCreationBillingTokens` 分配，未分类写入余量按 5m 价。原生 Anthropic 透传保留原始 usage，不为显示而改写；跨协议转换与内部计费使用规范化投影。OpenAI 30m/12h 桶继续独立处理。
+
 ## 0.2.22 分组字段与分组日汇总状态
 
 - `251_group_force_openai_ultrafast.sql`：`groups.force_openai_ultrafast BOOLEAN NOT NULL DEFAULT FALSE`，Ent `group` schema 同步，只经管理 DTO 读写。
