@@ -2406,3 +2406,5 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | Wiki | `llm-wiki/wiki/backend.md`、`security-and-reliability.md`、`README.md` 已更新；Wiki 图谱未刷新 |
 
 2026-11-18 后续：上述修复已作为上游 PR [#8940](https://github.com/Wei-Shaw/sub2api/pull/8940) 提交（head `Oracle0703:fix/grok-unknown-403-shared-fallback`@`0cbb4a988`，1 个提交、13 个 service 文件，不含本地二开）；CLA 待用户本人在 PR 评论签署，尚未审核。
+
+2026-11-18 后续：Oracle0703 已签署上游 CLA（签名记录在上游 `cla-signatures` 分支），#8940 与 #8836 的 `cla-check` 均已通过。#8940 的测试与 lint 待维护者批准运行；#8836 的 `backend-security` 仍是 11-16 的失败（`net/http@go1.27.3` 的 GO-2026-6859，1.27.4 已修），该分支基于旧 main，更新到最新 main 后才会重跑。
