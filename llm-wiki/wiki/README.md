@@ -1,13 +1,19 @@
 # Sub2API llm-wiki 基线
 
-## 当前上游同步：0.2.21（已合入 main）
+## 当前上游同步：0.2.22（合并待审核）
+
+- 2026-11-17 从本地 `main@be6d173ef` 创建 `feature/hy/10235_merge_sub2api_222`，`--no-commit` 固定合入 `Wei-Shaw/sub2api main@15871f904056f548dd874a1d069ffc6cdf777b78`（0.2.22），等待用户审核后提交。范围、冲突裁决与验证唯一入口：`docs/upstream-sync/2026-11-17-v0.2.22/review.md`。保留本地独有功能，功能重叠采用上游，仅解决冲突，不修上游 bug。
+- 本地 cherry-pick 过的上游 PR：#8759 上游已合入，结果与上游一致；#8680 上游关闭未合入、改合 #8769，两者只部分重叠：上游识别的 Codex 独立上下文采用上游“改写为 user message”，上游未覆盖的 7 个生产者保留 #8680 的原样转发（`handler/openai_standalone_context.go`，见 backend/security）；#8829、#8793 仍未合并，本地 Antigravity Dual-use 句删除与客户端身份改写保留。
+- 现行合同：分组强制 Ultrafast、passthrough 按模型筛选、工具 schema Python `re` 规则见 backend；分组日汇总非阻塞重建、保留下界与本地组织日汇总分区标脏见 security/data；Go 1.27.4、两个 251 迁移与 `concurrency.ping_interval=0` 见 ops。
+
+## 0.2.21 同步（已合入 main）
 
 - 基于本地 main 创建 `feature/hy/10234_merge_sub2api_221`，固定合入用户指定的上游提交；合并提交 `57d88abbc` 已经 PR #52 合入 main。范围、冲突裁决与验证唯一入口：`docs/upstream-sync/2026-11-11-v0.2.21/review.md`。保留本地独有功能，采用上游新增行为，仅解决合并冲突，不独立修复上游 bug。
-- 2026-11-15 在 0.2.21 之上单独 cherry-pick 上游未合并 PR [#8759](https://github.com/Wei-Shaw/sub2api/pull/8759) head `8480cb0cd95710de66052dabf364f6e62d267f0f`（Antigravity/Gemini 工具 schema `items` 与所选 type 对齐，规则见 backend）。PR base `530c5e3a4` 比 0.2.21 多一个 README 赞助商提交，未带入；记录见 `docs/upstream-sync/merge-log.md`。
-- 同日同样方式 cherry-pick 上游未合并 PR [#8680](https://github.com/Wei-Shaw/sub2api/pull/8680) 的 3 个提交（head `19b0c17477d2bd64ceedb38d29204f3bb721fe36`，同一 base）：Codex 独立上下文原样转发、只在校验副本中剔除，规则见 backend/security。
+- 2026-11-15 在 0.2.21 之上单独 cherry-pick 上游当时未合并的 PR [#8759](https://github.com/Wei-Shaw/sub2api/pull/8759) head `8480cb0cd95710de66052dabf364f6e62d267f0f`（Antigravity/Gemini 工具 schema `items` 与所选 type 对齐，规则见 backend）。PR base `530c5e3a4` 比 0.2.21 多一个 README 赞助商提交，未带入；记录见 `docs/upstream-sync/merge-log.md`。 0.2.22 已由上游合入，内容一致。
+- 同日同样方式 cherry-pick 上游 PR [#8680](https://github.com/Wei-Shaw/sub2api/pull/8680) 的 3 个提交（Codex 独立上下文原样转发）；上游 2026-11-16 关闭该 PR、改合 #8769，0.2.22 合并后重叠部分改用上游改写、其余保留，现行规则见 backend/security。
 - 同日同样方式 cherry-pick 上游未合并 PR [#8829](https://github.com/Wei-Shaw/sub2api/pull/8829)（head `297a2122701c853602294fb4b524327514171404`，同一 base）：Antigravity system 文本删除会触发上游假 429 的 Dual-use 句，新增可选环境变量 `SUB2API_ANTIGRAVITY_STRIP_PATTERNS`，规则见 backend/ops。
 - 同日在分支 `fix/antigravity-client-identity-429` cherry-pick 上游未合并 PR [#8793](https://github.com/Wei-Shaw/sub2api/pull/8793)（Pi 身份句，head `7478a34e7f660f855edf0f02b2a35b7f4073d59e`，同一 base），并新增本地通用客户端身份改写（Cline、OpenCode 等，可选环境变量 `SUB2API_ANTIGRAVITY_IDENTITY_NAMES`）。起因是部署 #8829 后生产 Cline 请求经 Antigravity 仍稳定 429，规则与实测依据见 backend/ops。
-- 现行合同：缓存 30m/12h 分项与计费见 backend/data，刷新令牌原子消费与 WS 重放边界见 security，请求体自适应内存预算见 ops，账号刷新/设置保存/价格展示见 frontend。上一轮 0.2.20 已经 PR #49 合入 main，历史过程见其 review。
+- 0.2.21 合同：缓存 30m/12h 分项与计费见 backend/data，刷新令牌原子消费与 WS 重放边界见 security，请求体自适应内存预算见 ops，账号刷新/设置保存/价格展示见 frontend。上一轮 0.2.20 已经 PR #49 合入 main，历史过程见其 review。
 
 ## 0.2.19 同步（已合入 main）
 

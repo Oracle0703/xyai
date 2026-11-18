@@ -2353,3 +2353,19 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 验证 | gofmt 无输出；`go build ./...`、`go vet -tags=unit`（antigravity、service）通过；新增 `TestNeutralizeSystemIdentity_ClientIdentity`、`TestCompileKnownClientIdentity_ExtraNames`、`TestTransformClaudeToGemini_NeutralizesClientIdentity`、`TestAntigravityClientIdentityAcrossProtocols`（chat/responses/messages × gemini/claude）、`TestInjectAntigravityGeminiClientIdentity` 通过，去掉调用后 4 个失败；golangci-lint v2.14.0（全量参数，antigravity、service）0 issues；`-tags=unit` `./internal/pkg/...`、`./internal/handler/...` 全部通过；service 唯一失败为既有时序用例 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode`，单独重跑通过 |
 | 边界 | 生产实测只覆盖分组 21 的 Antigravity Claude 映射，未测 gemini-* 映射；`/v1/messages` 中 role=system 的消息不经改写（既有缺口）；裸 429 冷却整个 scope（上游 #8836）未合入；未部署（用户自行部署） |
 | Wiki | `llm-wiki/wiki/backend.md`、`ops.md`、`README.md` 已更新 |
+
+
+## 2026-11-17 — 0.2.22（待用户审核，未提交）
+
+| 项目 | 记录 |
+| --- | --- |
+| 合并日期 | 2026-11-17 |
+| 工作分支 / 本地基线 | `feature/hy/10235_merge_sub2api_222` / `main@be6d173efcda73bcbd8313d7bb7d7627702e35e6`（= github/main） |
+| 上游分支 / 提交 | `Wei-Shaw/sub2api main` / `15871f904056f548dd874a1d069ffc6cdf777b78`，0.2.22（共同祖先 `6dd5a045b`，0.2.21） |
+| 合并提交 | 未创建；`git merge --no-commit --no-ff`，MERGE_HEAD 保留指定 SHA，等待用户审核 commit |
+| 范围 | 187 commits、340 上游路径；61 双方修改、279 仅上游、775 仅本地 |
+| 冲突文件 | 10 个文本冲突：`handler/openai_page_context.go`、`openai_page_context_test.go`、`openai_gateway_handler.go`、`service/openai_responses_tool_schema.go`、`repository/dashboard_aggregation_repo.go`、`dashboard_aggregation_group_usage_test.go`、`migrations/group_usage_rollup_migration_test.go`、`CreateAccountModal.vue`、`EditAccountModal.vue`、`cmd/server/wire_gen.go`；另有 PG 验证发现的语义冲突 1 个（上游隔离 schema 用例缺本地组织汇总函数） |
+| 处理方式 | 本地 cherry-pick 的 #8680 被上游关闭、改合 #8769，两者只部分重叠：上游识别的 Codex 独立上下文采用上游改写，上游未覆盖的 7 个生产者（`browser_tabs`、`proposed_plan`、`untrusted_content`、3 个 `guardian_*`、`cloud_threads/send_message`）保留 #8680 原样转发，落在本地新文件 `handler/openai_standalone_context.go`（首版整体撤除造成的 HTTP 400 回退由独立复核发现并已修复）；#8759 双方一致；#8829/#8793 本地改写保留。工具 schema、账号弹窗、迁移测试双方并存；分区删除采用上游流程，本地组织日汇总整月标脏经 `monthStart` 参数接入同一事务，测试补标脏期望与隔离 schema 夹具；`wire_gen.go` 重新生成。未修上游 bug |
+| 验证 | 前端 lint/typecheck/build 通过，Vitest 440 files / 3657 tests（独立 TEMP 重跑）通过；Go unit 全量 0 失败；#8680 兼容修复后审核方 11 个场景 11/11 放行，unit 全量重跑仅既有图片代理时序用例偶发失败一次（隔离与 handler 包重跑通过），lint 重跑 0 issues；default/integration 各仅上游 TTFT 时序用例失败，纯上游快照复现；隔离 PG 18.3 迁移 332→334，repository 包（仓库外副本补 DSN）852 顶层通过、仅 Redis 子用例失败；Ent/Wire 无漂移；normal/embed build 通过；golangci-lint（go1.27.4 构建）增量与 Windows/Linux 全量 0 issues；tidy 差异同 0.2.21 |
+| 本地功能 / 文档 | `docs/features/` 零变更；wiki（README/backend/security/data/ops）、Wiki 图谱、playbook 规则已更新；台账只追加；旧文档目录未恢复 |
+| 唯一审核记录 | `docs/upstream-sync/2026-11-17-v0.2.22/review.md` |

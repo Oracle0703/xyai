@@ -1,10 +1,18 @@
 # 后端知识基线
 
+## 0.2.22 合并增量
+
+- 分组 `force_openai_ultrafast`（migration `251_group_force_openai_ultrafast.sql`）：对支持 Ultrafast 的模型在全局 Fast/Flex 策略前强制 `service_tier=ultrafast`，优先于 `force_openai_fast`；只在管理 DTO（`dto.AdminGroup`）暴露。
+- OpenAI passthrough 账号默认仍不按模型映射/白名单过滤；账号 extra `openai_passthrough_model_filter=true`（仅 passthrough 开启时有效，`Account.IsOpenAIPassthroughModelFilterEnabled`）才参与调度、默认模型补全与 allowlist 的模型筛选。
+- 工具 schema 的 `pattern`/`patternProperties` 按 OpenAI 的 Python `re` 规则剔除（lookaround、`(?<name>`/`(?'name'`、未知字母转义），见 `openai_responses_tool_schema.go#hasUnsupportedOpenAIRegexPattern`；本地 `sanitizeOpenAIResponsesTextFormatSchemaFormats`（`text.format` JSON schema 不支持的 `format` 删除）与之并存，由 `openai_gateway_forward.go` 调用。
+- 分组日汇总改为非阻塞重建与保留期下界（规则见 security-and-reliability）；`dropUsageLogsPartition` 多一个本地 `monthStart` 参数，用于同一事务里给组织用量日汇总整月标脏。
+- 其余上游增量（Gemini 4 Carbon/Hydrogen、Vertex 多区域、调度快照合并、按用户通道合并扣费、上游 TCP keepalive、定价启动后台校验、SSE keepalive 后错误、Messages bridge 首内容前 failover 等）均原样采用，清单与验证见 `docs/upstream-sync/2026-11-17-v0.2.22/review.md`。
+
 ## 缓存写入时长与网关兼容
 
 - OpenAI usage 新增 30m/12h 写入桶；`openai_gateway_response_handling.go#openAICacheCreationTTLTokensFromUsage` 仅在上游两个分项都是非负整数且合计等于 aggregate 时采纳，否则继续通用缓存写入价。`RecordUsage` → `UsageTokens`/`UsageLog` → repository/DTO 贯通；本地 compatible cache helper 仍只补正值，不清除上游分项。
 - `openai_gateway_messages.go` 先校验显式原始 effort，再转换、应用分组策略，最后验证最终请求；默认 effort、thinking 清理、Prompt Metrics/Risk、Token Analysis 和请求时区接线保留。`encrypted_function_args` 在协议转换中保留显式 null/空数组，外部 reasoning envelope 按上游规则忽略。
-- Codex Responses 入口拒绝非法 UTF-8；Codex 注入的独立上下文（无 `call_id` 的命名 `function_call_output`：page snapshot、browser_tabs、`agent.*`/`guardian.*` 上下文、automation、delegation）原样转发，不再改写为 user message（上游 PR #8680，本地 cherry-pick）。`codexStandaloneContextValidationBody`（`handler/openai_page_context.go`）只在 call/result 配对校验用的副本里剔除精确命中白名单的项；OAuth `filterCodexInputWithOptions` 不从 `id` 合成 `call_id`，API Key 路径保留 namespace；`codex.rate_limits`/`codex.response.metadata` 不提前提交首输出。WS 复用连接启用搜索时仅在完整历史可重建时重连；后续 turn 失败不得回放首次消息，passthrough TTFT 使用当前 `openai_ttft_mode`。
+- Codex Responses 入口拒绝非法 UTF-8。HTTP Responses 上 Codex 注入的独立上下文按上游 #8769（0.2.22）改写为 user message：`handler/openai_page_context.go#normalizeCodexUntrustedContext` 只处理 `namespace=agent`、无 `call_id`（或空串）的 `function_call_output`，名称限 page snapshot（`codex_apps_open_page`、`codex_apps_selected_page_part_N_of_M`）、`browser_info`、`goal_objective`、`untrusted_context`，输出包成 `<external_NAME>` 文本；automation/delegation bootstrap 由 `normalizeCodexAutomationBootstrap`/`normalizeCodexDelegationBootstrap` 改写为正文直接等于 output 的 user message。上游不识别的生产者保留本地 #8680 的原样转发：`handler/openai_standalone_context.go#codexStandaloneContextValidationBody` 在 `validateFunctionCallOutputRequest` 的校验副本里剔除精确白名单项（`agent/browser_tabs`、`agent/proposed_plan`、`agent/untrusted_content`、3 个 `guardian/guardian_*`、`cloud_threads/send_message`，以及 bootstrap normalizer 因并存而放弃改写的 automation/delegation），原始请求不改；service 侧 `filterCodexInputWithOptions` 与 `stripOpenAIResponsesInputNamespaces` 对带 `name`、无 `call_id` 键的 `function_call_output` 不合成 `call_id`、不删 `id`/`namespace`。上游文件 `openai_page_context.go` 保持等于上游，新增生产者时改本地文件；回归入口为 `openai_standalone_context_test.go#TestCodexStandaloneContextResponsesEntry`。上游同步时不要把 #8769 视为 #8680 的完整替代。RequestArchive 在路由层保存改写前的原始请求体。`codex.rate_limits`/`codex.response.metadata` 不提前提交首输出。WS 复用连接启用搜索时仅在完整历史可重建时重连；后续 turn 失败不得回放首次消息，passthrough TTFT 使用当前 `openai_ttft_mode`。
 - `securityaudit/prompt_worker.go` 在入队后唤醒本进程 worker；账号 hydration 失败归还已取得的并发槽位；Antigravity 手动额度查询传 force，跳过缓存但仍经过 singleflight。子管理员用量只读查询不因此清除账号错误。
 - Claude Fable/Mythos 5.2 模型目录、effort、协议与 fallback 定价沿上游；配置模型名称不授予实际账号访问权限。源版本及验证统一见 `docs/upstream-sync/2026-11-11-v0.2.21/review.md`。
 

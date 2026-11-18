@@ -1,5 +1,11 @@
 # 数据与领域基线
 
+## 0.2.22 分组字段与分组日汇总状态
+
+- `251_group_force_openai_ultrafast.sql`：`groups.force_openai_ultrafast BOOLEAN NOT NULL DEFAULT FALSE`，Ent `group` schema 同步，只经管理 DTO 读写。
+- `251_group_usage_rollup_nonblocking_build.sql`：`usage_group_rollup_state` 新增 `expired_before TIMESTAMPTZ NOT NULL DEFAULT epoch`（早于它的 usage 已出保留期，不计日桶、不触发失效）、`building_until`/`build_dirty_from DATE`（重建登记与期间脏日），并以 `apply_group_usage_rollup_invalidation`/`invalidate_group_usage_rollups_at` 重写失效函数与触发器。分组 `total_cost` 仍是保留范围内的 rollup + tail，不是永久账本。
+- 本地组织用量日汇总（migration 246 的 `usage_user_*` 表与触发器）不受该迁移改动；按月 DROP 分区时仍由 Go 侧在同一事务里整月标脏（见 security-and-reliability）。两个 251 与本地 `251_token_analysis_prefix_fingerprint.sql` 按完整文件名共存，不重命名。
+
 ## OpenAI 缓存写入分项与 API Key 用量索引
 
 - `250_openai_cache_write_ttl.sql` 为 `usage_logs` 增加 `cache_creation_30m_tokens`/`cache_creation_12h_tokens`（NOT NULL、默认 0），为渠道模型、区间及账号统计模型/区间四张定价表增加 nullable `cache_write_12h_price`。NULL 保留通用写入价，显式 0 是有效免费价；不混用 Anthropic 5m/1h 桶。Ent usage schema、插入/读取、DTO 和前端类型随之更新。

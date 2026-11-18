@@ -129,6 +129,7 @@
 | i18n 拆分类合并 | `vue-tsc` 与现有守卫测试对缺键无感；需对本地组件引用的 key 做存在性检索，并确认 `git status` 中 `frontend/src/i18n` 没有 `??` 新模块（0.1.146） |
 | 上游自带的格式问题 | 上游 blob 自带 trailing whitespace（如 source-freeze patch、Channel Monitor 文档）时原样保留，diff check 排除该文件并在审核中说明（0.1.160、0.1.173） |
 | migration | 只新增不改已应用文件；上游重复数字前缀（如双 `194_`）按完整文件名排序执行，不重命名；上游 migration 的数据风险登记到部署前检查（0.1.173 migration 206/220） |
+| 上游隔离 schema 测试夹具 | 上游 repository 集成测试常在只跑部分真实 migration 的隔离 schema 中执行（如分组日汇总只装 222/223/251）。本地在同一事务追加的 SQL（分区删除时调用 246 的 `mark_user_usage_rollup_dirty_day`）会在夹具里报“函数不存在”；只在夹具中安装本地对象（`installOrganizationUsageRollupDirtyMarks`），不改断言、不弱化本地行为（0.2.22） |
 | 已整合文档的 modify/delete 冲突 | 保持现行目录结构，把旧分支的有效新增规则、未解决问题和验证边界合入对应唯一文档，不恢复旧文件。上游原生文档、正式补丁及源码/migration 引用文件按既有约束处理，不为控制数量批量删除 |
 
 ### 本地横切能力的接线
@@ -148,6 +149,9 @@
 | 失败归属五类 | 本轮合并引入（需修）/ 上游固有 / 第一父既有 / 环境限制 / 未确认；每类都要证据（第一父快照复跑、四方 blob 比对、错误原文），不能凭"这是上游测试"直接归责（0.2.6） |
 | 第一父对照 | 用 `git archive HEAD backend` 导出第一父快照到忽略目录复跑，不建分支、不改工作区（0.2.6、0.2.19） |
 | Windows 测试环境 | Go 用仓库内 `GOCACHE`/`GOMODCACHE` 与每轮全新 `GOTMPDIR`，`-p 1 -count=1`；`.test.exe` 被锁或被安全软件拒绝时换目录重跑或编译到系统临时目录执行，不关安全软件、不改业务代码（0.1.150–0.1.159）；`backup_pg_dumper` 需要 `sh.exe`，只在测试进程 PATH 加入动态定位的 Git `usr/bin`（0.2.4、0.2.6） |
+| postgres-only harness | `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 分支不设置 `integrationDSN`、Redis 为 nil：Redis 用例 panic 会中止整包，需按 Redis 测试文件 `-skip`；依赖 `integrationDSN` 的隔离 schema 用例只在仓库外副本临时补 `integrationDSN = dsn` 后运行，不改仓库 harness。每次用新建空库（0.2.22） |
+| Windows `%TEMP%` 被清理 | 其他进程启动清理可能删除 vitest/go-build 的临时文件，表现为 ENOENT 或 0 用例；前端用仓库外独立 `TEMP`/`TMP` 重跑，记为环境问题，不当作测试结论（0.2.22） |
+| 被上游替代的本地 cherry-pick | 上游关闭本地已 cherry-pick 的 PR、改合另一方案时，不按 PR 标题判定“功能重叠”。先列出第一父实际支持的输入集合（白名单、生产者、分支），逐项核对上游新实现是否覆盖；只把确实重叠的部分换成上游，其余放进本地独立文件保留，不改上游函数。用第一父已有用例的输入按真实入口顺序在第一父、合并结果、纯上游三方对照，三方不一致即为待处理项（0.2.22：#8769 只覆盖 #8680 的一部分，整体撤除使 7 个生产者回退为 HTTP 400） |
 | 集成覆盖 | Docker 不可用时 repository 的 `TestMain` 会跳过整包（或 `CI=true` 时 fail-closed），不计作数据库用例通过；显式 skip 逐项列出原因（0.2.6、0.2.7） |
 | 时序波动用例 | 精确 `-count=3` 复跑并记录次数；"flaky"标签不能降低风险，一次转绿不算修复（0.2.6 Ollama CAS） |
 

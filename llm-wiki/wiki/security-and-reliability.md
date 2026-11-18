@@ -130,7 +130,7 @@
 - reasoning effort 策略只使用已解析为 OpenAI 的分组上下文，模型范围匹配不做模糊 contains；超限 `deny` 是本地准入拒绝，HTTP/Anthropic 兼容出口返回 403 并标记 `local_policy_denied`，WS 终止当前 turn。默认 `downgrade` 保持存量行为，未识别或缺省 effort 不应因此被拒绝。
 - OpenAI API Key Chat 兼容路径自动派生的 prompt-cache identity 会混入 API Key ID，使不同租户使用相同 model/system/first-user 前缀时也不共享上游 session。自动派生仅针对 GPT-5/Codex 族的 Chat 形状；Responses 形状不派生，并且不得在 Agent Identity recovery 重试中二次 hash 同一 identity。
 - Anthropic body 中的 `fallbacks`、`fallback_credit_token` 与 `context_management` 必须按最终出站 `anthropic-beta` 能力对称保留，缺少对应 token 就在签名前删除，不依赖模型名或客户端类型猜测。Bedrock Claude Code 兼容链也使用等价过滤，不可让 body 字段与 beta header 失配。
-- Codex 独立上下文（page/browser、`agent.*`、`guardian.*`、`codex_app.automation_update`、`codex_app`/`codex_tui` 的 `create_thread`/`send_message_to_thread`、`cloud_threads.send_message`）只有在 namespace/name 精确匹配、缺少 `call_id` 且 output 形态符合预期时，才从 call-id/item-reference 校验副本中剔除；转发体保持原样，不改写为 user message（PR #8680 起）。显式 `call_id`（含空串）、格式错误或未知名称仍走通用校验；不按通配符放行动态名称。安全审计/内容审核读到的仍是 `function_call_output` 而不是 user 文本。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
+- HTTP Responses 的 Codex 独立上下文（`agent` namespace 的 page snapshot、`browser_info`、`goal_objective`、`untrusted_context`）只有名称精确匹配、无 `call_id`（或空串）且 output 形态合法时，才改写为 `<external_*>` 包裹的 user 文本；automation/delegation helper 则将合法 output 直接作为 user 正文（上游 #8769，0.2.22 起）。上游不识别的 `agent/browser_tabs`、`agent/proposed_plan`、`agent/untrusted_content`、3 个 `guardian/guardian_*`、`cloud_threads/send_message` 沿用本地 #8680 规则：名称与 namespace 精确匹配、不带 `call_id` 键且 output 形态合法时，只从 call/result 校验副本剔除并原样转发；它们与 automation/delegation bootstrap 并存时上游 normalizer 放弃改写，整条请求同样放行并原样转发。本地白名单项只要带 `call_id` 键（含空串、null、格式错误）就不豁免；未知名称、白名单项旁边的真实孤立工具结果仍走通用 call-id/item-reference 校验，不按通配符放行动态名称。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
 
 ## 0.2.1 合并增量
 
@@ -159,7 +159,7 @@
 - Codex 指纹收敛改为显式 opt-in：账号未配置 `codex_fingerprint_mode` 时原样透传客户端 device/session 标识。启用收敛后，请求体 `client_metadata` 与出站 header 必须共享同一组派生 ID；passthrough 只局部解析 `client_metadata`，不对大请求做全量 Unmarshal。
 - `x-codex-turn-state` 是上游铸造、客户端同回合回带的不透明值。网关只在响应真正提交后记录 `(API Key, client session) -> account` 溯源；首输出超时后被丢弃的 attempt 不得写入溯源。出站只剥离已知跨账号回放，不注入或解析 blob，也不把它写入日志/wiki。
 - 原生 remote compaction v2 与 legacy `/responses/compact` 必须分流：v2 继续走裸 `/responses` streaming，并在上游请求中保留/补齐 `remote_compaction_v2` capability；legacy compact 才应用 compact-only mapping 和 `ErrNoAvailableCompactAccounts` 客户端错误。该区分同时用于 handler、调度、账号 probe 与渠道模型限制。
-- 分组日汇总的高频 INSERT 通过 statement transition-table trigger 每批只锁一次 state；重算、清理和分区删除先锁 rollup state 再修改源记录。后台启动回填使用独立 leader lock，周期同步在 dashboard aggregation 单主任务内执行，避免多实例重复发布或数据清理与水位推进竞态。
+- 分组日汇总的高频 INSERT 通过 statement transition-table trigger 每批只处理一次 state。0.2.22（上游 #8693，migration `251_group_usage_rollup_nonblocking_build.sql`）起源记录变更只对 state 行持 `FOR KEY SHARE`：重建登记 `building_until`，期间的变更记入 `build_dirty_from`，发布水位不越过该日，重建计算不再排斥 `usage_logs` 写入；保留期清理先把 `expired_before` 推进到 cutoff 所在自然日零点再删行，早于下界的删除不触发失效；分区删除在独立事务里 `SET LOCAL lock_timeout = 3s`，按分区内不早于下界的最早时刻失效，锁超时（55P03）跳过该分区改由按行删除。本地组织用量日汇总在同一分区删除事务、DROP 之前把整月标脏（`dashboard_aggregation_repo.go#dropUsageLogsPartition` 的 `monthStart` 参数为本地转接），不能在后续合并中丢掉；上游只装部分迁移的隔离 schema 用例需用 `installOrganizationUsageRollupDirtyMarks` 补装该函数。后台启动回填使用独立 leader lock，周期同步在 dashboard aggregation 单主任务内执行。
 
 ## 0.1.176 合并增量
 

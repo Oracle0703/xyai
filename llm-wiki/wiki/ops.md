@@ -1,9 +1,18 @@
 # 运维, 配置与验证基线
 
+## 0.2.22 运行与验证要点
+
+- Go 升至 1.27.4（上游 #8767）。本机 golangci-lint 须用 `GOTOOLCHAIN=go1.27.4` 重建，go1.27.0 构建的旧二进制结果不可信。
+- 新 migration `251_group_force_openai_ultrafast.sql`（加列，默认 false）与 `251_group_usage_rollup_nonblocking_build.sql`（`SET LOCAL lock_timeout = '5s'`，`usage_group_rollup_state` 加 `expired_before`/`building_until`/`build_dirty_from` 并替换失效函数与触发器）。与本地 `251_token_analysis_prefix_fingerprint.sql` 同前缀，按完整文件名执行。部署时 state 行被长事务占用会 5s 超时；该迁移在事务内执行，失败整体回滚且不写 `schema_migrations`，等长事务结束后重启即可重跑，不手工标记已执行。
+- `concurrency.ping_interval` 允许 0（禁用并发等待期间的 SSE ping，避免提前提交 HTTP 状态）；非零仍须 5–30 秒，缺省行为不变。
+- usage 保留期清理删除月分区时锁等待 3s，超时跳过该分区并改按行删除，日志为 `[DashboardAggregation] 删除分区 ... 等待锁超时`；空分区下次清理时再删除。
+- 本地 PG 验证用 postgres-only harness 时：Redis 用例需 `-skip`（否则 panic 中止整包）；上游隔离 schema 用例依赖 Docker 分支才设置的 `integrationDSN`，只在仓库外副本补设后运行。vitest 出现大量 ENOENT/0 用例时先换独立 `TEMP` 重跑。
+- 全量 default/unit/integration、lint、前端与构建结果见 `docs/upstream-sync/2026-11-17-v0.2.22/review.md`。
+
 ## 请求体自适应预算与 0.2.21 验证入口
 
 - `gateway.request_body_memory_budget_bytes` 未在配置或非空环境变量中指定时，启动检测进程可用内存上限（Linux 同时检查 cgroup），默认 `max(内存上限 / 4, 1 GiB)`；显式正数固定预算、0 关闭。空环境变量不阻止自动计算，检测失败沿 1 GiB。示例 YAML 中显式配置会固定其值；大实例升级前应确认预期预算。
-- Go 仍 1.27.3，前端 package/lockfile 未变；Ent usage schema 新增缓存时长字段，需要生成 Ent/Wire 并复核第二次无漂移。生成工具临时增加的 go.sum checksum 不混入合并。
+- 0.2.21 时 Go 为 1.27.3（0.2.22 起 1.27.4），前端 package/lockfile 未变；Ent usage schema 新增缓存时长字段，需要生成 Ent/Wire 并复核第二次无漂移。生成工具临时增加的 go.sum checksum 不混入合并。
 - 固定上游 0.2.21 的全量 default/unit/integration、隔离 PG、lint、前端和构建结果集中在 `docs/upstream-sync/2026-11-11-v0.2.21/review.md`；不以无 Docker 时 repository 的整包跳过代替数据库验证。
 - 该版本新增 `TestOpenAIWSPassthroughFirstTokenFollowsTTFTMode` 的第二轮耗时下界断言有时序敏感失败：unit 全量失败，合并结果三次复跑 2 pass/1 fail，指定上游原始快照 1 pass/2 fail。测试与核心 relay 原样保留，等待上游处理；不得把专项偶发通过或构建通过表述为全量 unit 全绿。
 
