@@ -1752,13 +1752,13 @@ func TestProxyOpenAIWSHTTPBridgeTurnPromotesCodexAdditionalToolsForMixedCache(t 
 func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridgeAndPreservesMappedModels(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	bridgeResponse := func(responseID, requestID string, cachedTokens int) *http.Response {
+	bridgeResponse := func(responseID, requestID, model string, cachedTokens int) *http.Response {
 		sseBody := strings.Join([]string{
-			`data: {"type":"response.created","response":{"id":"` + responseID + `","model":"grok-4.3"}}`,
+			`data: {"type":"response.created","response":{"id":"` + responseID + `","model":"` + model + `"}}`,
 			"",
 			`data: {"type":"response.output_text.delta","response":{"id":"` + responseID + `"},"delta":"ok"}`,
 			"",
-			`data: {"type":"response.completed","response":{"id":"` + responseID + `","model":"grok-4.3","usage":{"input_tokens":4,"output_tokens":2,"input_tokens_details":{"cached_tokens":` + fmt.Sprintf("%d", cachedTokens) + `}}}}`,
+			`data: {"type":"response.completed","response":{"id":"` + responseID + `","model":"` + model + `","usage":{"input_tokens":4,"output_tokens":2,"input_tokens_details":{"cached_tokens":` + fmt.Sprintf("%d", cachedTokens) + `}}}}`,
 			"",
 		}, "\n")
 		return &http.Response{
@@ -1771,9 +1771,9 @@ func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridgeAndPreservesMa
 		}
 	}
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
-		bridgeResponse("resp_grok_ws_1", "xai-ws-req-1", 0),
-		bridgeResponse("resp_grok_ws_2", "xai-ws-req-2", 3),
-		bridgeResponse("resp_grok_ws_3", "xai-ws-req-3", 0),
+		bridgeResponse("resp_grok_ws_1", "xai-ws-req-1", "grok-4.3", 0),
+		bridgeResponse("resp_grok_ws_2", "xai-ws-req-2", "grok-4.7", 3),
+		bridgeResponse("resp_grok_ws_3", "xai-ws-req-3", "grok-4.7", 0),
 	}}
 	svc := &OpenAIGatewayService{
 		cfg: &config.Config{
@@ -1826,7 +1826,7 @@ func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridgeAndPreservesMa
 		errCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "access-token", firstMessage, &OpenAIWSIngressHooks{
 			MapRequestModel: func(_ int, originalModel string) (string, error) {
 				if originalModel == "channel-alias" {
-					return "grok-4.3", nil
+					return "grok-4.7", nil
 				}
 				return originalModel, nil
 			},
@@ -1862,7 +1862,7 @@ func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridgeAndPreservesMa
 	require.Equal(t, "resp_grok_ws_1", gjson.GetBytes(completed, "response.id").String())
 
 	writeCtx, cancelWrite = context.WithTimeout(context.Background(), 3*time.Second)
-	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","generate":true,"model":"channel-alias","stream":true,"previous_response_id":"resp_grok_ws_1","input":"second turn"}`))
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","generate":true,"model":"channel-alias","stream":true,"previous_response_id":"resp_grok_ws_1","input":"second turn","chat_template_kwargs":{"enable_thinking":true}}`))
 	cancelWrite()
 	require.NoError(t, err)
 
@@ -1876,7 +1876,7 @@ func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridgeAndPreservesMa
 	require.Equal(t, "channel-alias", gjson.GetBytes(completed, "response.model").String())
 
 	writeCtx, cancelWrite = context.WithTimeout(context.Background(), 3*time.Second)
-	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","generate":true,"model":"grok-4.3","stream":true,"previous_response_id":"resp_grok_ws_2","input":"third turn with a different model"}`))
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","generate":true,"model":"grok-4.7","stream":true,"previous_response_id":"resp_grok_ws_2","input":"third turn with the canonical model"}`))
 	cancelWrite()
 	require.NoError(t, err)
 
@@ -1903,8 +1903,11 @@ func TestProxyResponsesWebSocketFromClientForGrokUsesXAIHTTPBridgeAndPreservesMa
 	require.Equal(t, xai.CLIUserAgent(xai.CLIClientVersion), upstream.lastReq.Header.Get("User-Agent"))
 	require.Equal(t, grokCLIVersion, upstream.lastReq.Header.Get("X-Grok-Client-Version"))
 	require.Equal(t, "grok-4.6", gjson.GetBytes(upstream.bodies[0], "model").String())
-	require.Equal(t, "grok-4.3", gjson.GetBytes(upstream.bodies[1], "model").String())
-	require.Equal(t, "grok-4.3", gjson.GetBytes(upstream.bodies[2], "model").String())
+	require.Equal(t, "grok-4.7", gjson.GetBytes(upstream.bodies[1], "model").String())
+	require.Equal(t, "high", gjson.GetBytes(upstream.bodies[1], "reasoning.effort").String())
+	require.False(t, gjson.GetBytes(upstream.bodies[1], "chat_template_kwargs").Exists())
+	require.False(t, gjson.GetBytes(upstream.bodies[2], "reasoning.effort").Exists())
+	require.Equal(t, "grok-4.7", gjson.GetBytes(upstream.bodies[2], "model").String())
 	require.NotEmpty(t, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
 	require.Equal(t, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String(), upstream.lastReq.Header.Get(grokConversationIDHeader))
 	require.Equal(t, "web_search", gjson.GetBytes(upstream.lastBody, "tools.0.type").String())

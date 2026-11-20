@@ -46,6 +46,24 @@ func isReasoningEffortMappingDeny(raw string) bool {
 	return strings.EqualFold(strings.TrimSpace(raw), ReasoningEffortMappingDeny)
 }
 
+// Auto effort is resolved after account selection. Evaluate high against the
+// client-facing model so channel/account aliases cannot bypass scoped rules.
+type grokAutoEffortPolicyKey struct{}
+type grokAutoEffortPolicy struct {
+	model string
+	openAIReasoningEffortPolicy
+}
+
+func WithGrokAutoEffortPolicy(ctx context.Context, model, maxEffort string, mappings []ReasoningEffortMapping, overLimit string) context.Context {
+	if maxEffort == "" && len(mappings) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, grokAutoEffortPolicyKey{}, grokAutoEffortPolicy{
+		model:                       model,
+		openAIReasoningEffortPolicy: openAIReasoningEffortPolicy{maxEffort: maxEffort, overLimit: overLimit, mappings: append([]ReasoningEffortMapping(nil), mappings...)},
+	})
+}
+
 type openAIReasoningEffortPolicyContextKey struct{}
 type requestedReasoningEffortContextKey struct{}
 
@@ -541,22 +559,9 @@ func ApplyReasoningEffortPolicy(body []byte, maxEffort string, mappings []Reason
 			continue
 		}
 
-		effective, mapped := mapReasoningEffort(original, mappings, requestModel)
-		if mapped && isReasoningEffortMappingDeny(effective) {
-			requested := normalizeReasoningEffortMappingSource(original)
-			if requested == "" {
-				requested = original
-			}
-			return body, false, &ReasoningEffortMappingDeniedError{Requested: requested}
-		}
-		if currentRank, recognized := reasoningEffortRank(effective); recognized {
-			effective = NormalizeMaxReasoningEffort(effective)
-			if hasMax && currentRank > maxRank {
-				if deny {
-					return body, false, &ReasoningEffortOverLimitError{Requested: effective, Max: canonicalMax}
-				}
-				effective = canonicalMax
-			}
+		effective, err := evaluateReasoningEffort(original, requestModel, mappings, canonicalMax, maxRank, deny)
+		if err != nil {
+			return body, false, err
 		}
 		if effective == original {
 			continue
@@ -570,6 +575,27 @@ func ApplyReasoningEffortPolicy(body []byte, maxEffort string, mappings []Reason
 		changed = true
 	}
 	return result, changed, nil
+}
+
+func evaluateReasoningEffort(original, requestModel string, mappings []ReasoningEffortMapping, canonicalMax string, maxRank int, deny bool) (string, error) {
+	effective, mapped := mapReasoningEffort(original, mappings, requestModel)
+	if mapped && isReasoningEffortMappingDeny(effective) {
+		requested := normalizeReasoningEffortMappingSource(original)
+		if requested == "" {
+			requested = original
+		}
+		return "", &ReasoningEffortMappingDeniedError{Requested: requested}
+	}
+	if currentRank, recognized := reasoningEffortRank(effective); recognized {
+		effective = NormalizeMaxReasoningEffort(effective)
+		if maxRank > 0 && currentRank > maxRank {
+			if deny {
+				return "", &ReasoningEffortOverLimitError{Requested: effective, Max: canonicalMax}
+			}
+			effective = canonicalMax
+		}
+	}
+	return effective, nil
 }
 
 func applyOpenAIWSReasoningEffortPolicy(payload []byte, hooks *OpenAIWSIngressHooks) ([]byte, error) {

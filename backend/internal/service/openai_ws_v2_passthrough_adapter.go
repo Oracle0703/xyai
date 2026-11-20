@@ -750,6 +750,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if capturedSessionModel != "" && capturedSessionModel != strings.TrimSpace(gjson.GetBytes(firstClientMessage, "model").String()) {
 		firstClientMessage = s.ReplaceModelInBody(firstClientMessage, capturedSessionModel)
 	}
+	firstClientMessage, grokRequested, effortErr := prepareGrokAutoWSEffort(ctx, account, hooks, initialRequestModel, capturedSessionModel, firstClientMessage)
+	if effortErr != nil {
+		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, effortErr.Error(), effortErr)
+	}
 	firstMessageResponsesLite := isOpenAIResponsesLiteWebSocketPayload(firstClientMessage)
 	if normalized, compatibilityChanged, normalizeErr := normalizeOpenAIResponsesWebSocketCompatibilityBodyWithConfig(s.cfg, firstClientMessage, account, firstMessageResponsesLite); normalizeErr != nil {
 		return fmt.Errorf("normalize first websocket response.create: %w", normalizeErr)
@@ -812,6 +816,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	// goroutine）之间同步当前 turn 的 usage metadata。
 	usageMeta.initFromFirstFrame(firstClientMessage, capturedSessionModel)
 	usageMeta.captureRequestedReasoningEffort(originalFirstClientMessage, capturedSessionModel)
+	if grokRequested != nil {
+		usageMeta.requestedReasoningEffort.Store(grokRequested)
+	}
 	_, initialUpstreamModel := usageMeta.turnModels(initialRequestModel)
 	SetOpsUpstreamModel(c, initialUpstreamModel)
 	wsURL, err := s.buildOpenAIResponsesWSURL(account)
@@ -1100,6 +1107,16 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			if isResponseCreate && model != "" && model != strings.TrimSpace(gjson.GetBytes(payload, "model").String()) {
 				payload = s.ReplaceModelInBody(payload, model)
+			}
+			if isResponseCreate {
+				next, requested, err := prepareGrokAutoWSEffort(ctx, account, hooks, requestModelForThisFrame, model, payload)
+				if err != nil {
+					return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, err.Error(), err)
+				}
+				payload = next
+				if requested != nil {
+					usageMeta.requestedReasoningEffort.Store(requested)
+				}
 			}
 			out, blocked, policyErr := s.applyOpenAIFastPolicyToWSResponseCreate(ctx, account, model, payload)
 			// 多轮 passthrough usage：仅在成功（non-block / non-err）

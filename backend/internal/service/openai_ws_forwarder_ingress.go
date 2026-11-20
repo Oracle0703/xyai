@@ -390,6 +390,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 		}
 		upstreamModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(requestModel))
+		normalized, grokRequested, effortErr := prepareGrokAutoWSEffort(ctx, account, hooks, originalModel, upstreamModel, normalized)
+		if effortErr != nil {
+			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, effortErr.Error(), effortErr)
+		}
+		if grokRequested != nil {
+			requestedReasoningEffort = grokRequested
+		}
 		if modelMissing || upstreamModel != originalModel {
 			next, setErr := applyPayloadMutation(normalized, "model", upstreamModel)
 			if setErr != nil {
@@ -692,6 +699,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				turn,
 				writeClientMessage,
 			)
+			if result != nil && currentBridgePayload.requestedReasoningEffort != nil && grokDefaultsAutoEffortToHigh(result.UpstreamModel) {
+				result.RequestedReasoningEffort = currentBridgePayload.requestedReasoningEffort
+			}
 			if bridgeErr != nil && isOpenAIWSSessionPreempted(ctx) {
 				return errOpenAIWSSessionPreempted
 			}

@@ -139,6 +139,10 @@ func applyOpenAIReasoningEffortPolicyForRequest(c *gin.Context, apiKey *service.
 	if !ok {
 		return body, false, nil
 	}
+	if c != nil && c.Request != nil {
+		ctx := service.WithGrokAutoEffortPolicy(c.Request.Context(), gjson.GetBytes(body, "model").String(), maxEffort, mappings, overLimit)
+		c.Request = c.Request.WithContext(ctx)
+	}
 	return service.ApplyOpenAIReasoningEffortPolicy(body, maxEffort, mappings, overLimit)
 }
 

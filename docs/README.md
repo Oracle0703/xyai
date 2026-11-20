@@ -49,6 +49,7 @@
 | `codex-prompt-risk-filter-design-cn.md` | Codex Prompt 风险过滤器与 Prompt Risk Judge |
 | `openai-request-locale-design-cn.md` | OpenAI 请求时区改写（已合入 main；运行合同见 wiki） |
 | `openai-default-reasoning-effort-design-cn.md` | Chat Completions 缺省 reasoning_effort 注入 |
+| [grok-auto-reasoning-effort-design-cn.md](features/grok-auto-reasoning-effort-design-cn.md) | Grok 4.x 标准版的自动思考强度、协议转换、分组策略与计费 |
 | `prompt-metrics-feature-technical-notes-cn.md` | Prompt Metrics |
 | `image-gen-design-cn.md` | 图片生成页 |
 | `claude-client-setup-design-cn.md` | Claude Code for VS Code 接入页与 Windows / macOS 本地配置脚本 |

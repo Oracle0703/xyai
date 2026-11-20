@@ -22,6 +22,18 @@ import (
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 	beginTokenAnalysisForwardFacts(c, body)
+	body, requestedEffort, err := s.prepareGrokAutoHTTPEffort(ctx, c, account, body, APIProtocolResponses, "")
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.forwardResponses(ctx, c, account, body)
+	if result != nil && requestedEffort != nil {
+		result.RequestedReasoningEffort = requestedEffort
+	}
+	return result, err
+}
+
+func (s *OpenAIGatewayService) forwardResponses(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
 		SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")

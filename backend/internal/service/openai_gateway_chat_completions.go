@@ -95,7 +95,15 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	promptCacheKey string,
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
-	return s.forwardAsChatCompletions(ctx, c, account, body, promptCacheKey, defaultMappedModel, false)
+	body, requestedEffort, err := s.prepareGrokAutoHTTPEffort(ctx, c, account, body, APIProtocolChatCompletions, defaultMappedModel)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.forwardAsChatCompletions(ctx, c, account, body, promptCacheKey, defaultMappedModel, false)
+	if result != nil && requestedEffort != nil {
+		result.RequestedReasoningEffort = requestedEffort
+	}
+	return result, err
 }
 
 func (s *OpenAIGatewayService) forwardAsChatCompletions(
