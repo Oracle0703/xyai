@@ -1,5 +1,10 @@
 # 数据与领域基线
 
+## 搜索计费与默认平台配额
+
+- Grok 优先按 `usage.server_side_tool_usage_details` 中 web、X 和 document search 三类成功调用数之和计费；该对象缺省时回退到完成的输出项。Responses 推理强度支持按轮记录；本地 Grok 自动强度保留请求值与出站值两列。
+- 管理员创建普通用户时与注册共用 `snapshotUserPlatformQuotaDefaults`。至少一档限额已配置才写入，显式 0 有效，快照写入失败记录日志。复用已有配额表；0.2.24 没有 SQL migration 或 Ent schema 变更。
+
 ## 渠道 Ultrafast 倍率与缓存计费
 
 - `252_channel_pricing_ultrafast_multiplier.sql` 给 `channel_model_pricing` 增加 `ultrafast_multiplier NUMERIC(12,6)`：NULL 沿用模型默认，非 NULL 必须大于 0；不改变存量 Fast/Flex 倍率。与本地 `252_` 迁移按完整文件名共存，不重命名已应用文件；此字段走渠道 SQL repository，不新增 Ent schema。

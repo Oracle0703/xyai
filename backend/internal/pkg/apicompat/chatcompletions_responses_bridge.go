@@ -63,6 +63,7 @@ func ResponsesToChatCompletionsRequestWithOptions(req *ResponsesRequest, opts *R
 		Stream:            req.Stream,
 		ServiceTier:       req.ServiceTier,
 		ParallelToolCalls: req.ParallelToolCalls,
+		Stop:              req.Stop,
 	}
 	if opts == nil || !opts.DropMaxCompletionTokens {
 		out.MaxCompletionTokens = req.MaxOutputTokens

@@ -1,5 +1,10 @@
 # 安全与可靠性基线
 
+## 网关字段检查与账号冷却
+
+- `RegisterGatewayRoutes` 在模型白名单之后、合成路由改写之前挂载 `RejectConflictingRequestFields`，覆盖分组与根别名；文本入口在首次读取前应用对应大小限制。Responses 子路径守卫继续先于本地请求拦截器。WebSocket 入口及后续帧使用上游歧义检查。
+- Antigravity 同一请求因无明确原因、无重置时间的 429 最多冷却一个账号。OpenAI OAuth 的 Alpha Search 工具级 403 单独分类。覆盖见 `antigravity_bare429_*test.go` 与 OpenAI Alpha Search 测试。
+
 ## 流式空闲超时与首输出切换预算
 
 - OpenAI SSE 的 idle Timer 按最近一次上游读取重新计时，不依赖周期 ticker。超时且仅写过 keepalive 时，使用 `SafeToFailoverAfterWrite` 接入首输出切换预算，最多一次切换；已开始模型输出不能拼接其他账号的响应。
@@ -136,7 +141,7 @@
 - reasoning effort 策略只使用已解析为 OpenAI 的分组上下文，模型范围匹配不做模糊 contains；超限 `deny` 是本地准入拒绝，HTTP/Anthropic 兼容出口返回 403 并标记 `local_policy_denied`，WS 终止当前 turn。默认 `downgrade` 保持存量行为，未识别或缺省 effort 不应因此被拒绝。
 - OpenAI API Key Chat 兼容路径自动派生的 prompt-cache identity 会混入 API Key ID，使不同租户使用相同 model/system/first-user 前缀时也不共享上游 session。自动派生仅针对 GPT-5/Codex 族的 Chat 形状；Responses 形状不派生，并且不得在 Agent Identity recovery 重试中二次 hash 同一 identity。
 - Anthropic body 中的 `fallbacks`、`fallback_credit_token` 与 `context_management` 必须按最终出站 `anthropic-beta` 能力对称保留，缺少对应 token 就在签名前删除，不依赖模型名或客户端类型猜测。Bedrock Claude Code 兼容链也使用等价过滤，不可让 body 字段与 beta header 失配。
-- HTTP Responses 的 Codex 独立上下文（`agent` namespace 的 page snapshot、`browser_info`、`goal_objective`、`untrusted_context`）只有名称精确匹配、无 `call_id`（或空串）且 output 形态合法时，才改写为 `<external_*>` 包裹的 user 文本；automation/delegation helper 则将合法 output 直接作为 user 正文（上游 #8769，0.2.22 起）。上游不识别的 `agent/browser_tabs`、`agent/proposed_plan`、`agent/untrusted_content`、3 个 `guardian/guardian_*`、`cloud_threads/send_message` 沿用本地 #8680 规则：名称与 namespace 精确匹配、不带 `call_id` 键且 output 形态合法时，只从 call/result 校验副本剔除并原样转发；它们与 automation/delegation bootstrap 并存时上游 normalizer 放弃改写，整条请求同样放行并原样转发。本地白名单项只要带 `call_id` 键（含空串、null、格式错误）就不豁免；未知名称、白名单项旁边的真实孤立工具结果仍走通用 call-id/item-reference 校验，不按通配符放行动态名称。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
+- HTTP Responses 的 Codex 独立上下文（`agent` namespace 的 page snapshot、`browser_info`、`goal_objective`、`untrusted_context`、`ide_context`、`proposed_plan`、`untrusted_content`）只有名称精确匹配、无 `call_id`（或空串）且 output 形态合法时，才改写为 `<external_*>` 包裹的 user 文本；automation/delegation helper 则将合法 output 直接作为 user 正文（上游 #8769，0.2.22 起）。上游不识别的 `agent/browser_tabs`、3 个 `guardian/guardian_*`、`cloud_threads/send_message` 沿用本地 #8680 规则：名称与 namespace 精确匹配、不带 `call_id` 键且 output 形态合法时，只从 call/result 校验副本剔除并原样转发；它们与 automation/delegation bootstrap 并存时上游 normalizer 放弃改写，整条请求同样放行并原样转发。本地白名单项只要带 `call_id` 键（含空串、null、格式错误）就不豁免；未知名称、白名单项旁边的真实孤立工具结果仍走通用 call-id/item-reference 校验，不按通配符放行动态名称。Responses WS active turn 在终态事件前收到 close/EOF 必须按失败收敛，避免把不完整响应记为成功。
 
 ## 0.2.1 合并增量
 

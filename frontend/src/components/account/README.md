@@ -1,5 +1,9 @@
 # Account Components
 
+## 0.2.24
+
+Claude OAuth 与 setup-token 的用量单元格展示 5 小时及 7 天估算成本。批量账号的透传模型过滤只在显式勾选修改时提交。
+
 ## 刷新与额度保留
 
 - `AccountUsageCell.vue` 刷新时保留已有额度；Antigravity 手动查询绕过服务端缓存，状态提示区分查询中。`AccountStatusIndicator.vue` 保留冷却状态展示。回归：AccountUsageCell、AccountStatusIndicator；本地 GPT 额度与账号操作员限制不变。

@@ -14,8 +14,6 @@ import (
 
 func TestCodexSourceContextAllowlist(t *testing.T) {
 	for _, tc := range []struct{ namespace, name, output string }{
-		{"agent", "proposed_plan", "# Approved plan\n1. Implement the change"},
-		{"agent", "untrusted_content", "External context"},
 		{"guardian", "guardian_housekeeper_input", `{"sources":[]}`},
 		{"guardian", "guardian_channel_selection_input", `{"channels":[]}`},
 		{"guardian", "guardian_original_evidence", `{"sources":[]}`},
@@ -54,7 +52,6 @@ func TestCodexSourceContextAllowlist(t *testing.T) {
 
 func TestCodexSourceContextRejectsMalformedEnvelopes(t *testing.T) {
 	for _, tc := range []struct{ namespace, name, output string }{
-		{"agent", "proposed_plan", " "},
 		{"guardian", "guardian_original_evidence", "not JSON"},
 		{"guardian", "guardian_original_evidence", `{"sources":[],"sources":null}`},
 		{"cloud_threads", "send_message", "ordinary result"},
@@ -130,8 +127,8 @@ func TestCodexStandaloneContextResponsesEntry(t *testing.T) {
 		rewritten               bool
 	}{
 		{"agent", "browser_tabs", browserTabsContext, false},
-		{"agent", "proposed_plan", "# Approved plan\n1. Implement the change", false},
-		{"agent", "untrusted_content", "External context", false},
+		{"agent", "proposed_plan", "# Approved plan\n1. Implement the change", true},
+		{"agent", "untrusted_content", "External context", true},
 		{"guardian", "guardian_housekeeper_input", `{"sources":[]}`, false},
 		{"guardian", "guardian_channel_selection_input", `{"channels":[]}`, false},
 		{"guardian", "guardian_original_evidence", `{"sources":[]}`, false},

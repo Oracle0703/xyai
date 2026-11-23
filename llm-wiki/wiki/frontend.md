@@ -1,5 +1,10 @@
 # 前端知识基线
 
+## 账号管理与模型广场
+
+- Claude OAuth/setup-token 展示 5 小时与 7 天窗口估算成本，Claude/Gemini 用量快照变化可触发缓存刷新。每个账号 60 秒内再次手动刷新 token 会提示，仍会执行。刷新按钮受本地 `canManageAccounts` 控制。
+- 批量编辑透传模型过滤需要显式启用。模型广场支持复制模型 ID。回归入口为 AccountUsageCell、BulkEditAccountModal、AccountsView 和 PlazaModelPricingTable 的测试。
+
 ## 渠道 Ultrafast 价格与 GPT-6.2
 
 - OpenAI 渠道定价卡增加 `ultrafast_multiplier`，空输入提交 NULL（继承模型默认），有效值必须为正数；创建、编辑、模型同步、API 回填与保存均贯通。组件回归见 `ChannelsView.ultrafastPricing.spec.ts`，接口与后端约束见 data-and-domain。

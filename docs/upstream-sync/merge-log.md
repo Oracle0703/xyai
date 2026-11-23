@@ -2388,3 +2388,14 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 2026-11-18 工作位置更新：按用户要求，将同名分支的未提交合并迁回 `E:/allsite/xyai`，并快进纳入最新本地 `main@74af5ac80ab13c8bc0c134a674c75fbf07e17072` 的演示文件删除和 Grok wiki 补充。迁回后的暂存树与“原审核树 + 最新 main 增量”精确相等，backend/frontend 与已测试版本逐树一致；MERGE_HEAD 仍为指定 `2af3f1e15c98c893a89255a037f551046883b8c0`，未提交。原始验证基线和结果保留在上表，当前工作位置及迁移核对并入同一份 review；恢复备份与测试证据仍留在仓库外。
 
 同次迁移清理完成：`E:/tmp/xyai-merge-223-20261118/worktree` 已取消 Git worktree 登记并删除实际目录；原有测试日志、快照和迁移恢复备份保留在其父目录，未删除其他任务的工作树。
+
+## 2026-11-23 · 0.2.24
+
+| 项目 | 记录 |
+| --- | --- |
+| 工作分支与第一父 | `feature/hy/10238_merge_sub2api_224`，本地 `main@80034d8eb6c63a552ed1aca051ebacde232e53b0` |
+| 上游分支与提交 | `Wei-Shaw/sub2api main@328db26f450edbdf9f8d4344a3ea903ac6396842` |
+| 合并提交 | 待审核，保留 MERGE_HEAD |
+| 文本冲突 | `chatcompletions_responses_bridge.go`、`routes/gateway.go`、`openai_responses_namespace.go`、`openai_responses_tool_schema.go`、`AccountActionMenu.vue` |
+| 裁决 | 上游 stop、路由字段检查、扫描优化和刷新提示并入本地行为；保留归档/拦截、具名上下文、schema 校正与子管理员权限。上游完整覆盖的两种 Codex 上下文改用上游实现 |
+| 验证 | 前端 3700/3700、构建通过，Go default/unit/integration 全量已结束。WebSocket 时序断言两父均复现；独立 PG/Redis 仓储与审计套件通过，Windows 发布权限断言在第一父复现。详见[本轮审核](2026-11-23-v0.2.24/review.md)第 5、6 节 |

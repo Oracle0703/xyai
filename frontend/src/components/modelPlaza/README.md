@@ -1,5 +1,9 @@
 # Model Plaza Components
 
+## 0.2.24
+
+模型价格表支持复制模型 ID，按钮回归见 `PlazaModelPricingTable.spec.ts`。
+
 本目录负责模型广场的筛选、分组和价格展示。数据只来自 `modelPlazaAPI.get()`；组件不自行推断分组可见性或登录权限，最终边界由后端 `/api/v1/model-plaza` 决定。
 
 ## 主要文件

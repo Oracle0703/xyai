@@ -13,7 +13,7 @@ import (
 // automation/delegation，仍是不带 call_id 的 function_call_output；它们不对应任何
 // 模型调用，这里只把它们从 call/result 校验副本中剔除，原始请求原样转发。
 func codexStandaloneContextValidationBody(body []byte) []byte {
-	if !mayContainCodexCallOutputCandidate(body, "browser_tabs", "proposed_plan", "untrusted_content",
+	if !mayContainCodexCallOutputCandidate(body, "browser_tabs",
 		"guardian_housekeeper_input", "guardian_channel_selection_input", "guardian_original_evidence",
 		"send_message", "create_thread", "automation_update") || !hasUniqueJSONMembers(body) {
 		return body
@@ -69,8 +69,6 @@ func isCodexStandaloneContextItem(item map[string]any) bool {
 	switch stringField(item, "namespace") {
 	case "agent":
 		switch name {
-		case "proposed_plan", "untrusted_content":
-			return strings.TrimSpace(output) != ""
 		case "browser_tabs":
 			return validCodexBrowserContext(output)
 		}

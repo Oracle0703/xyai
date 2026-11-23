@@ -1,5 +1,10 @@
 # 运维, 配置与验证基线
 
+## 0.2.24 验证入口
+
+- 上游版本文件为 `backend/cmd/server/VERSION`，Go 1.27.4，原有前端锁文件适用。新增 Exa 可在 Web Search Emulation 的提供商列表中配置。
+- 默认、unit、integration 全量 Go 测试，前端 Vitest、类型检查与构建，以及数据库测试环境与失败归属见 [本轮审核](../../docs/upstream-sync/2026-11-23-v0.2.24/review.md)。
+
 ## 0.2.23 运行与验证入口
 
 - Go 维持 1.27.4；前端 package.json / pnpm-lock.yaml 与第一父相同。Windows 需显式使用同版本 GOROOT/编译器与由 Go 1.27.4 构建的 golangci-lint；各测试套件使用独立 GOTMPDIR，前端使用独立 TEMP/TMP。
