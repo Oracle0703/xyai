@@ -18,6 +18,18 @@ describe('sub-admin route permission metadata', () => {
     })
   })
 
+  it('opens the IQ test config page to its own permission and organization leaders', () => {
+    const route = router.getRoutes().find((item) => item.name === 'AdminGPTIQTestConfig')
+
+    expect(route?.path).toBe('/admin/gpt-iq-test')
+    expect(route?.meta).toMatchObject({
+      requiresAuth: true,
+      requiresAdmin: true,
+      adminPermission: 'admin.gpt_iq_test',
+      adminPermissionsAny: ['admin.gpt_iq_test', 'admin.organization_manage'],
+    })
+  })
+
   it('keeps the GPT quota display admin page full-admin only', () => {
     const route = router.getRoutes().find((item) => item.name === 'AdminGPTQuotaDisplay')
 

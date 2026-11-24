@@ -161,6 +161,13 @@ var auditBodyOmittedRoutes = map[string]struct{}{
 	"POST /api/v1/admin/prompt-audit/events/delete-by-filter":   {},
 }
 
+// auditBodyPromptDigestRoutes 的请求体在脱敏前把 prompt 字段替换为 sha256 摘要：题面在 handler 校验前就会
+// 被捕获，被拒绝的敏感题面也不能进入审计日志，但操作审计仍记录摘要与其他字段（与版本表 prompt_sha256 一致）。
+var auditBodyPromptDigestRoutes = map[string]struct{}{
+	"POST /api/v1/admin/gpt-iq-test/cases":    {},
+	"PUT /api/v1/admin/gpt-iq-test/cases/:id": {},
+}
+
 // NewAuditLogMiddleware 创建审计中间件。
 // 记录范围：变更类请求（POST/PUT/PATCH/DELETE）+ 白名单内的敏感 GET 读取 + MCP OAuth 的全部读取。
 // 挂载位置：admin / user / admin-payment 组挂在各自认证中间件之后（只审计已认证请求，
@@ -206,7 +213,11 @@ func NewAuditLogMiddleware(auditService *service.AuditLogService) AuditLogMiddle
 					Reader: io.MultiReader(bytes.NewReader(raw), orig),
 					closer: orig,
 				}
-				bodyRedacted = service.RedactAuditBody(raw, c.GetHeader("Content-Type"))
+				captured := raw
+				if _, digest := auditBodyPromptDigestRoutes[routeKey]; digest {
+					captured = service.GPTIQAuditPromptDigest(raw)
+				}
+				bodyRedacted = service.RedactAuditBody(captured, c.GetHeader("Content-Type"))
 			}
 		}
 

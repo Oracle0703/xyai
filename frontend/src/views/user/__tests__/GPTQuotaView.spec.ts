@@ -1,16 +1,21 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GPTQuotaUserView } from '@/api/gptQuotaDisplay'
+import type { GPTIQUserView } from '@/api/gptIQTest'
 import GPTQuotaView from '../GPTQuotaView.vue'
 
-const { getGPTQuotaDisplay, setGPTQuotaVisibility } = vi.hoisted(() => ({
+const { getGPTQuotaDisplay, getGPTIQTests, getGPTIQTestEntry, setGPTQuotaDisplayVisibility, setGPTIQTestVisibility } = vi.hoisted(() => ({
   getGPTQuotaDisplay: vi.fn(),
-  setGPTQuotaVisibility: vi.fn(),
+  getGPTIQTests: vi.fn(),
+  getGPTIQTestEntry: vi.fn(),
+  setGPTQuotaDisplayVisibility: vi.fn(),
+  setGPTIQTestVisibility: vi.fn(),
 }))
 
 vi.mock('@/api/gptQuotaDisplay', () => ({ getGPTQuotaDisplay }))
+vi.mock('@/api/gptIQTest', () => ({ getGPTIQTests, getGPTIQTestEntry }))
 vi.mock('@/composables/useGPTQuotaVisibility', () => ({
-  useGPTQuotaVisibility: () => ({ setGPTQuotaVisibility }),
+  useGPTQuotaVisibility: () => ({ setGPTQuotaDisplayVisibility, setGPTIQTestVisibility }),
 }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
 vi.mock('vue-i18n', async () => {
@@ -36,6 +41,23 @@ function view(overrides: Partial<GPTQuotaUserView> = {}): GPTQuotaUserView {
   }
 }
 
+function iqView(overrides: Partial<GPTIQUserView> = {}): GPTIQUserView {
+  return {
+    enabled: true,
+    server_time: '2026-09-24T04:00:00Z',
+    poll_interval_seconds: 900,
+    schedule: { enabled: true, run_time: '08:30', timezone: 'Asia/Shanghai' },
+    next_run_at: '2026-09-25T00:30:00Z',
+    thresholds: { min_accuracy_percent: 60, min_graded_runs: 3, reasoning_ratio_percent: 30 },
+    cases: [{ id: 1, name: '打招呼', kind: 'chat', model: 'gpt-6.1', runs: 1, public_answer: true }],
+    groups: {
+      xunyou: [{ id: 1, display_name: 'c-01', verdict: 'connected', reasons: [], tested_at: '2026-09-24T00:31:00Z', cases: [], trend: [] }],
+      wsdashi: [],
+    },
+    ...overrides,
+  }
+}
+
 function setHidden(hidden: boolean) {
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
 }
@@ -45,8 +67,12 @@ describe('GPTQuotaView', () => {
     vi.useFakeTimers()
     setHidden(false)
     getGPTQuotaDisplay.mockReset()
-    setGPTQuotaVisibility.mockReset()
+    getGPTIQTests.mockReset()
+    getGPTIQTestEntry.mockReset()
+    setGPTQuotaDisplayVisibility.mockReset()
+    setGPTIQTestVisibility.mockReset()
     getGPTQuotaDisplay.mockResolvedValue(view())
+    getGPTIQTests.mockResolvedValue(iqView({ enabled: false, groups: { xunyou: [], wsdashi: [] } }))
   })
 
   afterEach(() => {
@@ -60,7 +86,10 @@ describe('GPTQuotaView', () => {
     expect(wrapper.find('[data-testid="gpt-quota-column-xunyou"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="gpt-quota-column-wsdashi"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('80.0%')
-    expect(setGPTQuotaVisibility).toHaveBeenCalledWith(true)
+    expect(setGPTQuotaDisplayVisibility).toHaveBeenCalledWith(true)
+    expect(setGPTIQTestVisibility).toHaveBeenCalledWith(false)
+    // 降智测试关闭时不显示该区。
+    expect(wrapper.find('[data-testid="gpt-iq-section"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -145,5 +174,80 @@ describe('GPTQuotaView', () => {
     wrapper.unmount()
     await vi.advanceTimersByTimeAsync(POLL_MS * 2)
     expect(getGPTQuotaDisplay).toHaveBeenCalledTimes(2)
+  })
+
+  it('renders the IQ test section below the quota area when only the IQ test is enabled', async () => {
+    getGPTQuotaDisplay.mockResolvedValue(view({ enabled: false, groups: { xunyou: [], wsdashi: [] } }))
+    getGPTIQTests.mockResolvedValue(iqView())
+    const wrapper = mount(GPTQuotaView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('gptQuota.disabled')
+    expect(wrapper.find('[data-testid="gpt-iq-section"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="gpt-iq-column-xunyou"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="gpt-iq-column-wsdashi"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="gpt-iq-card"]')).toHaveLength(1)
+    expect(setGPTQuotaDisplayVisibility).toHaveBeenCalledWith(false)
+    expect(setGPTIQTestVisibility).toHaveBeenCalledWith(true)
+    wrapper.unmount()
+  })
+
+  it('keeps the quota area when the IQ test request fails, and vice versa', async () => {
+    getGPTIQTests.mockRejectedValue(new Error('iq down'))
+    const wrapper = mount(GPTQuotaView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('80.0%')
+    expect(wrapper.text()).not.toContain('gptQuota.loadFailed')
+    expect(wrapper.find('[data-testid="gpt-iq-load-error"]').exists()).toBe(true)
+    expect(setGPTIQTestVisibility).not.toHaveBeenCalled()
+    wrapper.unmount()
+
+    getGPTQuotaDisplay.mockRejectedValue(new Error('quota down'))
+    getGPTIQTests.mockResolvedValue(iqView())
+    const second = mount(GPTQuotaView)
+    await flushPromises()
+    expect(second.text()).toContain('gptQuota.loadFailed')
+    expect(second.find('[data-testid="gpt-iq-load-error"]').exists()).toBe(false)
+    expect(second.findAll('[data-testid="gpt-iq-card"]')).toHaveLength(1)
+    second.unmount()
+  })
+
+  it('polls the IQ results on the same 15-minute timer with its own request', async () => {
+    const wrapper = mount(GPTQuotaView)
+    await flushPromises()
+    expect(getGPTIQTests).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(POLL_MS)
+    expect(getGPTQuotaDisplay).toHaveBeenCalledTimes(2)
+    expect(getGPTIQTests).toHaveBeenCalledTimes(2)
+    setHidden(true)
+    await vi.advanceTimersByTimeAsync(POLL_MS)
+    expect(getGPTIQTests).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2)
+    expect(getGPTIQTests).toHaveBeenCalledTimes(2)
+  })
+
+  it('aborts the in-flight IQ request on unmount', async () => {
+    let signal: AbortSignal | undefined
+    getGPTIQTests.mockImplementation((value: AbortSignal) => {
+      signal = value
+      return new Promise(() => {})
+    })
+    const wrapper = mount(GPTQuotaView)
+    await flushPromises()
+    expect(signal?.aborted).toBe(false)
+    wrapper.unmount()
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('opens the detail drawer for a card and loads the entry detail', async () => {
+    getGPTIQTests.mockResolvedValue(iqView())
+    getGPTIQTestEntry.mockResolvedValue({ enabled: true, id: 1, display_name: 'c-01', days: 14, cases: iqView().cases, sets: [] })
+    const wrapper = mount(GPTQuotaView, { attachTo: document.body })
+    await flushPromises()
+    await wrapper.find('[data-testid="gpt-iq-card"]').trigger('click')
+    await flushPromises()
+    expect(getGPTIQTestEntry).toHaveBeenCalledWith(1, { days: 14 }, expect.any(AbortSignal))
+    expect(document.body.querySelector('[data-testid="gpt-iq-drawer"]')).not.toBeNull()
+    wrapper.unmount()
   })
 })

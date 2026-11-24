@@ -651,6 +651,10 @@ export default {
         'admin.accounts_operator': {
           label: '账号管理（受限）',
           description: '查看全部账号信息，可新增账号、测试连接和重新授权；不能编辑、删除或批量操作。每次新增、重新授权或测试后状态变化都会邮件通知管理员。'
+        },
+        'admin.gpt_iq_test': {
+          label: '降智测试配置',
+          description: '配置 GPT 降智测试的开关、定时、阈值和测试项，并可对全部展示账号手动测试。账号与展示名仍只能由管理员在 GPT 额度展示中修改。'
         }
       },
       form: {

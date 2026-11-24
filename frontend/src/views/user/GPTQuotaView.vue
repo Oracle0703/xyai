@@ -57,6 +57,9 @@
       <div v-else-if="!loadError" class="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-hidden="true">
         <div v-for="index in 4" :key="index" class="card h-[76px] animate-pulse bg-gray-50 dark:bg-dark-800" />
       </div>
+
+      <!-- 降智测试区：独立请求与错误状态，额度展示关闭时仍可单独显示。 -->
+      <GPTIQTestSection :view="iqView" :load-error="iqLoadError" :now="now" />
     </div>
   </AppLayout>
 </template>
@@ -68,24 +71,30 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import MetricTile from '@/components/common/MetricTile.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GPTQuotaColumn from '@/components/user/GPTQuotaColumn.vue'
+import GPTIQTestSection from '@/components/user/GPTIQTestSection.vue'
 import { getGPTQuotaDisplay, type GPTQuotaUserView } from '@/api/gptQuotaDisplay'
+import { getGPTIQTests, type GPTIQUserView } from '@/api/gptIQTest'
 import { useGPTQuotaVisibility } from '@/composables/useGPTQuotaVisibility'
 import { averageSevenDayRemaining, effectiveGPTQuotaRemaining, formatGPTQuotaPercent, formatGPTQuotaTileTime } from '@/utils/gptQuota'
 
 // 页面只读已保存快照：进入时读取一次，之后按固定间隔轮询；隐藏标签页暂停，恢复可见时间隔已到才补读。
+// 额度与降智测试共用这一个计时器，但各发各的请求、各自记录失败，一方失败不影响另一方。
 const GPT_QUOTA_POLL_INTERVAL_MS = 15 * 60 * 1000
 const COUNTDOWN_TICK_MS = 30 * 1000
 
 const { t } = useI18n()
-const { setGPTQuotaVisibility } = useGPTQuotaVisibility()
+const { setGPTQuotaDisplayVisibility, setGPTIQTestVisibility } = useGPTQuotaVisibility()
 
 const view = ref<GPTQuotaUserView | null>(null)
 const loadError = ref(false)
+const iqView = ref<GPTIQUserView | null>(null)
+const iqLoadError = ref(false)
 const now = ref(Date.now())
 let lastLoadedAt = 0
 let pollTimer: number | undefined
 let tickTimer: number | undefined
 let controller: AbortController | null = null
+let iqController: AbortController | null = null
 let disposed = false
 
 const allCards = computed(() => (view.value ? [...view.value.groups.xunyou, ...view.value.groups.wsdashi] : []))
@@ -95,24 +104,49 @@ const remainingValues = computed(() => sampledCards.value.map(effectiveGPTQuotaR
 const lowCount = computed(() => remainingValues.value.filter((value) => value <= 30).length)
 const criticalCount = computed(() => remainingValues.value.filter((value) => value <= 10).length)
 
-async function load() {
+async function loadQuota() {
   controller?.abort()
   const current = new AbortController()
   controller = current
   try {
     const result = await getGPTQuotaDisplay(current.signal)
+    if (current.signal.aborted) return
     view.value = result
     loadError.value = false
-    setGPTQuotaVisibility(result.enabled)
+    // 只写额度展示开关；菜单在降智测试开启时仍保留。
+    setGPTQuotaDisplayVisibility(result.enabled)
   } catch {
     if (current.signal.aborted) return
     // 读取失败保留当前画面，按正常周期重试，不做高频重试。
     loadError.value = true
   } finally {
     if (controller === current) controller = null
-    lastLoadedAt = Date.now()
-    scheduleNextPoll()
   }
+}
+
+async function loadIQ() {
+  iqController?.abort()
+  const current = new AbortController()
+  iqController = current
+  try {
+    const result = await getGPTIQTests(current.signal)
+    if (current.signal.aborted) return
+    iqView.value = result
+    iqLoadError.value = false
+    setGPTIQTestVisibility(result.enabled)
+  } catch {
+    if (current.signal.aborted) return
+    iqLoadError.value = true
+  } finally {
+    if (iqController === current) iqController = null
+  }
+}
+
+async function load() {
+  await Promise.all([loadQuota(), loadIQ()])
+  if (disposed) return
+  lastLoadedAt = Date.now()
+  scheduleNextPoll()
 }
 
 // 每次读取后重新计时，恢复可见补读后不会紧接着再被定时器读一次。
@@ -145,5 +179,6 @@ onBeforeUnmount(() => {
   window.clearInterval(tickTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   controller?.abort()
+  iqController?.abort()
 })
 </script>

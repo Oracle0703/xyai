@@ -704,6 +704,21 @@ const GaugeIcon = {
     )
 }
 
+const BeakerIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5'
+        })
+      ]
+    )
+}
+
 const SignalIcon = {
   render: () =>
     h(
@@ -987,7 +1002,7 @@ const flagMCP = makeSidebarFlag(FeatureFlags.mcp)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
-// GPT 额度展示开关存于独立配置表，按 opt-in 处理：未加载或读取失败时隐藏。
+// GPT 额度展示与降智测试开关存于独立配置表，按 opt-in 处理：任一开启即显示，未加载或读取失败时隐藏。
 const flagGPTQuota = () => gptQuotaMenuVisible.value
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
@@ -1062,6 +1077,10 @@ const subAdminNavItems = computed((): NavItem[] => {
 	if (authStore.hasAdminPermission('admin.accounts_operator')) {
 		items.push({ path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon })
 	}
+	// 降智测试配置：单独授权或组织负责人（与路由 adminPermissionsAny 一致）。
+	if (authStore.hasAdminPermission('admin.gpt_iq_test') || authStore.hasAdminPermission('admin.organization_manage')) {
+		items.push({ path: '/admin/gpt-iq-test', label: t('nav.gptIQTestConfig'), icon: BeakerIcon })
+	}
 	return items
 })
 
@@ -1102,6 +1121,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/gpt-quota', label: t('nav.gptQuotaDisplay'), icon: GaugeIcon },
+    { path: '/admin/gpt-iq-test', label: t('nav.gptIQTestConfig'), icon: BeakerIcon },
     { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },

@@ -159,7 +159,7 @@ func TestCanAccessAdminRoute(t *testing.T) {
 
 func TestAdminPermissionCatalogReturnsDefensiveCopy(t *testing.T) {
 	first := AdminPermissionCatalog()
-	require.Len(t, first, 8)
+	require.Len(t, first, 9)
 	require.Equal(t, AdminPermissionSubscriptions, first[0].Code)
 	first[0].Code = "changed"
 	second := AdminPermissionCatalog()
@@ -210,6 +210,18 @@ func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 			{method: http.MethodPost, route: "/api/v1/admin/subscriptions/:id/restore"}:       {},
 			{method: http.MethodPost, route: "/api/v1/admin/organization/users/:id/password"}: {},
 			{method: http.MethodDelete, route: "/api/v1/admin/organization/users/:id"}:        {},
+			// GPT 降智测试：组织负责人只能运行与取消，配置与题目写入不在白名单内。
+			{method: http.MethodPost, route: "/api/v1/admin/gpt-iq-test/runs"}:            {},
+			{method: http.MethodPost, route: "/api/v1/admin/gpt-iq-test/runs/:id/cancel"}: {},
+		},
+		AdminPermissionGPTIQTest: {
+			{method: http.MethodPut, route: "/api/v1/admin/gpt-iq-test/config"}:             {},
+			{method: http.MethodPost, route: "/api/v1/admin/gpt-iq-test/cases"}:             {},
+			{method: http.MethodPut, route: "/api/v1/admin/gpt-iq-test/cases/:id"}:          {},
+			{method: http.MethodDelete, route: "/api/v1/admin/gpt-iq-test/cases/:id"}:       {},
+			{method: http.MethodPost, route: "/api/v1/admin/gpt-iq-test/cases/:id/rejudge"}: {},
+			{method: http.MethodPost, route: "/api/v1/admin/gpt-iq-test/runs"}:              {},
+			{method: http.MethodPost, route: "/api/v1/admin/gpt-iq-test/runs/:id/cancel"}:   {},
 		},
 		AdminPermissionUsage:         {},
 		AdminPermissionTokenAnalysis: {},

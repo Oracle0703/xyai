@@ -16,6 +16,9 @@ const (
 	AdminPermissionDepartmentMembers       = "admin.department_members"
 	AdminPermissionOrganizationManage      = "admin.organization_manage"
 	AdminPermissionAccountsOperator        = "admin.accounts_operator"
+	// AdminPermissionGPTIQTest 是"降智测试配置"页（全站范围）。组织负责人不需要单独授予，
+	// 同一组路由也在 admin.organization_manage 白名单内，由服务层按组织授权限定范围。
+	AdminPermissionGPTIQTest = "admin.gpt_iq_test"
 )
 
 type AdminPermissionCatalogItem struct {
@@ -38,10 +41,34 @@ var adminPermissionCatalog = []AdminPermissionCatalogItem{
 	{Code: AdminPermissionDepartmentMembers, MenuKey: "department_members", Route: "/admin/my-department"},
 	{Code: AdminPermissionOrganizationManage, MenuKey: "organization_manage", Route: "/admin/departments"},
 	{Code: AdminPermissionAccountsOperator, MenuKey: "accounts", Route: "/admin/accounts"},
+	{Code: AdminPermissionGPTIQTest, MenuKey: "gpt_iq_test", Route: "/admin/gpt-iq-test"},
+}
+
+// gptIQTestAdminRouteRules 是降智测试配置页的全部管理接口，授予 admin.gpt_iq_test
+// （设计 docs/features/gpt-iq-test-design-cn.md §9）。
+var gptIQTestAdminRouteRules = []adminRouteRule{
+	{"GET", "/api/v1/admin/gpt-iq-test"},
+	{"PUT", "/api/v1/admin/gpt-iq-test/config"},
+	{"POST", "/api/v1/admin/gpt-iq-test/cases"},
+	{"PUT", "/api/v1/admin/gpt-iq-test/cases/:id"},
+	{"DELETE", "/api/v1/admin/gpt-iq-test/cases/:id"},
+	{"POST", "/api/v1/admin/gpt-iq-test/cases/:id/rejudge"},
+	{"POST", "/api/v1/admin/gpt-iq-test/runs"},
+	{"GET", "/api/v1/admin/gpt-iq-test/runs/:id"},
+	{"POST", "/api/v1/admin/gpt-iq-test/runs/:id/cancel"},
+}
+
+// gptIQTestOrganizationRouteRules 是组织负责人可用的子集：查看、运行本组织、取消本人手动批次。
+// 全站配置、测试项写入与重评不在其中；范围由服务层按组织授权判定。
+var gptIQTestOrganizationRouteRules = []adminRouteRule{
+	{"GET", "/api/v1/admin/gpt-iq-test"},
+	{"POST", "/api/v1/admin/gpt-iq-test/runs"},
+	{"GET", "/api/v1/admin/gpt-iq-test/runs/:id"},
+	{"POST", "/api/v1/admin/gpt-iq-test/runs/:id/cancel"},
 }
 
 var adminPermissionRouteRules = map[string][]adminRouteRule{
-	AdminPermissionOrganizationManage: {
+	AdminPermissionOrganizationManage: append([]adminRouteRule{
 		{"GET", "/api/v1/admin/organization/scope"},
 		{"GET", "/api/v1/admin/departments"},
 		{"POST", "/api/v1/admin/departments"},
@@ -65,7 +92,8 @@ var adminPermissionRouteRules = map[string][]adminRouteRule{
 		// Organization user management (design §4.9, D12); /admin/users* is never opened.
 		{"POST", "/api/v1/admin/organization/users/:id/password"},
 		{"DELETE", "/api/v1/admin/organization/users/:id"},
-	},
+	}, gptIQTestOrganizationRouteRules...),
+	AdminPermissionGPTIQTest: gptIQTestAdminRouteRules,
 	AdminPermissionDepartmentMembers: {
 		{"GET", "/api/v1/admin/department-members/scope"},
 		{"GET", "/api/v1/admin/department-members"},

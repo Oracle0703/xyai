@@ -220,6 +220,32 @@ describe('feature route guard', () => {
     if (target) expect(next).toHaveBeenCalledWith(target)
     else expect(next).toHaveBeenCalledWith()
   })
+
+  it.each([
+    [['admin.gpt_iq_test'], true, undefined],
+    [['admin.organization_manage', 'admin.organization_usage'], false, undefined],
+    [['admin.usage'], false, '/dashboard'],
+    [['admin.gpt_iq_test'], false, undefined],
+  ])('lets %j open the IQ test config page (backend mode %s)', async (permissions, backendMode, target) => {
+    authStore.isSubAdmin = true
+    authStore.canAccessAdmin = true
+    authStore.user = { admin_permissions: permissions }
+    authStore.hasAdminPermission.mockImplementation((...args: unknown[]) => permissions.includes(String(args[0])))
+    appStore.backendModeEnabled = backendMode
+    try {
+      const { navigation, next } = runGuard({
+        requiresAdmin: true,
+        adminPermission: 'admin.gpt_iq_test',
+        adminPermissionsAny: ['admin.gpt_iq_test', 'admin.organization_manage'],
+      }, '/admin/gpt-iq-test')
+      await navigation
+      expect(next).toHaveBeenCalledOnce()
+      if (target) expect(next).toHaveBeenCalledWith(target)
+      else expect(next).toHaveBeenCalledWith()
+    } finally {
+      appStore.backendModeEnabled = false
+    }
+  })
 })
 
 describe('subscription route guard (opt-out flag)', () => {

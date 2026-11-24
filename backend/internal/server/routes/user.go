@@ -148,7 +148,11 @@ func RegisterUserRoutes(
 		gptQuota := authenticated.Group("/gpt-quota")
 		{
 			gptQuota.GET("", h.GPTQuotaDisplay.Get)
-			gptQuota.GET("/status", h.GPTQuotaDisplay.Status)
+			// 状态同时返回额度展示与降智测试的公开开关，任一开启即显示菜单。
+			gptQuota.GET("/status", h.GPTIQTest.Status)
+			// GPT 降智测试结果（只读数据库，不触发测试）
+			gptQuota.GET("/iq-tests", h.GPTIQTest.Get)
+			gptQuota.GET("/iq-tests/entries/:entry_id", h.GPTIQTest.EntryDetail)
 		}
 
 		// 渠道监控（用户只读）

@@ -536,6 +536,21 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // 完整管理员、单独授权的子管理员与组织负责人（手动测试范围由服务端按组织授权限定）。
+    path: '/admin/gpt-iq-test',
+    name: 'AdminGPTIQTestConfig',
+    component: () => import('@/views/admin/GPTIQTestConfigView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      adminPermission: 'admin.gpt_iq_test',
+      adminPermissionsAny: ['admin.gpt_iq_test', 'admin.organization_manage'],
+      title: 'IQ Test Config',
+      titleKey: 'nav.gptIQTestConfig',
+      descriptionKey: 'gptIQTest.admin.description'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),

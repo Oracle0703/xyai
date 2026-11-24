@@ -307,6 +307,7 @@ go generate ./cmd/server
 | `218_group_audio_voice_pricing.sql`、`219_group_search_price_per_1k.sql` | 增加 Grok realtime(USD/min)、TTS(USD/百万字符)、STT(USD/hour)和搜索(USD/1000 calls)价格列。NULL 使用代码默认价, 0 明确免费, 正数为分组覆盖价。 |
 | `220_clear_non_grok_video_generation_config.sql` | 首次执行先创建 `groups_video_price_backup_220`, 再清空非 Grok、非 composite 分组的 legacy 与 per-model 视频价；composite 可能路由 Grok, 当前版本保留其配置。备份表确认无需回滚后才能人工删除。 |
 | `243_gpt_quota_display.sql` | GPT 账号额度展示：单例 `gpt_quota_display_config`（默认关闭、30/60 分钟、`version` 乐观锁、`last_slot_at` 槽位去重）、`gpt_quota_display_entries`（account_id 唯一、别名、selected）、每账号一行 `gpt_quota_display_snapshots`（窗口 JSONB，缺失为 SQL NULL；`sampled_at` 条件发布；`last_attempt_*`/`retry_after` 承载跨实例冷却与 429 退避）。与 `accounts.extra` 隔离；账号软删除不级联，读取按 `deleted_at` 排除。 |
+| `265_gpt_iq_test.sql` | GPT 降智测试：单例 `gpt_iq_test_config`（开关、`run_time`、`last_run_date`、判定/额度阈值、每日预算、保留期）；`gpt_iq_test_cases`（可变属性 + `current_revision_id` 可延迟 FK）与不可变 `gpt_iq_test_case_revisions`；`gpt_iq_test_batches`（`((TRUE)) WHERE status='running'` 部分唯一索引、`lease_token`、心跳）；`gpt_iq_test_results`（`entry_id` FK 额度条目 CASCADE，`status`/`reason`/`correct` 分列，回答 ≤64 KB）；`gpt_iq_test_daily_usage`；`gpt_iq_test_backoff`。设计 `docs/features/gpt-iq-test-design-cn.md` §11。 |
 
 > 已知双 `151_` 前缀(上游 v0.1.137 自带): `151_account_autopause_expiry_index_notx.sql` 与 `151_channel_monitor_jitter.sql` 来自上游不同分支。runner 按**完整文件名** `sort.Strings` 排序并以 `WHERE filename = $1` 去重, 不依赖数字前缀唯一, 故两文件独立执行互不覆盖, 运行无影响; 不要为"对齐编号"去重命名已发布 migration(违反不可重命名/重排规则)。
 

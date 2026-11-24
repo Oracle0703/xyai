@@ -217,6 +217,7 @@ export default {
     channelStatus: 'Channel Status',
     gptQuota: 'GPT Account Quota',
     gptQuotaDisplay: 'GPT Quota Display',
+    gptIQTestConfig: 'IQ Test Config',
     requestIntercept: 'Request Intercept',
     tokenAnalysis: 'Token Analysis',
     promptMetrics: 'Prompt Metrics',

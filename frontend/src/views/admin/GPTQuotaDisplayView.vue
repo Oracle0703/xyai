@@ -287,7 +287,7 @@ const COUNTDOWN_TICK_MS = 30 * 1000
 
 const { t, te } = useI18n()
 const appStore = useAppStore()
-const { setGPTQuotaVisibility } = useGPTQuotaVisibility()
+const { setGPTQuotaDisplayVisibility } = useGPTQuotaVisibility()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -486,7 +486,8 @@ async function save() {
       expected_version: serverConfig.value.version,
       entries: selections.value.map((selection) => ({ account_id: selection.account_id, display_name: selection.display_name.trim() })),
     })
-    setGPTQuotaVisibility(result.config.enabled)
+    // 只更新额度展示开关；降智测试开启时菜单仍保留。
+    setGPTQuotaDisplayVisibility(result.config.enabled)
     appStore.showSuccess(t('gptQuota.admin.saved'))
     for (const warning of result.warnings ?? []) appStore.showError(t(`gptQuota.admin.warnings.${warning}`))
     await applyAdminView(true)

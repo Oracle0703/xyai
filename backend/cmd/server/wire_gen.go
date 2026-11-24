@@ -357,9 +357,12 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	gptQuotaDisplayRepository := repository.NewGPTQuotaDisplayRepository(db)
 	gptQuotaDisplayService := service.ProvideGPTQuotaDisplayService(gptQuotaDisplayRepository, accountRepository, openAIQuotaService, leaderLockCache, db)
 	gptQuotaDisplayHandler := handler.NewGPTQuotaDisplayHandler(gptQuotaDisplayService)
+	gptiqTestRepository := repository.NewGPTIQTestRepository(db)
+	gptiqTestService := service.ProvideGPTIQTestService(gptiqTestRepository, gptQuotaDisplayService, accountRepository, accountTestService, openAITokenProvider, leaderLockCache, db)
+	gptiqTestHandler := handler.NewGPTIQTestHandler(gptiqTestService)
 	idempotencyCleanupService := service.ProvideIdempotencyCleanupService(idempotencyRepository, configConfig)
 	openAIQuotaAutoResetService := service.ProvideOpenAIQuotaAutoResetService(accountRepository, openAIQuotaService, rateLimitService, idempotencyCoordinator, auditLogService, settingService, leaderLockCache)
-	handlers := handler.ProvideHandlers(authHandler, userHandler, mcpoAuthHandler, apiKeyHandler, usageHandler, redeemHandler, subscriptionHandler, subscriptionSelfResetHandler, announcementHandler, channelMonitorUserHandler, channelMonitorV2Handler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, passkeyHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, modelPlazaHandler, asyncImageHandler, batchImageHandler, gptQuotaDisplayHandler, idempotencyCoordinator, idempotencyCleanupService, openAIQuotaAutoResetService)
+	handlers := handler.ProvideHandlers(authHandler, userHandler, mcpoAuthHandler, apiKeyHandler, usageHandler, redeemHandler, subscriptionHandler, subscriptionSelfResetHandler, announcementHandler, channelMonitorUserHandler, channelMonitorV2Handler, adminHandlers, gatewayHandler, openAIGatewayHandler, handlerSettingHandler, totpHandler, passkeyHandler, handlerPaymentHandler, paymentWebhookHandler, availableChannelHandler, modelPlazaHandler, asyncImageHandler, batchImageHandler, gptQuotaDisplayHandler, gptiqTestHandler, idempotencyCoordinator, idempotencyCleanupService, openAIQuotaAutoResetService)
 	jwtAuthMiddleware := middleware.NewJWTAuthMiddleware(authService, userService, settingService, auditLogService)
 	optionalJWTAuthMiddleware := middleware.NewOptionalJWTAuthMiddleware(authService, userService, settingService, auditLogService)
 	adminAuthMiddleware := middleware.NewAdminAuthMiddleware(authService, userService, settingService, auditLogService)
@@ -391,7 +394,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
 	organizationUsageRollupRepository := repository.NewOrganizationUsageRollupRepository(db)
 	organizationUsageRollupService := service.ProvideOrganizationUsageRollupService(organizationUsageRollupRepository, leaderLockCache, db, configConfig)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, tokenAnalysisService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, geminiCachedContentService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, usageBillingLaneCombiner, balanceNotifyService, digestSessionStore, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, userConcurrencyPresetRunner, backupService, paymentOrderExpiryService, channelMonitorRunner, channelMonitorV2Aggregator, extension, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, gptQuotaDisplayService, organizationUsageRollupService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, tokenAnalysisService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, geminiCachedContentService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, usageBillingLaneCombiner, balanceNotifyService, digestSessionStore, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, userConcurrencyPresetRunner, backupService, paymentOrderExpiryService, channelMonitorRunner, channelMonitorV2Aggregator, extension, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, gptQuotaDisplayService, gptiqTestService, organizationUsageRollupService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
 	application := &Application{
 		Server:        httpServer,
 		PromptAudit:   promptService,
@@ -481,6 +484,7 @@ func provideCleanup(
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
 	gptQuotaDisplay *service.GPTQuotaDisplayService,
+	gptIQTest *service.GPTIQTestService,
 	organizationUsageRollup *service.OrganizationUsageRollupService,
 	auditLog *service.AuditLogService,
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
@@ -500,6 +504,12 @@ func provideCleanup(
 			{"GPTQuotaDisplayService", func() error {
 				if gptQuotaDisplay != nil {
 					gptQuotaDisplay.Stop()
+				}
+				return nil
+			}},
+			{"GPTIQTestService", func() error {
+				if gptIQTest != nil {
+					gptIQTest.Stop()
 				}
 				return nil
 			}},

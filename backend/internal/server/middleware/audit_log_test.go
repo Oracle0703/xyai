@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -223,4 +224,53 @@ func TestAuditRecordsEveryMCPOAuthReadWithGrant(t *testing.T) {
 	require.Equal(t, "admin.users.read", logs[0].Action)
 	require.Equal(t, "grant-1", logs[0].Extra["mcp_grant_id"])
 	require.Equal(t, "admin_list_users", logs[0].Extra["mcp_tool"])
+}
+
+// 降智测试题面：成功与被拒绝的提交都只留下摘要或省略标记，任何写法的题面原文都不进审计。
+func TestGPTIQCaseAuditKeepsOnlyPromptDigest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repository := &auditCaptureRepository{}
+	auditService := service.NewAuditLogService(repository, nil)
+	auditService.Start()
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(ContextKeyUser), AuthSubject{UserID: 77})
+		c.Set(string(ContextKeyUserRole), "admin")
+		c.Next()
+	})
+	router.Use(gin.HandlerFunc(NewAuditLogMiddleware(auditService)))
+	router.POST("/api/v1/admin/gpt-iq-test/cases", func(c *gin.Context) { c.JSON(http.StatusBadRequest, gin.H{"ok": false}) })
+	router.PUT("/api/v1/admin/gpt-iq-test/cases/:id", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+	bodies := []string{
+		`{"name":"糖果题","prompt":"audit-canary-prompt","model":"gpt-6.1-sol"}`,
+		`{"Prompt":"audit-canary-prompt"}`,
+		`{"prompt":["audit-canary-prompt"]}`,
+		`{"note":"audit-canary-prompt"}`,
+		`not json audit-canary-prompt`,
+	}
+	for i, body := range bodies {
+		method, path := http.MethodPost, "/api/v1/admin/gpt-iq-test/cases"
+		if i%2 == 1 {
+			method, path = http.MethodPut, "/api/v1/admin/gpt-iq-test/cases/5"
+		}
+		request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(httptest.NewRecorder(), request)
+	}
+	auditService.Stop()
+
+	repository.mu.Lock()
+	logs := append([]*service.AuditLog(nil), repository.logs...)
+	repository.mu.Unlock()
+	require.Len(t, logs, len(bodies))
+	sawDigest := false
+	for _, entry := range logs {
+		require.NotContains(t, entry.RequestBody, "audit-canary-prompt")
+		if strings.Contains(entry.RequestBody, "sha256:") {
+			sawDigest = true
+		}
+	}
+	require.True(t, sawDigest, "a well-formed prompt is recorded as its digest")
 }

@@ -217,6 +217,7 @@ func ProvideHandlers(
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	gptQuotaDisplayHandler *GPTQuotaDisplayHandler,
+	gptIQTestHandler *GPTIQTestHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -246,6 +247,7 @@ func ProvideHandlers(
 		AsyncImage:            asyncImageHandler,
 		BatchImage:            batchImageHandler,
 		GPTQuotaDisplay:       gptQuotaDisplayHandler,
+		GPTIQTest:             gptIQTestHandler,
 	}
 }
 
@@ -275,6 +277,7 @@ var ProviderSet = wire.NewSet(
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 	NewGPTQuotaDisplayHandler,
+	NewGPTIQTestHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

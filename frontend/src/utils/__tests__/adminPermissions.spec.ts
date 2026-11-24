@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ADMIN_PERMISSION_GPT_IQ_TEST,
   ADMIN_PERMISSION_SUBSCRIPTIONS,
   ADMIN_PERMISSION_TOKEN_ANALYSIS,
   ADMIN_PERMISSION_USAGE,
@@ -39,6 +40,22 @@ describe('sub-admin landing path', () => {
     expect(getAdminLandingPath([ADMIN_PERMISSION_TOKEN_ANALYSIS, ADMIN_PERMISSION_USAGE], true)).toBe('/admin/usage')
     expect(getAdminLandingPath([ADMIN_PERMISSION_SUBSCRIPTIONS], true)).toBe('/admin/subscriptions')
     expect(getAdminLandingPath(['admin.accounts_operator'], true)).toBe('/admin/accounts')
+  })
+
+  it('lands a sub-admin holding only the IQ test permission on its config page', () => {
+    expect(getAdminLandingPath([ADMIN_PERMISSION_GPT_IQ_TEST], true)).toBe('/admin/gpt-iq-test')
+    // 标准模式下与其他非部门权限一致，进入个人 dashboard。
+    expect(getAdminLandingPath([ADMIN_PERMISSION_GPT_IQ_TEST], false)).toBe('/dashboard')
+    // 其他权限优先；组织负责人仍落到部门管理。
+    expect(getAdminLandingPath([ADMIN_PERMISSION_GPT_IQ_TEST, ADMIN_PERMISSION_USAGE], true)).toBe('/admin/usage')
+    expect(getAdminLandingPath(['admin.organization_manage', 'admin.organization_usage', 'admin.department_subscriptions', 'admin.department_members'], true)).toBe('/admin/departments')
+    // 负责人另被授予降智测试配置时，普通模式与后台模式都仍落地部门管理。
+    for (const backendMode of [false, true]) {
+      expect(getAdminLandingPath(['admin.organization_manage', 'admin.organization_usage', 'admin.department_subscriptions', 'admin.department_members', ADMIN_PERMISSION_GPT_IQ_TEST], backendMode)).toBe('/admin/departments')
+      expect(getAdminLandingPath(['admin.department_members', ADMIN_PERMISSION_GPT_IQ_TEST], backendMode)).toBe('/admin/my-department')
+    }
+    expect(resolveAdminPermissionDeniedRecovery({ backendMode: true, isAdmin: false, isSubAdmin: true, permissions: [ADMIN_PERMISSION_GPT_IQ_TEST] }))
+      .toEqual({ target: '/admin/gpt-iq-test', logout: false })
   })
 
   it('falls back to login in backend mode when no permission remains', () => {

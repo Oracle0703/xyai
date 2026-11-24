@@ -768,6 +768,10 @@ export default {
         'admin.accounts_operator': {
           label: 'Account management (restricted)',
           description: 'View all accounts, create accounts, test connections and re-authorize; no editing, deletion or bulk actions. Every creation, re-authorization or state change after a test is emailed to the administrator.'
+        },
+        'admin.gpt_iq_test': {
+          label: 'IQ test configuration',
+          description: 'Configure the GPT IQ test switches, schedule, thresholds and test cases, and run manual tests on all displayed accounts. Accounts and display names are still managed by administrators in GPT Quota Display.'
         }
       },
       // Settings Dropdowns

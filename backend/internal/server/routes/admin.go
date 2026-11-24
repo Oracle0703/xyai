@@ -135,6 +135,20 @@ func RegisterAdminRoutes(
 			gptQuota.POST("/refresh", h.GPTQuotaDisplay.Refresh)
 		}
 
+		// GPT 降智测试配置（完整管理员、admin.gpt_iq_test、组织负责人；范围由服务层按操作者重读判定）
+		gptIQTest := admin.Group("/gpt-iq-test")
+		{
+			gptIQTest.GET("", h.GPTIQTest.AdminGet)
+			gptIQTest.PUT("/config", h.GPTIQTest.UpdateConfig)
+			gptIQTest.POST("/cases", h.GPTIQTest.CreateCase)
+			gptIQTest.PUT("/cases/:id", h.GPTIQTest.UpdateCase)
+			gptIQTest.DELETE("/cases/:id", h.GPTIQTest.DeleteCase)
+			gptIQTest.POST("/cases/:id/rejudge", h.GPTIQTest.Rejudge)
+			gptIQTest.POST("/runs", h.GPTIQTest.StartRun)
+			gptIQTest.GET("/runs/:id", h.GPTIQTest.GetRun)
+			gptIQTest.POST("/runs/:id/cancel", h.GPTIQTest.CancelRun)
+		}
+
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)

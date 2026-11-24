@@ -24,7 +24,7 @@ const { showError, showSuccess } = vi.hoisted(() => ({ showError: vi.fn(), showS
 
 vi.mock('@/api/gptQuotaDisplay', () => api)
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showError, showSuccess }) }))
-vi.mock('@/composables/useGPTQuotaVisibility', () => ({ useGPTQuotaVisibility: () => ({ setGPTQuotaVisibility: vi.fn() }) }))
+vi.mock('@/composables/useGPTQuotaVisibility', () => ({ useGPTQuotaVisibility: () => ({ setGPTQuotaDisplayVisibility: vi.fn() }) }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
 vi.mock('@/components/common/BaseDialog.vue', () => ({
   default: { props: ['show'], template: '<div v-if="show" data-testid="dialog"><slot /><slot name="footer" /></div>' },

@@ -8,6 +8,7 @@ export const ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS: AdminPermission = 'admin
 export const ADMIN_PERMISSION_DEPARTMENT_MEMBERS: AdminPermission = 'admin.department_members'
 export const ADMIN_PERMISSION_ORGANIZATION_MANAGE: AdminPermission = 'admin.organization_manage'
 export const ADMIN_PERMISSION_ACCOUNTS_OPERATOR: AdminPermission = 'admin.accounts_operator'
+export const ADMIN_PERMISSION_GPT_IQ_TEST: AdminPermission = 'admin.gpt_iq_test'
 
 const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
   code: AdminPermission
@@ -22,6 +23,8 @@ const ADMIN_PERMISSION_LANDING_ROUTES: ReadonlyArray<{
   { code: ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS, path: '/admin/subscriptions' },
   { code: ADMIN_PERMISSION_DEPARTMENT_MEMBERS, path: '/admin/my-department' },
   { code: ADMIN_PERMISSION_ACCOUNTS_OPERATOR, path: '/admin/accounts' },
+  // Last so organization leaders (who can also open this page) keep landing on departments.
+  { code: ADMIN_PERMISSION_GPT_IQ_TEST, path: '/admin/gpt-iq-test' },
 ]
 
 export function getAdminLandingPath(
@@ -29,8 +32,11 @@ export function getAdminLandingPath(
   backendMode: boolean,
 ): string {
 	const allowed = new Set(permissions ?? [])
-	const onlyDepartmentManagement = allowed.size > 0 && [...allowed].every(
-		code => code === ADMIN_PERMISSION_ORGANIZATION_USAGE || code === ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS || code === ADMIN_PERMISSION_DEPARTMENT_MEMBERS || code === ADMIN_PERMISSION_ORGANIZATION_MANAGE,
+	const isDepartmentCode = (code: string) =>
+		code === ADMIN_PERMISSION_ORGANIZATION_USAGE || code === ADMIN_PERMISSION_DEPARTMENT_SUBSCRIPTIONS || code === ADMIN_PERMISSION_DEPARTMENT_MEMBERS || code === ADMIN_PERMISSION_ORGANIZATION_MANAGE
+	// 降智测试配置不改变部门负责人的落地页：持有部门能力时它不算"其他权限"；只持有它时仍按普通子管理员处理。
+	const onlyDepartmentManagement = [...allowed].some(isDepartmentCode) && [...allowed].every(
+		code => isDepartmentCode(code) || code === ADMIN_PERMISSION_GPT_IQ_TEST,
 	)
   if (!backendMode && !onlyDepartmentManagement) return '/dashboard'
   return ADMIN_PERMISSION_LANDING_ROUTES.find((item) => allowed.has(item.code))?.path ?? '/login'

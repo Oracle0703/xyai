@@ -231,6 +231,14 @@ func ProvideGPTQuotaDisplayService(repo GPTQuotaDisplayRepository, accountRepo A
 	return svc
 }
 
+// ProvideGPTIQTestService 启动降智测试的每日定时循环（定时开关关闭时不访问上游）。
+// 执行器复用测试连接的出站路径（插件链、TLS 指纹），不写账号状态。
+func ProvideGPTIQTestService(repo GPTIQTestRepository, quota *GPTQuotaDisplayService, accountRepo AccountRepository, tests *AccountTestService, tokens *OpenAITokenProvider, locks LeaderLockCache, db *sql.DB) *GPTIQTestService {
+	svc := NewGPTIQTestService(repo, quota, accountRepo, newGPTIQUpstreamProber(tests, tokens), locks, db)
+	svc.Start()
+	return svc
+}
+
 // ProvideOrganizationUsageRollupService 启动组织用量日汇总的发布/修复循环；关闭汇总时不启动。
 func ProvideOrganizationUsageRollupService(repo OrganizationUsageRollupRepository, locks LeaderLockCache, db *sql.DB, cfg *config.Config) *OrganizationUsageRollupService {
 	svc := NewOrganizationUsageRollupService(repo, locks, db)
@@ -980,6 +988,7 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAITokenProvider,
 	ProvideOpenAIQuotaService,
 	ProvideGPTQuotaDisplayService,
+	ProvideGPTIQTestService,
 	ProvideOrganizationUsageRollupService,
 	ProvideOpenAIQuotaAutoResetService,
 	ProvideGrokQuotaService,

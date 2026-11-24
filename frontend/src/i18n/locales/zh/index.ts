@@ -8,6 +8,7 @@ import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
 import gptQuota from './gptQuota'
+import gptIQTest from './gptIQTest'
 
 export default {
   adminAccessKeys,
@@ -20,4 +21,5 @@ export default {
   admin,
   ...misc,
   ...gptQuota,
+  ...gptIQTest,
 }

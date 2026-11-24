@@ -77,6 +77,7 @@ type Handlers struct {
 	AsyncImage            *AsyncImageHandler
 	BatchImage            *BatchImageHandler
 	GPTQuotaDisplay       *GPTQuotaDisplayHandler
+	GPTIQTest             *GPTIQTestHandler
 }
 
 // BuildInfo contains build-time information

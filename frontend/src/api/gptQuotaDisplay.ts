@@ -127,8 +127,14 @@ export async function getGPTQuotaDisplay(signal?: AbortSignal): Promise<GPTQuota
   return data
 }
 
-export async function getGPTQuotaStatus(): Promise<{ enabled: boolean }> {
-  const { data } = await apiClient.get<{ enabled: boolean }>('/gpt-quota/status')
+/** /gpt-quota 菜单状态：额度展示与降智测试的公开开关，任一为 true 即显示菜单。 */
+export interface GPTQuotaMenuStatus {
+  enabled: boolean
+  iq_test_enabled: boolean
+}
+
+export async function getGPTQuotaStatus(): Promise<GPTQuotaMenuStatus> {
+  const { data } = await apiClient.get<GPTQuotaMenuStatus>('/gpt-quota/status')
   return data
 }
 

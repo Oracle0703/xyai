@@ -423,6 +423,15 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 - 上游只能走 `OpenAIQuotaService.QueryUsageReadOnly`（只查 wham/usage、不写 extra、不查 reset-credit、拒绝 shadow/Agent Identity、token 预检防禁用）；不得改用 `QueryUsage`、`getOpenAIUsage` 或渠道监控链路。任何读取接口都不得触发采集。
 - 细节与合同见 [[gpt-account-quota-display-design]]。
 
+## GPT 降智测试
+
+- 分层：`repository/gpt_iq_test_repo.go`、`service/gpt_iq_test_service.go`（排程/批次/管理）、`gpt_iq_test_views.go`（读视图与读时判定）、`gpt_iq_test_scoring.go`、`gpt_iq_test_runner.go`（上游执行器）、`handler/gpt_iq_test_handler.go`。服务文件不能叫 `gpt_iq_test.go`（`_test.go` 结尾）。
+- 路由：用户 `/api/v1/gpt-quota/iq-tests`、`/iq-tests/entries/:entry_id`；`/api/v1/gpt-quota/status` 已改由 `GPTIQTestHandler.Status` 处理，返回 `{enabled, iq_test_enabled}`。管理 `/api/v1/admin/gpt-iq-test` 9 个路由。
+- 账号集合直接读额度展示条目（`GPTQuotaDisplayService.repo.ListSelectedEntries` + 资格/排序/展示名），不另建选择表。
+- 执行器只调用测试连接的辅助函数（身份头、`doOpenAIAccountTestUpstream`），不改 `account_test_service.go`；不写 `accounts.extra`、不 `SetError`、不同步 429 状态；token 经 `OpenAITokenProvider` 取（允许正常刷新），调用前做"过期且无 refresh token"预检。
+- 后台：`ProvideGPTIQTestService` 构造即 `Start()`，每 30 秒回收心跳超时批次、每日清理、定时检查（Asia/Shanghai，`run_time` 至 +3h）；`provideCleanup` 调 `Stop()`。全站单运行批次（部分唯一索引）+ `lease_token` 栅栏 + `last_run_date` 条件领取；每次派发前原子预占当日预算。测试前经额度展示 `refreshAccount` 只读刷新额度。
+- `wire_gen.go` 已用 wire 重新生成；`cmd/server/wire_gen_test.go` 对 `provideCleanup` 按位置传参，增减清理参数要同步。`ReserveDispatch(batchID, token, …)` 同事务校验执行权；写结果失败标 `aborted/persist_failed`；`UpdateCorrect` 版本单调；思考基线按（批次, 版本, 实际请求模型）分组；趋势只取定时批次。细节见 `docs/features/gpt-iq-test-design-cn.md`。
+
 ## 网关路径
 
 `backend/internal/server/routes/gateway.go` 是网关路由入口。

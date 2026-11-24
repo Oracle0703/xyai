@@ -217,6 +217,7 @@ export default {
     channelStatus: '渠道状态',
     gptQuota: 'GPT 账号额度',
     gptQuotaDisplay: 'GPT 额度展示',
+    gptIQTestConfig: '降智测试配置',
     requestIntercept: '请求拦截',
     tokenAnalysis: 'Token 分析',
     promptMetrics: 'Prompt 指标',

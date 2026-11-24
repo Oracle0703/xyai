@@ -131,6 +131,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 ## 文档地图（路径说明）
 
 - [[gpt-account-quota-display-design]]：GPT 账号额度共享展示，迅游/速宝双列；2026-09-28 已实施、待上线验收。读写隔离、只读上游、排程与接口合同见该页和 `docs/features/gpt-account-quota-display-design-cn.md` §8。
+- GPT 降智测试（`feature/hy/10239_gpt_iq_test`，前后端已实现、未提交、未上线）：唯一文档 `docs/features/gpt-iq-test-design-cn.md`。结果在 `/gpt-quota` 下方，配置页 `/admin/gpt-iq-test`；账号集合/展示名复用额度展示条目；执行器直连 Codex 上游、无账号副作用；糖果题答案 21（`final_line` 判分）；迁移 265。运行合同见 backend/data/security。
 
 - `backend.md`: 后端入口, 路由, Wire 依赖注入, service/repository 分层, 网关路径。
 - `frontend.md`: Vue 前端入口, 路由守卫, store, API client, 组件和样式约定。

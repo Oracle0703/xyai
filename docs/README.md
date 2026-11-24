@@ -46,6 +46,7 @@
 | `subscription-self-daily-reset-design-cn.md` | 用户订阅自助日重置 |
 | `subscription-daily-remaining-sort-bulk-reset-design-cn.md` | 管理端订阅按每日剩余排序与批量重置 |
 | `gpt-account-quota-display-design-cn.md` | GPT 账号额度展示 |
+| `gpt-iq-test-design-cn.md` | GPT 降智测试（每日定时测账号答题，结果展示在 `/gpt-quota` 下方；设计稿待确认） |
 | `codex-prompt-risk-filter-design-cn.md` | Codex Prompt 风险过滤器与 Prompt Risk Judge |
 | `openai-request-locale-design-cn.md` | OpenAI 请求时区改写（已合入 main；运行合同见 wiki） |
 | `openai-default-reasoning-effort-design-cn.md` | Chat Completions 缺省 reasoning_effort 注入 |
