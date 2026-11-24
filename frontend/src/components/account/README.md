@@ -1,5 +1,9 @@
 # Account Components
 
+## 上游分组同步
+
+`UpstreamGroupSyncButton.vue` 在创建和编辑表单预览上游名称、备注及自动同步设置。关闭计费探测会关闭自动同步。本地创建表单为受限操作员隐藏该控件，OpenAI-compatible 预设仍单独初始化和重置。
+
 ## 0.2.24
 
 Claude OAuth 与 setup-token 的用量单元格展示 5 小时及 7 天估算成本。批量账号的透传模型过滤只在显式勾选修改时提交。

@@ -71,6 +71,7 @@ const DataTableStub = defineComponent({
     <div>
       <span data-test="column-keys">{{ columns.map(column => column.key).join(",") }}</span>
       <div v-for="row in data" :key="row.id">
+        <slot name="cell-name" :row="row" :value="row.name" />
         <slot name="cell-groups" :row="row" />
         <slot name="cell-schedulable" :row="row" />
         <slot name="cell-priority" :row="row" />
@@ -169,6 +170,16 @@ describe('admin AccountsView — restricted account operator', () => {
     expect(getAllGroups).not.toHaveBeenCalled()
     expect(getUpstreamBillingProbeSettings).not.toHaveBeenCalled()
     expect(wrapper.get('[data-test="account-groups"]').text()).toBe('codex')
+    wrapper.unmount()
+  })
+
+  it('hides the upstream group write action for restricted operators', async () => {
+    const account = { ...listRow, type: 'apikey' }
+    listAccounts.mockResolvedValue({ items: [account], total: 1, page: 1, page_size: 20, pages: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain(account.name)
+    expect(wrapper.find('button[aria-label="admin.accounts.upstreamBilling.saveGroup"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

@@ -1,5 +1,9 @@
 # 前端知识基线
 
+## 同步上游分组
+
+管理员可在创建、编辑表单预览上游分组名和备注，列表行同步仅写入有变化的非空字段。创建表单保留本地 OpenAI-compatible 供应商预设。受限账号操作员的创建表单和列表隐藏同步入口。覆盖见 `CreateAccountModal.spec.ts`、`EditAccountModal.spec.ts`、`AccountsView.lite.spec.ts` 与 `AccountsView.accountsOperator.spec.ts`。
+
 ## 账号管理与模型广场
 
 - Claude OAuth/setup-token 展示 5 小时与 7 天窗口估算成本，Claude/Gemini 用量快照变化可触发缓存刷新。每个账号 60 秒内再次手动刷新 token 会提示，仍会执行。刷新按钮受本地 `canManageAccounts` 控制。

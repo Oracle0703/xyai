@@ -219,7 +219,7 @@ func buildGPTIQProbeRequest(ctx context.Context, account *Account, token, model 
 	}
 	setOpenAIChatGPTAccountHeaders(httpReq.Header, account)
 	enforceCodexIdentityHeadersWithUA(httpReq.Header, account.GetOpenAIUserAgent())
-	account.ApplyHeaderOverrides(httpReq.Header)
+	account.ApplyHeaderOverrides(withoutHeaderOverrideRequestScope(httpReq.Context()), httpReq.Header)
 	return httpReq, nil
 }
 

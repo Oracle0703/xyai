@@ -2399,3 +2399,14 @@ git log --oneline d515c3045ce8..eb2b8632ded6
 | 文本冲突 | `chatcompletions_responses_bridge.go`、`routes/gateway.go`、`openai_responses_namespace.go`、`openai_responses_tool_schema.go`、`AccountActionMenu.vue` |
 | 裁决 | 上游 stop、路由字段检查、扫描优化和刷新提示并入本地行为；保留归档/拦截、具名上下文、schema 校正与子管理员权限。上游完整覆盖的两种 Codex 上下文改用上游实现 |
 | 验证 | 前端 3700/3700、构建通过，Go default/unit/integration 全量已结束。WebSocket 时序断言两父均复现；独立 PG/Redis 仓储与审计套件通过，Windows 发布权限断言在第一父复现。详见[本轮审核](2026-11-23-v0.2.24/review.md)第 5、6 节 |
+
+## 2026-11-24 · 0.2.25
+
+| 项目 | 记录 |
+| --- | --- |
+| 工作分支与第一父 | `feature/hy/10240_merge_sub2api_225`，本地 `main@acc17da790dc776ec4f48154c520a9144a0783c1` |
+| 上游分支与提交 | `Wei-Shaw/sub2api main@0f6671457132425d1b84f3d80536b53e02942424` |
+| 合并提交 | 待用户审核后创建，MERGE_HEAD 保留 |
+| 文本冲突 | `frontend/src/components/account/CreateAccountModal.vue` 与 `frontend/src/components/account/__tests__/EditAccountModal.spec.ts` |
+| 处理 | 合入上游分组同步状态与 mock，保留本地兼容预设、时区和风险检查。GPT 降智后台探测适配新请求头签名，列表与创建表单沿用账号操作员权限 |
+| 验证 | Go 默认及集成全量、独立 PG/Redis 套件、Go lint、前后端构建和健康检查通过。Go unit 的时序失败在两父复现，Vitest 的样式失败在指定上游复现。Windows 平台限制和逐项结果见[本轮审核](2026-11-24-v0.2.25/review.md) |

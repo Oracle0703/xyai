@@ -1,5 +1,9 @@
 # 数据与领域基线
 
+## 计费分组展示与账号同步
+
+`GET /v1/sub2api/billing?include=group` 可返回分组展示名和描述，支持重复与逗号分隔的 include。账号以 `upstream_billing_group_sync_enabled` 显式启用自动同步，并同时启用计费探测；关闭探测时关闭自动同步。后台分别校验分组名和备注，名称上限 100 字节，缺失或无效字段保留本地值。账号设置与探测状态复用现有存储，本轮无 SQL migration 或 Ent schema 变更。
+
 ## 搜索计费与默认平台配额
 
 - Grok 优先按 `usage.server_side_tool_usage_details` 中 web、X 和 document search 三类成功调用数之和计费；该对象缺省时回退到完成的输出项。Responses 推理强度支持按轮记录；本地 Grok 自动强度保留请求值与出站值两列。

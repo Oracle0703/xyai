@@ -1,5 +1,10 @@
 # 安全与可靠性基线
 
+## 请求头身份与账号操作权限
+
+- API Key 账号可在请求头覆写模板使用 `{{user_id}}`、`{{api_key_id}}`、`{{group_id}}`、`{{request_id}}`。身份由 API Key 鉴权中间件建立，缺值时移除整条头。WebSocket 握手省略请求级 ID，连接池区分实际发送的身份。
+- `POST /api/v1/admin/accounts/upstream-billing-probe/group-preview` 沿用管理端权限，受限账号操作员白名单未开放该接口。账号列表的同步写入、创建表单的预览入口受 `canManageAccounts` 控制。
+
 ## 网关字段检查与账号冷却
 
 - `RegisterGatewayRoutes` 在模型白名单之后、合成路由改写之前挂载 `RejectConflictingRequestFields`，覆盖分组与根别名；文本入口在首次读取前应用对应大小限制。Responses 子路径守卫继续先于本地请求拦截器。WebSocket 入口及后续帧使用上游歧义检查。

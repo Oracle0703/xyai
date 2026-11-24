@@ -1,5 +1,9 @@
 # 运维, 配置与验证基线
 
+## 0.2.25 验证入口
+
+Go 工具链为 1.27.4，`github.com/gorilla/websocket` 使用上游固定的 `v1.5.4-0.20240701034025-d67f41855da4`。Go 三套构建标签、独立 PostgreSQL/Redis、前端与发布工具的验证见[本轮审核](../../docs/upstream-sync/2026-11-24-v0.2.25/review.md)。
+
 ## 0.2.24 验证入口
 
 - 上游版本文件为 `backend/cmd/server/VERSION`，Go 1.27.4，原有前端锁文件适用。新增 Exa 可在 Web Search Emulation 的提供商列表中配置。

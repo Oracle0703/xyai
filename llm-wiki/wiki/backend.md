@@ -1,5 +1,10 @@
 # 后端知识基线
 
+## 账号请求头与透传错误
+
+- `Account.ApplyHeaderOverrides(ctx, headers)` 接收出站上下文。网关推理使用请求身份，跨用户共享的模型列表和本地 GPT 降智后台探测使用 `withoutHeaderOverrideRequestScope`。静态自定义头仍生效。
+- OpenAI API Key passthrough 使用上游的错误透传规则，识别结构化 400 的 `invalid_encrypted_content` 并脱敏。compact SSE 的容量错误映射与上下文过长错误码由 `openai_compact_stream_bridge.go` 处理。测试见 `openai_passthrough_error_forwarding_test.go`。
+
 ## 搜索、模型调度与协议转换
 
 - Web Search Emulation 的 provider 支持 `exa`，配置经 `websearch_config.go` 校验，实际请求由 `internal/pkg/websearch/exa.go` 发送。工具结果支持回传来源。Grok 服务端搜索的计费取值见 data-and-domain。

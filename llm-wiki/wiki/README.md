@@ -1,6 +1,10 @@
 # Sub2API llm-wiki 基线
 
-## 上游同步 0.2.24（待提交审核）
+## 上游同步 0.2.25（提交前审核）
+
+账号分组同步、请求头身份变量和 OpenAI 结构化错误透传的运行约束见 backend、frontend、data-and-domain 与 security-and-reliability。基线、冲突裁决及验证见[本轮审核](../../docs/upstream-sync/2026-11-24-v0.2.25/review.md)。
+
+## 上游同步 0.2.24（已随 `b1a869303` 合入本地 main）
 
 - 本地 `main@80034d8eb`、上游 `Wei-Shaw/sub2api main@328db26f4`，分支 `feature/hy/10238_merge_sub2api_224`。冲突裁决、本地功能与测试结果见 [本轮审核](../../docs/upstream-sync/2026-11-23-v0.2.24/review.md)。
 - 网关歧义检查、独立上下文和模型调度见 backend/security，搜索计费与默认配额见 data-and-domain，账号窗口与刷新见 frontend。
@@ -131,7 +135,7 @@ Sub2API 是一个 AI API 网关和管理平台, 用 Go + Gin + Ent 提供后端�
 ## 文档地图（路径说明）
 
 - [[gpt-account-quota-display-design]]：GPT 账号额度共享展示，迅游/速宝双列；2026-09-28 已实施、待上线验收。读写隔离、只读上游、排程与接口合同见该页和 `docs/features/gpt-account-quota-display-design-cn.md` §8。
-- GPT 降智测试（`feature/hy/10239_gpt_iq_test`，前后端已实现、未提交、未上线）：唯一文档 `docs/features/gpt-iq-test-design-cn.md`。结果在 `/gpt-quota` 下方，配置页 `/admin/gpt-iq-test`；账号集合/展示名复用额度展示条目；执行器直连 Codex 上游、无账号副作用；糖果题答案 21（`final_line` 判分）；迁移 265。运行合同见 backend/data/security。
+- GPT 降智测试（`feature/hy/10239_gpt_iq_test`，已随 `acc17da79` 合入本地 main）：唯一文档 `docs/features/gpt-iq-test-design-cn.md`。结果在 `/gpt-quota` 下方，配置页 `/admin/gpt-iq-test`；账号集合/展示名复用额度展示条目；执行器直连 Codex 上游、无账号副作用；糖果题答案 21（`final_line` 判分）；迁移 265。运行合同见 backend/data/security。
 
 - `backend.md`: 后端入口, 路由, Wire 依赖注入, service/repository 分层, 网关路径。
 - `frontend.md`: Vue 前端入口, 路由守卫, store, API client, 组件和样式约定。
