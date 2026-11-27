@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 import type { PaginatedResponse } from '@/types'
 
-export type SelfResetReason = 'SUBSCRIPTION_INACTIVE' | 'GROUP_DISABLED' | 'ONE_TIME_QUOTA' | 'NO_DAILY_LIMIT' | 'POLICY_DISABLED' | 'DAILY_LIMIT_REACHED' | 'NO_USAGE' | 'ROLLOUT_DISABLED'
+export type SelfResetReason = 'SUBSCRIPTION_INACTIVE' | 'GROUP_NOT_ALLOWED' | 'GROUP_DISABLED' | 'ONE_TIME_QUOTA' | 'NO_DAILY_LIMIT' | 'POLICY_DISABLED' | 'DAILY_LIMIT_REACHED' | 'NO_USAGE' | 'ROLLOUT_DISABLED'
 export interface SelfResetItem {
   subscription_id: number
   used_count: number
@@ -35,11 +35,44 @@ export async function getSelfResetStatus(): Promise<SelfResetStatus> {
 export async function resetSubscriptionDaily(id: number, date: string, key: string): Promise<SelfResetResult> {
   return (await apiClient.post<SelfResetResult>(`/subscriptions/${id}/reset-daily`, { quota_date: date }, { headers: { 'Idempotency-Key': key } })).data
 }
-export async function getSelfResetPolicy(): Promise<SelfResetPolicy> {
-  return (await apiClient.get<SelfResetPolicy>('/admin/subscriptions/self-reset-policy')).data
+export interface SelfResetGroup {
+  id: number
+  name: string
+  platform: string
+  status: string
+  subscription_type: string
+  daily_limit_usd: number | null
+  enabled: boolean
 }
-export async function setSelfResetPolicy(policy: SelfResetPolicy): Promise<SelfResetPolicy> {
-  return (await apiClient.put<SelfResetPolicy>('/admin/subscriptions/self-reset-policy', policy)).data
+export type SelfResetOrganization = 'xunyou' | 'wsdashi' | 'other'
+export type SelfResetGroupsByOrganization = Record<SelfResetOrganization, SelfResetGroup[]>
+export interface SelfResetGroupChanges {
+  enable?: number[]
+  disable?: number[]
+}
+export interface SelfResetConfig {
+  revision: number
+  policy: SelfResetPolicy | null
+  groups_by_organization: SelfResetGroupsByOrganization | null
+}
+export interface SelfResetConfigUpdate {
+  expected_revision: number
+  policy?: SelfResetPolicy
+  changes_by_organization?: Partial<Record<SelfResetOrganization, SelfResetGroupChanges>>
+}
+const configPath = '/admin/subscriptions/self-reset-config'
+export async function getSelfResetConfig(): Promise<SelfResetConfig> {
+  return (await apiClient.get<SelfResetConfig>(configPath, { headers: { 'Cache-Control': 'no-cache' } })).data
+}
+export async function saveSelfResetConfig(update: SelfResetConfigUpdate): Promise<{ revision: number }> {
+  return (await apiClient.put<{ revision: number }>(configPath, update)).data
+}
+export async function closeSelfResetRollout(): Promise<{ revision: number }> {
+  return (await apiClient.post<{ revision: number }>(configPath + '/close')).data
+}
+export interface SelfResetEventGroup { id: number; name: string }
+export async function getSelfResetEventGroups(): Promise<{ event_groups: SelfResetEventGroup[] }> {
+  return (await apiClient.get<{ event_groups: SelfResetEventGroup[] }>('/admin/subscriptions/self-reset-event-groups')).data
 }
 export interface SelfResetEvent {
   id: number
@@ -58,6 +91,7 @@ export interface SelfResetEvent {
 export interface SelfResetEventFilters {
   email?: string
   organization?: string
+  group_id?: number
   start_date?: string
   end_date?: string
 }

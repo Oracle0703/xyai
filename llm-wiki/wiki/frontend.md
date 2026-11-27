@@ -355,6 +355,7 @@ API 模块分布:
 - `useSubscriptionSelfReset.ts` 的 refresh 同时读次数状态和页面列表。刷新期间保留上一份状态，不闪成“—”；只有状态请求失败才清空状态、禁用按钮并显示“状态暂不可用”。列表失败由 `loadSubscriptions` 自己提示 `failedToLoad`，不连带丢弃状态。全局 store 只在重置成功后强制刷新；失败时提示并在下一次 refresh 补刷，切回标签页平时不刷新它。旧响应按代次丢弃，按钮只认 can_reset。
 - 操作键首次提交用 getRandomValues 生成，提交前按订阅记入内存和按用户隔离的 sessionStorage（写入失败退回内存，不拒绝提交）。未知结果、401/408/429、处理中/退避都保留原键原日期，并遵守 Retry-After；关闭弹窗或刷新页面后再次打开同一订阅仍沿用原键并提示结果未确认。只有成功或确定性失败才删除，日期变化后作废。不能靠 NO_USAGE 兜底：上限 ≥2 且原请求已提交后又有新用量时，新键会再清零、再扣一次。未确认的键不锁其他订阅。
 - 管理订阅页“自助重置设置”只对完整管理员显示；独立 `SubscriptionSelfResetPolicyDialog.vue` 配置三类组织的 0–100 整数、以及 `rollout=off/admin/all`。默认 `admin` 只开放完整管理员，验证后切为 `all`，异常时可切回 `off`。用户页对 `ROLLOUT_DISABLED` 或尚未加载成功的状态不渲染按钮和提示行，灰度期间普通用户看不到该功能。读取失败时显示空白输入框，不填默认值，可重试，也可填满三项后保存覆盖损坏或缺失的配置。
+- 普通保存一次提交策略和分组差量，带原版本。冲突后整表重载，未知结果先执行版本确认再回读。普通写与关闭操作分别保留恢复信息。关闭丢包后仅看到 `off` 不能解除待确认；须显式重发并取得成功回包，或取得本次可核实的等效版本写入证据。关闭若明确返回 `SELF_RESET_CLOSE_POLICY_INVALID`，保留未决的普通写并允许核实后显式修复策略。用户页隐藏 `GROUP_NOT_ALLOWED` 与 `ROLLOUT_DISABLED`，历史分组选项独立于候选。
 
 - 管理端订阅页在 `frontend/src/views/admin/SubscriptionsView.vue`。
 - 筛选项包含状态、用户、分组、平台、组织及部门；组织内部值为 `xunyou / wsdashi / other`。部门负责人先请求 subscription scope，默认其唯一组织/部门；compact 用户及分组选项限制授权范围，保留原列表排序合同。

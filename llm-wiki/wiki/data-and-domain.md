@@ -399,6 +399,7 @@ go generate ./cmd/server
 - `242_subscription_self_reset_events.sql` 增加只追加的历史表 `subscription_self_reset_events`（subscription/user/group id、organization 快照、quota_date、当日第几次 used_count、daily_limit、重置前日用量 daily_usage_usd_before、created_at），无外键以便订阅删除后仍保留历史。`Reset` 在 `Consume` 之后同事务写入，只记录成功；幂等重放不重复执行业务函数故不产生重复记录。管理员页 `/admin/subscriptions/self-reset-events`（仅完整管理员）按邮箱/组织/额度日期分页查询。历史从 242 生产应用时间（2026-09-28 21:36 +08）起算、未补录；之前的自助重置只剩状态表“每订阅最后一天”计数，查询记录少于用户实际点击次数属预期。对账须按 `schema_migrations.applied_at` 过滤：`idempotency_records`（scope `subscriptions.self_reset.user:%`，status=succeeded，保留 48h）成功数应等于同期事件数；管理员 `reset-quota`/`reset-daily-filtered` 与失败请求均不入该表。
 - 自助次数按每订阅、服务端配置时区自然日计算；DATE 绑定 YYYY-MM-DD 字符串，读回 to_char 后按日历值比较，禁止混入 organizationUsageLocation 固定上海报表时区。旧日期计数逻辑视为 0，当天首次成功才 UPSERT；同日续期、组织变化和管理员重置不清计数。上限升降立即按“上限减今日已用”计算，不能得到负剩余。
 - 自助排除 HasOneTimeDailyQuota 为真的一次性日卡，不按剩余时间判断日卡。普通旧窗口日用量逻辑视为 0，不扣机会；自助不改变周/月用量、额度、余额、历史或到期时间。
+- 自助重置勾选存 `subscription_self_reset_groups(group_id, organization_key)`（266），按邮箱组织、当前分组归属与勾选匹配；`other` 对应未设归属。变更归属后同事务清理失效勾选，类型离开订阅时触发器清理，软删除在查询过滤。管理配置版本存 settings 独立 key `subscription_self_daily_reset_revision`（267），旧策略 JSON 格式不变。普通保存先锁版本行，再按组 ID 升序锁组、复核所有新增资格，一次提交；SQL 中组织参数显式 `$1::text`。无条件关闭和用于确认的空保存也递增版本。上线回滚先关闭并排空旧实例；分组归属上线前置、运维 SQL 与验收见 `docs/features/subscription-self-daily-reset-design-cn.md` §8、§13–§15。
 
 - 管理端接口 `POST /api/v1/admin/subscriptions/:id/reset-quota` 接收 `daily`, `weekly`, `monthly` 三个布尔字段, 至少一个为 true。
 - `SubscriptionService.AdminResetQuota` 只重置被选中的用量窗口, 并在成功后失效订阅缓存和 billing cache。

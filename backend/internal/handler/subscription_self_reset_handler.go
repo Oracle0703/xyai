@@ -112,6 +112,14 @@ func (h *SubscriptionSelfResetHandler) ListEvents(c *gin.Context) {
 		StartDate: strings.TrimSpace(c.Query("start_date")), EndDate: strings.TrimSpace(c.Query("end_date")),
 		Page: page, PageSize: pageSize,
 	}
+	if raw := strings.TrimSpace(c.Query("group_id")); raw != "" {
+		groupID, parseErr := strconv.ParseInt(raw, 10, 64)
+		if parseErr != nil || groupID <= 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return
+		}
+		filter.GroupID = groupID
+	}
 	switch filter.Organization {
 	case "", service.OrganizationXunyou, service.OrganizationWsdashi, service.OrganizationOther:
 	default:
@@ -132,22 +140,91 @@ func (h *SubscriptionSelfResetHandler) ListEvents(c *gin.Context) {
 	response.Paginated(c, events, total, page, pageSize)
 }
 
-func (h *SubscriptionSelfResetHandler) GetPolicy(c *gin.Context) {
-	policy, err := h.service.Policy(c.Request.Context())
+func (h *SubscriptionSelfResetHandler) GetGroups(c *gin.Context) {
+	groups, err := h.service.Groups(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, policy)
+	response.Success(c, gin.H{"groups_by_organization": groups})
 }
 
-func (h *SubscriptionSelfResetHandler) SetPolicy(c *gin.Context) {
-	raw, err := io.ReadAll(io.LimitReader(c.Request.Body, 4097))
-	if err != nil || len(raw) > 4096 {
-		response.BadRequest(c, "Invalid policy request")
+func (h *SubscriptionSelfResetHandler) GetEventGroups(c *gin.Context) {
+	groups, err := h.service.EventGroups(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
 		return
 	}
-	policy, err := h.service.SetPolicy(c.Request.Context(), raw)
+	response.Success(c, gin.H{"event_groups": groups})
+}
+
+func parseSelfResetGroupChanges(raw map[string]json.RawMessage) (map[string]service.SubscriptionSelfResetGroupChanges, error) {
+	if len(raw) == 0 {
+		return nil, service.ErrInvalidSelfResetGroups
+	}
+	result := make(map[string]service.SubscriptionSelfResetGroupChanges, len(raw))
+	for organization, encoded := range raw {
+		if organization != service.OrganizationXunyou && organization != service.OrganizationWsdashi && organization != service.OrganizationOther {
+			return nil, service.ErrInvalidSelfResetGroups
+		}
+		if len(encoded) == 0 || string(encoded) == "null" {
+			return nil, service.ErrInvalidSelfResetGroups
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(encoded, &fields); err != nil || fields == nil {
+			return nil, service.ErrInvalidSelfResetGroups
+		}
+		var change service.SubscriptionSelfResetGroupChanges
+		for field, value := range fields {
+			if field != "enable" && field != "disable" {
+				return nil, service.ErrInvalidSelfResetGroups
+			}
+			var objectValue map[string]any
+			if len(value) == 0 || string(value) == "null" || json.Unmarshal(value, &objectValue) == nil {
+				return nil, service.ErrInvalidSelfResetGroups
+			}
+			var ids []int64
+			if err := json.Unmarshal(value, &ids); err != nil || len(ids) > service.MaxSelfResetGroupChanges {
+				return nil, service.ErrInvalidSelfResetGroups
+			}
+			seen := make(map[int64]struct{}, len(ids))
+			for _, id := range ids {
+				if id <= 0 {
+					return nil, service.ErrInvalidSelfResetGroups
+				}
+				if _, exists := seen[id]; exists {
+					return nil, service.ErrInvalidSelfResetGroups
+				}
+				seen[id] = struct{}{}
+			}
+			if field == "enable" {
+				change.Enable = ids
+			} else {
+				change.Disable = ids
+			}
+		}
+		// An organization listed without any group ID is not a change.
+		if len(change.Enable) == 0 && len(change.Disable) == 0 {
+			return nil, service.ErrInvalidSelfResetGroups
+		}
+		if len(change.Enable) > 0 && len(change.Disable) > 0 {
+			disabled := make(map[int64]struct{}, len(change.Disable))
+			for _, id := range change.Disable {
+				disabled[id] = struct{}{}
+			}
+			for _, id := range change.Enable {
+				if _, exists := disabled[id]; exists {
+					return nil, service.ErrInvalidSelfResetGroups
+				}
+			}
+		}
+		result[organization] = change
+	}
+	return result, nil
+}
+
+func (h *SubscriptionSelfResetHandler) GetPolicy(c *gin.Context) {
+	policy, err := h.service.Policy(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

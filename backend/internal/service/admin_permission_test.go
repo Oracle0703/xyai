@@ -176,8 +176,19 @@ func TestCanAccessAdmin(t *testing.T) {
 func TestSubAdminWriteWhitelistStaysNarrow(t *testing.T) {
 	for _, permission := range AdminPermissionCatalog() {
 		user := &User{Role: RoleSubAdmin, AdminPermissions: []string{permission.Code}}
-		for _, method := range []string{http.MethodGet, http.MethodPut} {
-			require.False(t, CanAccessAdminRoute(user, method, "/api/v1/admin/subscriptions/self-reset-policy"))
+		for _, route := range []struct {
+			method string
+			path   string
+		}{
+			{http.MethodGet, "/api/v1/admin/subscriptions/self-reset-policy"},
+			{http.MethodGet, "/api/v1/admin/subscriptions/self-reset-config"},
+			{http.MethodPut, "/api/v1/admin/subscriptions/self-reset-config"},
+			{http.MethodPost, "/api/v1/admin/subscriptions/self-reset-config/close"},
+			{http.MethodGet, "/api/v1/admin/subscriptions/self-reset-groups"},
+			{http.MethodGet, "/api/v1/admin/subscriptions/self-reset-event-groups"},
+			{http.MethodGet, "/api/v1/admin/subscriptions/self-reset-events"},
+		} {
+			require.False(t, CanAccessAdminRoute(user, route.method, route.path))
 		}
 	}
 	allowedWrites := map[string]map[adminRouteRule]struct{}{

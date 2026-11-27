@@ -15,6 +15,7 @@ import (
 )
 
 const SubscriptionSelfResetPolicyKey = "subscription_self_daily_reset_policy"
+const MaxSelfResetGroupChanges = 1000
 
 const (
 	SubscriptionSelfResetRolloutOff   = "off"
@@ -33,6 +34,8 @@ func selfResetStorageError(err error) error {
 	}
 	return errors.ServiceUnavailable("SELF_RESET_UNAVAILABLE", "Self reset storage unavailable").WithCause(err)
 }
+
+var ErrInvalidSelfResetGroups = errors.BadRequest("INVALID_SELF_RESET_GROUPS", "Invalid self reset group changes")
 
 type SubscriptionSelfResetPolicy struct {
 	DailyLimitByOrganization map[string]int `json:"daily_limit_by_organization"`
@@ -111,13 +114,36 @@ type SubscriptionSelfResetEvent struct {
 type SubscriptionSelfResetEventFilter struct {
 	Email        string
 	Organization string
+	GroupID      int64
 	StartDate    string
 	EndDate      string
 	Page         int
 	PageSize     int
 }
 
+type SubscriptionSelfResetGroup struct {
+	ID               int64    `json:"id"`
+	Name             string   `json:"name"`
+	Platform         string   `json:"platform"`
+	Status           string   `json:"status"`
+	SubscriptionType string   `json:"subscription_type"`
+	DailyLimitUSD    *float64 `json:"daily_limit_usd"`
+	Enabled          bool     `json:"enabled"`
+}
+
+type SubscriptionSelfResetEventGroup struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type SubscriptionSelfResetGroupChanges struct {
+	Enable  []int64 `json:"enable"`
+	Disable []int64 `json:"disable"`
+}
+
 type SubscriptionSelfResetRepository interface {
+	ConfigRevision(context.Context, bool) (int64, error)
+	AdvanceConfigRevision(context.Context, int64) error
 	ReadPolicy(context.Context) (string, error)
 	WritePolicy(context.Context, string) error
 	ListOwned(context.Context, int64) ([]UserSubscription, map[int64]SubscriptionSelfResetUsage, string, error)
@@ -126,6 +152,10 @@ type SubscriptionSelfResetRepository interface {
 	Consume(context.Context, int64, string) error
 	RecordEvent(context.Context, *SubscriptionSelfResetEvent) error
 	ListEvents(context.Context, SubscriptionSelfResetEventFilter) ([]SubscriptionSelfResetEvent, int64, error)
+	ListGroups(context.Context) (map[string][]SubscriptionSelfResetGroup, error)
+	ListEventGroups(context.Context) ([]SubscriptionSelfResetEventGroup, error)
+	ApplyGroupChanges(context.Context, map[string]SubscriptionSelfResetGroupChanges) (map[string][]int64, error)
+	ReadAdmission(context.Context, []int64, string) (string, map[int64]bool, error)
 }
 
 type SubscriptionSelfResetItem struct {
@@ -176,24 +206,13 @@ func (s *SubscriptionSelfResetService) Policy(ctx context.Context) (*Subscriptio
 	if err != nil {
 		return nil, errors.ServiceUnavailable("SELF_RESET_UNAVAILABLE", "Self reset policy unavailable").WithCause(err)
 	}
+	return parseStoredSelfResetPolicy(raw)
+}
+
+func parseStoredSelfResetPolicy(raw string) (*SubscriptionSelfResetPolicy, error) {
 	policy, err := ParseSubscriptionSelfResetPolicy([]byte(raw))
 	if err != nil {
 		return nil, errors.ServiceUnavailable("SELF_RESET_UNAVAILABLE", "Self reset policy invalid").WithCause(err)
-	}
-	return policy, nil
-}
-
-func (s *SubscriptionSelfResetService) SetPolicy(ctx context.Context, raw []byte) (*SubscriptionSelfResetPolicy, error) {
-	policy, err := ParseSubscriptionSelfResetPolicy(raw)
-	if err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(policy)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.WritePolicy(ctx, string(encoded)); err != nil {
-		return nil, selfResetStorageError(err)
 	}
 	return policy, nil
 }
@@ -204,6 +223,22 @@ func (s *SubscriptionSelfResetService) ListEvents(ctx context.Context, filter Su
 		return nil, 0, selfResetStorageError(err)
 	}
 	return events, total, nil
+}
+
+func (s *SubscriptionSelfResetService) Groups(ctx context.Context) (map[string][]SubscriptionSelfResetGroup, error) {
+	groups, err := s.repo.ListGroups(ctx)
+	if err != nil {
+		return nil, selfResetStorageError(err)
+	}
+	return groups, nil
+}
+
+func (s *SubscriptionSelfResetService) EventGroups(ctx context.Context) ([]SubscriptionSelfResetEventGroup, error) {
+	groups, err := s.repo.ListEventGroups(ctx)
+	if err != nil {
+		return nil, selfResetStorageError(err)
+	}
+	return groups, nil
 }
 
 func selfResetItem(sub *UserSubscription, usage SubscriptionSelfResetUsage, limit int, now time.Time) SubscriptionSelfResetItem {
@@ -236,22 +271,55 @@ func selfResetItem(sub *UserSubscription, usage SubscriptionSelfResetUsage, limi
 	return item
 }
 
-func (s *SubscriptionSelfResetService) Status(ctx context.Context, userID int64, role string) (*SubscriptionSelfResetStatus, error) {
-	policy, err := s.Policy(ctx)
-	if err != nil {
-		return nil, err
+func selfResetItemWithGroupAccess(sub *UserSubscription, usage SubscriptionSelfResetUsage, limit int, now time.Time, groupAllowed bool) SubscriptionSelfResetItem {
+	if !groupAllowed {
+		used := 0
+		if usage.QuotaDate == timezone.StartOfDay(now).Format(time.DateOnly) {
+			used = usage.UsedCount
+		}
+		return SubscriptionSelfResetItem{
+			SubscriptionID: sub.ID,
+			UsedCount:      used,
+			RemainingCount: max(0, limit-used),
+			CanReset:       false,
+			DisabledReason: subscriptionSelfResetStringPtr("GROUP_NOT_ALLOWED"),
+		}
 	}
+	return selfResetItem(sub, usage, limit, now)
+}
+
+func subscriptionSelfResetStringPtr(value string) *string { return &value }
+
+func (s *SubscriptionSelfResetService) readAdmission(ctx context.Context, groupIDs []int64, org string) (*SubscriptionSelfResetPolicy, map[int64]bool, error) {
+	raw, allowed, err := s.repo.ReadAdmission(ctx, groupIDs, org)
+	if err != nil {
+		return nil, nil, selfResetStorageError(err)
+	}
+	policy, err := parseStoredSelfResetPolicy(raw)
+	return policy, allowed, err
+}
+
+func (s *SubscriptionSelfResetService) Status(ctx context.Context, userID int64, role string) (*SubscriptionSelfResetStatus, error) {
 	subs, counts, email, err := s.repo.ListOwned(ctx, userID)
 	if err != nil {
 		return nil, selfResetStorageError(err)
 	}
-	now := s.now()
 	org := ResolveSubscriptionOrganization(email)
+	groupIDs := make([]int64, len(subs))
+	for i := range subs {
+		groupIDs[i] = subs[i].GroupID
+	}
+	policy, allowed, err := s.readAdmission(ctx, groupIDs, org)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
 	limit := policy.DailyLimitByOrganization[org]
+	rolloutAllowed := selfResetRolloutAllowed(policy, role)
 	result := &SubscriptionSelfResetStatus{Organization: org, DailyLimit: limit, QuotaDate: timezone.StartOfDay(now).Format(time.DateOnly), ServerNow: now, NextResetAt: timezone.StartOfDay(now).AddDate(0, 0, 1), Subscriptions: make([]SubscriptionSelfResetItem, 0, len(subs))}
 	for i := range subs {
-		item := selfResetItem(&subs[i], counts[subs[i].ID], limit, now)
-		if !selfResetRolloutAllowed(policy, role) {
+		item := selfResetItemWithGroupAccess(&subs[i], counts[subs[i].ID], limit, now, allowed[subs[i].GroupID])
+		if !rolloutAllowed {
 			reason := "ROLLOUT_DISABLED"
 			item.CanReset = false
 			item.DisabledReason = &reason
@@ -265,11 +333,13 @@ func (s *SubscriptionSelfResetService) Reset(ctx context.Context, userID, subscr
 	if dbent.TxFromContext(ctx) == nil {
 		return nil, ErrIdempotencyStoreUnavail
 	}
-	policy, err := s.Policy(ctx) // Same transaction connection, before locking the subscription.
+	// Reject a closed rollout without taking the subscription lock. Only the
+	// admission snapshot read after the lock can authorize the reset.
+	preflight, err := s.Policy(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if !selfResetRolloutAllowed(policy, role) {
+	if !selfResetRolloutAllowed(preflight, role) {
 		return nil, errors.Forbidden("SELF_RESET_ROLLOUT_DISABLED", "Self reset is not enabled for this account")
 	}
 	sub, err := s.repo.GetOwnedByIDForUpdate(ctx, userID, subscriptionID)
@@ -278,6 +348,17 @@ func (s *SubscriptionSelfResetService) Reset(ctx context.Context, userID, subscr
 	}
 	if sub.User == nil || !sub.User.IsActive() || sub.User.DeletedAt != nil {
 		return nil, ErrSubscriptionNotFound
+	}
+	org := ResolveSubscriptionOrganization(sub.User.Email)
+	policy, allowed, err := s.readAdmission(ctx, []int64{sub.GroupID}, org)
+	if err != nil {
+		return nil, err
+	}
+	if !selfResetRolloutAllowed(policy, role) {
+		return nil, errors.Forbidden("SELF_RESET_ROLLOUT_DISABLED", "Self reset is not enabled for this account")
+	}
+	if !allowed[sub.GroupID] {
+		return nil, errors.Forbidden("SELF_RESET_GROUP_NOT_ALLOWED", "Self reset is not enabled for this subscription group")
 	}
 	usage, err := s.repo.GetUsage(ctx, subscriptionID)
 	if err != nil {
@@ -288,7 +369,6 @@ func (s *SubscriptionSelfResetService) Reset(ctx context.Context, userID, subscr
 	if date != today {
 		return nil, errors.Conflict("SELF_RESET_DAY_CHANGED", "Refresh the reset status before confirming")
 	}
-	org := ResolveSubscriptionOrganization(sub.User.Email)
 	limit := policy.DailyLimitByOrganization[org]
 	item := selfResetItem(sub, usage, limit, now)
 	if item.DisabledReason != nil {

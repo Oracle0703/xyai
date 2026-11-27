@@ -8,6 +8,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,14 +86,30 @@ func TestSubscriptionSelfResetEligibility(t *testing.T) {
 	}
 }
 
-type selfResetRolloutRepo struct {
-	SubscriptionSelfResetRepository
-	subs   []UserSubscription
-	locked bool
+func TestSubscriptionSelfResetGroupAccessOverridesOtherReasons(t *testing.T) {
+	now := time.Now()
+	start := timezone.StartOfDay(now)
+	limit := 100.0
+	sub := UserSubscription{ID: 31, Status: SubscriptionStatusExpired, DailyUsageUSD: 80, DailyWindowStart: &start, Group: &Group{Status: StatusActive, DailyLimitUSD: &limit}}
+	item := selfResetItemWithGroupAccess(&sub, SubscriptionSelfResetUsage{}, 1, now, false)
+	require.False(t, item.CanReset)
+	require.Equal(t, "GROUP_NOT_ALLOWED", *item.DisabledReason)
 }
 
+type selfResetRolloutRepo struct {
+	SubscriptionSelfResetRepository
+	subs            []UserSubscription
+	locked          bool
+	admissionPolicy string
+	policyReads     int
+	admissionReads  int
+}
+
+const selfResetAdminOnlyTestPolicy = `{"rollout":"admin","daily_limit_by_organization":{"xunyou":1,"wsdashi":1,"other":1}}`
+
 func (r *selfResetRolloutRepo) ReadPolicy(context.Context) (string, error) {
-	return `{"rollout":"admin","daily_limit_by_organization":{"xunyou":1,"wsdashi":1,"other":1}}`, nil
+	r.policyReads++
+	return selfResetAdminOnlyTestPolicy, nil
 }
 
 func (r *selfResetRolloutRepo) ListOwned(context.Context, int64) ([]UserSubscription, map[int64]SubscriptionSelfResetUsage, string, error) {
@@ -104,13 +121,42 @@ func (r *selfResetRolloutRepo) GetOwnedByIDForUpdate(context.Context, int64, int
 	return nil, ErrSubscriptionNotFound
 }
 
-func TestSubscriptionSelfResetRolloutGatesStatusAndReset(t *testing.T) {
-	now := time.Now()
+func (r *selfResetRolloutRepo) ReadAdmission(context.Context, []int64, string) (string, map[int64]bool, error) {
+	r.admissionReads++
+	return r.admissionPolicy, map[int64]bool{2: true}, nil
+}
+
+func newSelfResetRolloutRepo(now time.Time, admissionPolicy string) *selfResetRolloutRepo {
 	start := timezone.StartOfDay(now)
 	limit := 100.0
-	sub := UserSubscription{ID: 31, StartsAt: now.AddDate(-1, 0, 0), ExpiresAt: now.AddDate(1, 0, 0), Status: SubscriptionStatusActive, DailyUsageUSD: 80, DailyWindowStart: &start, Group: &Group{Status: StatusActive, DailyLimitUSD: &limit}}
-	repo := &selfResetRolloutRepo{subs: []UserSubscription{sub}}
+	sub := UserSubscription{ID: 31, GroupID: 2, StartsAt: now.AddDate(-1, 0, 0), ExpiresAt: now.AddDate(1, 0, 0), Status: SubscriptionStatusActive, DailyUsageUSD: 80, DailyWindowStart: &start, Group: &Group{Status: StatusActive, DailyLimitUSD: &limit}}
+	return &selfResetRolloutRepo{subs: []UserSubscription{sub}, admissionPolicy: admissionPolicy}
+}
+
+func TestSubscriptionSelfResetStatusUsesAdmissionPolicy(t *testing.T) {
+	now := time.Now()
+	// The independent policy read would still return admin-only with a limit of 1.
+	repo := newSelfResetRolloutRepo(now, `{"rollout":"all","daily_limit_by_organization":{"xunyou":3,"wsdashi":1,"other":1}}`)
 	svc := NewSubscriptionSelfResetService(repo, nil)
+	svc.now = func() time.Time { return now }
+
+	status, err := svc.Status(context.Background(), 1, RoleUser)
+	require.NoError(t, err)
+	require.Len(t, status.Subscriptions, 1)
+	item := status.Subscriptions[0]
+	assert.True(t, item.CanReset)
+	assert.Nil(t, item.DisabledReason)
+	assert.Equal(t, 3, status.DailyLimit)
+	assert.Equal(t, 3, item.RemainingCount)
+	assert.Equal(t, 1, repo.admissionReads)
+	assert.Zero(t, repo.policyReads)
+}
+
+func TestSubscriptionSelfResetRolloutGatesStatusAndReset(t *testing.T) {
+	now := time.Now()
+	repo := newSelfResetRolloutRepo(now, selfResetAdminOnlyTestPolicy)
+	svc := NewSubscriptionSelfResetService(repo, nil)
+	svc.now = func() time.Time { return now }
 
 	status, err := svc.Status(context.Background(), 1, RoleUser)
 	require.NoError(t, err)
@@ -121,7 +167,7 @@ func TestSubscriptionSelfResetRolloutGatesStatusAndReset(t *testing.T) {
 	require.True(t, status.Subscriptions[0].CanReset)
 
 	// A user outside the rollout is rejected before the subscription is locked or counted.
-	_, err = svc.Reset(dbent.NewTxContext(context.Background(), &dbent.Tx{}), 1, 31, RoleUser, start.Format(time.DateOnly))
+	_, err = svc.Reset(dbent.NewTxContext(context.Background(), &dbent.Tx{}), 1, 31, RoleUser, now.Format(time.DateOnly))
 	require.Equal(t, "SELF_RESET_ROLLOUT_DISABLED", infraerrors.Reason(err))
 	require.False(t, repo.locked)
 }
@@ -155,9 +201,10 @@ func TestSubscriptionSelfResetDayUsesConfiguredTimezone(t *testing.T) {
 
 type selfResetRecordingRepo struct {
 	SubscriptionSelfResetRepository
-	sub       *UserSubscription
-	recordErr error
-	events    []SubscriptionSelfResetEvent
+	sub             *UserSubscription
+	recordErr       error
+	events          []SubscriptionSelfResetEvent
+	admissionPolicy string
 }
 
 func (r *selfResetRecordingRepo) ReadPolicy(context.Context) (string, error) {
@@ -170,6 +217,14 @@ func (r *selfResetRecordingRepo) GetOwnedByIDForUpdate(context.Context, int64, i
 
 func (r *selfResetRecordingRepo) GetUsage(context.Context, int64) (SubscriptionSelfResetUsage, error) {
 	return SubscriptionSelfResetUsage{}, nil
+}
+
+func (r *selfResetRecordingRepo) ReadAdmission(ctx context.Context, _ []int64, _ string) (string, map[int64]bool, error) {
+	raw, err := r.ReadPolicy(ctx)
+	if r.admissionPolicy != "" {
+		raw = r.admissionPolicy
+	}
+	return raw, map[int64]bool{7: true}, err
 }
 
 func (r *selfResetRecordingRepo) Consume(context.Context, int64, string) error { return nil }
@@ -209,6 +264,21 @@ func TestSubscriptionSelfResetRecordsEventBeforeResettingUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, calls)
 	require.Equal(t, []SubscriptionSelfResetEvent{{SubscriptionID: 31, UserID: 5, GroupID: 7, Organization: OrganizationXunyou, QuotaDate: today, UsedCount: 1, DailyLimit: 2, DailyUsageUSDBefore: 80}}, repo.events)
+
+	// The post-lock snapshot also controls the daily limit and policy validation.
+	for _, tc := range []struct{ raw, reason string }{
+		{`{"rollout":"all","daily_limit_by_organization":{"xunyou":0,"wsdashi":1,"other":1}}`, "SELF_RESET_DISABLED"},
+		{`{"rollout":"all"}`, "SELF_RESET_UNAVAILABLE"},
+	} {
+		repo = newRepo()
+		repo.admissionPolicy = tc.raw
+		calls = 0
+		svc = NewSubscriptionSelfResetService(repo, &SubscriptionService{userSubRepo: selfResetWindowRepo{calls: &calls}})
+		_, err = svc.Reset(ctx, 5, 31, RoleUser, today)
+		require.Equal(t, tc.reason, infraerrors.Reason(err))
+		require.Zero(t, calls)
+		require.Empty(t, repo.events)
+	}
 
 	// A failed history write aborts the reset so the transaction rolls back.
 	calls = 0

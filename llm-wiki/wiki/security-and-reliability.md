@@ -350,6 +350,7 @@ Grok OAuth session 与密码授权:
 ## 幂等
 
 - 用户自助日重置必须显式非空 Idempotency-Key，不能受 observe_only 放宽；scope 隔离认证用户，指纹含具体订阅 ID＋quota_date，TTL 显式 48 小时。缺少 coordinator/事务/提交后回调能力拒绝写入；扣次、日清零和成功结果原子提交，只有提交后执行本机/billing/跨实例缓存失效。
+- 管理员保存以同一版本锁覆盖策略和分组。空确认写入使旧版本失效，紧急关闭不依赖候选列表且同样推进版本。授权只使用同一快照内的策略、次数和准入；已获准的在途重置按该快照完成。管理表单协议与关停 SQL 见 `docs/features/subscription-self-daily-reset-design-cn.md` §7–§9、§15。
 - 自助锁查询同时限定当前 user_id、subscription_id、未删除；其他用户与不存在订阅统一 404。策略 GET/PUT 不在任何子管理员白名单；管理员在用户入口仍受次数约束。BackendModeUserGuard 开启后仍拦截非完整管理员。
 - 自助 rollout 三态由服务端策略控制：`off` fail-closed、`admin` 只允许完整 `admin` 角色、`all` 才允许普通用户；sub_admin 不因订阅管理权限获得自助入口。线上灰度先用 `admin`，验证完成再切 `all`。
 - 自助次数的组织归属只看当前邮箱域名。注册邮箱验证 `IsEmailVerifyEnabled` 是可关闭的开关；关闭时任何人都能注册 `@xunyou.com` / `@wsdashi.com` 邮箱。给三类组织配置不同上限前，必须确认邮箱验证处于开启状态，或能用其他方式保证这些域名的账号受控。

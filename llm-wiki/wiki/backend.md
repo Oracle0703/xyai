@@ -382,7 +382,7 @@ OAuth token refresh 使用按账号 ID 递增的游标分页, 每页默认 `cand
 
 用户侧用量接口:
 
-- 用户自助日重置：`handler/subscription_self_reset_handler.go`、`service/subscription_self_reset.go`、`repository/subscription_self_reset_repo.go`。用户路由 `GET /api/v1/subscriptions/self-reset-status`、`POST /api/v1/subscriptions/:id/reset-daily`；完整管理员策略路由 `GET/PUT /api/v1/admin/subscriptions/self-reset-policy`。不扩展全局 UserSubscription DTO，状态批量读取。
+- 用户自助日重置的 `Status` 用一条授权查询批量读取策略与分组准入。`Reset` 锁前拒绝未开放的角色，锁定本人订阅后重读同一快照中的策略与准入，成功才扣次并写事件。完整管理员通过 `GET/PUT /api/v1/admin/subscriptions/self-reset-config` 读取同版快照及按版本原子保存，通过 `POST .../self-reset-config/close` 直接关闭。原策略/分组 GET 和历史查询为只读。权限、恢复和锁顺序见 `docs/features/subscription-self-daily-reset-design-cn.md` §7–§9。 关闭时已证实策略行缺失或 JSON 无效返回 409 `SELF_RESET_CLOSE_POLICY_INVALID`，不推进版本。存储异常继续按 503 处理。
 - 策略 JSON 新增 `rollout=off|admin|all`，缺失字段按 `admin` 兼容；`admin` 仅 role=admin，sub_admin 不包含在灰度管理员范围。Status 和 Reset 都在后端检查，前端隐藏不能替代权限。
 - POST 用认证 user_id 和 subscription_id 同时限定 FOR UPDATE；同事务先读完整策略、再锁订阅并复查关联用户/分组、扣次数和调用 ResetUsageWindows 仅清日用量，AtomicSuccess 同事务保存成功结果。提交后复用批量日重置三段式缓存失效；不调用 AdminResetQuota 代替用户鉴权/扣次。
 - `service/wire.go#ProvidePluginManager` 保留原 SetAccountDirectory 接线，确保 Wire 重生成不丢插件账号目录能力。自助锁查询使用 Ent WithUser/WithGroup 在父行 FOR UPDATE 后单独加载关联，不手动拼装 Edges；WHERE 仍同时限制用户与订阅归属。

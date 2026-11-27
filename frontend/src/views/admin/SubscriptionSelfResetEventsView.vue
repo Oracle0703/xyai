@@ -13,6 +13,10 @@
                 <label class="input-label">{{ t('userSubscriptions.selfReset.eventsOrganization') }}</label>
                 <Select v-model="filters.organization" :options="organizationOptions" @change="search" />
               </div>
+              <div class="w-full sm:w-auto sm:min-w-[200px]">
+                <label class="input-label">{{ t('userSubscriptions.selfReset.eventsGroup') }}</label>
+                <Select v-model="filters.group_id" :options="groupOptions" @change="search" />
+              </div>
               <div class="w-full sm:w-auto">
                 <label class="input-label">{{ t('userSubscriptions.selfReset.eventsStartDate') }}</label>
                 <input v-model="filters.start_date" type="date" class="input" @change="search" />
@@ -74,7 +78,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import type { Column } from '@/components/common/types'
-import { listSelfResetEvents, type SelfResetEvent } from '@/api/subscriptionSelfReset'
+import { getSelfResetEventGroups, listSelfResetEvents, type SelfResetEvent } from '@/api/subscriptionSelfReset'
 import { formatDateTime } from '@/utils/format'
 import { useAppStore } from '@/stores/app'
 
@@ -85,11 +89,16 @@ const events = ref<SelfResetEvent[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
-const filters = reactive({ email: '', organization: '', start_date: '', end_date: '' })
+const filters = reactive<{ email: string; organization: string; group_id: number | ''; start_date: string; end_date: string }>({ email: '', organization: '', group_id: '', start_date: '', end_date: '' })
+const eventGroups = ref<{ id: number; name: string }[]>([])
 
 const organizationOptions = computed(() => [
   { value: '', label: t('userSubscriptions.selfReset.eventsAllOrganizations') },
   ...(['xunyou', 'wsdashi', 'other'] as const).map((org) => ({ value: org, label: t(`userSubscriptions.selfReset.${org}`) }))
+])
+const groupOptions = computed(() => [
+  { value: '', label: t('userSubscriptions.selfReset.allGroups') },
+  ...eventGroups.value.map((group) => ({ value: group.id, label: group.name }))
 ])
 
 const columns = computed<Column[]>(() => [
@@ -121,7 +130,7 @@ function search() {
 }
 
 function resetFilters() {
-  Object.assign(filters, { email: '', organization: '', start_date: '', end_date: '' })
+  Object.assign(filters, { email: '', organization: '', group_id: '', start_date: '', end_date: '' })
   search()
 }
 
@@ -135,5 +144,17 @@ function onPageSizeChange(value: number) {
   search()
 }
 
-onMounted(load)
+// The filter options and the list load side by side; neither waits for the other.
+async function loadEventGroups() {
+  try {
+    eventGroups.value = (await getSelfResetEventGroups()).event_groups
+  } catch (error) {
+    appStore.showError((error as { message?: string })?.message || t('common.error'))
+  }
+}
+
+onMounted(() => {
+  void loadEventGroups()
+  void load()
+})
 </script>

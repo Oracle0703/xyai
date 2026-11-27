@@ -758,8 +758,12 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerSubscriptionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	subscriptions := admin.Group("/subscriptions")
 	{
+		subscriptions.GET("/self-reset-groups", h.SubscriptionSelfReset.GetGroups)
+		subscriptions.GET("/self-reset-config", h.SubscriptionSelfReset.GetConfig)
+		subscriptions.PUT("/self-reset-config", h.SubscriptionSelfReset.SaveConfig)
+		subscriptions.POST("/self-reset-config/close", h.SubscriptionSelfReset.CloseConfig)
+		subscriptions.GET("/self-reset-event-groups", h.SubscriptionSelfReset.GetEventGroups)
 		subscriptions.GET("/self-reset-policy", h.SubscriptionSelfReset.GetPolicy)
-		subscriptions.PUT("/self-reset-policy", h.SubscriptionSelfReset.SetPolicy)
 		subscriptions.GET("/self-reset-events", h.SubscriptionSelfReset.ListEvents)
 		subscriptions.GET("", h.Admin.Subscription.List)
 		subscriptions.GET("/search-groups", h.Admin.Department.SubscriptionGroups)

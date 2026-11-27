@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -50,4 +52,58 @@ func TestSubscriptionSelfResetHandlerListEventsRejectsBadFilters(t *testing.T) {
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/events?"+query, nil))
 		require.Equal(t, http.StatusBadRequest, w.Code, query)
 	}
+}
+
+func TestParseSelfResetGroupChanges(t *testing.T) {
+	changes, err := parseSelfResetGroupChanges(map[string]json.RawMessage{
+		"xunyou": json.RawMessage(`{"enable":[12],"disable":[30]}`),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int64{12}, changes[service.OrganizationXunyou].Enable)
+	require.Equal(t, []int64{30}, changes[service.OrganizationXunyou].Disable)
+
+	for _, raw := range []map[string]json.RawMessage{
+		{"xunyou": json.RawMessage(`{"enable":null}`)},
+		{"xunyou": json.RawMessage(`{"enable":[1],"disable":[1]}`)},
+		{"unknown": json.RawMessage(`{"enable":[1]}`)},
+		{},
+		{"xunyou": json.RawMessage(`{}`)},
+		{"xunyou": json.RawMessage(`{"enable":[],"disable":[]}`)},
+		{"xunyou": json.RawMessage(`{"enable":[1]}`), "other": json.RawMessage(`{"disable":[]}`)},
+		{"xunyou": json.RawMessage(`{"enable":[0]}`)},
+		{"xunyou": json.RawMessage(`{"enable":[1,1]}`)},
+		{"xunyou": json.RawMessage(`{"enable":{}}`)},
+		{"xunyou": json.RawMessage(`{"enable":[1],"extra":[2]}`)},
+		{"xunyou": json.RawMessage(`null`)},
+	} {
+		_, err := parseSelfResetGroupChanges(raw)
+		require.Error(t, err)
+		require.Equal(t, "INVALID_SELF_RESET_GROUPS", infraerrors.Reason(err))
+	}
+}
+
+func TestSubscriptionSelfResetHandlerRejectsInvalidConfig(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := NewSubscriptionSelfResetHandler(nil)
+	r.PUT("/config", h.SaveConfig)
+	r.POST("/config/close", h.CloseConfig)
+	for _, body := range []string{
+		`{}`, `{"expected_revision":0}`, `{"expected_revision":1.5}`, `null`,
+		`{"expected_revision":1} {}`, `{"expected_revision":1,"unknown":1}`,
+		strings.Repeat(" ", 64*1024) + `{"expected_revision":1}`,
+		`{"expected_revision":1,"changes_by_organization":null}`,
+		`{"expected_revision":1,"changes_by_organization":{}}`,
+		`{"expected_revision":1,"changes_by_organization":{"xunyou":{"enable":[1],"disable":[1]}}}`,
+	} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodPut, "/config", strings.NewReader(body)))
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/config/close", strings.NewReader(`{"expected_revision":1}`)))
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	change, err := readSelfResetConfigChange(strings.NewReader(`{"expected_revision":42}`))
+	require.NoError(t, err)
+	require.Equal(t, service.SubscriptionSelfResetConfigChange{ExpectedRevision: 42}, change)
 }

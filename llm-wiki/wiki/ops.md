@@ -680,10 +680,10 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 
 ## 自助日重置专项验证（2026-09-23）
 
-- 后端在 `backend/` 按本页 Go 缓存入口运行 `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler ./internal/server/middleware ./internal/server/routes -run 'SubscriptionSelfReset|AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|BackendModeUserGuard|SubscriptionBulkActionRoutes'`。
-- 隔离 PostgreSQL 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN` 后执行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run SubscriptionSelfReset`。覆盖并发、单连接池、回滚、DATE、组织一致性及两个服务实例缓存回读；缓存测试用 miniredis TCP/PubSub，不代表生产 Redis 集群故障验证。勿对业务库运行迁移测试。既没有 Docker 也没有设置该 DSN 时，`TestMain` 会打印 `docker is not available; skipping integration tests` 并返回 `ok`，必须加 `-v` 确认三个用例 `--- PASS`。main 上 CI 的单测步骤当前失败，集成步骤不会执行，CI 不能替代这一步。上线后的 SQL 验证步骤见交付记录「上线与 PostgreSQL 验证」。
-- 前端 `pnpm --dir frontend exec vitest run src/views/user/__tests__/SubscriptionsView.selfReset.spec.ts src/composables/__tests__/useSubscriptionSelfReset.spec.ts src/components/admin/subscription/__tests__/SubscriptionSelfResetPolicyDialog.spec.ts`，并运行既有管理订阅用例、locale 完整性、typecheck 与 ESLint。
-- 发布须随正常启动应用追加 migration 241；本轮只迁移临时测试库，未更新运行中的业务服务。交付边界见 `docs/features/subscription-self-daily-reset-design-cn.md` §14–§15（交付记录已并入）。实现审核见 `docs/features/subscription-self-daily-reset-design-cn.md` §16（审核已并入）。
+- 后端在 `backend/` 按本页 Go 缓存入口运行 `go test -tags=unit -p 1 -count=1 ./internal/service ./internal/handler ./internal/server/middleware ./internal/server/routes -run 'SubscriptionSelfReset|ParseSelfReset|AdminPermission|CanAccessAdmin|SubAdmin|AdminAuth|BackendModeUserGuard|SubscriptionBulkActionRoutes|GroupOrganizationScope'`（加上 `./internal/handler/admin`）。
+- 在独立空 PostgreSQL 设置 `SUB2API_POSTGRES_ONLY_INTEGRATION_DSN`，执行 `go test -tags=integration -p 1 -count=1 ./internal/repository -run 'SubscriptionSelfReset|GroupOrganizationScope' -v`。逐项核对真实 `--- PASS`，覆盖事务回滚、版本冲突、确认先后顺序、订阅行锁等待和快照一致性。Docker 不可用且缺少 DSN 时 `TestMain` 会跳过。上线和回滚用功能文档 §15 与数据库版本匹配的关闭 SQL，已应用 267 的库须同事务推进配置版本。
+- 前端 `pnpm --dir frontend exec vitest run src/views/user/__tests__/SubscriptionsView.selfReset.spec.ts src/composables/__tests__/useSubscriptionSelfReset.spec.ts src/components/admin/subscription/__tests__/SubscriptionSelfResetPolicyDialog.spec.ts src/views/admin/__tests__/SubscriptionSelfResetEventsView.spec.ts`，并运行既有管理订阅用例、locale 完整性、typecheck 与 ESLint。
+- 自助计次与历史依赖迁移 241、242，组织勾选与版本化保存依赖 266、267。首次升级与回滚的关闭步骤分别见 `docs/features/subscription-self-daily-reset-design-cn.md` §15。 版本行损坏时先按 §15 的故障关停步骤关闭业务策略，保留异常版本；有可信的已发版本上界后才恢复普通配置写入。
 
 ## 上游历史分支合并注意事项
 
@@ -703,7 +703,9 @@ Prompt Audit 是数据库运行时设置, 不在 YAML 中新增独立配置组:
 ## OpenAI 首字耗时排查
 
 - 对比 `usage_logs.first_token_ms` 时先对齐实际账号、`upstream_model`、推理强度、`service_tier`、请求类型与上下文大小；账号相同不表示分组 Fast 策略相同。上下文按本项目字段 `input_tokens + cache_read_tokens` 观察，缓存命中高不代表长上下文无推理开销。
-- 原生 HTTP Responses 的计时起点在 `OpenAIGatewayService.Forward` 内，终点由 `openai_gateway_response_handling.go` 按 `openai_ttft_mode` 判定事件，首输出 staging 路径在事件提交/flush 附近记录。包含本次转发准备与上游等待，可能受下游写出等待影响；不是客户端 RTT 或实际渲染耗时，不能仅凭该字段判断 VPN，也不能全部归为模型计算。
+- 原生 HTTP Responses 的计时起点是 `openai_gateway_forward.go` 的 `forwardResponses` 内 `startTime`（部分身份/时区准备之后），终点由 `openai_gateway_response_handling.go` 按 `openai_ttft_mode` 判定事件，首输出 staging 路径在事件提交/flush 附近记录。包含本次转发剩余准备与上游等待，可能受下游写出等待影响；不是客户端 RTT 或实际渲染耗时，不能仅凭该字段判断 VPN，也不能全部归为模型计算。
+- `usage_logs.created_at` 在 `openai_gateway_usage.go` 构造用量记录时赋值，不是请求开始时间。按完成时刻分析应以 `logger.go` 的 `completed_at` 明确半开时间窗，并核对原始请求 ID 的唯一性、关联覆盖及跨窗请求；HTTP `latency_ms` 与转发 `duration_ms` 计时范围不同，差值不能直接命名为排队或网络耗时。`service_tier` 空值也不能反推真实上游 Standard 档位。
+- 用户槽等待失败在进入本次 Forward 前返回，明确的 `timeout waiting for user concurrency slot` 日志可证明该请求等待超时。SSE 心跳已 flush 时随后失败仍可记录 HTTP 200；须按同一服务端 `request_id` 关联错误日志，不能仅以 HTTP 200 统计业务成功。源码入口：`handler/gateway_helper.go`、`handler/concurrency_error_response.go`、`handler/openai_gateway_handler.go`。
 - 2026-10-27 只读排查实例：同一上游账号、同模型同推理强度下，强制 Fast（`service_tier=priority`）且平均上下文约 6 万 Token 的用户首字中位约 3.8 秒，未指定档位且平均上下文约 28 万 Token 的用户约 13.4 秒；后者当天随会话上下文从 6 万涨到 53 万，小时首字中位从约 7 秒升到约 27 秒。结论只能说明档位与长上下文是优先排查项，不能量化各自贡献，也不能排除客户端网络。排查顺序：先压缩/新开会话看上下文下降后的延迟，再在同模型、同档位、相近上下文与时段下对照，最后固定这些条件比较 VPN 开关。原报告已移出仓库（最后存在于 `26f6363af`）。
 - 调整分组强制 Fast 前需同时核对收费配置（`free_openai_fast` 是收费配置，不是速度档位），用户侧网络归因需要固定模型/档位/上下文的客户端对照。
 

@@ -3,8 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"sort"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
@@ -76,13 +78,56 @@ func (r *groupRepository) ReplaceGroupOrganizationScopes(ctx context.Context, gr
 	if standard > 0 && len(organizationKeys) > 0 {
 		return service.ErrGroupOrganizationScopeInvalid
 	}
-	if _, err = client.ExecContext(ctx, `DELETE FROM group_organization_scopes WHERE group_id=ANY($1)`, pq.Array(groupIDs)); err != nil {
+	// The deleted rows are the previous scopes, kept for the log line below.
+	rows, err = client.QueryContext(ctx, `DELETE FROM group_organization_scopes WHERE group_id=ANY($1) RETURNING group_id, organization_key`, pq.Array(groupIDs))
+	if err != nil {
 		return err
 	}
-	if len(organizationKeys) == 0 {
-		return nil
+	previous := map[int64][]string{}
+	for rows.Next() {
+		var groupID int64
+		var organizationKey string
+		if err = rows.Scan(&groupID, &organizationKey); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		previous[groupID] = append(previous[groupID], organizationKey)
 	}
-	_, err = client.ExecContext(ctx, `INSERT INTO group_organization_scopes (group_id, organization_key)
-SELECT g.id, k.key FROM unnest($1::bigint[]) AS g(id) CROSS JOIN unnest($2::text[]) AS k(key)`, pq.Array(groupIDs), pq.Array(organizationKeys))
-	return err
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+	for _, keys := range previous {
+		sort.Strings(keys)
+	}
+	if len(organizationKeys) > 0 {
+		if _, err = client.ExecContext(ctx, `INSERT INTO group_organization_scopes (group_id, organization_key)
+SELECT g.id, k.key FROM unnest($1::bigint[]) AS g(id) CROSS JOIN unnest($2::text[]) AS k(key)`, pq.Array(groupIDs), pq.Array(organizationKeys)); err != nil {
+			return err
+		}
+	}
+	// Self-reset ticks follow the final scope: rows that no longer match are
+	// removed here, also when the scope is cleared, and are not restored when
+	// the scope comes back (subscription-self-daily-reset-design-cn.md §8.1).
+	cleared, err := client.ExecContext(ctx, `DELETE FROM subscription_self_reset_groups r
+WHERE r.group_id=ANY($1)
+  AND ((r.organization_key='other' AND EXISTS (SELECT 1 FROM group_organization_scopes s WHERE s.group_id=r.group_id))
+    OR (r.organization_key<>'other' AND NOT EXISTS (
+         SELECT 1 FROM group_organization_scopes s
+          WHERE s.group_id=r.group_id AND s.organization_key=r.organization_key
+    )))`, pq.Array(groupIDs))
+	if err != nil {
+		return err
+	}
+	clearedRows, err := cleared.RowsAffected()
+	if err != nil {
+		return err
+	}
+	// Written before the caller commits; the admin request audit records the
+	// outcome. Groups missing from previous_scopes had no scope.
+	logger.LegacyPrintf("repository.group", "[GroupOrganizationScope] scopes replaced: group_ids=%v previous_scopes=%v organization_keys=%v cleared_self_reset_groups=%d", groupIDs, previous, organizationKeys, clearedRows)
+	return nil
 }

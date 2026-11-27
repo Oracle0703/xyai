@@ -321,7 +321,7 @@ const {
 // Accounts outside the rollout, and pages without an authoritative status, do not see the feature.
 function selfResetVisible(id: number): boolean {
   const item = resetItems.value.get(id)
-  return !!item && item.disabled_reason !== 'ROLLOUT_DISABLED'
+  return !!item && item.disabled_reason !== 'ROLLOUT_DISABLED' && item.disabled_reason !== 'GROUP_NOT_ALLOWED'
 }
 
 function resetHint(id: number): string {
